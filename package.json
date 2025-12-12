@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@azure/identity": "^4.12.0",
-    "next": "^15.5.3",
+    "next": "15.5.9",
     "openai": "^5.20.2",
     "playfab-sdk": "^2.174.250526",
     "react": "^19.0.0",
