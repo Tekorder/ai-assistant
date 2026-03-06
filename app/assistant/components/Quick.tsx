@@ -126,14 +126,39 @@ function moveUncToTop(blocks: Block[]) {
   if (uncIndex < 0 || uncIndex === 0) return b;
   return [...b.slice(uncIndex, end), ...b.slice(0, uncIndex), ...b.slice(end)];
 }
-function normalizeLoadedBlocks(raw: any): Block[] {
+
+type RawBlock = {
+  id?: unknown;
+  text?: unknown;
+  indent?: unknown;
+  checked?: unknown;
+  deadline?: unknown;
+  isHidden?: unknown;
+  archived?: unknown;
+};
+
+type RawProject = {
+  project_id?: unknown;
+  title?: unknown;
+  blocks?: unknown;
+  collapsed?: unknown;
+  quickCollapsed?: unknown;
+  payload?: { blocks?: unknown };
+};
+
+type StoragePayload = {
+  projects?: unknown;
+  selectedProjectId?: unknown;
+};
+
+function normalizeLoadedBlocks(raw: unknown): Block[] {
   if (!Array.isArray(raw)) return moveUncToTop(ensureUncExists([]));
-  const out: Block[] = raw.map((x: any) => {
+  const out: Block[] = (raw as RawBlock[]).map((x: RawBlock) => {
     const id = typeof x?.id === 'string' ? x.id : uid();
     const text = typeof x?.text === 'string' ? x.text : '';
     const indent = Number.isFinite(x?.indent) ? Number(x.indent) : 0;
     const b: Block = { id, text, indent: Math.max(0, indent) };
-    if (b.indent > 0) { b.checked = Boolean(x?.checked); if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline; }
+    if (b.indent > 0) { b.checked = Boolean(x?.checked); if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline as string; }
     if (typeof x?.isHidden === 'boolean') b.isHidden = x.isHidden;
     if (typeof x?.archived === 'boolean') b.archived = x.archived;
     return b;
@@ -155,14 +180,14 @@ function readProjectsLS(): ProjectsPayload | null {
   try {
     const raw = localStorage.getItem(LS_KEY_V2);
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as StoragePayload;
     const loadedProjects: Project[] = Array.isArray(parsed?.projects)
-      ? parsed.projects.map((p: any) => ({
+      ? (parsed.projects as RawProject[]).map((p: RawProject) => ({
           project_id: typeof p?.project_id === 'string' ? p.project_id : pid(),
-          title: typeof p?.title === 'string' && p.title.trim() ? p.title.trim() : 'Personal',
-          blocks: normalizeLoadedBlocks(p?.blocks ?? p?.payload?.blocks ?? []),
-          collapsed: p?.collapsed && typeof p.collapsed === 'object' ? p.collapsed : {},
-          quickCollapsed: p?.quickCollapsed && typeof p.quickCollapsed === 'object' ? p.quickCollapsed : {},
+          title: typeof p?.title === 'string' && (p.title as string).trim() ? (p.title as string).trim() : 'Personal',
+          blocks: normalizeLoadedBlocks(p?.blocks ?? (p?.payload as { blocks?: unknown })?.blocks ?? []),
+          collapsed: p?.collapsed && typeof p.collapsed === 'object' ? p.collapsed as Record<string, boolean> : {},
+          quickCollapsed: p?.quickCollapsed && typeof p.quickCollapsed === 'object' ? p.quickCollapsed as Record<string, boolean> : {},
         })).filter(Boolean)
       : [];
     const safeProjects = loadedProjects.length ? loadedProjects : [makePersonalProject()];
@@ -192,8 +217,13 @@ function ConfettiRain({ show }: { show: boolean }) {
       <style>{`@keyframes confettiFall{0%{transform:translate3d(var(--drift),-12vh,0) rotate(var(--rot));opacity:0}10%{opacity:var(--op)}100%{transform:translate3d(calc(var(--drift)*-1),112vh,0) rotate(calc(var(--rot)+720deg));opacity:0}}`}</style>
       {pieces.map(p => (
         <span key={p.i} className="absolute top-0 rounded-sm shadow-sm"
-          // @ts-ignore
-          style={{ left:`${p.left}vw`, width:`${p.size}px`, height:`${Math.max(6,p.size*0.55)}px`, animationDelay:`${p.delay}s`, animationDuration:`${p.duration}s`, '--rot':`${p.rot}deg`, '--drift':`${p.drift}px`, '--op':`${p.opacity}`, background:`hsl(${p.hue} 90% 60%)`, opacity:p.opacity, animationName:'confettiFall', animationTimingFunction:'linear', animationIterationCount:1 }}
+          style={{
+            left:`${p.left}vw`, width:`${p.size}px`, height:`${Math.max(6,p.size*0.55)}px`,
+            animationDelay:`${p.delay}s`, animationDuration:`${p.duration}s`,
+            ['--rot' as string]:`${p.rot}deg`, ['--drift' as string]:`${p.drift}px`, ['--op' as string]:`${p.opacity}`,
+            background:`hsl(${p.hue} 90% 60%)`, opacity:p.opacity,
+            animationName:'confettiFall', animationTimingFunction:'linear', animationIterationCount:1
+          }}
         />
       ))}
     </div>
@@ -413,10 +443,12 @@ export default function Quick() {
       lastWrittenRef.current = nextStr;
       setTimeout(() => { applyingExternalRef.current = false; }, 0);
     };
+    const handleStorage = (e: StorageEvent) => { if (e.key === LS_KEY_V2) applyFromLS(); };
     window.addEventListener('youtask_projects_updated', applyFromLS);
-    window.addEventListener('storage', (e: StorageEvent) => { if (e.key === LS_KEY_V2) applyFromLS(); });
+    window.addEventListener('storage', handleStorage);
     return () => {
       window.removeEventListener('youtask_projects_updated', applyFromLS);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
@@ -520,7 +552,7 @@ export default function Quick() {
 
   const navDisabled = dateMode === 'all';
 
-  const gamificationLines = useMemo(() => ['🔥 Good work, keep it up','💥 Nice one','🚀 Momentum','✅ One more done','🔥 You re on fire','📈 That s progress','💪 Strong move','🏆 Keep stacking wins','✨ Another step forward','🧼 Clean work','🎯 Locked in','⚡ Winning rhythm','🙌 Great job','🧠 Sharp move','💣 Boom, done','🌟 That was solid','🔥 Keep the streak alive','👏 Love that energy','🚀 Lets go','💪 You got this'], []);
+  const gamificationLines = useMemo(() => ['🔥 Good work, keep it up','💥 Nice one','🚀 Momentum','✅ One more done','🔥 You\'re on fire','📈 That\'s progress','💪 Strong move','🏆 Keep stacking wins','✨ Another step forward','🧼 Clean work','🎯 Locked in','⚡ Winning rhythm','🙌 Great job','🧠 Sharp move','💣 Boom, done','🌟 That was solid','🔥 Keep the streak alive','👏 Love that energy','🚀 Let\'s go','💪 You got this'], []);
 
   const showGamificationToast = () => {
     const msg = gamificationLines[Math.floor(Math.random() * gamificationLines.length)];
@@ -569,7 +601,7 @@ export default function Quick() {
       if (prev.length === 1) return prev;
       const i = prev.findIndex(b => b.id === id);
       if (i < 0) return prev;
-      if (prev[i]?.indent === 0) setCurrentCollapsed(c => { const { [id]: _, ...rest } = c; return rest; });
+      if (prev[i]?.indent === 0) setCurrentCollapsed(c => { const { [id]: _omit, ...rest } = c; void _omit; return rest; });
       const next = prev.filter(b => b.id !== id);
       const target = next[Math.max(0, i - 1)];
       if (target) focusBlock(target.id, true);
@@ -590,7 +622,7 @@ export default function Quick() {
       const { uncIndex, end: uncEnd } = findUncRange(next);
       if (uncIndex < 0) return next;
       next = next.slice(0, uncEnd).concat(children, next.slice(uncEnd));
-      setCurrentCollapsed(c => { const { [listId]: _, ...rest } = c; return rest; });
+      setCurrentCollapsed(c => { const { [listId]: _omit, ...rest } = c; void _omit; return rest; });
       const target = next[Math.max(0, uncIndex + 1)] ?? next[0];
       if (target) focusBlock(target.id, true);
       return next;
@@ -665,6 +697,7 @@ export default function Quick() {
       hidden[b.id] = Boolean(currentListId && collapsed[currentListId]);
     }
     return hidden;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blocks, collapsed, showHidden, dateMode, focusDay]);
 
   let __textMeasureCanvas: HTMLCanvasElement | null = null;
@@ -736,7 +769,7 @@ export default function Quick() {
           <input ref={el => void  (inputRefs.current[b.id] = el)} value={b.text} placeholder="Task…" onChange={e => updateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
             className={['bg-transparent outline-none text-sm flex-none', b.checked ? 'text-white/40 line-through' : 'text-white/80'].join(' ')} style={{ width:`${inputWidthPx(b.text)}px` }} />
           <button type="button" className={['shrink-0 text-[11px] px-1.5 py-0.5 rounded-full border transition-colors', pillClass(b.deadline, b.checked)].join(' ')} title={pill ? 'Change date' : 'Set date'}
-            onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as any).showPicker?.(); } catch {} el.click(); }}>
+            onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} el.click(); }}>
             {pill ? pill : '📅'}
           </button>
           <input ref={el => void  (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; updateBlock(b.id, { deadline: v ? v : undefined }); }} />
@@ -809,7 +842,7 @@ export default function Quick() {
                   {isTask ? (
                     <>
                       <button type="button" className={['shrink-0 text-[11px] px-1.5 py-0.5 rounded-full border transition-colors', pillClass(b.deadline, b.checked)].join(' ')} title="Set date"
-                        onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as any).showPicker?.(); } catch {} el.click(); }}>
+                        onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} el.click(); }}>
                         {formatPill(b.deadline) || '📅'}
                       </button>
                       <input ref={el => void  (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; updateBlock(b.id, { deadline: v ? v : undefined }); }} />
@@ -936,7 +969,7 @@ export default function Quick() {
                     className="mt-4 max-w-[260px] w-full text-left text-[13px] px-4 py-3 rounded-2xl border border-emerald-400/25 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/20 transition-colors">
                     + New List
                   </button>
-                  <div className="text-[11px] text-white/35 mt-3">Hint: after you create a list, you'll always see an <span className="text-white/55">+ task</span> button right below it.</div>
+                  <div className="text-[11px] text-white/35 mt-3">Hint: after you create a list, you&apos;ll always see an <span className="text-white/55">+ task</span> button right below it.</div>
                 </div>
               ) : splitMode ? renderSplitView() : renderNormalList()}
             </div>

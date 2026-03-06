@@ -111,23 +111,24 @@ function moveUncToTop(blocks: Block[]) {
   return [...range, ...rest];
 }
 
-function normalizeLoadedBlocks(raw: any): Block[] {
+function normalizeLoadedBlocks(raw: unknown): Block[] {
   if (!Array.isArray(raw)) return moveUncToTop(ensureUncExists([]));
 
   const out: Block[] = raw
-    .map((x: any) => {
-      const id = typeof x?.id === 'string' ? x.id : uid();
-      const text = typeof x?.text === 'string' ? x.text : '';
-      const indent = Number.isFinite(x?.indent) ? Number(x.indent) : 0;
-      const b: Block = { id, text, indent: Math.max(0, indent) };
-      if (b.indent > 0) {
-        b.checked = Boolean(x?.checked);
-        if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline;
-      }
-      if (typeof x?.isHidden === 'boolean') b.isHidden = x.isHidden;
-      if (typeof x?.archived === 'boolean') b.archived = x.archived;
-      return b;
-    })
+   .map((x: unknown) => {
+        const item = x as Record<string, unknown>;
+        const id = typeof item?.id === 'string' ? item.id : uid();
+        const text = typeof item?.text === 'string' ? item.text : '';
+        const indent = Number.isFinite(item?.indent) ? Number(item.indent) : 0;
+        const b: Block = { id, text, indent: Math.max(0, indent) };
+        if (b.indent > 0) {
+          b.checked = Boolean(item?.checked);
+          if (isValidDateYYYYMMDD(item?.deadline)) b.deadline = item.deadline as string;
+        }
+        if (typeof item?.isHidden === 'boolean') b.isHidden = item.isHidden;
+        if (typeof item?.archived === 'boolean') b.archived = item.archived;
+        return b;
+      })
     .filter(Boolean) as Block[];
 
   return moveUncToTop(ensureUncExists(out));
@@ -151,16 +152,17 @@ type HabitsPayload = {
   lastWeeklyResetYMD?: string;
 };
 
-function normalizeHabits(raw: any): HabitBlock[] {
+function normalizeHabits(raw: unknown): HabitBlock[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((x: any) => {
-      const id = typeof x?.id === 'string' ? x.id : uid();
-      const text = typeof x?.text === 'string' ? x.text : '';
-      const checked = Boolean(x?.checked);
-      const weekly = typeof x?.weekly === 'boolean' ? x.weekly : false;
-      return { id, text, indent: 1 as const, checked, weekly } as HabitBlock;
-    })
+   .map((x: unknown) => {
+        const item = x as Record<string, unknown>;
+        const id = typeof item?.id === 'string' ? item.id : uid();
+        const text = typeof item?.text === 'string' ? item.text : '';
+        const checked = Boolean(item?.checked);
+        const weekly = typeof item?.weekly === 'boolean' ? item.weekly : false;
+        return { id, text, indent: 1 as const, checked, weekly } as HabitBlock;
+      })
     .filter(Boolean);
 }
 
@@ -188,17 +190,18 @@ function writeHabitsLS(payload: HabitsPayload) {
 /* ------------------ Reminders LS ------------------ */
 type RemindersPayload = { reminders: ReminderItem[] };
 
-function normalizeReminders(raw: any): ReminderItem[] {
+function normalizeReminders(raw: unknown): ReminderItem[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((x: any) => {
-      const id = typeof x?.id === 'string' ? x.id : uid();
-      const title = typeof x?.title === 'string' ? x.title : '';
-      const date = isValidDateYYYYMMDD(x?.date) ? x.date : todayYMD();
-      const time = isValidTimeHHMM(x?.time) ? x.time : '11:00';
-      const daily = typeof x?.daily === 'boolean' ? x.daily : false;
-      return { id, title, date, time, daily } as ReminderItem;
-    })
+    .map((x: unknown) => {
+        const item = x as Record<string, unknown>;
+        const id = typeof item?.id === 'string' ? item.id : uid();
+        const title = typeof item?.title === 'string' ? item.title : '';
+        const date = isValidDateYYYYMMDD(item?.date) ? item.date as string : todayYMD();
+        const time = isValidTimeHHMM(item?.time) ? item.time as string : '11:00';
+        const daily = typeof item?.daily === 'boolean' ? item.daily : false;
+        return { id, title, date, time, daily } as ReminderItem;
+      })
     .filter(Boolean);
 }
 
@@ -233,11 +236,13 @@ function readProjectsLS(): ProjectsPayload | null {
 
     const loadedProjects: Project[] = Array.isArray(parsed?.projects)
       ? parsed.projects
-          .map((p: any) => {
-            const project_id = typeof p?.project_id === 'string' ? p.project_id : pid();
-            const title = typeof p?.title === 'string' && p.title.trim() ? p.title.trim() : 'Personal';
-            const loadedBlocks = normalizeLoadedBlocks(p?.blocks ?? p?.payload?.blocks ?? []);
-            const loadedCollapsed = p?.collapsed && typeof p.collapsed === 'object' ? p.collapsed : {};
+          .map((p: unknown) => {
+            const item = p as Record<string, unknown>;
+            const project_id = typeof item?.project_id === 'string' ? item.project_id : pid();
+            const title = typeof item?.title === 'string' && item.title.trim() ? item.title.trim() : 'Personal';
+            const rawBlocks = (item?.blocks ?? (item?.payload as Record<string, unknown>)?.blocks ?? []);
+            const loadedBlocks = normalizeLoadedBlocks(rawBlocks);
+            const loadedCollapsed = item?.collapsed && typeof item.collapsed === 'object' ? item.collapsed as Record<string, unknown> : {};
             return { project_id, title, blocks: loadedBlocks, collapsed: loadedCollapsed } as Project;
           })
           .filter(Boolean)
@@ -335,7 +340,8 @@ export const Sidebar = () => {
       next = next.slice(0, insertAt).concat(children, next.slice(insertAt));
 
       setCurrentCollapsed(c => {
-        const { [listId]: _, ...rest } = c;
+        const { [listId]: _omit, ...rest } = c;
+        void _omit;
         return rest;
       });
 
@@ -701,7 +707,7 @@ export const Sidebar = () => {
       const i = prev.findIndex(b => b.id === id);
       const isList = prev[i]?.indent === 0;
       if (isList) {
-        setCurrentCollapsed(c => { const { [id]: _, ...rest } = c; return rest; });
+       setCurrentCollapsed(c => { const { [id]: _omit, ...rest } = c; void _omit; return rest; });
       }
       const next = prev.filter(b => b.id !== id);
       const target = next[Math.max(0, i - 1)];
@@ -859,7 +865,7 @@ export const Sidebar = () => {
       return;
     }
   };
-
+/*
   const outdent = (b: Block) => {
     if (b.indent <= 0) return;
     const next = Math.max(0, b.indent - 1);
@@ -887,7 +893,7 @@ export const Sidebar = () => {
     triggerNudge(b.id, 'right');
     focusBlock(b.id, true);
   };
-
+*/
   /* ===================== Hidden map ===================== */
   const hiddenMap = useMemo(() => {
     const hidden: Record<string, boolean> = {};
@@ -922,14 +928,15 @@ export const Sidebar = () => {
     setCurrentCollapsed(prev => ({ ...prev, [listId]: !prev[listId] }));
   };
 
-  const openDatePicker = (id: string) => {
-    const el = dateRefs.current[id];
-    if (!el) return;
-    try {
-      if (typeof (el as any).showPicker === 'function') (el as any).showPicker();
-      else el.click();
-    } catch { el.click(); }
-  };
+ const openDatePicker = (id: string) => {
+  const el = dateRefs.current[id];
+  if (!el) return;
+  try {
+    const picker = el as HTMLInputElement & { showPicker?: () => void };
+    if (typeof picker.showPicker === 'function') picker.showPicker();
+    else el.click();
+  } catch { el.click(); }
+};
 
   /* ===================== DRAG ===================== */
   const onDragStartRow = (e: React.DragEvent, id: string, index: number) => {
@@ -982,6 +989,7 @@ export const Sidebar = () => {
   };
 
   /* ===================== PROJECT UI ===================== */
+  /*
   const addProject = () => {
     const title = window.prompt('Project name:', 'New Project');
     if (!title) return;
@@ -1015,7 +1023,7 @@ export const Sidebar = () => {
       return safeNext;
     });
   };
-
+*/
   /* ===================== HABITS HELPERS ===================== */
   const persistHabits = (next: HabitBlock[], metaOverride?: Partial<HabitsPayload>) => {
     setHabits(next);

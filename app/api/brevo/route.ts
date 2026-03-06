@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     // ============================
     // Parse body
     // ============================
-    const body = await req.json().catch(() => ({} as any));
+    const body = await req.json().catch(() => ({} as unknown));
 
     const action = String(body?.action || "").trim();
     if (!action) {
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
         const template = String(body?.template || "").trim() as TemplateKey;
 
         // data puede traer code, expiresMinutes, etc.
-        const data = (body?.data ?? {}) as Record<string, any>;
+        const data = (body?.data ?? {}) as Record<string, unknown>;
 
         // opcionales para welcome
         const displayName = String(body?.displayName || "").trim();
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
         }
 
         // Payload final hacia Brevo (se adapta por template)
-        const payload: Record<string, any> = {
+        const payload: Record<string, unknown> = {
           ...data,
           ...(displayName ? { displayName } : {}),
           ...(username ? { username } : {}),
@@ -93,17 +93,17 @@ export async function POST(req: Request) {
           { status: 400 }
         );
     }
-  } catch (err: any) {
-    console.error("BREVO API ERROR FULL:", err);
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "Error interno",
-        error: err?.message || String(err),
-        stack: err?.stack || null,
-      },
-      { status: 500 }
-    );
-  }
+  }  catch (err) {
+  console.error("BREVO API ERROR FULL:", err);
+  const e = err instanceof Error ? err : new Error(String(err));
+  return NextResponse.json(
+    {
+      ok: false,
+      message: "Error interno",
+      error: e.message,
+      stack: e.stack || null,
+    },
+    { status: 500 }
+  );
+}
 }

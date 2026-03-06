@@ -11,7 +11,9 @@ import Quick from './components/Quick';
 import TopNavBar from './components/TopNavBar';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'reminders' | 'timeline' | 'archive' | 'quick'>('quick');
+const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' | 'archive' | 'quick'>('quick');
+
+
 
   // ✅ Sidebar toggle
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -28,7 +30,7 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
 
   // (kept just in case you want to restore view-style chat later)
-  const [lastView, setLastView] = useState<typeof activeView>('quick');
+  /*const [lastView, setLastView] = useState<typeof activeView>('quick');*/
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -70,14 +72,14 @@ export default function App() {
   };
 
   const renderView = () => {
-    if (activeView === 'timeline') return <Timeline onOpenArchive={() => setActiveView('archive')} />;
-    if (activeView === 'archive') return <Archive onBackToTimeline={() => setActiveView('timeline')} />;
+    if (activeView === 'timeline') return <Timeline />;
+    if (activeView === 'archive') return <Archive/>;
     if (activeView === 'quick') return <Quick />;
     return <RemindersSection onClose={() => setActiveView('timeline')} />;
   };
 
   const openChatOverlay = () => {
-    setLastView(activeView);
+    /*setLastView(activeView);*/
     setChatOpen(true);
   };
 
@@ -90,8 +92,8 @@ export default function App() {
       <div className="h-screen bg-gray-900 font-inter flex flex-col">
         <TopNavBar
           title="Youtask"
-          activeView={activeView as any}
-          setActiveView={setActiveView as any}
+          activeView={activeView}
+          setActiveView={setActiveView }
           onHome={() => setActiveView('reminders')}
           onLogout={() => {}}
           sidebarOpen={sidebarOpen}

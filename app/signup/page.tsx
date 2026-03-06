@@ -50,7 +50,7 @@ export default function SignUpPage() {
 
 
   // Sign up hook
-  const { isLoading, error: signUpError, signUp } = useSignUp();
+  const { isLoading, error: signUpError } = useSignUp();
 
   // Validation handlers
   const handleUsernameChange = (value: string): void => {
@@ -204,7 +204,7 @@ export default function SignUpPage() {
 
  
   } catch (err) {
-  
+    console.log(err);
   }
 }; 
 

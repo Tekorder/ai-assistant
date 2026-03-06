@@ -20,44 +20,46 @@ type Project = {
   project_id: string;
   title: string;
   blocks: Block[];
-  collapsed?: any;
+  collapsed?: unknown;
 };
 
 function isValidDateYYYYMMDD(s: unknown): s is string {
   return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
-function normalizeLoadedBlocks(raw: any): Block[] {
+function normalizeLoadedBlocks(raw: unknown): Block[] {
   const uid = () => Math.random().toString(36).slice(2, 10);
   if (!Array.isArray(raw)) return [{ id: uid(), text: '', indent: 0 }];
 
-  const out: Block[] = raw.map((x: any) => {
-    const id = typeof x?.id === 'string' ? x.id : uid();
-    const text = typeof x?.text === 'string' ? x.text : '';
-    const indent = Number.isFinite(x?.indent) ? Number(x.indent) : 0;
+const out: Block[] = raw.map((x: unknown) => {
+  const item = x as Record<string, unknown>;
+  
+  const id = typeof item?.id === 'string' ? item.id : uid();
+  const text = typeof item?.text === 'string' ? item.text : '';
+  const indent = Number.isFinite(item?.indent) ? Number(item.indent) : 0;
 
-    const b: Block = { id, text, indent: Math.max(0, indent) };
+  const b: Block = { id, text, indent: Math.max(0, indent) };
 
-    if (b.indent > 0) {
-      b.checked = Boolean(x?.checked);
-      if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline;
-    } else {
-      b.checked = undefined;
-      b.deadline = undefined;
-    }
+  if (b.indent > 0) {
+    b.checked = Boolean(item?.checked);
+    if (isValidDateYYYYMMDD(item?.deadline)) b.deadline = item.deadline as string;
+  } else {
+    b.checked = undefined;
+    b.deadline = undefined;
+  }
 
-    if (typeof x?.isHidden === 'boolean') b.isHidden = x.isHidden;
-    if (typeof x?.archived === 'boolean') b.archived = x.archived;
+  if (typeof item?.isHidden === 'boolean') b.isHidden = item.isHidden as boolean;
+  if (typeof item?.archived === 'boolean') b.archived = item.archived as boolean;
 
-    return b;
-  });
+  return b;
+});
 
   return out.length ? out : [{ id: uid(), text: '', indent: 0 }];
 }
 
 // ─────────────────────────────────────────────────────────────
 // ✅ Lee proyecto seleccionado desde V2 (fallback a V1)
-function readSelectedProject(): { blocks: Block[]; collapsed: any; projectTitle: string; project_id: string | null } {
+function readSelectedProject(): { blocks: Block[]; collapsed: unknown; projectTitle: string; project_id: string | null } {
   // V2
   try {
     const raw = localStorage.getItem(LS_KEY_V2);
@@ -101,7 +103,7 @@ function readSelectedProject(): { blocks: Block[]; collapsed: any; projectTitle:
 
 // ─────────────────────────────────────────────────────────────
 // ✅ Guarda SOLO ese proyecto en V2 (fallback a V1)
-function writeSelectedProject(project_id: string | null, blocks: Block[], collapsed: any) {
+function writeSelectedProject(project_id: string | null, blocks: Block[], collapsed: unknown) {
   // fallback V1
   if (!project_id) {
     try {
@@ -149,9 +151,9 @@ type Row = {
   subtasks: { id: string; text: string; checked: boolean }[];
 };
 
-export default function Archive({ onBackToTimeline }: { onBackToTimeline?: () => void }) {
+export default function Archive() { //
   const [blocks, setBlocks] = useState<Block[]>([]);
-  const [collapsed, setCollapsed] = useState<any>({});
+  const [collapsed, setCollapsed] = useState<unknown>({});
   const [hydrated, setHydrated] = useState(false);
 
   // ✅ proyecto seleccionado actual (para guardar bien)

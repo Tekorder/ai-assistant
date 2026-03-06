@@ -1,20 +1,18 @@
-// app/components/pivot.tsx
 'use client';
 
 import React, { useMemo } from 'react';
 
 export type PivotTreeRow = {
-  key: string;        // stable key
-  blockId: string;    // original block id
+  key: string;
+  blockId: string;
   text: string;
-  indent: number;     // original indent (0=title)
-  isMatch: boolean;   // contains pivot word
+  indent: number;
+  isMatch: boolean;
   checked?: boolean;
   deadline?: string;
 };
 
 function isWordChar(ch: string) {
-  // letras/números/underscore + acentos + ñ
   return /[A-Za-z0-9_\u00C0-\u017F]/.test(ch);
 }
 
@@ -22,18 +20,15 @@ export function extractWordAt(text: string, start: number, end: number) {
   const s = text ?? '';
   if (!s.trim()) return '';
 
-  // si hay selección, úsala
   if (end > start) {
     const sel = s.slice(start, end).trim();
     if (sel) return sel;
   }
 
-  // caret
   let i = Math.max(0, Math.min(start, s.length));
   if (s.length === 0) return '';
   if (i === s.length) i = s.length - 1;
 
-  // si estás en un char no-word, busca cercano
   if (!isWordChar(s[i])) {
     let L = i;
     while (L > 0 && !isWordChar(s[L])) L--;
@@ -67,12 +62,6 @@ function isUncTitleBlock(text: string, indent: number, uncTitle?: string) {
   return indent === 0 && (text || '').trim().toLowerCase() === uncTitle.trim().toLowerCase();
 }
 
-/**
- * Pivot "tree podado" (pruned):
- * - incluye SOLO: títulos + padres (ancestors) + tareas que hacen match con la palabra
- * - NO incluye siblings no relacionados
- * - NO incluye hijos/descendientes a menos que ellos mismos hagan match
- */
 export function buildPrunedPivotTree<T extends { id: string; text: string; indent: number; checked?: boolean; deadline?: string; archived?: boolean }>(
   blocks: T[],
   word: string,
@@ -86,14 +75,12 @@ export function buildPrunedPivotTree<T extends { id: string; text: string; inden
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
     if (!b) continue;
-    if (!(b.indent > 0)) continue;          // tasks/subtasks only as hits
+    if (!(b.indent > 0)) continue;
     if (b.archived === true) continue;
     if (!includesWord(b.text || '', w)) continue;
 
-    // include the matched node
     include.add(i);
 
-    // include ancestors
     let curIndent = b.indent;
     let foundTitle = false;
 
@@ -101,7 +88,6 @@ export function buildPrunedPivotTree<T extends { id: string; text: string; inden
       const prev = blocks[j];
       if (!prev) continue;
 
-      // closest ancestor with lower indent
       if (prev.indent < curIndent) {
         include.add(j);
         curIndent = prev.indent;
@@ -113,7 +99,6 @@ export function buildPrunedPivotTree<T extends { id: string; text: string; inden
       }
     }
 
-    // fallback: ensure nearest title above is included
     if (!foundTitle) {
       for (let j = i - 1; j >= 0; j--) {
         const prev = blocks[j];
@@ -125,14 +110,12 @@ export function buildPrunedPivotTree<T extends { id: string; text: string; inden
     }
   }
 
-  // Build rows in original order
   const rows: PivotTreeRow[] = [];
   for (let i = 0; i < blocks.length; i++) {
     if (!include.has(i)) continue;
     const b = blocks[i];
     if (!b) continue;
 
-    // never render UNC title row (but keep its tasks)
     if (isUncTitleBlock(b.text, b.indent, opts?.uncTitle)) continue;
 
     rows.push({
@@ -146,8 +129,6 @@ export function buildPrunedPivotTree<T extends { id: string; text: string; inden
     });
   }
 
-  // Extra polish: remove "orphan" tasks that appear without any title above (rare)
-  // but keep as-is if user structure is messy.
   return rows;
 }
 
@@ -167,8 +148,7 @@ export function PivotModal(props: {
     return rows.map((r) => {
       const isTitle = r.indent === 0;
       const pill = !isTitle ? pillText(r) : '';
-      const leftPad =
-        isTitle ? 6 : Math.min(40, 10 + r.indent * 16); // modal padding; keeps it readable
+      const leftPad = isTitle ? 6 : Math.min(40, 10 + r.indent * 16);
 
       return (
         <button
@@ -179,17 +159,12 @@ export function PivotModal(props: {
           title="Go to task"
           style={{ paddingLeft: leftPad }}
         >
-          {/* tree connector (left) */}
           <div className="relative shrink-0 w-6 h-6 flex items-center">
-            {/* vertical trunk */}
             <div className="absolute left-3 top-0 bottom-0 w-px bg-white/12" />
-            {/* horizontal branch */}
             <div className="absolute left-3 top-1/2 w-3 h-px bg-white/12" />
-            {/* node dot */}
             <div className="absolute left-[18px] top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-white/25" />
           </div>
 
-          {/* checkbox (only for tasks) */}
           {isTitle ? (
             <div className="h-4 w-4 shrink-0" />
           ) : (
@@ -218,7 +193,6 @@ export function PivotModal(props: {
             </div>
           </div>
 
-          {/* pill */}
           {!isTitle ? (
             <div className="shrink-0">
               <div
@@ -255,9 +229,8 @@ export function PivotModal(props: {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-white font-semibold text-lg leading-tight">
-                "{word}"
+                &ldquo;{word}&rdquo;
               </div>
-              
             </div>
 
             <button
@@ -276,7 +249,7 @@ export function PivotModal(props: {
               <div className="space-y-1">{renderRows}</div>
             ) : (
               <div className="text-[12px] text-white/40 px-2 py-2">
-                No tasks found containing "{word}"
+                No tasks found containing &ldquo;{word}&rdquo;
               </div>
             )}
           </div>

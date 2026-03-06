@@ -77,11 +77,38 @@ type Card = {
   archived?: boolean;
 };
 
-function normalizeLoadedBlocks(raw: any): Block[] {
+type RawBlock = {
+  id?: unknown;
+  text?: unknown;
+  indent?: unknown;
+  checked?: unknown;
+  deadline?: unknown;
+  isHidden?: unknown;
+  archived?: unknown;
+};
+
+type RawProject = {
+  project_id?: unknown;
+  title?: unknown;
+  blocks?: unknown;
+  collapsed?: unknown;
+};
+
+type StorageV1Payload = {
+  blocks?: unknown;
+  collapsed?: unknown;
+};
+
+type StorageV2Payload = {
+  projects?: unknown;
+  selectedProjectId?: unknown;
+};
+
+function normalizeLoadedBlocks(raw: unknown): Block[] {
   const uid = () => Math.random().toString(36).slice(2, 10);
   if (!Array.isArray(raw)) return [{ id: uid(), text: '', indent: 0 }];
 
-  const out: Block[] = raw.map((x: any) => {
+  const out: Block[] = (raw as RawBlock[]).map((x: RawBlock) => {
     const id = typeof x?.id === 'string' ? x.id : uid();
     const text = typeof x?.text === 'string' ? x.text : '';
     const indent = Number.isFinite(x?.indent) ? Number(x.indent) : 0;
@@ -90,7 +117,7 @@ function normalizeLoadedBlocks(raw: any): Block[] {
 
     if (b.indent > 0) {
       b.checked = Boolean(x?.checked);
-      if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline;
+      if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline as string;
     } else {
       b.checked = undefined;
       b.deadline = undefined;
@@ -112,8 +139,18 @@ function readSelectedProject(): { blocks: Block[]; projectTitle: string; project
   try {
     const raw = localStorage.getItem(LS_KEY_V2);
     if (raw) {
-      const parsed = JSON.parse(raw);
-      const projects: Project[] = Array.isArray(parsed?.projects) ? parsed.projects : [];
+      const parsed = JSON.parse(raw) as StorageV2Payload;
+      const projects: Project[] = Array.isArray(parsed?.projects)
+        ? (parsed.projects as RawProject[]).map((p: RawProject) => ({
+            project_id: typeof p?.project_id === 'string' ? p.project_id : '',
+            title: typeof p?.title === 'string' ? p.title : 'Project',
+            blocks: normalizeLoadedBlocks(p?.blocks ?? []),
+            collapsed: p?.collapsed && typeof p.collapsed === 'object'
+              ? p.collapsed as Record<string, boolean>
+              : {},
+          }))
+        : [];
+
       if (projects.length) {
         const selectedId: string =
           typeof parsed?.selectedProjectId === 'string' ? parsed.selectedProjectId : projects[0].project_id;
@@ -135,7 +172,7 @@ function readSelectedProject(): { blocks: Block[]; projectTitle: string; project
   try {
     const raw = localStorage.getItem(LS_KEY_V1);
     if (!raw) return { blocks: [], projectTitle: 'General', project_id: null };
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as StorageV1Payload;
     const blocks = normalizeLoadedBlocks(parsed?.blocks ?? parsed);
     return { blocks, projectTitle: 'General', project_id: null };
   } catch {
@@ -150,9 +187,9 @@ function writeSelectedProjectBlocks(project_id: string | null, nextBlocks: Block
   if (!project_id) {
     try {
       const raw = localStorage.getItem(LS_KEY_V1);
-      let payload: any = { blocks: nextBlocks, collapsed: {} };
+      let payload: StorageV1Payload = { blocks: nextBlocks, collapsed: {} };
       if (raw) {
-        const parsed = JSON.parse(raw);
+        const parsed = JSON.parse(raw) as StorageV1Payload;
         payload = {
           blocks: nextBlocks,
           collapsed: parsed?.collapsed && typeof parsed.collapsed === 'object' ? parsed.collapsed : {},
@@ -169,8 +206,18 @@ function writeSelectedProjectBlocks(project_id: string | null, nextBlocks: Block
     const raw = localStorage.getItem(LS_KEY_V2);
     if (!raw) return;
 
-    const parsed = JSON.parse(raw);
-    const projects: Project[] = Array.isArray(parsed?.projects) ? parsed.projects : [];
+    const parsed = JSON.parse(raw) as StorageV2Payload;
+    const projects: Project[] = Array.isArray(parsed?.projects)
+      ? (parsed.projects as RawProject[]).map((p: RawProject) => ({
+          project_id: typeof p?.project_id === 'string' ? p.project_id : '',
+          title: typeof p?.title === 'string' ? p.title : 'Project',
+          blocks: normalizeLoadedBlocks(p?.blocks ?? []),
+          collapsed: p?.collapsed && typeof p.collapsed === 'object'
+            ? p.collapsed as Record<string, boolean>
+            : {},
+        }))
+      : [];
+
     if (!projects.length) return;
 
     const idx = projects.findIndex(p => p.project_id === project_id);
@@ -193,7 +240,7 @@ function writeSelectedProjectBlocks(project_id: string | null, nextBlocks: Block
   } catch {}
 }
 
-export default function Timeline({ onOpenArchive }: { onOpenArchive?: () => void }) {
+export default function Timeline() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
@@ -404,7 +451,7 @@ export default function Timeline({ onOpenArchive }: { onOpenArchive?: () => void
     const el = dateRefs.current[cardId];
     if (!el) return;
     try {
-      // @ts-ignore
+   
       if (typeof el.showPicker === 'function') el.showPicker();
       else el.click();
     } catch {
@@ -430,32 +477,6 @@ export default function Timeline({ onOpenArchive }: { onOpenArchive?: () => void
 
       changed = true;
       break;
-    }
-
-    if (changed) {
-      writeSelectedProjectBlocks(projectId, next);
-      setBlocks(next);
-    }
-  };
-
-  // (opcional) Archive Completed (si lo activás en UI)
-  const archiveCompleted = () => {
-    const next = blocks.map(x => ({ ...x }));
-    let changed = false;
-
-    for (let i = 0; i < next.length; i++) {
-      const b = next[i];
-
-      if (b.indent === 1 && b.checked === true && b.archived !== true) {
-        b.archived = true;
-        changed = true;
-
-        let j = i + 1;
-        while (j < next.length && next[j].indent > 1) {
-          if (next[j].archived !== true) next[j].archived = true;
-          j++;
-        }
-      }
     }
 
     if (changed) {
@@ -503,9 +524,6 @@ export default function Timeline({ onOpenArchive }: { onOpenArchive?: () => void
           >
             {showCompleted ? '✓ Show Completed' : 'Show Completed'}
           </button>
-
-          {/* opcional */}
-          {/* <button type="button" className="youtask-timeline-toggle" onClick={archiveCompleted}>Archive Completed</button> */}
         </div>
       </div>
 

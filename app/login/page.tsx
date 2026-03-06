@@ -128,20 +128,24 @@ export default function LoginPage() {
     }
   }
 
-  function playfabLogin(email: string, password: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const loginRequestEmail = {
-        TitleId: PlayFab.settings.titleId,
-        Email: email,
-        Password: password,
-      };
+  
 
-      PlayFabClient.LoginWithEmailAddress(loginRequestEmail, (error, result) => {
+ type PlayFabLoginResult = {
+  data?: {
+    SessionTicket?: string;
+  };
+};
+
+function playfabLogin(email: string, password: string): Promise<PlayFabLoginResult> {
+  return new Promise((resolve, reject) => {
+    PlayFabClient.LoginWithEmailAddress({ TitleId: PlayFab.settings.titleId, Email: email, Password: password },
+      (error, result) => {
         if (error) return reject(error);
-        return resolve(result);
-      });
-    });
-  }
+        return resolve(result as PlayFabLoginResult);
+      }
+    );
+  });
+}
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,9 +223,9 @@ export default function LoginPage() {
     setCodeInput('');
     try {
       await createAndSend2FA(email);
-    } catch (e: any) {
-      setTwoFAError(e?.message || 'Failed to resend the code.');
-    }
+    } catch (e) {
+        setTwoFAError(e instanceof Error ? e.message : 'Failed to resend the code.');
+      }
   };
 
   // Close modal with ESC (optional)
