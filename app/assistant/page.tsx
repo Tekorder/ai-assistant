@@ -216,7 +216,7 @@ export default function App() {
           type="button"
           onClick={() => (chatOpen ? closeChatOverlay() : openChatOverlay())}
           className={[
-            'fixed z-[9999] right-5 bottom-5',
+            'fixed z-[9999] right-5 bottom-20 md:bottom-5',
             'w-14 h-14 rounded-full',
             'bg-white/10 hover:bg-white/15 active:scale-95',
             'border border-white/15 shadow-2xl backdrop-blur-md',
