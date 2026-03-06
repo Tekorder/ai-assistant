@@ -733,13 +733,13 @@ export default function Quick() {
           {b.checked ? <span className="text-emerald-300 text-xs">✓</span> : null}
         </button>
         <div className="min-w-0 flex flex-wrap items-center gap-[2px] w-full">
-          <input ref={el => (inputRefs.current[b.id] = el)} value={b.text} placeholder="Task…" onChange={e => updateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
+          <input ref={el => void  (inputRefs.current[b.id] = el)} value={b.text} placeholder="Task…" onChange={e => updateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
             className={['bg-transparent outline-none text-sm flex-none', b.checked ? 'text-white/40 line-through' : 'text-white/80'].join(' ')} style={{ width:`${inputWidthPx(b.text)}px` }} />
           <button type="button" className={['shrink-0 text-[11px] px-1.5 py-0.5 rounded-full border transition-colors', pillClass(b.deadline, b.checked)].join(' ')} title={pill ? 'Change date' : 'Set date'}
             onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as any).showPicker?.(); } catch {} el.click(); }}>
             {pill ? pill : '📅'}
           </button>
-          <input ref={el => (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; updateBlock(b.id, { deadline: v ? v : undefined }); }} />
+          <input ref={el => void  (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; updateBlock(b.id, { deadline: v ? v : undefined }); }} />
         </div>
       </div>
     );
@@ -755,7 +755,7 @@ export default function Quick() {
             {collapsed[list.id] ? '▸' : '▾'}
           </button>
           <div className="min-w-0 flex flex-wrap items-center gap-2 w-full">
-            <input ref={el => (inputRefs.current[list.id] = el)} value={list.text} placeholder="List…" onChange={e => updateBlock(list.id, { text: e.target.value })} onKeyDown={e => handleKey(e, list)}
+            <input ref={el => void  (inputRefs.current[list.id] = el)} value={list.text} placeholder="List…" onChange={e => updateBlock(list.id, { text: e.target.value })} onKeyDown={e => handleKey(e, list)}
               className="bg-transparent outline-none text-sm text-white font-semibold flex-none" style={{ width:`${inputWidthPx(list.text)}px` }} />
             {opts?.subtitle ? <span className="text-[10px] text-white/30">{opts.subtitle}</span> : null}
           </div>
@@ -803,7 +803,7 @@ export default function Quick() {
                   </button>
                 ) : null}
                 <div className="min-w-0 flex flex-wrap items-center gap-[2px] w-full">
-                  <input ref={el => (inputRefs.current[b.id] = el)} value={b.text} placeholder={isList ? 'List…' : 'Task…'} onChange={e => updateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
+                  <input ref={el => void  (inputRefs.current[b.id] = el)} value={b.text} placeholder={isList ? 'List…' : 'Task…'} onChange={e => updateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
                     className={['bg-transparent outline-none text-sm cursor-pointer transition-opacity duration-150 flex-none', isList ? 'text-white font-semibold' : b.checked ? 'text-white/40 line-through' : 'text-white/80'].join(' ')}
                     style={{ width:`${inputWidthPx(b.text)}px` }} />
                   {isTask ? (
@@ -812,7 +812,7 @@ export default function Quick() {
                         onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as any).showPicker?.(); } catch {} el.click(); }}>
                         {formatPill(b.deadline) || '📅'}
                       </button>
-                      <input ref={el => (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; updateBlock(b.id, { deadline: v ? v : undefined }); }} />
+                      <input ref={el => void  (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; updateBlock(b.id, { deadline: v ? v : undefined }); }} />
                     </>
                   ) : null}
                 </div>

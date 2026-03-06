@@ -73,7 +73,7 @@ export default function App() {
     if (activeView === 'timeline') return <Timeline onOpenArchive={() => setActiveView('archive')} />;
     if (activeView === 'archive') return <Archive onBackToTimeline={() => setActiveView('timeline')} />;
     if (activeView === 'quick') return <Quick />;
-    return <RemindersSection />;
+    return <RemindersSection onClose={() => setActiveView('timeline')} />;
   };
 
   const openChatOverlay = () => {
@@ -120,7 +120,8 @@ export default function App() {
             ].join(' ')}
           >
             <div className="h-full overflow-hidden">
-              <Sidebar onListClick={() => setActiveView('reminders')} />
+            
+              <Sidebar  />
             </div>
           </div>
         </div>
@@ -133,7 +134,7 @@ export default function App() {
             style={{ width: sidebarOpen ? sidebarW : 0 }}
           >
             <div className="h-full" style={{ width: sidebarW }}>
-              <Sidebar onListClick={() => setActiveView('reminders')} />
+              <Sidebar  />
             </div>
           </div>
 

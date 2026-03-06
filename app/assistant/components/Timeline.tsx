@@ -585,7 +585,7 @@ export default function Timeline({ onOpenArchive }: { onOpenArchive?: () => void
                                           </button>
 
                                           <input
-                                            ref={el => (dateRefs.current[card.id] = el)}
+                                            ref={el => void  (dateRefs.current[card.id] = el)}
                                             type="date"
                                             className="hidden"
                                             value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}

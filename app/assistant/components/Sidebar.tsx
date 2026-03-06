@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { PivotModal, buildPrunedPivotTree, extractWordAt, type PivotTreeRow } from './pivot';
+import { PivotModal, buildPrunedPivotTree, extractWordAt, type PivotTreeRow } from './Pivot';
+
 
 type Block = {
   id: string;
@@ -1286,7 +1287,7 @@ export const Sidebar = () => {
                         ) : null}
 
                         <input
-                          ref={el => (inputRefs.current[b.id] = el)}
+                          ref={el => void  (inputRefs.current[b.id] = el)}
                           value={b.text}
                           placeholder={isList ? 'List…' : 'Task…'}
                           onChange={e => updateBlock(b.id, { text: e.target.value })}
@@ -1321,7 +1322,7 @@ export const Sidebar = () => {
                             </button>
 
                             <input
-                              ref={el => (dateRefs.current[b.id] = el)}
+                              ref={el => void  (dateRefs.current[b.id] = el)}
                               type="date"
                               className="hidden"
                               value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''}
@@ -1450,7 +1451,7 @@ export const Sidebar = () => {
                     </button>
 
                     <input
-                      ref={el => (habitInputRefs.current[h.id] = el)}
+                      ref={el => void  (habitInputRefs.current[h.id] = el)}
                       value={h.text}
                       placeholder="Habit…"
                       onChange={(e) => updateHabit(h.id, { text: e.target.value })}
@@ -1529,7 +1530,7 @@ export const Sidebar = () => {
                     </div>
 
                     <input
-                      ref={el => (reminderTitleRefs.current[r.id] = el)}
+                      ref={el => void  (reminderTitleRefs.current[r.id] = el)}
                       value={r.title}
                       placeholder="Reminder…"
                       onChange={(e) => updateReminder(r.id, { title: e.target.value })}
