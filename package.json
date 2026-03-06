@@ -10,6 +10,9 @@
   },
   "dependencies": {
     "@azure/identity": "^4.12.0",
+    "@getbrevo/brevo": "^3.0.1",
+    "@prisma/client": "^7.3.0",
+    "compromise": "^14.14.5",
     "next": "15.5.9",
     "openai": "^5.20.2",
     "playfab-sdk": "^2.174.250526",
@@ -24,6 +27,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
+    "prisma": "^7.3.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -21,6 +21,7 @@ import { useTaskMessaging } from '../_hook/useTaskMessaging';
 import RemindersSection from './RemindersSection';
 import ChatSection from './ChatSection';
 
+
 // Utils
 import {
   validateTaskData,
@@ -56,7 +57,110 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
     setIsLoading,
   } = useTaskMessaging();
 
+
+const JOKES = [
+  "¿Qué hace una abeja en el gimnasio? ¡Zum-ba! 🐝",
+  "¿Qué le dijo el 0 al 8? Bonito cinturón 😄",
+  "¿Cómo se despiden los químicos? Ácido un placer 👋",
+  "¿Qué hace un perro con un taladro? Taladrando 🐶",
+  "¿Por qué el libro se fue al hospital? Porque tenía muchas páginas en blanco 📚",
+];
+
+function pickRandom(arr: string[]) {
+  var tarr = arr[Math.floor(Math.random() * arr.length)]
+  console.log(tarr);
+  return tarr;
+}
+
+function tryParseJsonString(s: unknown): any | null {
+  if (typeof s !== "string") return null;
+  const t = s.trim();
+  if (!t) return null;
+  if (!(t.startsWith("{") || t.startsWith("["))) return null;
+  try {
+    return JSON.parse(t);
+  } catch {
+    return null;
+  }
+}
+
+function extractAnswerFromN8nResponse(data: any): string | null {
+  // n8n a veces responde array
+  const root = Array.isArray(data) ? data[0] : data;
+
+  if (!root) return null;
+
+  // Caso ideal: { answer: "..." }
+  if (typeof root.answer === "string") return root.answer;
+
+  // Caso: { output: "..." } o [{ output: "..." }]
+  if (typeof root.output === "string") {
+    // a veces output viene como JSON string
+    const parsed = tryParseJsonString(root.output);
+    if (parsed) {
+      const p0 = Array.isArray(parsed) ? parsed[0] : parsed;
+      if (typeof p0?.answer === "string") return p0.answer;
+      if (typeof parsed?.answer === "string") return parsed.answer;
+    }
+    return root.output; // si es texto plano
+  }
+
+  // Caso: { replyText: "..." }
+  if (typeof root.replyText === "string") return root.replyText;
+
+  // Caso: root es string directo
+  if (typeof root === "string") {
+    const parsed = tryParseJsonString(root);
+    if (parsed?.answer && typeof parsed.answer === "string") return parsed.answer;
+    return root;
+  }
+
+  // Caso raro: root ya es objeto con answer pero no string (evitar [object Object])
+  return null;
+}
+
+
+const handleSendMessage = async (messageToSend: string): Promise<void> => {
+  if (!messageToSend.trim()) return;
+
+  addUserMessage(messageToSend);
+  setIsLoading(true);
+
+  try {
+    // micro delay UX
+    await new Promise(r => setTimeout(r, 300));
+
+    const res = await fetch(
+      'https://wadu.app.n8n.cloud/webhook/0ecf4992-d5a2-4b58-92d9-42c85787c753',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          blocks: localStorage.youtask_blocks_v1,
+          message: messageToSend,
+        }),
+      }
+    );
+
+      const data = await res.json();
+
+      const botText = extractAnswerFromN8nResponse(data) ?? "Ok ✅";
+      addBotMessage(botText);
+
+    setPendingTask(null);
+  } catch (err) {
+    console.error(err);
+    addBotMessage("No pude contactar al agente 😅");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+/*
   const handleSendMessage = async (messageToSend: string): Promise<void> => {
+
     if (!messageToSend.trim()) return;
 
     addUserMessage(messageToSend);
@@ -130,7 +234,7 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
         result,
         null,
         data.response?.modelResponse
-      );
+      ); 
 
       addBotMessage(responseText);
       setPendingTask(null);
@@ -142,10 +246,12 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
     } finally {
       setIsLoading(false);
     }
-  };
+  };*/
 
   return (
     <div className="flex flex-col h-full w-full relative">
+
+    
       {/* Pending conversation indicator */}
       {pendingTask && !showReminders && (
         <div className="absolute top-0 left-0 right-0 z-50 bg-blue-600 text-white px-4 py-2 text-sm flex items-center justify-between shadow-lg">
@@ -164,7 +270,7 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
           </button>
         </div>
       )}
-
+ 
       {showReminders ? (
         <div className="relative flex-1">
           <button

@@ -19,6 +19,8 @@ import { useSignUp } from './_hook/useSignUp';
 // Components
 import FormField from './components/FormField';
 import ValidationMessage from './components/ValidationMessage';
+import { useRouter } from "next/navigation";
+
 
 // Utilities
 import {
@@ -43,6 +45,9 @@ export default function SignUpPage() {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [showPasswordMatch, setShowPasswordMatch] = useState(false);
+
+  const router = useRouter();
+
 
   // Sign up hook
   const { isLoading, error: signUpError, signUp } = useSignUp();
@@ -101,7 +106,10 @@ export default function SignUpPage() {
   };
 
   // Form submission
+ /*
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+
+
     e.preventDefault();
 
     // Final validation
@@ -135,13 +143,70 @@ export default function SignUpPage() {
       return;
     }
 
-    // Submit
     try {
-      await signUp({ username, displayName, email, password });
+        await signUp({ username, displayName, email, password });
+            const res = await fetch("/api/brevo", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "send_email",
+                  email: email,
+                  template: "welcome",
+                  displayName: displayName,
+                  username: username,
+                  data: {}
+                })
+        });
     } catch {
       // Error is handled by the hook
     }
-  };
+  }; */
+
+
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+
+  e.preventDefault();
+
+  // Validación mínima para no mandar basura
+  const emailResult = validateEmail(email);
+  if (!emailResult.isValid) {
+    setEmailError(emailResult.error);
+    return;
+  }
+
+
+ 
+  try {
+    const res = await fetch("/api/brevo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "send_email",
+            email: "joseandres.suazo@gmail.com",
+            template: "welcome",
+            displayName: displayName,
+            username: username,
+            data: {}
+          })
+        });
+
+    const out = await res.json().catch(() => ({}));
+
+    if (!res.ok || !out.ok) {
+      alert(out.message || "Error enviando correo");
+      return;
+    }
+
+    alert("The registration was succesfull! Log in with your email and password.")
+
+    router.push("/login");
+
+
+ 
+  } catch (err) {
+  
+  }
+}; 
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
