@@ -90,7 +90,7 @@ function StepOccupation({ value, onChange }: { value: Occupation; onChange:(v:Oc
     <div>
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 22, fontWeight: 600, color: '#f5f5f5', letterSpacing: '-.025em', lineHeight: 1.25, marginBottom: 6 }}>
-          What's your role?
+          Whats your role?
         </div>
         <div style={{ fontSize: 14, color: 'rgba(255,255,255,.4)', lineHeight: 1.5 }}>
           Helps us tailor the defaults to how you work.
@@ -172,10 +172,10 @@ function StepGoal({ value, onChange }: { value: Goal; onChange:(v:Goal)=>void })
     <div>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 22, fontWeight: 600, color: '#f5f5f5', letterSpacing: '-.025em', lineHeight: 1.25, marginBottom: 6 }}>
-          What's your main goal?
+          Whats your main goal?
         </div>
         <div style={{ fontSize: 14, color: 'rgba(255,255,255,.4)', lineHeight: 1.5 }}>
-          We'll shape your defaults around this.
+          Well shape your defaults around this.
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

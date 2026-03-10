@@ -582,7 +582,7 @@ export default function LoginPage() {
               </div>
 
               <div className="lp-row-4" style={{ marginTop: 16, textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,.22)' }}>
-                Tip: paste the code and you're done 😄
+                Tip: paste the code and youre done 😄
               </div>
             </div>
           </div>
