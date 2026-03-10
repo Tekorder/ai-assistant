@@ -17,7 +17,7 @@
     "openai": "^5.20.2",
     "playfab-sdk": "^2.174.250526",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react-dom": "^19.0.0"
 
   },
   "devDependencies": {
