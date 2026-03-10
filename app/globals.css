@@ -8,30 +8,30 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+
+  /* antes: --font-sans: var(--font-geist-sans); */
+  --font-sans: var(--font-montserrat);
+
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
-    --foreground: #ededed;
+    --foreground: #ededed; 
   }
+}
+ @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
+
+.font-montserrat {
+  font-family: 'Montserrat', sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Montserrat', sans-serif !important;
 }
-
-
-  
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
-  .font-inter {
-    font-family: 'Inter', sans-serif;
-  }
 
   /* Estilos para el checkbox para que se vea más como el de Apple */
   input[type="checkbox"] {
@@ -80,3 +80,890 @@ body {
   .max-chatbox{
     height: calc(2/3 * 100vh);
   }
+
+  /* Pega esto en tu globals.css (o el CSS global que uses) */
+
+/* Nudge premium al cambiar indent */
+.wadu-nudge-right {
+  animation: waduNudgeRight 180ms ease-out;
+}
+.wadu-nudge-left {
+  animation: waduNudgeLeft 180ms ease-out;
+}
+
+@keyframes waduNudgeRight {
+  0%   { transform: translateX(0); }
+  55%  { transform: translateX(6px); }
+  100% { transform: translateX(0); }
+}
+@keyframes waduNudgeLeft {
+  0%   { transform: translateX(0); }
+  55%  { transform: translateX(-6px); }
+  100% { transform: translateX(0); }
+}
+
+/* Nudge premium al cambiar indent */
+.wadu-nudge-right { animation: waduNudgeRight 180ms ease-out; }
+.wadu-nudge-left  { animation: waduNudgeLeft 180ms ease-out; }
+
+@keyframes waduNudgeRight {
+  0% { transform: translateX(0); }
+  55% { transform: translateX(6px); }
+  100% { transform: translateX(0); }
+}
+@keyframes waduNudgeLeft {
+  0% { transform: translateX(0); }
+  55% { transform: translateX(-6px); }
+  100% { transform: translateX(0); }
+}
+
+/* NEW: inserción suave al crear nueva línea */
+.wadu-line-in {
+  animation: waduLineIn 220ms ease-out;
+}
+@keyframes waduLineIn {
+  0%   { opacity: 0; transform: translateY(-6px) scale(0.995); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+
+/* app/globals.css (add this block near bottom) */
+
+/* ===== Youtask Top Navbar (minimal, notepad-ish) ===== */
+.youtask-topbar{
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  height: 52px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 0 12px;
+  background: rgba(17, 24, 39, 0.92); /* gray-900 */
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(8px);
+}
+
+.youtask-topbar__left{ display:flex; align-items:center; gap:10px; }
+.youtask-topbar__brand{ display:flex; align-items:center; gap:10px; }
+.youtask-topbar__dot{
+  width:10px; height:10px; border-radius:999px;
+  background: rgba(255,255,255,0.25);
+  box-shadow: 0 0 0 4px rgba(255,255,255,0.06);
+}
+.youtask-topbar__title{
+  font-weight: 600;
+  color: rgba(255,255,255,0.86);
+  letter-spacing: -0.01em;
+}
+
+.youtask-topbar__right{ display:flex; align-items:center; gap:6px; }
+
+/* icon button */
+.youtask-iconbtn{
+  position: relative;
+  height: 36px;
+  min-width: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  color: rgba(255,255,255,0.86);
+  cursor: pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+.youtask-iconbtn:hover{
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.14);
+}
+.youtask-iconbtn:active{ transform: scale(0.98); }
+.youtask-ico{ font-size: 16px; line-height: 1; }
+
+/* badge */
+.youtask-badge{
+  position:absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  padding: 0 6px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(59,130,246,0.95);
+  color: white;
+  border: 1px solid rgba(0,0,0,0.35);
+}
+
+/* ===== Notifications dropdown ===== */
+.youtask-notif{
+  position: absolute;
+  right: 12px;
+  top: 56px;
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  background: rgba(31, 41, 55, 0.96); /* gray-800 */
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 18px 60px rgba(0,0,0,0.45);
+}
+
+.youtask-notif__head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.youtask-notif__title{
+  color: rgba(255,255,255,0.86);
+  font-weight: 600;
+}
+.youtask-notif__pill{
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.75);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.youtask-notif__pill:hover{
+  background: rgba(255,255,255,0.05);
+}
+
+.youtask-notif__list{
+  max-height: 320px;
+  overflow:auto;
+}
+
+.youtask-notif__item{
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.youtask-notif__item:last-child{ border-bottom: none; }
+.youtask-notif__item.is-unread{
+  background: rgba(59,130,246,0.08);
+}
+.youtask-notif__row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+}
+.youtask-notif__itemTitle{
+  color: rgba(255,255,255,0.86);
+  font-weight: 600;
+  font-size: 13px;
+}
+.youtask-notif__time{
+  color: rgba(255,255,255,0.42);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.youtask-notif__body{
+  margin-top: 4px;
+  color: rgba(255,255,255,0.62);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.youtask-notif__empty{
+  padding: 16px 12px;
+  color: rgba(255,255,255,0.45);
+  font-size: 13px;
+}
+.youtask-notif__foot{
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display:flex;
+  justify-content:flex-end;
+}
+.youtask-notif__link{
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.70);
+  cursor: pointer;
+  font-size: 12px;
+}
+.youtask-notif__link:hover{ color: rgba(255,255,255,0.90); }
+
+/* ===== Right Drawer (slides from right) ===== */
+.youtask-drawer-backdrop{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 70;
+}
+
+.youtask-drawer{
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 300px;
+  max-width: 86vw;
+  background: rgba(17, 24, 39, 0.98);
+  border-left: 1px solid rgba(255,255,255,0.10);
+  z-index: 80;
+  transform: translateX(100%);
+  transition: transform 220ms ease;
+  display:flex;
+  flex-direction:column;
+}
+.youtask-drawer.is-open{
+  transform: translateX(0%);
+}
+
+.youtask-drawer__head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  padding: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.youtask-drawer__brand{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+}
+.youtask-drawer__brandTitle{
+  color: rgba(255,255,255,0.86);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.youtask-drawer__sub{
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+}
+.youtask-drawer__nav{
+  padding: 10px 8px;
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+}
+.youtask-drawer__item{
+  width: 100%;
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  color: rgba(255,255,255,0.82);
+  cursor:pointer;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+  text-align:left;
+}
+.youtask-drawer__item:hover{
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.12);
+}
+.youtask-drawer__item:active{ transform: scale(0.99); }
+.youtask-drawer__icon{
+  width: 22px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  opacity: 0.85;
+}
+.youtask-drawer__divider{
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  margin: 6px 6px;
+  border-radius: 999px;
+}
+.youtask-drawer__pill{
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(59,130,246,0.95);
+  color: white;
+}
+.youtask-drawer__item.is-danger{
+  border-color: rgba(239,68,68,0.20);
+  color: rgba(255,255,255,0.86);
+}
+.youtask-drawer__item.is-danger:hover{
+  background: rgba(239,68,68,0.10);
+  border-color: rgba(239,68,68,0.28);
+}
+
+.youtask-drawer__foot{
+  margin-top:auto;
+  padding: 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.youtask-drawer__hint{
+  font-size: 12px;
+  color: rgba(255,255,255,0.40);
+}
+
+
+/* ===== View Tabs (Chat / Timeline / Reminders) ===== */
+.youtask-viewtabs {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(17, 24, 39, 0.92);
+  border-top: 1px solid rgba(255,255,255,.06);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.youtask-viewtabs-desktop {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 20;
+    border-radius: 14px;
+    padding: 8px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
+    margin-top: 62px;
+    display: grid;
+}
+
+.youtask-viewtab {
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.70);
+  background: rgba(255,255,255,.03);
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.youtask-viewtab:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.85);
+  border-color: rgba(255,255,255,.16);
+}
+
+.youtask-viewtab.is-active {
+  background: rgba(56, 189, 248, .10); /* sky-ish */
+  border-color: rgba(56, 189, 248, .22);
+  color: rgba(224, 242, 254, .95);
+}
+
+/* ===== Timeline Root ===== */
+.youtask-timeline-root {
+  height: 100%;
+  width: 100%;
+  background: rgba(17, 24, 39, 0.92);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.youtask-timeline-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  background: rgba(17, 24, 39, 0.92);
+}
+
+.youtask-timeline-title {
+  font-weight: 700;
+  color: rgba(255,255,255,.92);
+  letter-spacing: .2px;
+}
+
+.youtask-timeline-sub {
+  font-weight: 500;
+  color: rgba(255,255,255,.40);
+  margin-left: 10px;
+  font-size: 12px;
+}
+
+.youtask-timeline-toggle {
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.70);
+  background: rgba(255,255,255,.03);
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease, color .15s ease;
+  white-space: nowrap;
+}
+
+.youtask-timeline-toggle:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.88);
+  border-color: rgba(255,255,255,.16);
+}
+
+.youtask-timeline-toggle.is-on {
+  background: rgba(16, 185, 129, .10); /* emerald-ish */
+  border-color: rgba(16, 185, 129, .22);
+  color: rgba(209, 250, 229, .95);
+}
+
+.youtask-timeline-loading,
+.youtask-timeline-empty {
+  padding: 18px;
+  color: rgba(255,255,255,.55);
+}
+
+/* ===== Trello-like board ===== */
+.youtask-timeline-board {
+  height: 100%;
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.youtask-timeline-board::-webkit-scrollbar {
+  height: 10px;
+}
+.youtask-timeline-board::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.10);
+  border-radius: 999px;
+}
+.youtask-timeline-board::-webkit-scrollbar-track {
+  background: rgba(0,0,0,.20);
+  border-radius: 999px;
+}
+
+
+
+aside::-webkit-scrollbar {
+  width: 10px;   /* ✅ más angosto (vertical) */
+  height: 10px;  /* ✅ más angosto (horizontal) */
+}
+aside::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.10);
+  border-radius: 999px;
+}
+aside::-webkit-scrollbar-track {
+  background: rgba(0,0,0,.20);
+  border-radius: 999px;
+}
+
+
+.yt-col {
+  width: 270px;
+  min-width: 270px;
+  height: calc(100% - 0px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.06);
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  overflow: hidden;
+}
+
+.yt-col-header {
+  padding: 12px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.02);
+}
+
+.yt-col-title {
+  font-weight: 700;
+  color: rgba(255,255,255,.88);
+  font-size: 13px;
+}
+
+/* status pill */
+.yt-pill {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.70);
+  background: rgba(255,255,255,.03);
+}
+
+.yt-pill-overdue { background: rgba(239, 68, 68, .12) !important; border-color: rgba(239, 68, 68, .22) !important; color: rgba(254, 202, 202, .95) !important; }
+.yt-pill-today   { background: rgba(245, 158, 11, .12); border-color: rgba(245, 158, 11, .22); color: rgba(254, 243, 199, .95); }
+.yt-pill-tomorrow{ background: rgba(16, 185, 129, .10); border-color: rgba(16, 185, 129, .22); color: rgba(209, 250, 229, .95); }
+.yt-pill-future  { background: rgba(56, 189, 248, .08); border-color: rgba(56, 189, 248, .18); color: rgba(224, 242, 254, .90); }
+
+.yt-col-body {
+  padding: 10px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.yt-col-body::-webkit-scrollbar {
+  width: 10px;
+}
+.yt-col-body::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.08);
+  border-radius: 999px;
+}
+.yt-col-body::-webkit-scrollbar-track {
+  background: rgba(0,0,0,.18);
+  border-radius: 999px;
+}
+
+.yt-empty {
+  color: rgba(255,255,255,.25);
+  font-size: 14px;
+  padding: 8px 6px;
+}
+
+/* ===== Cards ===== */
+.yt-card {
+  border-radius: 14px;
+  background: rgba(0,0,0,.22);
+  border: 1px solid rgba(255,255,255,.08);
+  padding: 10px 10px;
+  margin-bottom: 10px;
+  box-shadow: 0 14px 40px rgba(0,0,0,.25);
+  transition: transform .15s ease, border-color .15s ease, background-color .15s ease;
+}
+
+.yt-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,.14);
+  background: rgba(0,0,0,.28);
+}
+
+.yt-card.is-done {
+  opacity: .78;
+}
+
+.yt-card.is-hidden {
+  /* cuando Show Completed ON y el task estaba “dismissed” */
+  outline: 1px dashed rgba(16, 185, 129, .18);
+}
+
+.yt-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.yt-project {
+  font-size: 11px;
+  color: rgba(255,255,255,.55);
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  padding: 3px 8px;
+  border-radius: 999px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yt-donebadge {
+  font-size: 11px;
+  color: rgba(209, 250, 229, .95);
+  border: 1px solid rgba(16, 185, 129, .22);
+  background: rgba(16, 185, 129, .10);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.yt-card-title {
+  color: rgba(255,255,255,.90);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.25;
+  margin-bottom: 8px;
+}
+
+.yt-card.is-done .yt-card-title {
+  color: rgba(255,255,255,.55);
+  text-decoration: line-through;
+}
+
+/* ===== Subtasks ===== */
+.yt-subtasks {
+  border-top: 1px solid rgba(255,255,255,.06);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.yt-subtasks-empty {
+  color: rgba(255,255,255,.28);
+  font-size: 12px;
+}
+
+.yt-subtask {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 4px 2px;
+  color: rgba(255,255,255,.72);
+  font-size: 12px;
+}
+
+.yt-subtask.is-done {
+  color: rgba(255,255,255,.40);
+  text-decoration: line-through;
+}
+
+.yt-subdot {
+  width: 16px;
+  color: rgba(56, 189, 248, .75);
+  line-height: 1.1;
+}
+
+.yt-subtask.is-done .yt-subdot {
+  color: rgba(16, 185, 129, .85);
+}
+
+.yt-subtext {
+  flex: 1;
+  line-height: 1.15;
+}
+
+/* ===== Timeline actions row ===== */
+.youtask-timeline-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.youtask-timeline-archivebtn {
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.78);
+  background: rgba(255,255,255,.03);
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease, color .15s ease;
+  white-space: nowrap;
+}
+
+.youtask-timeline-archivebtn:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.92);
+  border-color: rgba(255,255,255,.16);
+}
+
+.youtask-timeline-archivebtn-soft {
+  background: rgba(56, 189, 248, .07);
+  border-color: rgba(56, 189, 248, .18);
+  color: rgba(224, 242, 254, .88);
+}
+
+/* ===== Archive view ===== */
+.youtask-archive-root {
+  height: 100%;
+  width: 100%;
+  background: rgba(17, 24, 39, 0.92);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.youtask-archive-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  background: rgba(17, 24, 39, 0.92);
+}
+
+.youtask-archive-title {
+  font-weight: 800;
+  color: rgba(255,255,255,.92);
+  letter-spacing: .2px;
+}
+
+.youtask-archive-sub {
+  font-weight: 500;
+  color: rgba(255,255,255,.40);
+  margin-left: 10px;
+  font-size: 12px;
+}
+
+.youtask-archive-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.youtask-archive-btn {
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.78);
+  background: rgba(255,255,255,.03);
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease, color .15s ease;
+  white-space: nowrap;
+}
+
+.youtask-archive-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.92);
+  border-color: rgba(255,255,255,.16);
+}
+
+.youtask-archive-btn-soft {
+  background: rgba(56, 189, 248, .07);
+  border-color: rgba(56, 189, 248, .18);
+  color: rgba(224, 242, 254, .88);
+}
+
+.youtask-archive-loading,
+.youtask-archive-empty {
+  padding: 18px;
+  color: rgba(255,255,255,.55);
+}
+
+.youtask-archive-tablewrap {
+  padding: 14px;
+  overflow: auto;
+  height: 100%;
+}
+
+.youtask-archive-tablewrap::-webkit-scrollbar { width: 10px; height: 10px; }
+.youtask-archive-tablewrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,.10); border-radius: 999px; }
+.youtask-archive-tablewrap::-webkit-scrollbar-track { background: rgba(0,0,0,.18); border-radius: 999px; }
+
+.youtask-archive-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+}
+
+.youtask-archive-table thead th {
+  text-align: left;
+  font-size: 12px;
+  color: rgba(255,255,255,.65);
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.02);
+}
+
+.youtask-archive-table tbody td {
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  color: rgba(255,255,255,.85);
+  font-size: 13px;
+  vertical-align: top;
+}
+
+.youtask-archive-table tbody tr:hover td {
+  background: rgba(0,0,0,.16);
+}
+
+.youtask-archive-muted {
+  color: rgba(255,255,255,.45);
+}
+
+.youtask-archive-right {
+  text-align: right;
+}
+
+.youtask-archive-btnsmall {
+  font-size: 12px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 185, 129, .22);
+  background: rgba(16, 185, 129, .10);
+  color: rgba(209, 250, 229, .95);
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease;
+}
+
+.youtask-archive-btnsmall:hover {
+  transform: translateY(-1px);
+  background: rgba(16, 185, 129, .14);
+  border-color: rgba(16, 185, 129, .28);
+}
+
+.youtask-archive-taskcell {
+  max-width: 720px;
+}
+
+.youtask-archive-task {
+  font-weight: 700;
+  color: rgba(255,255,255,.90);
+}
+
+.chat-message {
+  white-space: pre-wrap !important;
+}
+
+.yt-deadline-mini{
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.75);
+  border: 1px solid rgba(255,255,255,.10);
+  line-height: 1;
+}
+
+
+.youtask-drawer__item.is-active{
+  background: rgba(255,255,255,.06);
+  outline: 1px solid rgba(255,255,255,.14);
+}
+
+/* mini layout de pills dentro de Overdue cards */
+.yt-overdue-meta{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-top:8px;
+}
+
+.yt-overdue-date-pill,
+.yt-overdue-days-pill{
+  font-size:11px;
+  line-height:1;
+  padding:6px 8px;
+  border-radius:999px;
+  white-space:nowrap;
+}
+
+.yt-overdue-date-pill{
+  opacity:.85;
+}
+
+.yt-overdue-days-pill{
+  font-weight:700;
+}
+
+.yt-reschedule{
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  cursor: pointer;
+}
+.yt-reschedule:hover{
+  background: rgba(255,255,255,.10);
+}
