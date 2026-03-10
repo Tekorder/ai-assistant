@@ -95,7 +95,6 @@ const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' |
           activeView={activeView}
           setActiveView={setActiveView }
           onHome={() => setActiveView('reminders')}
-          onLogout={() => {}}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(v => !v)}
         />
