@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { OnboardingModal } from './OnboardingModal';
 
 /* ===================== Types ===================== */
 type Block = {
@@ -214,15 +215,17 @@ function ConfettiRain({ show }: { show: boolean }) {
   if (!show) return null;
   return (
     <div className="pointer-events-none fixed inset-0 z-[9999] overflow-hidden">
-      <style>{`@keyframes confettiFall{0%{transform:translate3d(var(--drift),-12vh,0) rotate(var(--rot));opacity:0}10%{opacity:var(--op)}100%{transform:translate3d(calc(var(--drift)*-1),112vh,0) rotate(calc(var(--rot)+720deg));opacity:0}}`}</style>
+     
+
+
       {pieces.map(p => (
         <span key={p.i} className="absolute top-0 rounded-sm shadow-sm"
           style={{
             left:`${p.left}vw`, width:`${p.size}px`, height:`${Math.max(6,p.size*0.55)}px`,
             animationDelay:`${p.delay}s`, animationDuration:`${p.duration}s`,
-            ['--rot' as string]:`${p.rot}deg`, ['--drift' as string]:`${p.drift}px`, ['--op' as string]:`${p.opacity}`,
-            background:`hsl(${p.hue} 90% 60%)`, opacity:p.opacity,
-            animationName:'confettiFall', animationTimingFunction:'linear', animationIterationCount:1
+            ['--cdrift' as string]:`${p.drift}px`, ['--crot' as string]:`${p.rot + 720}deg`,
+            background:`hsl(${p.hue} 90% 60%)`, opacity:0,
+            animationName:'confettiFall', animationTimingFunction:'linear', animationFillMode:'forwards'
           }}
         />
       ))}
@@ -292,8 +295,8 @@ function ActionsPanel({
         + New List
       </button>
 
-      {toggle('Split', splitMode, () => setSplitMode(s => !s))}
-      {splitMode && toggle('Empty Lists', showEmptyLists, () => setShowEmptyLists(s => !s))}
+      {toggle('View by Days', splitMode, () => setSplitMode(s => !s))}
+      {splitMode && toggle('Show Empty Lists', showEmptyLists, () => setShowEmptyLists(s => !s))}
 
       <div className="h-px bg-white/10 my-1" />
       <div className="px-3 py-1"><div className="text-[11px] text-white/50">Filters</div></div>
@@ -1031,6 +1034,8 @@ export default function Quick() {
           </div>
         ) : null}
       </div>
+              <OnboardingModal />
     </div>
+    
   );
 }

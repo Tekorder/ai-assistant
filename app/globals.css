@@ -967,3 +967,125 @@ aside::-webkit-scrollbar-track {
 .yt-reschedule:hover{
   background: rgba(255,255,255,.10);
 }
+
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
+
+  .ob-wrap * { box-sizing: border-box; }
+
+  @keyframes ob-in {
+    from { opacity: 0; transform: translateY(10px) scale(.985); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+  }
+  @keyframes ob-slide-r  { from { opacity:0; transform:translateX(32px);  } to { opacity:1; transform:translateX(0); } }
+  @keyframes ob-slide-l  { from { opacity:0; transform:translateX(-32px); } to { opacity:1; transform:translateX(0); } }
+  @keyframes ob-out-l    { from { opacity:1; transform:translateX(0);     } to { opacity:0; transform:translateX(-24px); } }
+  @keyframes ob-out-r    { from { opacity:1; transform:translateX(0);     } to { opacity:0; transform:translateX(24px);  } }
+  @keyframes ob-chip-in  { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+
+  .ob-card    { animation: ob-in .3s cubic-bezier(.25,.9,.3,1) forwards; font-family: 'DM Sans', sans-serif; }
+  .ob-enter-r { animation: ob-slide-r .25s cubic-bezier(.25,.9,.3,1) forwards; }
+  .ob-enter-l { animation: ob-slide-l .25s cubic-bezier(.25,.9,.3,1) forwards; }
+  .ob-exit-r  { animation: ob-out-r   .18s cubic-bezier(.25,.9,.3,1) forwards; }
+  .ob-exit-l  { animation: ob-out-l   .18s cubic-bezier(.25,.9,.3,1) forwards; }
+  .ob-chip    { opacity:0; animation: ob-chip-in .2s cubic-bezier(.25,.9,.3,1) forwards; }
+
+  /* Option tiles */
+  .ob-opt {
+    position: relative;
+    cursor: pointer;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 10px;
+    transition: background .13s, border-color .13s, transform .12s;
+    outline: none;
+  }
+  .ob-opt:hover {
+    background: rgba(255,255,255,.07);
+    border-color: rgba(255,255,255,.16);
+    transform: translateY(-1px);
+  }
+  .ob-opt:focus-visible {
+    border-color: rgba(52,211,153,.5);
+    box-shadow: 0 0 0 3px rgba(52,211,153,.12);
+  }
+  .ob-opt.ob-selected {
+    background: rgba(52,211,153,.09);
+    border-color: rgba(52,211,153,.4);
+  }
+  .ob-opt.ob-selected:hover {
+    background: rgba(52,211,153,.12);
+    border-color: rgba(52,211,153,.5);
+  }
+
+  /* Checkbox dot */
+  .ob-check {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,.18);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: border-color .13s, background .13s;
+  }
+  .ob-selected .ob-check {
+    border-color: #34d399;
+    background: #34d399;
+  }
+
+  /* Next button */
+  .ob-btn-next {
+    flex: 1;
+    padding: 11px 20px;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: opacity .15s, background .15s;
+    border: none;
+    background: #fff;
+    color: #0a0a0a;
+    letter-spacing: -.01em;
+  }
+  .ob-btn-next:hover:not(:disabled) { background: #e8e8e8; }
+  .ob-btn-next:disabled {
+    background: rgba(255,255,255,.1);
+    color: rgba(255,255,255,.28);
+    cursor: not-allowed;
+  }
+
+  /* Back button */
+  .ob-btn-back {
+    padding: 11px 18px;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: background .13s;
+    border: 1px solid rgba(255,255,255,.1);
+    background: transparent;
+    color: rgba(255,255,255,.5);
+  }
+  .ob-btn-back:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.8); }
+
+
+  @keyframes confettiFall{0%{transform:translateY(-40px) translateX(0) rotate(0deg);opacity:0}5%{opacity:1}100%{transform:translateY(110vh) translateX(var(--cdrift)) rotate(var(--crot));opacity:0}}
+
+   @keyframes bellRing {
+          0%,55%,100% { transform: rotate(0deg);   }
+          60%          { transform: rotate(18deg);  }
+          65%          { transform: rotate(-15deg); }
+          70%          { transform: rotate(12deg);  }
+          75%          { transform: rotate(-9deg);  }
+          80%          { transform: rotate(6deg);   }
+          85%          { transform: rotate(-3deg);  }
+          90%          { transform: rotate(1deg);   }
+        }
+        .bell-ring {
+          display: inline-block;
+          transform-origin: 50% 2px;
+          animation: bellRing 2s ease-in-out infinite;
+        }
+        @keyframes dropIn {
+          from { opacity:0; transform: translateY(-6px) scale(.97); }
+          to   { opacity:1; transform: translateY(0)    scale(1);   }
+        }
+        .drop-in { animation: dropIn .18s cubic-bezier(.25,.9,.3,1) forwards; }
