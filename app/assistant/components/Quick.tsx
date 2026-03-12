@@ -312,7 +312,7 @@ function ActionsPanel({
       <div className="px-3 py-1">
         <div className="text-[11px] text-white/50 mb-1.5">View By</div>
         <div className="space-y-1">
-          {([['dueDate', 'Due Date', ], ['createdAt', 'Created Date', 'Filters use creation date']] as const).map(([value, label, hint]) => (
+          {([['dueDate', 'Due Date', ], ['createdAt', 'Created Date', 'Filters use creation date']] as const).map(([value, label]) => (
             <label key={value} onClick={() => setSortBy(value)}
               className="flex items-start gap-2 text-[12px] px-2 py-1.5 rounded-lg cursor-pointer hover:bg-white/5 transition-colors group">
               <span className={[
