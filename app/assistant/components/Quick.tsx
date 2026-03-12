@@ -11,6 +11,7 @@ type Block = {
   indent: number;
   checked?: boolean;
   deadline?: string;
+  createdAt?: string;   // ← NEW: YYYY-MM-DD, always set on creation
   isHidden?: boolean;
   archived?: boolean;
 };
@@ -29,6 +30,7 @@ type ListSection = {
 };
 
 type DateMode = 'today' | 'week' | 'month' | 'all';
+type SortBy = 'dueDate' | 'createdAt';
 
 const LS_KEY_V2 = 'youtask_projects_v1';
 const UNC_TITLE = 'Uncategorized';
@@ -134,6 +136,7 @@ type RawBlock = {
   indent?: unknown;
   checked?: unknown;
   deadline?: unknown;
+  createdAt?: unknown;   // ← NEW
   isHidden?: unknown;
   archived?: unknown;
 };
@@ -153,13 +156,19 @@ type StoragePayload = {
 };
 
 function normalizeLoadedBlocks(raw: unknown): Block[] {
+  const today = todayYMD();
   if (!Array.isArray(raw)) return moveUncToTop(ensureUncExists([]));
   const out: Block[] = (raw as RawBlock[]).map((x: RawBlock) => {
     const id = typeof x?.id === 'string' ? x.id : uid();
     const text = typeof x?.text === 'string' ? x.text : '';
     const indent = Number.isFinite(x?.indent) ? Number(x.indent) : 0;
     const b: Block = { id, text, indent: Math.max(0, indent) };
-    if (b.indent > 0) { b.checked = Boolean(x?.checked); if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline as string; }
+    if (b.indent > 0) {
+      b.checked = Boolean(x?.checked);
+      if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline as string;
+    }
+    // ← NEW: normalize createdAt — default to today if missing
+    b.createdAt = isValidDateYYYYMMDD(x?.createdAt) ? (x.createdAt as string) : today;
     if (typeof x?.isHidden === 'boolean') b.isHidden = x.isHidden;
     if (typeof x?.archived === 'boolean') b.archived = x.archived;
     return b;
@@ -215,9 +224,6 @@ function ConfettiRain({ show }: { show: boolean }) {
   if (!show) return null;
   return (
     <div className="pointer-events-none fixed inset-0 z-[9999] overflow-hidden">
-     
-
-
       {pieces.map(p => (
         <span key={p.i} className="absolute top-0 rounded-sm shadow-sm"
           style={{
@@ -257,16 +263,18 @@ function GamificationToast({ show, message }: { show: boolean; message: string }
   );
 }
 
-/* ===================== Actions Panel (shared desktop + mobile drawer) ===================== */
+/* ===================== Actions Panel ===================== */
 function ActionsPanel({
   dateMode, setDateMode, splitMode, setSplitMode,
   showEmptyLists, setShowEmptyLists, showHidden, setShowHidden,
+  sortBy, setSortBy,
   onNewList,
 }: {
   dateMode: DateMode; setDateMode: (m: DateMode) => void;
   splitMode: boolean; setSplitMode: (v: boolean | ((p: boolean) => boolean)) => void;
   showEmptyLists: boolean; setShowEmptyLists: (v: boolean | ((p: boolean) => boolean)) => void;
   showHidden: boolean; setShowHidden: (v: boolean | ((p: boolean) => boolean)) => void;
+  sortBy: SortBy; setSortBy: (v: SortBy) => void;
   onNewList: () => void;
 }) {
   const toggle = (label: string, active: boolean, onClick: () => void) => (
@@ -299,6 +307,30 @@ function ActionsPanel({
       {splitMode && toggle('Show Empty Lists', showEmptyLists, () => setShowEmptyLists(s => !s))}
 
       <div className="h-px bg-white/10 my-1" />
+
+      {/* Sort by — lifted to parent, controls filter axis */}
+      <div className="px-3 py-1">
+        <div className="text-[11px] text-white/50 mb-1.5">View By</div>
+        <div className="space-y-1">
+          {([['dueDate', 'Due Date', ], ['createdAt', 'Created Date', 'Filters use creation date']] as const).map(([value, label, hint]) => (
+            <label key={value} onClick={() => setSortBy(value)}
+              className="flex items-start gap-2 text-[12px] px-2 py-1.5 rounded-lg cursor-pointer hover:bg-white/5 transition-colors group">
+              <span className={[
+                'mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-colors shrink-0',
+                sortBy === value ? 'border-emerald-400 bg-emerald-500/30' : 'border-white/30 group-hover:border-white/50'
+              ].join(' ')}>
+                {sortBy === value && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 block" />}
+              </span>
+              <span className="flex flex-col">
+                <span className={sortBy === value ? 'text-emerald-100' : 'text-white/70'}>{label}</span>
+              
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="h-px bg-white/10 my-1" />
       <div className="px-3 py-1"><div className="text-[11px] text-white/50">Filters</div></div>
 
       {filterBtn('today', 'Today')}
@@ -318,6 +350,7 @@ function ActionsPanel({
 }
 
 export default function Quick() {
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [hydrated, setHydrated] = useState(false);
@@ -327,6 +360,9 @@ export default function Quick() {
   const [showHidden, setShowHidden] = useState(false);
   const [splitMode, setSplitMode] = useState(false);
   const [showEmptyLists, setShowEmptyLists] = useState(true);
+
+  // ← NEW: sortBy lives here so it can gate the filter logic
+  const [sortBy, setSortBy] = useState<SortBy>('dueDate');
 
   /* mobile drawer */
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -510,13 +546,18 @@ export default function Quick() {
     return `${formatPill(`${y}-${String(m).padStart(2,'0')}-01`)} – ${formatPill(monthEndYMD(anchor))}`;
   }
 
+  // ← KEY CHANGE: helper that picks the relevant date field based on sortBy
+  const getFilterDate = (b: Block): string | undefined =>
+    sortBy === 'createdAt' ? b.createdAt : b.deadline;
+
   const passesDateFilter = (b: Block) => {
     if (!(b.indent > 0)) return true;
-    if (!b.deadline || !isValidDateYYYYMMDD(b.deadline)) return false;
+    const date = getFilterDate(b);
+    if (!date || !isValidDateYYYYMMDD(date)) return false;
     if (dateMode === 'all') return true;
-    if (dateMode === 'today') return b.deadline === focusDay;
-    if (dateMode === 'week') return inWeekRange(b.deadline, focusDay);
-    return inMonthRange(b.deadline, focusDay);
+    if (dateMode === 'today') return date === focusDay;
+    if (dateMode === 'week') return inWeekRange(date, focusDay);
+    return inMonthRange(date, focusDay);
   };
 
   const splitDays = useMemo(() => {
@@ -527,10 +568,15 @@ export default function Quick() {
       while (cur <= end) { days.push(cur); cur = addDaysYMD(cur, 1); }
       return days;
     }
-    const dated = blocks.filter(b => b.indent > 0 && b.archived !== true && (showHidden || b.isHidden !== true)).map(b => b.deadline).filter(isValidDateYYYYMMDD);
+    // 'all': collect unique values of the active date field
+    const dated = blocks
+      .filter(b => b.indent > 0 && b.archived !== true && (showHidden || b.isHidden !== true))
+      .map(b => getFilterDate(b))
+      .filter(isValidDateYYYYMMDD);
     const uniq = Array.from(new Set(dated)).sort();
     return uniq.length ? uniq : [focusDay];
-  }, [dateMode, focusDay, blocks, showHidden]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateMode, focusDay, blocks, showHidden, sortBy]);
 
   const navigatePrev = () => {
     if (dateMode === 'today') setFocusDay(d => addDaysYMD(d, -1));
@@ -566,12 +612,20 @@ export default function Quick() {
 
   const updateBlock = (id: string, patch: Partial<Block>) => {
     const isChecking = typeof patch.checked === 'boolean' && patch.checked === true;
+    // Check in advance if this will complete the day (to skip notif in that case)
+    const willCompleteDay = isChecking && dateMode === 'today' && (() => {
+      const tasksForDay = blocks.filter(b => b.indent > 0 && b.archived !== true && !(b.isHidden === true && !showHidden) && isValidDateYYYYMMDD(b.deadline) && b.deadline === focusDay);
+      const remaining = tasksForDay.filter(t => t.id !== id && t.checked !== true);
+      return tasksForDay.length > 0 && remaining.length === 0;
+    })();
     if (isChecking) {
       setPulseId(id);
       if (pulseTimerRef.current) window.clearTimeout(pulseTimerRef.current);
       pulseTimerRef.current = window.setTimeout(() => setPulseId(null), 520);
-      const a = audioCheckRef.current;
-      if (a) { try { a.currentTime = 0; a.play(); } catch {} }
+      if (!willCompleteDay) {
+        const a = audioCheckRef.current;
+        if (a) { try { a.currentTime = 0; a.play(); } catch {} }
+      }
       showGamificationToast();
     }
     setCurrentBlocks(prev => {
@@ -636,6 +690,18 @@ export default function Quick() {
   const listTitles = useMemo(() => { const seen = new Set<string>(); return listTitlesRaw.filter(t => { const k = t.text.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }); }, [listTitlesRaw]);
   const listIdByName = useMemo(() => { const m = new Map<string, string>(); for (const t of listTitlesRaw) { const k = t.text.toLowerCase(); if (!m.has(k)) m.set(k, t.id); } return m; }, [listTitlesRaw]);
 
+  // ← NEW helper: builds a fresh task block with createdAt always set
+  const makeTaskBlock = (overrides: Partial<Block> & { id: string }): Block => ({
+    text: '',
+    indent: 1,
+    checked: false,
+    deadline: isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD(),
+    createdAt: todayYMD(),  // ← always stamped on creation
+    isHidden: undefined,
+    archived: undefined,
+    ...overrides,
+  });
+
   const addTaskUnderList = (listId: string, deadlineOverride?: string) => {
     const newTaskId = uid();
     const defaultDeadline = deadlineOverride && isValidDateYYYYMMDD(deadlineOverride) ? deadlineOverride : isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD();
@@ -644,7 +710,8 @@ export default function Quick() {
       const i = base.findIndex(b => b.id === listId);
       if (i < 0) return base;
       let end = i + 1; while (end < base.length && base[end].indent !== 0) end++;
-      const next = base.slice(); next.splice(end, 0, { id: newTaskId, text: '', indent: 1, checked: false, deadline: defaultDeadline, isHidden: undefined, archived: undefined });
+      const next = base.slice();
+      next.splice(end, 0, makeTaskBlock({ id: newTaskId, deadline: defaultDeadline }));
       return next;
     });
     setCurrentCollapsed(prev => ({ ...prev, [listId]: false }));
@@ -656,14 +723,14 @@ export default function Quick() {
     const name = (listText || '').trim() || 'New List';
     const existingId = listIdByName.get(name.toLowerCase());
     if (existingId) { addTaskUnderList(existingId); return { newListId: existingId, newTaskId: '' }; }
-    const defaultDeadline = isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD();
     setCurrentBlocks(prev => {
       const base = moveUncToTop(ensureUncExists(prev));
       const { end: uncEnd } = findUncRange(base);
       const insertAt = Math.max(uncEnd, base.length);
       const next = base.slice();
-      next.splice(insertAt, 0, { id: newListId, text: name, indent: 0 });
-      next.splice(insertAt + 1, 0, { id: newTaskId, text: '', indent: 1, checked: false, deadline: defaultDeadline, isHidden: undefined, archived: undefined });
+      // list header also gets createdAt for completeness
+      next.splice(insertAt, 0, { id: newListId, text: name, indent: 0, createdAt: todayYMD() });
+      next.splice(insertAt + 1, 0, makeTaskBlock({ id: newTaskId }));
       return next;
     });
     setCurrentCollapsed(prev => ({ ...prev, [newListId]: false }));
@@ -701,7 +768,7 @@ export default function Quick() {
     }
     return hidden;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blocks, collapsed, showHidden, dateMode, focusDay]);
+  }, [blocks, collapsed, showHidden, dateMode, focusDay, sortBy]);
 
   let __textMeasureCanvas: HTMLCanvasElement | null = null;
   function measureTextWidth(text: string, font: string) {
@@ -721,7 +788,11 @@ export default function Quick() {
     if (e.key === 'Enter') {
       e.preventDefault();
       const nextIndent = b.indent === 0 ? 1 : b.indent;
-      insertAfter(b.id, { id: uid(), text: '', indent: nextIndent, checked: nextIndent > 0 ? false : undefined, deadline: nextIndent > 0 ? (isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD()) : undefined, isHidden: undefined, archived: undefined });
+      // ← NEW: insertAfter now stamps createdAt
+      insertAfter(b.id, nextIndent > 0
+        ? makeTaskBlock({ id: uid(), indent: nextIndent, deadline: isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD() })
+        : { id: uid(), text: '', indent: 0, createdAt: todayYMD() }
+      );
       return;
     }
     if (e.key === 'Tab') {
@@ -769,13 +840,13 @@ export default function Quick() {
           {b.checked ? <span className="text-emerald-300 text-xs">✓</span> : null}
         </button>
         <div className="min-w-0 flex flex-wrap items-center gap-[2px] w-full">
-          <input ref={el => void  (inputRefs.current[b.id] = el)} value={b.text} placeholder="Task…" onChange={e => updateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
+          <input ref={el => void (inputRefs.current[b.id] = el)} value={b.text} placeholder="Task…" onChange={e => updateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
             className={['bg-transparent outline-none text-sm flex-none', b.checked ? 'text-white/40 line-through' : 'text-white/80'].join(' ')} style={{ width:`${inputWidthPx(b.text)}px` }} />
           <button type="button" className={['shrink-0 text-[11px] px-1.5 py-0.5 rounded-full border transition-colors', pillClass(b.deadline, b.checked)].join(' ')} title={pill ? 'Change date' : 'Set date'}
             onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} el.click(); }}>
             {pill ? pill : '📅'}
           </button>
-          <input ref={el => void  (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; updateBlock(b.id, { deadline: v ? v : undefined }); }} />
+          <input ref={el => void (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; updateBlock(b.id, { deadline: v ? v : undefined }); }} />
         </div>
       </div>
     );
@@ -791,7 +862,7 @@ export default function Quick() {
             {collapsed[list.id] ? '▸' : '▾'}
           </button>
           <div className="min-w-0 flex flex-wrap items-center gap-2 w-full">
-            <input ref={el => void  (inputRefs.current[list.id] = el)} value={list.text} placeholder="List…" onChange={e => updateBlock(list.id, { text: e.target.value })} onKeyDown={e => handleKey(e, list)}
+            <input ref={el => void (inputRefs.current[list.id] = el)} value={list.text} placeholder="List…" onChange={e => updateBlock(list.id, { text: e.target.value })} onKeyDown={e => handleKey(e, list)}
               className="bg-transparent outline-none text-sm text-white font-semibold flex-none" style={{ width:`${inputWidthPx(list.text)}px` }} />
             {opts?.subtitle ? <span className="text-[10px] text-white/30">{opts.subtitle}</span> : null}
           </div>
@@ -839,7 +910,7 @@ export default function Quick() {
                   </button>
                 ) : null}
                 <div className="min-w-0 flex flex-wrap items-center gap-[2px] w-full">
-                  <input ref={el => void  (inputRefs.current[b.id] = el)} value={b.text} placeholder={isList ? 'List…' : 'Task…'} onChange={e => updateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
+                  <input ref={el => void (inputRefs.current[b.id] = el)} value={b.text} placeholder={isList ? 'List…' : 'Task…'} onChange={e => updateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
                     className={['bg-transparent outline-none text-sm cursor-pointer transition-opacity duration-150 flex-none', isList ? 'text-white font-semibold' : b.checked ? 'text-white/40 line-through' : 'text-white/80'].join(' ')}
                     style={{ width:`${inputWidthPx(b.text)}px` }} />
                   {isTask ? (
@@ -848,18 +919,17 @@ export default function Quick() {
                         onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} el.click(); }}>
                         {formatPill(b.deadline) || '📅'}
                       </button>
-                      <input ref={el => void  (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; updateBlock(b.id, { deadline: v ? v : undefined }); }} />
+                      <input ref={el => void (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; updateBlock(b.id, { deadline: v ? v : undefined }); }} />
                     </>
+                  ) : isList && !isUncList ? (
+                    <div className="flex items-center" style={{ paddingLeft: 24 }}>
+                      <button type="button" onClick={() => addTaskUnderList(b.id)} className="mt-1 text-[11px] px-2 py-1 rounded-md border border-white/10 text-white/50 hover:text-white/80 bg-white/5 hover:bg-white/10 transition-colors">
+                        + task
+                      </button>
+                    </div>
                   ) : null}
                 </div>
               </div>
-              {isList && !isUncList ? (
-                <div className="flex items-center" style={{ paddingLeft: 24 }}>
-                  <button type="button" onClick={() => addTaskUnderList(b.id)} className="mt-1 text-[11px] px-2 py-1 rounded-md border border-white/10 text-white/50 hover:text-white/80 bg-white/5 hover:bg-white/10 transition-colors">
-                    + task
-                  </button>
-                </div>
-              ) : null}
             </React.Fragment>
           );
         })}
@@ -872,7 +942,13 @@ export default function Quick() {
       {splitDays.map(day => {
         const daySections = listSections.map(section => ({
           list: section.list,
-          tasks: section.tasks.filter(t => t.archived !== true && (showHidden || t.isHidden !== true) && isValidDateYYYYMMDD(t.deadline) && t.deadline === day),
+          // ← filter tasks by the active date field (deadline or createdAt)
+          tasks: section.tasks.filter(t => {
+            if (t.archived === true) return false;
+            if (!showHidden && t.isHidden === true) return false;
+            const date = getFilterDate(t);
+            return isValidDateYYYYMMDD(date) && date === day;
+          }),
         })).filter(section => showEmptyLists || section.tasks.length > 0);
         if (!daySections.length) return null;
         return (
@@ -898,7 +974,15 @@ export default function Quick() {
     </div>
   );
 
-  const actionsPanelProps = { dateMode, setDateMode, splitMode, setSplitMode, showEmptyLists, setShowEmptyLists, showHidden, setShowHidden, onNewList: openNewListModal };
+  const actionsPanelProps = {
+    dateMode, setDateMode, splitMode, setSplitMode,
+    showEmptyLists, setShowEmptyLists, showHidden, setShowHidden,
+    sortBy, setSortBy,
+    onNewList: openNewListModal,
+  };
+
+  // ← label in header changes depending on active sort axis
+  const sortAxisLabel = sortBy === 'createdAt' ? 'created' : 'due';
 
   return (
     <div className="h-full w-full bg-gray-900 text-white overflow-y-auto">
@@ -908,9 +992,7 @@ export default function Quick() {
       {/* ── Mobile drawer overlay ── */}
       {drawerOpen && (
         <div className="md:hidden fixed inset-0 z-40 flex justify-end">
-          {/* backdrop */}
           <button type="button" className="absolute inset-0 bg-black/60" onClick={() => setDrawerOpen(false)} aria-label="Close filters" />
-          {/* drawer panel — slides in from right */}
           <div className="relative w-72 max-w-[85vw] h-full bg-gray-900 border-l border-white/10 flex flex-col shadow-2xl overflow-hidden"
             style={{ animation: 'drawerSlideIn 0.25s cubic-bezier(.22,.9,.28,1)' }}>
             <style>{`@keyframes drawerSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
@@ -961,7 +1043,13 @@ export default function Quick() {
                   {dateMode === 'month' && <>Month <span className="text-white/35">{getMonthRangeLabel(focusDay)}</span></>}
                   {dateMode === 'all' && <span className="text-white/35">All dated tasks</span>}
                 </div>
-                {splitMode ? <div className="text-[11px] text-white/35">Split: <span className="text-white/60">{splitDays.length} days</span></div> : null}
+                <div className="flex items-center gap-3">
+                  {/* ← shows which axis is active */}
+                  <div className="text-[11px] text-white/35">
+                    by <span className="text-white/55">{sortAxisLabel}</span>
+                  </div>
+                  {splitMode ? <div className="text-[11px] text-white/35">Split: <span className="text-white/60">{splitDays.length} days</span></div> : null}
+                </div>
               </div>
 
               {isBrandNewEmpty ? (
@@ -1034,8 +1122,7 @@ export default function Quick() {
           </div>
         ) : null}
       </div>
-              <OnboardingModal />
+      <OnboardingModal />
     </div>
-    
   );
 }

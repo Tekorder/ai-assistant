@@ -507,11 +507,11 @@ export default function Timeline() {
             {!range
               ? ' · (sin deadlines)'
               : showCompleted
-                ? ` · ${range.min} → ${range.max} · ${columns.length} días`
+                ? ` · ${range.min} → ${range.max} · ${columns.length} days`
                 : ` · Overdue (${overdueCount}) · ${range.min} → ${range.max} · ${Math.max(
                     0,
                     columns.length - 1
-                  )} días`}
+                  )} days`}
           </span>
         </div>
 
@@ -627,7 +627,7 @@ export default function Timeline() {
                                 }
                                 aria-label={card.checked ? 'Completed' : 'Mark completed'}
                               >
-                                {card.checked ? '✓' : '○'}
+                                {card.checked ? '' : '○'}
                               </button>
 
                               {card.checked ? <div className="yt-donebadge">✓</div> : null}
