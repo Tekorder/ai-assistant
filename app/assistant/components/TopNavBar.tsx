@@ -108,10 +108,11 @@ export default function TopNavBar({
   }, [dropOpen]);
 
   const todayReminders = hydrated
-    ? reminders.filter(r => isReminderToday(r, today))
+    ? reminders.filter(r => isReminderToday(r, today) && r.title.trim().length > 0)
     : [];
 
-  const pendingCount = todayReminders.filter(r => !r.dismissed).length;
+  const pendingCount = todayReminders.filter(r => !r.dismissed && r.title.trim().length > 0).length;
+
   const hasPending   = pendingCount > 0;
 
   const dismissOne = (id: string) => {
@@ -174,7 +175,7 @@ export default function TopNavBar({
       `}</style>
 
       {/* ── Top bar ── */}
-      <div className="h-14 flex items-center justify-between px-4 bg-gray-900 border-b border-white/10 backdrop-blur-md">
+      <div className="h-14 flex items-center justify-between px-4 bg-gray-900 border-b border-white/10">
 
         {/* LEFT */}
         <div className="flex items-center gap-4">
@@ -237,7 +238,7 @@ export default function TopNavBar({
 
               {/* ── Dropdown ── */}
               {dropOpen && (
-                <div className="drop-in absolute right-0 top-11 w-72 rounded-xl border border-white/10 bg-gray-950 shadow-2xl overflow-hidden z-[200]">
+                <div className="drop-in absolute right-0 top-11 w-72 rounded-xl border border-white/10 bg-gray-950 shadow-2xl overflow-hidden z-[200] isolate">
 
                   {/* Header */}
                   <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8">

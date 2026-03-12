@@ -1278,6 +1278,8 @@ export const Sidebar = () => {
                           <div className="w-3 shrink-0" />
                         )}
 
+                       
+
                         {isTask ? (
                           <button
                             type="button"
@@ -1314,6 +1316,18 @@ export const Sidebar = () => {
                           ].join(' ')}
                         />
 
+                        {isList && !isUncTitleBlock(b) ? (
+                        <div className="flex items-center" style={{     whiteSpace: "pre" }}>
+                          <button
+                            type="button"
+                            onClick={() => addTaskUnderList(b.id)}
+                            className="mt-1 text-[11px] px-2 py-1 rounded-md border border-white/10 text-white/50 hover:text-white/80 bg-white/5 hover:bg-white/10 transition-colors"
+                          >
+                            + task
+                          </button>
+                        </div>
+                      ) : null}
+
                         {isTask ? (
                           <div className="shrink-0 pl-2 flex items-center gap-2">
                             <button
@@ -1349,7 +1363,7 @@ export const Sidebar = () => {
                               >
                                 ↩
                               </button>
-                            ) : null}
+                            ) : null} 
 
                             <button
                               type="button"
@@ -1369,17 +1383,7 @@ export const Sidebar = () => {
                         ) : null}
                       </div>
 
-                      {isList && !isUncTitleBlock(b) ? (
-                        <div className="flex items-center" style={{ paddingLeft: 24 }}>
-                          <button
-                            type="button"
-                            onClick={() => addTaskUnderList(b.id)}
-                            className="mt-1 text-[11px] px-2 py-1 rounded-md border border-white/10 text-white/50 hover:text-white/80 bg-white/5 hover:bg-white/10 transition-colors"
-                          >
-                            + task
-                          </button>
-                        </div>
-                      ) : null}
+                 
                     </React.Fragment>
                   );
                 });
