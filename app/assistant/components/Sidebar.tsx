@@ -359,6 +359,8 @@ export const Sidebar = () => {
 
   const currentProject = projects[currentProjectIndex];
   const blocks: Block[] = currentProject?.blocks ?? moveUncToTop(ensureUncExists([{ id: uid(), text: '', indent: 0 }]));
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const collapsed: Record<string, boolean> = currentProject?.collapsed ?? {};
 
   /* ===================== Pill helpers ===================== */
