@@ -755,3 +755,15 @@ aside::-webkit-scrollbar-track  { background: rgba(0,0,0,.20); border-radius: 99
   transform-origin: 50% 2px;
   animation: bellRing 2s ease-in-out infinite;
 }
+
+@keyframes wobble-loop {
+  0%, 85%, 100% { transform: translateX(0); }
+  88% { transform: translateX(-4px); }
+  91% { transform: translateX(4px); }
+  94% { transform: translateX(-3px); }
+  97% { transform: translateX(3px); }
+}
+
+.wobble-loop {
+  animation: wobble-loop 3.5s ease-in-out infinite;
+}

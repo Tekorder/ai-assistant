@@ -1,259 +1,100 @@
 'use client';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-type Block = {
+import {
+  // Types
+  type Block,
+  // Constants
+  LS_KEY_V2,
+  LS_KEY_V1,
+  // Utilities
+  isValidDateYYYYMMDD,
+  startOfLocalDay,
+  todayYMD,
+  toYMD,
+  parseYMD,
+  fmtColTitle,
+  // Persistence
+  readSelectedProject,
+  writeSelectedProjectBlocks,
+} from '@/lib/datacenter';
+
+/* ===================== Local UI types (no van a datacenter) ===================== */
+
+type SubTask = {
   id: string;
   text: string;
-  indent: number;
-  checked?: boolean;
-  deadline?: string;
+  checked: boolean;
+};
+
+type Card = {
+  id: string;
+  projectTitle: string;
+  text: string;
+  checked: boolean;
+  deadline: string;
+  subtasks: SubTask[];
   isHidden?: boolean;
   archived?: boolean;
 };
 
-// ✅ NUEVO: proyectos
-const LS_KEY_V2 = 'youtask_projects_v1';
-// ✅ VIEJO: solo blocks (fallback)
-const LS_KEY_V1 = 'youtask_blocks_v1';
+/* ===================== Constants ===================== */
 
-type Project = {
-  project_id: string;
-  title: string;
-  blocks: Block[];
-  collapsed?: Record<string, boolean>;
-};
+const OVERDUE_KEY = '__OVERDUE__';
 
-function isValidDateYYYYMMDD(s: unknown): s is string {
-  return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
-function startOfLocalDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-function parseYMD(ymd: string): Date {
-  const [y, m, d] = ymd.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-function toYMD(d: Date) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-function todayYMD() {
-  return toYMD(new Date());
-}
+/* ===================== Helpers (UI-only, no pertenecen a datacenter) ===================== */
 
-function fmtColTitle(ymd: string) {
-  const d = parseYMD(ymd);
-  const wd = d.toLocaleDateString('en-US', { weekday: 'short' });
-  const day = d.toLocaleDateString('en-US', { day: '2-digit' });
-  const mon = d.toLocaleDateString('en-US', { month: 'short' });
-  return `${wd} ${day} ${mon}`;
-}
-
-function dayDiffFromToday(ymd: string) {
+function dayDiffFromToday(ymd: string): number {
   const target = startOfLocalDay(parseYMD(ymd));
   const today = startOfLocalDay(new Date());
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
-function pillClass(diff: number) {
+
+function pillClass(diff: number): string {
   if (diff < 0) return 'yt-pill yt-pill-overdue';
   if (diff === 0) return 'yt-pill yt-pill-today';
   if (diff === 1) return 'yt-pill yt-pill-tomorrow';
   return 'yt-pill yt-pill-future';
 }
 
-const OVERDUE_KEY = '__OVERDUE__';
+function monthStart(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
 
-type SubTask = { id: string; text: string; checked: boolean };
-type Card = {
-  id: string;
-  projectTitle: string;
-  text: string;
-  checked: boolean;
-  deadline: string; // para OVERDUE guardamos deadline original
-  subtasks: SubTask[];
-  isHidden?: boolean;
-  archived?: boolean;
-};
+function monthEnd(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
 
-type RawBlock = {
-  id?: unknown;
-  text?: unknown;
-  indent?: unknown;
-  checked?: unknown;
-  deadline?: unknown;
-  isHidden?: unknown;
-  archived?: unknown;
-};
+function addMonths(date: Date, delta: number): Date {
+  return new Date(date.getFullYear(), date.getMonth() + delta, 1);
+}
 
-type RawProject = {
-  project_id?: unknown;
-  title?: unknown;
-  blocks?: unknown;
-  collapsed?: unknown;
-};
 
-type StorageV1Payload = {
-  blocks?: unknown;
-  collapsed?: unknown;
-};
 
-type StorageV2Payload = {
-  projects?: unknown;
-  selectedProjectId?: unknown;
-};
-
-function normalizeLoadedBlocks(raw: unknown): Block[] {
-  const uid = () => Math.random().toString(36).slice(2, 10);
-  if (!Array.isArray(raw)) return [{ id: uid(), text: '', indent: 0 }];
-
-  const out: Block[] = (raw as RawBlock[]).map((x: RawBlock) => {
-    const id = typeof x?.id === 'string' ? x.id : uid();
-    const text = typeof x?.text === 'string' ? x.text : '';
-    const indent = Number.isFinite(x?.indent) ? Number(x.indent) : 0;
-
-    const b: Block = { id, text, indent: Math.max(0, indent) };
-
-    if (b.indent > 0) {
-      b.checked = Boolean(x?.checked);
-      if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline as string;
-    } else {
-      b.checked = undefined;
-      b.deadline = undefined;
-    }
-
-    if (typeof x?.isHidden === 'boolean') b.isHidden = x.isHidden;
-    if (typeof x?.archived === 'boolean') b.archived = x.archived;
-
-    return b;
+function monthLabel(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
   });
-
-  return out.length ? out : [{ id: uid(), text: '', indent: 0 }];
 }
 
-// ─────────────────────────────────────────────────────────────
-// ✅ READ: lee proyecto seleccionado desde V2 (fallback a V1)
-function readSelectedProject(): { blocks: Block[]; projectTitle: string; project_id: string | null } {
-  // 1) Intentar V2
-  try {
-    const raw = localStorage.getItem(LS_KEY_V2);
-    if (raw) {
-      const parsed = JSON.parse(raw) as StorageV2Payload;
-      const projects: Project[] = Array.isArray(parsed?.projects)
-        ? (parsed.projects as RawProject[]).map((p: RawProject) => ({
-            project_id: typeof p?.project_id === 'string' ? p.project_id : '',
-            title: typeof p?.title === 'string' ? p.title : 'Project',
-            blocks: normalizeLoadedBlocks(p?.blocks ?? []),
-            collapsed: p?.collapsed && typeof p.collapsed === 'object'
-              ? p.collapsed as Record<string, boolean>
-              : {},
-          }))
-        : [];
-
-      if (projects.length) {
-        const selectedId: string =
-          typeof parsed?.selectedProjectId === 'string' ? parsed.selectedProjectId : projects[0].project_id;
-
-        const p = projects.find(x => x.project_id === selectedId) || projects[0];
-
-        return {
-          blocks: normalizeLoadedBlocks(p?.blocks ?? []),
-          projectTitle: (p?.title || 'Project').trim() || 'Project',
-          project_id: p?.project_id || null,
-        };
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  // 2) Fallback V1
-  try {
-    const raw = localStorage.getItem(LS_KEY_V1);
-    if (!raw) return { blocks: [], projectTitle: 'General', project_id: null };
-    const parsed = JSON.parse(raw) as StorageV1Payload;
-    const blocks = normalizeLoadedBlocks(parsed?.blocks ?? parsed);
-    return { blocks, projectTitle: 'General', project_id: null };
-  } catch {
-    return { blocks: [], projectTitle: 'General', project_id: null };
-  }
+function isDateWithinRange(ymd: string, fromYMD: string, toYMD: string): boolean {
+  return ymd >= fromYMD && ymd <= toYMD;
 }
 
-// ─────────────────────────────────────────────────────────────
-// ✅ WRITE: si hay V2 y project_id, actualiza SOLO ese proyecto
-function writeSelectedProjectBlocks(project_id: string | null, nextBlocks: Block[]) {
-  // si no hay project_id => fallback a V1
-  if (!project_id) {
-    try {
-      const raw = localStorage.getItem(LS_KEY_V1);
-      let payload: StorageV1Payload = { blocks: nextBlocks, collapsed: {} };
-      if (raw) {
-        const parsed = JSON.parse(raw) as StorageV1Payload;
-        payload = {
-          blocks: nextBlocks,
-          collapsed: parsed?.collapsed && typeof parsed.collapsed === 'object' ? parsed.collapsed : {},
-        };
-      }
-      localStorage.setItem(LS_KEY_V1, JSON.stringify(payload));
-      window.dispatchEvent(new Event('youtask_blocks_updated'));
-    } catch {}
-    return;
-  }
-
-  // V2 update
-  try {
-    const raw = localStorage.getItem(LS_KEY_V2);
-    if (!raw) return;
-
-    const parsed = JSON.parse(raw) as StorageV2Payload;
-    const projects: Project[] = Array.isArray(parsed?.projects)
-      ? (parsed.projects as RawProject[]).map((p: RawProject) => ({
-          project_id: typeof p?.project_id === 'string' ? p.project_id : '',
-          title: typeof p?.title === 'string' ? p.title : 'Project',
-          blocks: normalizeLoadedBlocks(p?.blocks ?? []),
-          collapsed: p?.collapsed && typeof p.collapsed === 'object'
-            ? p.collapsed as Record<string, boolean>
-            : {},
-        }))
-      : [];
-
-    if (!projects.length) return;
-
-    const idx = projects.findIndex(p => p.project_id === project_id);
-    if (idx < 0) return;
-
-    const nextProjects = projects.map(p => ({ ...p }));
-    nextProjects[idx] = {
-      ...nextProjects[idx],
-      blocks: nextBlocks,
-    };
-
-    const payload = {
-      ...parsed,
-      projects: nextProjects,
-    };
-
-    localStorage.setItem(LS_KEY_V2, JSON.stringify(payload));
-    window.dispatchEvent(new Event('youtask_projects_updated'));
-    window.dispatchEvent(new Event('youtask_blocks_updated')); // compat
-  } catch {}
-}
+/* ===================== Component ===================== */
 
 export default function Timeline() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [hydrated, setHydrated] = useState(false);
-
-  // ✅ proyecto seleccionado
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectTitle, setProjectTitle] = useState<string>('Project');
-
-  // Show Completed: muestra completados (incluye isHidden), pero SIEMPRE excluye archived
   const [showCompleted, setShowCompleted] = useState(false);
+  const [visibleMonth, setVisibleMonth] = useState<Date>(() => monthStart(new Date()));
 
-  // ✅ date pickers (Reschedule)
   const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
+  /* ── Load & sync ── */
   useEffect(() => {
     const load = () => {
       const snap = readSelectedProject();
@@ -265,24 +106,30 @@ export default function Timeline() {
 
     load();
 
-    const onProjects = () => load();
-    const onBlocks = () => load();
     const onStorage = (e: StorageEvent) => {
       if (e.key === LS_KEY_V2 || e.key === LS_KEY_V1) load();
     };
 
-    window.addEventListener('youtask_projects_updated', onProjects);
-    window.addEventListener('youtask_blocks_updated', onBlocks);
+    window.addEventListener('youtask_projects_updated', load);
+    window.addEventListener('youtask_blocks_updated', load);
     window.addEventListener('storage', onStorage);
 
     return () => {
-      window.removeEventListener('youtask_projects_updated', onProjects);
-      window.removeEventListener('youtask_blocks_updated', onBlocks);
+      window.removeEventListener('youtask_projects_updated', load);
+      window.removeEventListener('youtask_blocks_updated', load);
       window.removeEventListener('storage', onStorage);
     };
   }, []);
 
-  const cards: Card[] = useMemo(() => {
+  /* ── Cuando entras a Show Completed, cae al mes actual ── */
+  useEffect(() => {
+    if (showCompleted) {
+      setVisibleMonth(monthStart(new Date()));
+    }
+  }, [showCompleted]);
+
+  /* ── Build cards ── */
+  const cards = useMemo<Card[]>(() => {
     const out: Card[] = [];
     let currentSectionTitle = '';
 
@@ -294,81 +141,84 @@ export default function Timeline() {
         continue;
       }
 
-      // SOLO tasks indent=1 con deadline
-      if (b.indent === 1) {
-        if (!isValidDateYYYYMMDD(b.deadline)) continue;
+      if (b.indent !== 1) continue;
+      if (!isValidDateYYYYMMDD(b.deadline)) continue;
+      if (b.archived === true) continue;
 
-        const checked = Boolean(b.checked);
-        const isHidden = b.isHidden === true;
-        const isArchived = b.archived === true;
+      const checked = Boolean(b.checked);
+      const isHidden = b.isHidden === true;
 
-        // Timeline JAMÁS muestra archived
-        if (isArchived) continue;
+      if (!showCompleted && (checked || isHidden)) continue;
 
-        if (!showCompleted) {
-          if (checked) continue;
-          if (isHidden) continue;
+      const subtasks: SubTask[] = [];
+      let j = i + 1;
+      while (j < blocks.length && blocks[j].indent > 1) {
+        const sb = blocks[j];
+        if (sb.archived !== true) {
+          subtasks.push({
+            id: sb.id,
+            text: sb.text || '',
+            checked: Boolean(sb.checked),
+          });
         }
-
-        const subtasks: SubTask[] = [];
-        let j = i + 1;
-        while (j < blocks.length && blocks[j].indent > 1) {
-          const sb = blocks[j];
-          if (sb.archived === true) {
-            j++;
-            continue;
-          }
-          subtasks.push({ id: sb.id, text: sb.text || '', checked: Boolean(sb.checked) });
-          j++;
-        }
-
-        out.push({
-          id: b.id,
-          projectTitle: currentSectionTitle || projectTitle || 'General',
-          text: b.text || '',
-          checked,
-          deadline: b.deadline!,
-          subtasks,
-          isHidden,
-          archived: isArchived,
-        });
+        j++;
       }
+
+      out.push({
+        id: b.id,
+        projectTitle: currentSectionTitle || projectTitle || 'General',
+        text: b.text || '',
+        checked,
+        deadline: b.deadline!,
+        subtasks,
+        isHidden,
+        archived: false,
+      });
     }
 
     return out;
   }, [blocks, showCompleted, projectTitle]);
 
-  // === RANGE ===
-  const range = useMemo(() => {
+  /* ── Range normal (modo timeline clásico) ── */
+  const normalRange = useMemo(() => {
     const deadlines = cards.map(c => c.deadline).filter(isValidDateYYYYMMDD);
     if (!deadlines.length) return null;
 
     deadlines.sort();
-
-    if (showCompleted) {
-      return { min: deadlines[0], max: deadlines[deadlines.length - 1] };
-    }
-
     const t = todayYMD();
     const max = deadlines[deadlines.length - 1];
-    const maxVisible = max < t ? t : max;
-    return { min: t, max: maxVisible };
-  }, [cards, showCompleted]);
 
-  // === CARDS BY COLUMN KEY ===
+    return {
+      min: t,
+      max: max < t ? t : max,
+    };
+  }, [cards]);
+
+  /* ── Rango del mes seleccionado para Show Completed ── */
+  const completedMonthRange = useMemo(() => {
+    const from = toYMD(monthStart(visibleMonth));
+    const to = toYMD(monthEnd(visibleMonth));
+    return { from, to };
+  }, [visibleMonth]);
+
+  /* ── Cards by column ── */
   const cardsByDate = useMemo(() => {
     const map: Record<string, Card[]> = {};
     const t0 = startOfLocalDay(new Date()).getTime();
 
     for (const c of cards) {
-      const cd = startOfLocalDay(parseYMD(c.deadline)).getTime();
-
       if (showCompleted) {
-        if (!map[c.deadline]) map[c.deadline] = [];
-        map[c.deadline].push(c);
+        if (!isDateWithinRange(c.deadline, completedMonthRange.from, completedMonthRange.to)) {
+          continue;
+        }
+
+        const key = c.deadline;
+        if (!map[key]) map[key] = [];
+        map[key].push(c);
         continue;
       }
 
+      const cd = startOfLocalDay(parseYMD(c.deadline)).getTime();
       const key = cd < t0 ? OVERDUE_KEY : c.deadline;
       if (!map[key]) map[key] = [];
       map[key].push(c);
@@ -376,7 +226,9 @@ export default function Timeline() {
 
     for (const k of Object.keys(map)) {
       if (!showCompleted && k === OVERDUE_KEY) {
-        map[k].sort((a, b) => parseYMD(a.deadline).getTime() - parseYMD(b.deadline).getTime());
+        map[k].sort(
+          (a, b) => parseYMD(a.deadline).getTime() - parseYMD(b.deadline).getTime(),
+        );
       } else {
         map[k].sort((a, b) => {
           if (showCompleted && a.checked !== b.checked) return a.checked ? 1 : -1;
@@ -386,74 +238,76 @@ export default function Timeline() {
     }
 
     return map;
-  }, [cards, showCompleted]);
+  }, [cards, showCompleted, completedMonthRange]);
 
-  const overdueCount = useMemo(() => {
-    if (showCompleted) return 0;
-    return cardsByDate[OVERDUE_KEY]?.length ?? 0;
-  }, [cardsByDate, showCompleted]);
+  const overdueCount = useMemo(
+    () => (showCompleted ? 0 : (cardsByDate[OVERDUE_KEY]?.length ?? 0)),
+    [cardsByDate, showCompleted],
+  );
 
-  // === COLUMNS ===
+  /* ── Columns ── */
   const columns = useMemo(() => {
-    if (!range) return [];
-
     if (showCompleted) {
-      const minD = startOfLocalDay(parseYMD(range.min));
-      const maxD = startOfLocalDay(parseYMD(range.max));
-      const out: string[] = [];
-      for (let d = new Date(minD); d.getTime() <= maxD.getTime(); d.setDate(d.getDate() + 1)) {
-        out.push(toYMD(d));
-      }
-      return out;
+      return Object.keys(cardsByDate)
+        .filter(k => k !== OVERDUE_KEY)
+        .sort((a, b) => a.localeCompare(b));
     }
 
-    const minD = startOfLocalDay(parseYMD(range.min)); // hoy
-    const maxD = startOfLocalDay(parseYMD(range.max));
+    if (!normalRange) return [];
+
+    const minD = startOfLocalDay(parseYMD(normalRange.min));
+    const maxD = startOfLocalDay(parseYMD(normalRange.max));
     const out: string[] = [OVERDUE_KEY];
-    for (let d = new Date(minD); d.getTime() <= maxD.getTime(); d.setDate(d.getDate() + 1)) {
+
+    for (
+      let d = new Date(minD);
+      d.getTime() <= maxD.getTime();
+      d.setDate(d.getDate() + 1)
+    ) {
       out.push(toYMD(d));
     }
-    return out;
-  }, [range, showCompleted]);
 
-  // ✅ Toggle done:
-  // - al marcar completado: deadline = hoy (bitácora)
-  const toggleDoneFromTimeline = (cardId: string) => {
+    return out;
+  }, [showCompleted, cardsByDate, normalRange]);
+
+  const nowMonth = useMemo(() => monthStart(new Date()), []);
+
+  const canGoNextMonth = useMemo(() => {
+    return monthStart(visibleMonth).getTime() < nowMonth.getTime();
+  }, [visibleMonth, nowMonth]);
+
+
+
+  /* ── Actions ── */
+  const toggleDone = (cardId: string) => {
     const next = blocks.map(x => ({ ...x }));
     const t = todayYMD();
-    let changed = false;
 
-    for (let i = 0; i < next.length; i++) {
-      const b = next[i];
-      if (b.id !== cardId) continue;
-      if (b.indent !== 1) return;
-
+    for (const b of next) {
+      if (b.id !== cardId || b.indent !== 1) continue;
       const nextChecked = !Boolean(b.checked);
       b.checked = nextChecked;
-
       if (nextChecked) {
         b.deadline = t;
         b.isHidden = false;
       }
-
-      changed = true;
       break;
     }
 
-    if (changed) {
-      writeSelectedProjectBlocks(projectId, next);
-      setBlocks(next);
-    }
+    writeSelectedProjectBlocks(projectId, next);
+    setBlocks(next);
   };
 
-  // ✅ Reschedule (abre date picker y actualiza deadline)
   const openReschedulePicker = (cardId: string) => {
     const el = dateRefs.current[cardId];
     if (!el) return;
+
     try {
-   
-      if (typeof el.showPicker === 'function') el.showPicker();
-      else el.click();
+      if (typeof (el as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
+        (el as HTMLInputElement & { showPicker?: () => void }).showPicker!();
+      } else {
+        el.click();
+      }
     } catch {
       el.click();
     }
@@ -463,28 +317,18 @@ export default function Timeline() {
     if (!isValidDateYYYYMMDD(newDeadline)) return;
 
     const next = blocks.map(x => ({ ...x }));
-    let changed = false;
-
-    for (let i = 0; i < next.length; i++) {
-      const b = next[i];
-      if (b.id !== cardId) continue;
-      if (b.indent !== 1) return;
-
+    for (const b of next) {
+      if (b.id !== cardId || b.indent !== 1) continue;
       b.deadline = newDeadline;
-
-      // si estaba oculto, al reschedule lo traemos de vuelta
       if (b.isHidden === true) b.isHidden = false;
-
-      changed = true;
       break;
     }
 
-    if (changed) {
-      writeSelectedProjectBlocks(projectId, next);
-      setBlocks(next);
-    }
+    writeSelectedProjectBlocks(projectId, next);
+    setBlocks(next);
   };
 
+  /* ── Render ── */
   if (!hydrated) {
     return (
       <div className="youtask-timeline-root">
@@ -501,18 +345,58 @@ export default function Timeline() {
       <div className="youtask-timeline-top">
         <div className="youtask-timeline-title">
           Timeline
-          <span className="youtask-timeline-sub">
-            {' '}
-            · {projectTitle || 'Project'}
-            {!range
-              ? ' · (sin deadlines)'
-              : showCompleted
-                ? ` · ${range.min} → ${range.max} · ${columns.length} days`
-                : ` · Overdue (${overdueCount}) · ${range.min} → ${range.max} · ${Math.max(
-                    0,
-                    columns.length - 1
-                  )} days`}
-          </span>
+
+          {!showCompleted ? (
+            <span className="youtask-timeline-sub">
+              {' '}· {projectTitle || 'Project'}
+              {!normalRange
+                ? ' · (sin deadlines)'
+                : ` · Overdue (${overdueCount}) · ${normalRange.min} → ${normalRange.max} · ${Math.max(0, columns.length - 1)} days`}
+            </span>
+          ) : (
+            <span
+              className="youtask-timeline-sub"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                marginLeft: 10,
+              }}
+            >
+              <button
+                type="button"
+                className="youtask-timeline-monthnav"
+                onClick={() => setVisibleMonth(prev => addMonths(prev, -1))}
+                title="Previous month"
+                aria-label="Previous month"
+              >
+                ‹
+              </button>
+
+              <span className="youtask-timeline-monthlabel">
+                {monthLabel(visibleMonth)}
+              </span>
+
+              <button
+                type="button"
+                className="youtask-timeline-monthnav"
+                onClick={() => {
+                  if (canGoNextMonth) {
+                    setVisibleMonth(prev => addMonths(prev, 1));
+                  }
+                }}
+                title="Next month"
+                aria-label="Next month"
+                disabled={!canGoNextMonth}
+                style={{
+                  opacity: canGoNextMonth ? 1 : 0.35,
+                  cursor: canGoNextMonth ? 'pointer' : 'default',
+                }}
+              >
+                ›
+              </button>
+            </span>
+          )}
         </div>
 
         <div className="youtask-timeline-actions">
@@ -520,36 +404,33 @@ export default function Timeline() {
             type="button"
             className={['youtask-timeline-toggle', showCompleted ? 'is-on' : ''].join(' ')}
             onClick={() => setShowCompleted(v => !v)}
-            title="Muestra tasks completados (incluye ocultos por Dismiss). Archived no aparece aquí."
+            title="Muestra tasks del mes completo, tanto completados como pendientes, ocultando días sin activity. Archived no aparece aquí."
           >
             {showCompleted ? '✓ Show Completed' : 'Show Completed'}
           </button>
         </div>
       </div>
 
-      {!range ? (
+      {columns.length === 0 ? (
         <div className="youtask-timeline-empty">
-          No tasks yet.
+          {showCompleted
+            ? `No tasks in ${monthLabel(visibleMonth)}.`
+            : 'No tasks yet.'}
         </div>
       ) : (
         <div className="youtask-timeline-board">
           {columns.map(colKey => {
             const list = cardsByDate[colKey] || [];
-
             const isOverdueCol = !showCompleted && colKey === OVERDUE_KEY;
             const title = isOverdueCol ? 'Overdue' : fmtColTitle(colKey);
-
             const diff = isOverdueCol ? -1 : dayDiffFromToday(colKey);
 
-            // ✅ FIX: en SHOW COMPLETED, "Overdue" solo si ese día pasado tiene pendientes
             const hasOpen = list.some(c => !c.checked);
             const showOverduePill = showCompleted ? diff < 0 && hasOpen : diff < 0;
-
             const pillDiffForClass = showOverduePill ? -1 : Math.max(0, diff);
 
             const pillText = (() => {
-              if (isOverdueCol) return 'Overdue';
-              if (showOverduePill) return 'Overdue';
+              if (isOverdueCol || showOverduePill) return 'Overdue';
               if (diff === 0) return 'Today';
               if (diff === 1) return 'Tomorrow';
               if (diff > 1) return `+${diff}d`;
@@ -587,44 +468,42 @@ export default function Timeline() {
                       return (
                         <div key={card.id} className={['yt-card', card.checked ? 'is-done' : ''].join(' ')}>
                           <div className="yt-card-top">
-                            <div className="yt-project">{card.projectTitle || projectTitle || 'General'}</div>
+                            <div className="yt-project">
+                              {card.projectTitle || projectTitle || 'General'}
+                            </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            {isOverdueCol ? (
-                                        <>
-                                          <button
-                                            type="button"
-                                            className="yt-reschedule"
-                                            onClick={() => openReschedulePicker(card.id)}
-                                            title="Re-schedule (cambiar deadline)"
-                                            aria-label="Reschedule"
-                                          >
-                                            📅
-                                          </button>
+                              {isOverdueCol ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="yt-reschedule"
+                                    onClick={() => openReschedulePicker(card.id)}
+                                    title="Re-schedule"
+                                    aria-label="Reschedule"
+                                  >
+                                    📅
+                                  </button>
 
-                                          <input
-                                            ref={el => void  (dateRefs.current[card.id] = el)}
-                                            type="date"
-                                            className="hidden"
-                                            value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
-                                            onChange={(e) => {
-                                              const v = e.target.value;
-                                              if (v) rescheduleDeadline(card.id, v);
-                                            }}
-                                          />
-                                        </>
-                                      ) : null}
+                                  <input
+                                    ref={el => {
+                                      dateRefs.current[card.id] = el;
+                                    }}
+                                    type="date"
+                                    className="hidden"
+                                    value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
+                                    onChange={e => {
+                                      if (e.target.value) rescheduleDeadline(card.id, e.target.value);
+                                    }}
+                                  />
+                                </>
+                              ) : null}
 
-                              {/* ✅ Done toggle */}
                               <button
                                 type="button"
                                 className={['yt-tick', card.checked ? 'is-on' : ''].join(' ')}
-                                onClick={() => toggleDoneFromTimeline(card.id)}
-                                title={
-                                  card.checked
-                                    ? 'Marcar como pendiente'
-                                    : 'Marcar como completado (y mover deadline a hoy)'
-                                }
+                                onClick={() => toggleDone(card.id)}
+                                title={card.checked ? 'Marcar como pendiente' : 'Marcar como completado'}
                                 aria-label={card.checked ? 'Completed' : 'Mark completed'}
                               >
                                 {card.checked ? '' : '○'}
