@@ -8,12 +8,13 @@ import RemindersSection from './components/RemindersSection';
 import Timeline from './components/Timeline';
 import Archive from './components/Archive';
 import Quick from './components/Quick';
+import CalendarView from './components/Calendar';
 import TopNavBar from './components/TopNavBar';
 
+type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
+
 export default function App() {
-const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' | 'archive' | 'quick'>('quick');
-
-
+  const [activeView, setActiveView] = useState<View>('quick');
 
   // ✅ Sidebar toggle
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -22,15 +23,31 @@ const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' |
   const containerRef = useRef<HTMLDivElement | null>(null);
   const isDragging = useRef(false);
 
-  const MIN_SIDEBAR = 280;
-  const MAX_SIDEBAR = 900;
-  const [sidebarW, setSidebarW] = useState(500);
+  const MIN_SIDEBAR = 480;
+const MAX_SIDEBAR = 900;
+const DEFAULT_SIDEBAR = 500;
+
+const clampSidebar = (w: number) =>
+  Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, w));
+
+const getResponsiveSidebarWidth = () =>
+  clampSidebar(window.innerWidth * 0.4);
+
+const [sidebarW, setSidebarW] = useState(DEFAULT_SIDEBAR);
+
+useEffect(() => {
+  const applyResponsiveWidth = () => {
+    setSidebarW(getResponsiveSidebarWidth());
+  };
+
+  applyResponsiveWidth();
+  window.addEventListener("resize", applyResponsiveWidth);
+
+  return () => window.removeEventListener("resize", applyResponsiveWidth);
+}, [getResponsiveSidebarWidth]);
 
   // ✅ Chat overlay (web-agent style)
   const [chatOpen, setChatOpen] = useState(false);
-
-  // (kept just in case you want to restore view-style chat later)
-  /*const [lastView, setLastView] = useState<typeof activeView>('quick');*/
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -72,20 +89,15 @@ const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' |
   };
 
   const renderView = () => {
-    if (activeView === 'timeline') return <Timeline />;
-    if (activeView === 'archive') return <Archive/>;
-    if (activeView === 'quick') return <Quick />;
+    if (activeView === 'timeline')  return <Timeline />;
+    if (activeView === 'archive')   return <Archive />;
+    if (activeView === 'quick')     return <Quick />;
+    if (activeView === 'calendar')  return <CalendarView />;
     return <RemindersSection onClose={() => setActiveView('timeline')} />;
   };
 
-  const openChatOverlay = () => {
-    /*setLastView(activeView);*/
-    setChatOpen(true);
-  };
-
-  const closeChatOverlay = () => {
-    setChatOpen(false);
-  };
+  const openChatOverlay  = () => setChatOpen(true);
+  const closeChatOverlay = () => setChatOpen(false);
 
   return (
     <RemindersProvider>
@@ -93,7 +105,7 @@ const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' |
         <TopNavBar
           title="Youtask"
           activeView={activeView}
-          setActiveView={setActiveView }
+          setActiveView={setActiveView}
           onHome={() => setActiveView('reminders')}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(v => !v)}
@@ -101,10 +113,8 @@ const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' |
 
         {/* ===================== MOBILE (Drawer) ===================== */}
         <div className="md:hidden flex-1 relative bg-gray-900 overflow-hidden">
-          {/* Content */}
           <div className="h-full overflow-hidden">{renderView()}</div>
 
-          {/* Drawer backdrop */}
           {sidebarOpen && (
             <button
               className="absolute inset-0 bg-black/50"
@@ -113,7 +123,6 @@ const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' |
             />
           )}
 
-          {/* Drawer panel */}
           <div
             className={[
               'absolute top-0 left-0 h-full w-[86%] max-w-[380px] bg-gray-800 shadow-2xl transform transition-transform',
@@ -121,8 +130,7 @@ const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' |
             ].join(' ')}
           >
             <div className="h-full overflow-hidden">
-            
-              <Sidebar  />
+              <Sidebar />
             </div>
           </div>
         </div>
@@ -135,11 +143,11 @@ const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' |
             style={{ width: sidebarOpen ? sidebarW : 0 }}
           >
             <div className="h-full" style={{ width: sidebarW }}>
-              <Sidebar  />
+              <Sidebar />
             </div>
           </div>
 
-          {/* Resize handle (only when open) */}
+          {/* Resize handle */}
           {sidebarOpen && (
             <div
               className="relative h-full w-[10px] cursor-col-resize group shrink-0"
@@ -163,17 +171,14 @@ const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' |
           <div className="flex-1 min-w-0 overflow-hidden bg-gray-900">{renderView()}</div>
         </div>
 
-        {/* ===================== CHAT OVERLAY (Web Agent) ===================== */}
+        {/* ===================== CHAT OVERLAY ===================== */}
         {chatOpen && (
           <>
-            {/* Backdrop */}
             <button
               className="fixed inset-0 bg-black/30 backdrop-blur-[2px] z-[9998]"
               onClick={closeChatOverlay}
               aria-label="Close AI overlay"
             />
-
-            {/* Panel */}
             <div
               className={[
                 'fixed z-[9999]',
@@ -187,25 +192,20 @@ const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' |
                 'flex flex-col overflow-hidden',
               ].join(' ')}
             >
-              {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                   <span className="text-sm font-medium text-white">AI Assistant</span>
                 </div>
-
                 <button
                   type="button"
                   onClick={closeChatOverlay}
                   className="text-white/60 hover:text-white transition-colors"
                   aria-label="Close"
-                  title="Close"
                 >
                   ✕
                 </button>
               </div>
-
-              {/* Content */}
               <div className="flex-1 overflow-hidden">
                 <ChatBox showReminders={false} onCloseReminders={() => {}} />
               </div>
@@ -228,24 +228,18 @@ const [activeView, setActiveView] = useState<'chat' | 'reminders' | 'timeline' |
           aria-label={chatOpen ? 'Close AI chat' : 'Open AI chat'}
           title={chatOpen ? 'Close chat' : 'AI Assistant'}
         >
-          {/* Status dot */}
           <span className="absolute -top-1 -right-1">
             <span className="absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75 animate-ping" />
             <span className="relative inline-flex h-3 w-3 rounded-full bg-green-400 border border-black/30" />
           </span>
 
-          {/* Icon */}
           {chatOpen ? (
             <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
             </svg>
           ) : (
             <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 14h5" />
             </svg>
