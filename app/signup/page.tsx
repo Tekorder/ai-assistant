@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef, useEffect, useCallback } from 'react';
 import { registerWithEmail } from '@/lib/auth';
 import {
   validateUsername,
@@ -13,7 +12,7 @@ import {
   validatePassword,
 } from './_utils/validation';
 
-/* ─── Styles (same as login) ───────────────────────────────── */
+/* ─── Styles ─────────────────────────────────────────────── */
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
   .lp-wrap { font-family: 'DM Sans', sans-serif; }
@@ -39,8 +38,8 @@ const STYLES = `
   }
   .lp-input::placeholder { color: rgba(255,255,255,.25); }
   .lp-input:focus {
-    border-color: rgba(52,211,153,.45);
-    background: rgba(52,211,153,.04);
+    border-color: rgba(213,252,67,.5);
+    background: rgba(213,252,67,.06);
   }
   .lp-input.lp-error {
     border-color: rgba(248,113,113,.45);
@@ -48,50 +47,73 @@ const STYLES = `
   }
   .lp-btn {
     width: 100%; padding: 12px; border-radius: 10px; border: none;
-    background: #fff; color: #0a0a0a;
+    background: #d5fc43; color: #0a0a0a;
     font-size: 14px; font-weight: 600;
     font-family: 'DM Sans', sans-serif;
-    cursor: pointer; transition: background .15s, opacity .15s;
+    cursor: pointer; transition: background .15s, opacity .15s, box-shadow .15s;
+    box-shadow: 0 0 24px rgba(213,252,67,.25);
   }
-  .lp-btn:hover:not(:disabled) { background: #e8e8e8; }
+  .lp-btn:hover:not(:disabled) { background: #c8f030; box-shadow: 0 0 32px rgba(213,252,67,.35); }
   .lp-btn:disabled { opacity: .45; cursor: not-allowed; }
-  .lp-dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: #34d399;
-    box-shadow: 0 0 0 0 rgba(52,211,153,.4);
-    animation: lp-dot-pulse 2s ease-in-out infinite;
+  .lp-wordmark-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 4px 0 18px;
   }
-  @keyframes lp-dot-pulse {
-    0%,100% { box-shadow: 0 0 0 0   rgba(52,211,153,.4); }
-    50%      { box-shadow: 0 0 0 6px rgba(52,211,153,0);  }
+  .lp-wordmark {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.38em;
+    padding-left: 0.38em;
+    text-transform: uppercase;
+    color: #d5fc43;
+    line-height: 1.3;
+    text-shadow:
+      0 0 16px rgba(213,252,67,.55),
+      0 0 36px rgba(213,252,67,.3),
+      0 0 2px rgba(255,255,255,.2);
+    animation: lp-wordmark-pulse 3.2s ease-in-out infinite;
+  }
+  @keyframes lp-wordmark-pulse {
+    0%, 100% { opacity: 1; filter: brightness(1); }
+    50% { opacity: 0.92; filter: brightness(1.12); }
   }
 `;
 
-/* ─── Particle Canvas (same as login) ─────────────────────── */
+/* ─── Particle Canvas ────────────────────────────────────── */
 type PState = 'moving' | 'frozen';
 type Particle = {
-  x: number; y: number;
-  vx: number; vy: number;
-  bvx: number; bvy: number;
-  r: number; alpha: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  bvx: number;
+  bvy: number;
+  r: number;
+  alpha: number;
 };
 
 function ParticleCanvas({ pstate }: { pstate: PState }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pts       = useRef<Particle[]>([]);
-  const raf       = useRef<number>(0);
-  const stateRef  = useRef<PState>('moving');
+  const pts = useRef<Particle[]>([]);
+  const raf = useRef<number>(0);
+  const stateRef = useRef<PState>('moving');
 
   const seed = useCallback((w: number, h: number) => {
     pts.current = [];
     for (let i = 0; i < 45; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const spd   = 2.5 + Math.random() * 4.5;
-      const bvx   = Math.cos(angle) * spd;
-      const bvy   = Math.sin(angle) * spd;
+      const spd = 2.5 + Math.random() * 4.5;
+      const bvx = Math.cos(angle) * spd;
+      const bvy = Math.sin(angle) * spd;
       pts.current.push({
-        x: Math.random() * w, y: Math.random() * h,
-        vx: bvx, vy: bvy, bvx, bvy,
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: bvx,
+        vy: bvy,
+        bvx,
+        bvy,
         r: 4 + Math.random() * 7,
         alpha: 0.35 + Math.random() * 0.45,
       });
@@ -100,18 +122,24 @@ function ParticleCanvas({ pstate }: { pstate: PState }) {
 
   useEffect(() => {
     const canvas = canvasRef.current!;
-    const ctx    = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d')!;
+
     const resize = () => {
-      canvas.width  = window.innerWidth;
+      canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       seed(canvas.width, canvas.height);
     };
+
     resize();
     window.addEventListener('resize', resize);
+
     const loop = () => {
-      const W = canvas.width, H = canvas.height;
+      const W = canvas.width;
+      const H = canvas.height;
       const st = stateRef.current;
+
       ctx.clearRect(0, 0, W, H);
+
       for (const p of pts.current) {
         if (st === 'moving') {
           p.vx += (p.bvx - p.vx) * 0.04;
@@ -120,105 +148,200 @@ function ParticleCanvas({ pstate }: { pstate: PState }) {
           p.vx += (p.bvx * 0.05 - p.vx) * 0.06;
           p.vy += (p.bvy * 0.05 - p.vy) * 0.06;
         }
-        p.x += p.vx; p.y += p.vy;
+
+        p.x += p.vx;
+        p.y += p.vy;
+
         if (p.x < -20) p.x = W + 20;
-        if (p.x > W+20) p.x = -20;
+        if (p.x > W + 20) p.x = -20;
         if (p.y < -20) p.y = H + 20;
-        if (p.y > H+20) p.y = -20;
+        if (p.y > H + 20) p.y = -20;
+
         const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 2.5);
-        g.addColorStop(0, `rgba(52,211,153,${p.alpha * 0.7})`);
-        g.addColorStop(1, `rgba(52,211,153,0)`);
+        g.addColorStop(0, `rgba(213,252,67,${p.alpha * 0.72})`);
+        g.addColorStop(1, `rgba(213,252,67,0)`);
+
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r * 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = g; ctx.fill();
+        ctx.fillStyle = g;
+        ctx.fill();
+
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r * 0.55, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(167,243,208,${p.alpha})`; ctx.fill();
+        ctx.fillStyle = `rgba(240,255,180,${p.alpha})`;
+        ctx.fill();
       }
+
       raf.current = requestAnimationFrame(loop);
     };
+
     loop();
+
     return () => {
       window.removeEventListener('resize', resize);
       cancelAnimationFrame(raf.current);
     };
   }, [seed]);
 
-  useEffect(() => { stateRef.current = pstate; }, [pstate]);
+  useEffect(() => {
+    stateRef.current = pstate;
+  }, [pstate]);
 
-  return <canvas ref={canvasRef} style={{ position:'fixed', inset:0, zIndex:0, pointerEvents:'none', display:'block' }} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 0,
+        pointerEvents: 'none',
+        display: 'block',
+      }}
+    />
+  );
 }
 
-/* ─── Main Component ───────────────────────────────────────── */
+/* ─── Main Component ─────────────────────────────────────── */
 export default function SignUpPage() {
   const router = useRouter();
 
-  const [username,         setUsername]         = useState('');
-  const [displayName,      setDisplayName]      = useState('');
-  const [email,            setEmail]            = useState('');
-  const [password,         setPassword]         = useState('');
-  const [confirmPassword,  setConfirmPassword]  = useState('');
+  const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  const [usernameError,    setUsernameError]    = useState('');
+  const [usernameError, setUsernameError] = useState('');
   const [displayNameError, setDisplayNameError] = useState('');
-  const [emailError,       setEmailError]       = useState('');
-  const [passwordError,    setPasswordError]    = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
-  const [isLoading,   setIsLoading]   = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [pstate,      setPstate]      = useState<PState>('moving');
+  const [pstate, setPstate] = useState<PState>('moving');
 
-  /* ── Validation handlers ── */
   const handleUsernameChange = (v: string) => {
     setUsername(v);
     setUsernameError(validateUsername(v).error);
   };
+
   const handleDisplayNameChange = (v: string) => {
     setDisplayName(v);
     setDisplayNameError(validateDisplayName(v).error);
   };
+
   const handleEmailChange = (v: string) => {
     setEmail(v);
     setEmailError(validateEmail(v).error);
   };
+
   const handlePasswordChange = (v: string) => {
     setPassword(v);
     if (confirmPassword.length > 0) {
-      setPasswordError(validatePassword(v).error || validatePasswordMatch(v, confirmPassword).error);
+      setPasswordError(
+        validatePassword(v).error || validatePasswordMatch(v, confirmPassword).error
+      );
+    } else {
+      setPasswordError(validatePassword(v).error);
     }
   };
+
   const handleConfirmPasswordChange = (v: string) => {
     setConfirmPassword(v);
     setPasswordError(validatePasswordMatch(password, v).error);
   };
 
-  const isFormValid = () => !!(
-    username && displayName && email && password && confirmPassword &&
-    !usernameError && !displayNameError && !emailError && !passwordError &&
-    password.length >= 6
-  );
+  const isFormValid = () =>
+    !!(
+      username &&
+      displayName &&
+      email &&
+      password &&
+      confirmPassword &&
+      !usernameError &&
+      !displayNameError &&
+      !emailError &&
+      !passwordError &&
+      password.length >= 6
+    );
 
-  /* ── Submit ── */
+  async function syncPrismaUser(payload: {
+    email: string;
+    name: string;
+    username: string;
+    firebaseUid: string;
+    avatarUrl?: string | null;
+  }) {
+    const res = await fetch('/api/auth/upsert-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok || !json?.ok || !json?.user?.id) {
+      throw new Error(json?.message || 'Failed to create user in database.');
+    }
+
+    return json.user;
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     setSubmitError('');
     setIsLoading(true);
+
     try {
-      await registerWithEmail(email, password);
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanUsername = username.trim().toLowerCase();
+      const cleanDisplayName = displayName.trim();
+
+      const cred = await registerWithEmail(cleanEmail, password);
+
+      await syncPrismaUser({
+        email: cleanEmail,
+        name: cleanDisplayName,
+        username: cleanUsername,
+        firebaseUid: cred.user.uid,
+        avatarUrl: cred.user.photoURL || null,
+      });
+
       const res = await fetch('/api/brevo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'send_email', email,
-          template: 'welcome', displayName, username, data: {},
+          action: 'send_email',
+          email: cleanEmail,
+          template: 'welcome',
+          displayName: cleanDisplayName,
+          username: cleanUsername,
+          data: {},
         }),
       });
+
       const out = await res.json().catch(() => ({}));
-      if (!res.ok || !out.ok) console.warn('Welcome email failed:', out.message);
+      if (!res.ok || !out.ok) {
+        console.warn('Welcome email failed:', out.message);
+      }
+
       router.push('/login');
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
+      const message = err instanceof Error ? err.message : '';
+
       if (code === 'auth/email-already-in-use') {
+        setEmailError('This email is already registered.');
+      } else if (
+        message.toLowerCase().includes('username') &&
+        message.toLowerCase().includes('taken')
+      ) {
+        setUsernameError('This username is already taken.');
+      } else if (
+        message.toLowerCase().includes('email') &&
+        message.toLowerCase().includes('registered')
+      ) {
         setEmailError('This email is already registered.');
       } else {
         setSubmitError('Something went wrong. Please try again.');
@@ -228,135 +351,258 @@ export default function SignUpPage() {
     }
   };
 
-  /* ── Shared styles ── */
   const label: React.CSSProperties = {
-    fontSize: 12, color: 'rgba(255,255,255,.45)',
-    fontWeight: 500, display: 'block', marginBottom: 6,
+    fontSize: 12,
+    color: 'rgba(255,255,255,.45)',
+    fontWeight: 500,
+    display: 'block',
+    marginBottom: 6,
   };
+
   const errorMsg: React.CSSProperties = {
-    fontSize: 12, color: '#fca5a5', marginTop: 5,
+    fontSize: 12,
+    color: '#fca5a5',
+    marginTop: 5,
   };
+
   const accentLine: React.CSSProperties = {
     height: 2,
-    background: 'linear-gradient(90deg,transparent,rgba(52,211,153,.55),transparent)',
+    background:
+      'linear-gradient(90deg,transparent,rgba(213,252,67,.55),transparent)',
   };
 
   return (
-    <div className="lp-wrap" style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#0c0c0c', padding: '24px 20px', position: 'relative', overflow: 'hidden',
-    }}>
+    <div
+      className="lp-wrap"
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#000000',
+        padding: '24px 20px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
       <ParticleCanvas pstate={pstate} />
 
-      {/* Ambient glow */}
-      <div style={{
-        position: 'absolute', width: 600, height: 600, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(52,211,153,.05) 0%, transparent 65%)',
-        pointerEvents: 'none', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-      }} />
+      <div
+        style={{
+          position: 'absolute',
+          width: 640,
+          height: 640,
+          borderRadius: '50%',
+          background:
+            'radial-gradient(circle, rgba(213,252,67,.07) 0%, transparent 62%)',
+          pointerEvents: 'none',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%,-50%)',
+          zIndex: 1,
+        }}
+      />
 
-      {/* Card */}
-      <div className="lp-card" style={{
-        position: 'relative', zIndex: 1, width: '100%', maxWidth: 400,
-        borderRadius: 18, border: '1px solid rgba(255,255,255,.1)',
-        background: '#111111',
-        boxShadow: '0 24px 64px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06)',
-        overflow: 'hidden',
-      }}>
+      <div
+        className="lp-card"
+        style={{
+          position: 'relative',
+          zIndex: 2,
+          width: '100%',
+          maxWidth: 400,
+          borderRadius: 18,
+          border: '1px solid rgba(255,255,255,.12)',
+          background: 'rgba(12,12,12,.78)',
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
+          boxShadow:
+            '0 24px 64px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.06)',
+          overflow: 'hidden',
+        }}
+      >
         <div style={accentLine} />
-        <div style={{ padding: '36px 32px 32px' }}>
-
-          {/* Header */}
-          <div className="lp-row-1" style={{ marginBottom: 28 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <div className="lp-dot" />
-              <span style={{ fontSize: 11, color: 'rgba(52,211,153,.7)', letterSpacing: '0.2em', fontWeight: 600 }}>YOUTASK</span>
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 600, color: '#f5f5f5', letterSpacing: '-.025em', lineHeight: 1.2 }}>Create account</div>
-            <div style={{ fontSize: 14, color: 'rgba(255,255,255,.38)', marginTop: 4 }}>Fill in your details to get started</div>
+        <div style={{ padding: '24px 32px 32px' }}>
+          <div className="lp-wordmark-wrap">
+            <p className="lp-wordmark">Utask</p>
           </div>
 
-          {/* Global error */}
+          <div className="lp-row-1" style={{ marginBottom: 22 }}>
+            <div
+              style={{
+                fontSize: 24,
+                fontWeight: 600,
+                color: '#f5f5f5',
+                letterSpacing: '-.025em',
+                lineHeight: 1.2,
+                textAlign: 'center',
+              }}
+            >
+              Create account
+            </div>
+
+            <div
+              style={{
+                fontSize: 14,
+                color: 'rgba(255,255,255,.38)',
+                marginTop: 6,
+                textAlign: 'center',
+              }}
+            >
+              Fill in your details to get started
+            </div>
+          </div>
+
           {submitError && (
-            <div className="lp-row-1" style={{
-              marginBottom: 16, padding: '10px 14px', borderRadius: 10,
-              border: '1px solid rgba(248,113,113,.25)', background: 'rgba(248,113,113,.08)',
-              fontSize: 13, color: '#fca5a5',
-            }}>{submitError}</div>
+            <div
+              className="lp-row-1"
+              style={{
+                marginBottom: 16,
+                padding: '10px 14px',
+                borderRadius: 10,
+                border: '1px solid rgba(248,113,113,.25)',
+                background: 'rgba(248,113,113,.08)',
+                fontSize: 13,
+                color: '#fca5a5',
+              }}
+            >
+              {submitError}
+            </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-            {/* Username */}
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+          >
             <div className="lp-row-2">
               <label style={label}>Username</label>
-              <input className={`lp-input${usernameError ? ' lp-error' : ''}`}
-                type="text" placeholder="usuario123"
-                value={username} onChange={e => handleUsernameChange(e.target.value)}
-                onFocus={() => setPstate('frozen')} onBlur={() => setPstate('moving')}
-                required />
+              <input
+                className={`lp-input${usernameError ? ' lp-error' : ''}`}
+                type="text"
+                placeholder="usuario123"
+                value={username}
+                onChange={(e) => handleUsernameChange(e.target.value)}
+                onFocus={() => setPstate('frozen')}
+                onBlur={() => setPstate('moving')}
+                required
+              />
               {usernameError && <div style={errorMsg}>{usernameError}</div>}
             </div>
 
-            {/* Display name */}
             <div className="lp-row-2">
               <label style={label}>Display Name</label>
-              <input className={`lp-input${displayNameError ? ' lp-error' : ''}`}
-                type="text" placeholder="Juan Pérez"
-                value={displayName} onChange={e => handleDisplayNameChange(e.target.value)}
-                onFocus={() => setPstate('frozen')} onBlur={() => setPstate('moving')}
-                required />
+              <input
+                className={`lp-input${displayNameError ? ' lp-error' : ''}`}
+                type="text"
+                placeholder="Juan Pérez"
+                value={displayName}
+                onChange={(e) => handleDisplayNameChange(e.target.value)}
+                onFocus={() => setPstate('frozen')}
+                onBlur={() => setPstate('moving')}
+                required
+              />
               {displayNameError && <div style={errorMsg}>{displayNameError}</div>}
             </div>
 
-            {/* Email */}
             <div className="lp-row-3">
               <label style={label}>Email</label>
-              <input className={`lp-input${emailError ? ' lp-error' : ''}`}
-                type="email" placeholder="you@example.com"
-                value={email} onChange={e => handleEmailChange(e.target.value)}
-                onFocus={() => setPstate('frozen')} onBlur={() => setPstate('moving')}
-                required autoComplete="email" />
+              <input
+                className={`lp-input${emailError ? ' lp-error' : ''}`}
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                onFocus={() => setPstate('frozen')}
+                onBlur={() => setPstate('moving')}
+                required
+                autoComplete="email"
+              />
               {emailError && <div style={errorMsg}>{emailError}</div>}
             </div>
 
-            {/* Password */}
             <div className="lp-row-4">
               <label style={label}>Password</label>
-              <input className="lp-input"
-                type="password" placeholder="••••••••"
-                value={password} onChange={e => handlePasswordChange(e.target.value)}
-                onFocus={() => setPstate('frozen')} onBlur={() => setPstate('moving')}
-                required minLength={6} autoComplete="new-password" />
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.25)', marginTop: 5 }}>Minimum 6 characters</div>
+              <input
+                className={`lp-input${passwordError ? ' lp-error' : ''}`}
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => handlePasswordChange(e.target.value)}
+                onFocus={() => setPstate('frozen')}
+                onBlur={() => setPstate('moving')}
+                required
+                minLength={6}
+                autoComplete="new-password"
+              />
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'rgba(255,255,255,.25)',
+                  marginTop: 5,
+                }}
+              >
+                Minimum 6 characters
+              </div>
             </div>
 
-            {/* Confirm password */}
             <div className="lp-row-5">
               <label style={label}>Confirm Password</label>
-              <input className={`lp-input${passwordError ? ' lp-error' : ''}`}
-                type="password" placeholder="••••••••"
-                value={confirmPassword} onChange={e => handleConfirmPasswordChange(e.target.value)}
-                onFocus={() => setPstate('frozen')} onBlur={() => setPstate('moving')}
-                required autoComplete="new-password" />
+              <input
+                className={`lp-input${passwordError ? ' lp-error' : ''}`}
+                type="password"
+                placeholder="••••••••"
+                value={confirmPassword}
+                onChange={(e) => handleConfirmPasswordChange(e.target.value)}
+                onFocus={() => setPstate('frozen')}
+                onBlur={() => setPstate('moving')}
+                required
+                autoComplete="new-password"
+              />
               {passwordError && <div style={errorMsg}>{passwordError}</div>}
               {!passwordError && confirmPassword.length > 0 && (
-                <div style={{ fontSize: 12, color: 'rgba(52,211,153,.7)', marginTop: 5 }}>✓ Passwords match</div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'rgba(213,252,67,.85)',
+                    marginTop: 5,
+                  }}
+                >
+                  ✓ Passwords match
+                </div>
               )}
             </div>
 
-            {/* Submit */}
             <div className="lp-row-6" style={{ marginTop: 6 }}>
-              <button type="submit" className="lp-btn" disabled={!isFormValid() || isLoading}>
+              <button
+                type="submit"
+                className="lp-btn"
+                disabled={!isFormValid() || isLoading}
+              >
                 {isLoading ? 'Creating account…' : 'Create account'}
               </button>
             </div>
           </form>
 
-          <div className="lp-row-6" style={{ marginTop: 24, textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,.3)' }}>
+          <div
+            className="lp-row-6"
+            style={{
+              marginTop: 24,
+              textAlign: 'center',
+              fontSize: 13,
+              color: 'rgba(255,255,255,.3)',
+            }}
+          >
             Already have an account?{' '}
-            <Link href="/login" style={{ color: 'rgba(52,211,153,.8)', textDecoration: 'none', fontWeight: 500 }}>Sign in</Link>
+            <Link
+              href="/login"
+              style={{
+                color: 'rgba(213,252,67,.88)',
+                textDecoration: 'none',
+                fontWeight: 500,
+              }}
+            >
+              Sign in
+            </Link>
           </div>
         </div>
       </div>

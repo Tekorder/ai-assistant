@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { RemindersProvider } from './_context/RemindersContext';
 import { Sidebar } from './components/Sidebar';
 import ChatBox from './components/Chatbox';
@@ -30,21 +30,24 @@ const DEFAULT_SIDEBAR = 500;
 const clampSidebar = (w: number) =>
   Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, w));
 
-const getResponsiveSidebarWidth = () =>
-  clampSidebar(window.innerWidth * 0.4);
+  const getResponsiveSidebarWidth = useCallback(
+    () => clampSidebar(window.innerWidth * 0.4),
+    [],
+  );
 
-const [sidebarW, setSidebarW] = useState(DEFAULT_SIDEBAR);
+  const [sidebarW, setSidebarW] = useState(DEFAULT_SIDEBAR);
 
-useEffect(() => {
-  const applyResponsiveWidth = () => {
-    setSidebarW(getResponsiveSidebarWidth());
-  };
+  useEffect(() => {
+    const applyResponsiveWidth = () => {
+      // Mientras arrastras no queremos que un resize programado vuelva a imponer el 40%.
+      if (isDragging.current) return;
+      setSidebarW(getResponsiveSidebarWidth());
+    };
 
-  applyResponsiveWidth();
-  window.addEventListener("resize", applyResponsiveWidth);
-
-  return () => window.removeEventListener("resize", applyResponsiveWidth);
-}, [getResponsiveSidebarWidth]);
+    applyResponsiveWidth();
+    window.addEventListener('resize', applyResponsiveWidth);
+    return () => window.removeEventListener('resize', applyResponsiveWidth);
+  }, [getResponsiveSidebarWidth]);
 
   // ✅ Chat overlay (web-agent style)
   const [chatOpen, setChatOpen] = useState(false);
