@@ -369,32 +369,29 @@ export default function LoginPage() {
     avatarUrl?: string | null;
     firebaseUid?: string;
   }) {
+    // TEMP: Prisma/DB sync disabled — use email as the user identifier everywhere
+    localStorage.setItem('prisma_user_id', payload.email);
+    localStorage.setItem('prisma_user_email', payload.email);
+    if (payload.name) localStorage.setItem('prisma_user_name', payload.name);
+    if (payload.avatarUrl) localStorage.setItem('prisma_user_avatar', payload.avatarUrl);
+
+    /* TODO: re-enable once Prisma connection is stable
     const res = await fetch('/api/auth/upsert-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-
     const json = await res.json().catch(() => ({}));
-
     if (!res.ok || !json?.ok || !json?.user?.id) {
       throw new Error(json?.message || 'Failed to sync user with database.');
     }
-
     localStorage.setItem('prisma_user_id', json.user.id);
     localStorage.setItem('prisma_user_email', json.user.email ?? payload.email);
     if (json.user.name) localStorage.setItem('prisma_user_name', json.user.name);
     if (json.user.avatarUrl) localStorage.setItem('prisma_user_avatar', json.user.avatarUrl);
+    */
 
-    return json.user as {
-      id: string;
-      email: string;
-      name: string | null;
-      username: string | null;
-      avatarUrl: string | null;
-      timezone: string;
-      selectedProjectLocalId: string | null;
-    };
+    return { id: payload.email, email: payload.email, name: payload.name ?? null, username: null, avatarUrl: payload.avatarUrl ?? null, timezone: 'UTC', selectedProjectLocalId: null };
   }
 
   async function createAndSend2FA(targetEmail: string) {
