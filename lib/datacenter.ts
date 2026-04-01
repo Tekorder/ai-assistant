@@ -158,8 +158,8 @@ export function fmtColTitle(ymd: string): string {
 
 export function formatPill(deadline?: string): string {
   if (!deadline || !isValidDateYYYYMMDD(deadline)) return '';
-  const [y, m, d] = deadline.split('-');
-  return `${d}/${m}/${y.slice(2)}`;
+  const [y, m, d] = deadline.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export function dayDiffFromToday(yyyyMmDd?: string): number | null {
@@ -587,16 +587,11 @@ export function updateBlock(
 
 export function addTaskUnderList(
   blocks: Block[],
-  listId: string,
-  opts: { deadline?: string; focusDay?: string },
-): { blocks: Block[]; newTaskId: string } {
+  listId?: string | null,
+  opts: { deadline?: string; focusDay?: string; text?: string } = {},
+): { blocks: Block[]; newTaskId: string; targetListId: string | null } {
   const newTaskId = uid();
   const base = moveUncToTop(ensureUncExists(blocks));
-  const i = base.findIndex(b => b.id === listId);
-  if (i < 0) return { blocks: base, newTaskId };
-
-  let end = i + 1;
-  while (end < base.length && base[end].indent !== 0) end++;
 
   const defaultDeadline =
     opts.deadline && isValidDateYYYYMMDD(opts.deadline)
@@ -605,9 +600,45 @@ export function addTaskUnderList(
       ? opts.focusDay!
       : todayYMD();
 
+  const newTask = makeTaskBlock(
+    {
+      id: newTaskId,
+      deadline: defaultDeadline,
+      text: (opts.text || '').trim(),
+    },
+    opts.focusDay,
+  );
+
+  const validListIndex =
+    typeof listId === 'string' && listId.trim()
+      ? base.findIndex(b => b.id === listId && b.indent === 0)
+      : -1;
+
+  if (validListIndex >= 0) {
+    let end = validListIndex + 1;
+    while (end < base.length && base[end].indent !== 0) end++;
+
+    const next = base.slice();
+    next.splice(end, 0, newTask);
+
+    return {
+      blocks: next,
+      newTaskId,
+      targetListId: base[validListIndex].id,
+    };
+  }
+
+  const { end: uncEnd, uncIndex } = findUncRange(base);
+  const insertAt = uncEnd >= 0 ? uncEnd : base.length;
+
   const next = base.slice();
-  next.splice(end, 0, makeTaskBlock({ id: newTaskId, deadline: defaultDeadline }, opts.focusDay));
-  return { blocks: next, newTaskId };
+  next.splice(insertAt, 0, newTask);
+
+  return {
+    blocks: next,
+    newTaskId,
+    targetListId: uncIndex >= 0 ? base[uncIndex].id : null,
+  };
 }
 
 export function createList(
@@ -1044,4 +1075,354 @@ export function unarchiveTask(blocks: Block[], taskId: string): Block[] {
 
 export function unarchiveAll(blocks: Block[]): Block[] {
   return blocks.map(b => b.archived === true ? { ...b, archived: false } : b);
+}
+
+/* ===================== AI Patch Task ===================== */
+
+export type AITaskPatch =
+  | {
+      action: 'create_list';
+      listText: string;
+      focusDay?: string;
+    }
+  | {
+      action: 'add_task_under_list';
+      listId: string;
+      text?: string;
+      deadline?: string;
+      focusDay?: string;
+    }
+  | {
+      action: 'update_task';
+      taskId: string;
+      text?: string;
+      checked?: boolean;
+      deadline?: string;
+      isHidden?: boolean;
+      archived?: boolean;
+      focusDay?: string;
+    }
+  | {
+      action: 'rename_list';
+      listId: string;
+      text: string;
+    }
+  | {
+      action: 'remove_block';
+      id: string;
+    }
+  | {
+      action: 'remove_list_keep_children';
+      listId: string;
+    }
+  | {
+      action: 'archive_task';
+      taskId: string;
+    }
+  | {
+      action: 'unarchive_task';
+      taskId: string;
+    }
+  | {
+      action: 'dismiss_completed';
+    }
+  | {
+      action: 'unhide_task';
+      taskId: string;
+    };
+
+export type AIPatchTaskResult = {
+  ok: boolean;
+  blocks: Block[];
+  changed: boolean;
+  message?: string;
+  meta?: Record<string, unknown>;
+};
+
+export function aipatchtask(
+  blocks: Block[],
+  patch: AITaskPatch,
+): AIPatchTaskResult {
+  const base = moveUncToTop(ensureUncExists(blocks));
+
+  try {
+    switch (patch.action) {
+      case 'create_list': {
+        const name = (patch.listText || '').trim();
+        if (!name) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'listText is required.',
+          };
+        }
+
+        const result = createList(base, name, { focusDay: patch.focusDay });
+
+        return {
+          ok: true,
+          blocks: result.blocks,
+          changed: true,
+          message: result.existed ? 'List already existed; task was added.' : 'List created.',
+          meta: {
+            listId: result.newListId,
+            taskId: result.newTaskId,
+            existed: result.existed,
+          },
+        };
+      }
+
+      case 'add_task_under_list': {
+        const list = base.find(b => b.id === patch.listId && b.indent === 0);
+        if (!list) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'List not found.',
+          };
+        }
+
+        const result = addTaskUnderList(base, patch.listId, {
+          deadline: patch.deadline,
+          focusDay: patch.focusDay,
+        });
+
+        let next = result.blocks;
+
+        if ((patch.text || '').trim()) {
+          next = updateBlock(next, result.newTaskId, {
+            text: patch.text!.trim(),
+          }, patch.focusDay);
+        }
+
+        return {
+          ok: true,
+          blocks: next,
+          changed: true,
+          message: 'Task added under list.',
+          meta: {
+            listId: patch.listId,
+            taskId: result.newTaskId,
+          },
+        };
+      }
+
+      case 'update_task': {
+        const task = base.find(b => b.id === patch.taskId && b.indent > 0);
+        if (!task) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'Task not found.',
+          };
+        }
+
+        const patchObj: Partial<Block> = {};
+
+        if (typeof patch.text === 'string') patchObj.text = patch.text;
+        if (typeof patch.checked === 'boolean') patchObj.checked = patch.checked;
+        if (typeof patch.isHidden === 'boolean') patchObj.isHidden = patch.isHidden;
+        if (typeof patch.archived === 'boolean') patchObj.archived = patch.archived;
+        if (isValidDateYYYYMMDD(patch.deadline)) patchObj.deadline = patch.deadline;
+
+        const next = updateBlock(base, patch.taskId, patchObj, patch.focusDay);
+
+        return {
+          ok: true,
+          blocks: next,
+          changed: true,
+          message: 'Task updated.',
+          meta: { taskId: patch.taskId },
+        };
+      }
+
+      case 'rename_list': {
+        const list = base.find(b => b.id === patch.listId && b.indent === 0);
+        if (!list) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'List not found.',
+          };
+        }
+
+        if (isUncTitleBlock(list)) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'Uncategorized cannot be renamed.',
+          };
+        }
+
+        const text = (patch.text || '').trim();
+        if (!text) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'text is required.',
+          };
+        }
+
+        const next = updateBlock(base, patch.listId, { text });
+
+        return {
+          ok: true,
+          blocks: next,
+          changed: true,
+          message: 'List renamed.',
+          meta: { listId: patch.listId },
+        };
+      }
+
+      case 'remove_block': {
+        const exists = base.some(b => b.id === patch.id);
+        if (!exists) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'Block not found.',
+          };
+        }
+
+        const next = removeBlock(base, patch.id);
+
+        return {
+          ok: true,
+          blocks: moveUncToTop(ensureUncExists(next)),
+          changed: true,
+          message: 'Block removed.',
+          meta: { id: patch.id },
+        };
+      }
+
+      case 'remove_list_keep_children': {
+        const list = base.find(b => b.id === patch.listId && b.indent === 0);
+        if (!list) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'List not found.',
+          };
+        }
+
+        if (isUncTitleBlock(list)) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'Uncategorized cannot be removed.',
+          };
+        }
+
+        const next = removeTitleSendChildrenToUnc(base, patch.listId);
+
+        return {
+          ok: true,
+          blocks: next,
+          changed: true,
+          message: 'List removed and children moved to Uncategorized.',
+          meta: { listId: patch.listId },
+        };
+      }
+
+      case 'archive_task': {
+        const task = base.find(b => b.id === patch.taskId && b.indent > 0);
+        if (!task) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'Task not found.',
+          };
+        }
+
+        const next = archiveTask(base, patch.taskId);
+
+        return {
+          ok: true,
+          blocks: next,
+          changed: true,
+          message: 'Task archived.',
+          meta: { taskId: patch.taskId },
+        };
+      }
+
+      case 'unarchive_task': {
+        const task = base.find(b => b.id === patch.taskId && b.indent > 0);
+        if (!task) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'Task not found.',
+          };
+        }
+
+        const next = unarchiveTask(base, patch.taskId);
+
+        return {
+          ok: true,
+          blocks: next,
+          changed: true,
+          message: 'Task unarchived.',
+          meta: { taskId: patch.taskId },
+        };
+      }
+
+      case 'dismiss_completed': {
+        const next = dismissCompleted(base);
+        return {
+          ok: true,
+          blocks: next,
+          changed: true,
+          message: 'Completed tasks dismissed.',
+        };
+      }
+
+      case 'unhide_task': {
+        const task = base.find(b => b.id === patch.taskId && b.indent > 0);
+        if (!task) {
+          return {
+            ok: false,
+            blocks: base,
+            changed: false,
+            message: 'Task not found.',
+          };
+        }
+
+        const next = unhideTask(base, patch.taskId);
+
+        return {
+          ok: true,
+          blocks: next,
+          changed: true,
+          message: 'Task unhidden.',
+          meta: { taskId: patch.taskId },
+        };
+      }
+
+      default:
+        return {
+          ok: false,
+          blocks: base,
+          changed: false,
+          message: 'Unsupported AI patch action.',
+        };
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      blocks: base,
+      changed: false,
+      message: err instanceof Error ? err.message : 'Unknown error applying AI patch.',
+    };
+  }
 }

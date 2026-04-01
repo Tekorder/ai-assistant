@@ -43,6 +43,7 @@ import {
   todayYMD,
   isValidDateYYYYMMDD,
   addDaysYMD,
+  dayDiffFromToday,
   // Filter / view helpers
   buildHiddenMap,
   buildListSections,
@@ -82,20 +83,62 @@ function GamificationToast({ show, message }: { show: boolean; message: string }
       <style>{`
         @keyframes gamiToastIn{0%{opacity:0;transform:translate(-50%,18px) scale(0.96);filter:blur(6px)}60%{opacity:1;transform:translate(-50%,-2px) scale(1.02);filter:blur(0)}100%{opacity:1;transform:translate(-50%,0px) scale(1);filter:blur(0)}}
         @keyframes gamiShine{0%{transform:translateX(-160%) skewX(-20deg);opacity:0}10%{opacity:.10}25%{opacity:.22}40%{opacity:.10}100%{transform:translateX(260%) skewX(-20deg);opacity:0}}
-        @keyframes gamiPulseGlow{0%,100%{box-shadow:0 10px 30px rgba(16,185,129,.14),inset 0 1px 0 rgba(255,255,255,.06)}50%{box-shadow:0 12px 38px rgba(16,185,129,.22),inset 0 1px 0 rgba(255,255,255,.09)}}
+        @keyframes gamiPulseGlow{0%,100%{box-shadow:0 10px 30px rgba(82,179,82,.14),inset 0 1px 0 rgba(255,255,255,.06)}50%{box-shadow:0 12px 38px rgba(82,179,82,.22),inset 0 1px 0 rgba(255,255,255,.09)}}
       `}</style>
       <div className="pointer-events-none fixed left-1/2 bottom-24 md:bottom-8 z-[9998]">
-        <div className="relative overflow-hidden min-w-[320px] md:min-w-[420px] max-w-[90vw] rounded-3xl border border-emerald-400/20 bg-gray-950/95 backdrop-blur-xl px-6 py-5 md:px-8 md:py-6 text-center"
+        <div className="relative overflow-hidden min-w-[320px] md:min-w-[420px] max-w-[90vw] rounded-3xl border border-[#52b352]/25 bg-black/90 backdrop-blur-xl px-6 py-5 md:px-8 md:py-6 text-center"
           style={{ transform:'translateX(-50%)', animation:'gamiToastIn .35s cubic-bezier(.22,.9,.28,1), gamiPulseGlow 1.6s ease-in-out infinite' }}>
           <span className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-white/10 blur-md" style={{ animation:'gamiShine 2.8s ease-in-out infinite' }} />
           <div className="mb-2 flex items-center justify-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,.9)]" />
-            <span className="text-[11px] md:text-[12px] font-semibold uppercase tracking-[0.24em] text-emerald-300/90">Progress</span>
+            <span className="h-2.5 w-2.5 rounded-full bg-[#52b352] shadow-[0_0_14px_rgba(82,179,82,.9)]" />
+            <span className="text-[11px] md:text-[12px] font-semibold uppercase tracking-[0.24em] text-[#52b352]/90">Progress</span>
           </div>
           <div className="text-[16px] md:text-[20px] font-semibold text-white/95 leading-tight">{message}</div>
         </div>
       </div>
     </>
+  );
+}
+
+function QuickProgressBlock({
+  progress,
+  className = '',
+}: {
+  progress: { total: number; done: number; remaining: number; pct: number };
+  className?: string;
+}) {
+  return (
+    <div
+      className={[
+        'rounded-2xl border border-white/10 bg-white/5 p-3',
+        className,
+      ].filter(Boolean).join(' ')}
+    >
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#52b352]/85">
+          Progress
+        </div>
+        <div className="text-[11px] text-white/45">
+          {progress.done}/{progress.total}
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-end gap-2">
+        <div className="text-[28px] leading-none font-extrabold italic text-[#52b352] tabular-nums tracking-[-0.06em] drop-shadow-[0_0_18px_rgba(82,179,82,.22)]">
+          {progress.remaining}
+        </div>
+        <div className="pb-[2px] text-[12px] text-white/55">
+          task{progress.remaining === 1 ? '' : 's'} to finish
+        </div>
+      </div>
+
+      <div className="mt-3 h-2 w-full rounded-full bg-white/10 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-[#52b352]"
+          style={{ width: `${Math.max(0, Math.min(100, Math.round(progress.pct * 100)))}%` }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -113,34 +156,77 @@ function ActionsPanel({
   sortBy: SortBy; setSortBy: (v: SortBy) => void;
   onNewList: () => void;
 }) {
-  const toggle = (label: string, active: boolean, onClick: () => void) => (
+  const toggle = (label: string, icon: React.ReactNode, active: boolean, onClick: () => void) => (
     <button type="button" onClick={onClick}
-      className={['w-full flex items-center justify-between text-[12px] px-3 py-2 rounded-xl border transition-colors',
-        active ? 'border-emerald-400/25 bg-emerald-500/15 text-emerald-100' : 'border-white/10 text-white/70 hover:text-white/90 hover:bg-white/5'].join(' ')}>
-      <span>{label}</span>
-      <span className={['inline-flex h-5 w-9 rounded-full p-[2px] transition-colors', active ? 'bg-emerald-400/25' : 'bg-white/10'].join(' ')}>
-        <span className={['h-4 w-4 rounded-full bg-white transition-transform', active ? 'translate-x-4' : 'translate-x-0'].join(' ')} />
+      className={['w-full flex items-center justify-between text-[12px] px-3 py-2 rounded-xl border transition-all',
+        active
+          ? 'border-[#52b352]/45 text-[#52b352]'
+          : 'border-white/10 text-white/70 hover:text-white/90'].join(' ')}
+      style={active ? {
+        background: 'linear-gradient(135deg, rgba(82,179,82,.22) 0%, rgba(82,179,82,.1) 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(82,179,82,.12), 0 2px 8px rgba(0,0,0,.25)',
+      } : {
+        background: 'linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.2)',
+      }}>
+      <span className="inline-flex items-center gap-2">
+        <span className="text-white/45">{icon}</span>
+        <span>{label}</span>
+      </span>
+      <span className={['inline-flex h-5 w-9 rounded-full p-[2px] transition-colors', active ? 'bg-[#52b352]/35' : 'bg-white/10'].join(' ')}>
+        <span className={['h-4 w-4 rounded-full transition-transform shadow-sm', active ? 'translate-x-4 bg-[#52b352]' : 'translate-x-0 bg-white'].join(' ')} />
       </span>
     </button>
   );
 
-  const filterBtn = (mode: DateMode, label: string) => (
+  const filterBtn = (mode: DateMode, label: string, icon: React.ReactNode) => (
     <button type="button" key={mode} onClick={() => setDateMode(mode)}
-      className={['w-full text-left text-[12px] px-3 py-2 rounded-xl border transition-colors',
-        dateMode === mode ? 'border-emerald-400/25 bg-emerald-500/15 text-emerald-100' : 'border-white/10 text-white/70 hover:text-white/90 hover:bg-white/5'].join(' ')}>
-      {label}
+      className={['w-full text-left text-[12px] px-3 py-2 rounded-xl border transition-all',
+        dateMode === mode ? 'border-[#52b352]/45 text-[#52b352]' : 'border-white/10 text-white/70 hover:text-white/90'].join(' ')}
+      style={dateMode === mode ? {
+        background: 'linear-gradient(135deg, rgba(82,179,82,.22) 0%, rgba(82,179,82,.1) 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(82,179,82,.12), 0 2px 8px rgba(0,0,0,.25)',
+      } : {
+        background: 'linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.2)',
+      }}>
+      <span className="inline-flex items-center gap-2">
+        <span className="text-white/45">{icon}</span>
+        <span>{label}</span>
+      </span>
     </button>
   );
 
   return (
     <div className="p-2 space-y-2 overflow-y-auto">
       <button type="button" onClick={onNewList}
-        className="w-full text-left text-[12px] px-3 py-2 rounded-xl border transition-colors border-white/10 text-white/70 hover:text-white/90 hover:bg-white/5">
+        className="w-full text-left text-[12px] px-3 py-2 rounded-xl border border-white/10 text-white/70 hover:text-white/90 transition-all"
+        style={{ background: 'linear-gradient(135deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,.02) 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,.07), 0 2px 6px rgba(0,0,0,.2)' }}>
         + New List
       </button>
 
-      {toggle('View by Days', splitMode, () => setSplitMode(s => !s))}
-      {splitMode && toggle('Show Empty Lists', showEmptyLists, () => setShowEmptyLists(s => !s))}
+      {toggle(
+        'View by Days',
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <rect x="2" y="3" width="12" height="10" rx="2" />
+          <path strokeLinecap="round" d="M2 7.5h12M6.2 3v10M10 3v10" />
+        </svg>,
+        splitMode,
+        () => {
+          const next = !splitMode;
+          setSplitMode(next);
+          if (next && dateMode === 'today') setDateMode('week');
+        },
+      )}
+      {splitMode && toggle(
+        'Show Empty Lists',
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <path strokeLinecap="round" d="M3 4.5h10M3 8h10M3 11.5h10" />
+          <circle cx="3" cy="8" r="1" fill="currentColor" stroke="none" />
+        </svg>,
+        showEmptyLists,
+        () => setShowEmptyLists(s => !s),
+      )}
 
       <div className="h-px bg-white/10 my-1" />
 
@@ -152,12 +238,12 @@ function ActionsPanel({
               className="flex items-start gap-2 text-[12px] px-2 py-1.5 rounded-lg cursor-pointer hover:bg-white/5 transition-colors group">
               <span className={[
                 'mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-colors shrink-0',
-                sortBy === value ? 'border-emerald-400 bg-emerald-500/30' : 'border-white/30 group-hover:border-white/50'
+                sortBy === value ? 'border-[#52b352] bg-[#52b352]/30' : 'border-white/30 group-hover:border-white/50'
               ].join(' ')}>
-                {sortBy === value && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 block" />}
+                {sortBy === value && <span className="w-1.5 h-1.5 rounded-full bg-[#52b352] block" />}
               </span>
               <span className="flex flex-col">
-                <span className={sortBy === value ? 'text-emerald-100' : 'text-white/70'}>{label}</span>
+                <span className={sortBy === value ? 'text-[#52b352]' : 'text-white/70'}>{label}</span>
               </span>
             </label>
           ))}
@@ -167,18 +253,74 @@ function ActionsPanel({
       <div className="h-px bg-white/10 my-1" />
       <div className="px-3 py-1"><div className="text-[11px] text-white/50">Filters</div></div>
 
-      {filterBtn('today', 'Today')}
-      {filterBtn('week', 'Week')}
-      {filterBtn('month', 'Month')}
-      {filterBtn('all', 'All')}
+      {filterBtn(
+        'today',
+        'Today',
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7">
+          <rect x="2" y="3" width="12" height="11" rx="2" />
+          <path strokeLinecap="round" d="M5 2v3M11 2v3M2 6.5h12" />
+          <circle cx="8" cy="10" r="1.2" fill="currentColor" stroke="none" />
+        </svg>,
+      )}
+      {filterBtn(
+        'week',
+        'Week',
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <rect x="2" y="3" width="12" height="10" rx="2" />
+          <path strokeLinecap="round" d="M2 7.5h12" />
+          <path strokeLinecap="round" d="M4 10h2M7 10h2M10 10h2" />
+        </svg>,
+      )}
+      {filterBtn(
+        'month',
+        'Month',
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <rect x="1.8" y="2.6" width="12.4" height="11" rx="2" />
+          <path strokeLinecap="round" d="M1.8 6.3h12.4M5.2 1.8v2.2M10.8 1.8v2.2" />
+        </svg>,
+      )}
+      {filterBtn(
+        'all',
+        'All',
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <circle cx="8" cy="8" r="5.5" />
+          <path strokeLinecap="round" d="M2.5 8h11M8 2.5c1.6 1.4 2.5 3.4 2.5 5.5s-.9 4.1-2.5 5.5M8 2.5c-1.6 1.4-2.5 3.4-2.5 5.5s.9 4.1 2.5 5.5" />
+        </svg>,
+      )}
 
       <div className="h-px bg-white/10 my-1" />
 
       <button type="button" onClick={() => setShowHidden(s => !s)}
-        className={['w-full text-left text-[12px] px-3 py-2 rounded-xl border transition-colors',
-          showHidden ? 'border-emerald-400/25 bg-emerald-500/15 text-emerald-100' : 'border-white/10 text-white/70 hover:text-white/90 hover:bg-white/5'].join(' ')}>
-        {showHidden ? 'Hide dismissed' : 'Show dismissed'}
+        className={['w-full text-left text-[12px] px-3 py-2 rounded-xl border transition-all',
+          showHidden ? 'border-[#52b352]/45 text-[#52b352]' : 'border-white/10 text-white/70 hover:text-white/90'].join(' ')}
+        style={showHidden ? {
+          background: 'linear-gradient(135deg, rgba(82,179,82,.22) 0%, rgba(82,179,82,.1) 100%)',
+          boxShadow: 'inset 0 1px 0 rgba(82,179,82,.12), 0 2px 8px rgba(0,0,0,.25)',
+        } : {
+          background: 'linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.2)',
+        }}>
+        <span className="inline-flex items-center gap-2">
+          <span className="text-white/45">
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
+              {showHidden ? (
+                <>
+                  <path strokeLinecap="round" d="M1.8 8s2.4-3.8 6.2-3.8S14.2 8 14.2 8s-2.4 3.8-6.2 3.8S1.8 8 1.8 8z" />
+                  <circle cx="8" cy="8" r="1.7" />
+                </>
+              ) : (
+                <>
+                  <path strokeLinecap="round" d="M2.2 2.2l11.6 11.6" />
+                  <path strokeLinecap="round" d="M1.8 8s2.4-3.8 6.2-3.8c1.2 0 2.2.3 3.1.8M14.2 8s-.8 1.3-2.2 2.3" />
+                </>
+              )}
+            </svg>
+          </span>
+          <span>{showHidden ? 'Hide dismissed' : 'Show dismissed'}</span>
+        </span>
       </button>
+
+    
     </div>
   );
 }
@@ -219,6 +361,16 @@ export default function Quick() {
   const [toastMsg, setToastMsg]   = useState('');
   const toastTimerRef = useRef<number | null>(null);
 
+  const pillClassNike = (deadline?: string, checked?: boolean) => {
+    // `pillClass` viene de datacenter y usa amber para "today".
+    // En Quick lo re-skinneamos a NRC/Nike green (#52b352).
+    return pillClass(deadline, checked)
+      .replaceAll('bg-amber-500/15', 'bg-[#52b352]/20')
+      .replaceAll('text-amber-200', 'text-[#52b352]')
+      .replaceAll('border-amber-400/25', 'border-[#52b352]/35')
+      .replaceAll('hover:bg-amber-500/20', 'hover:bg-[#52b352]/26');
+  };
+
   useEffect(() => {
     audioCheckRef.current = new Audio('/sounds/notif.mp3');
     audioDoneRef.current  = new Audio('/sounds/notif2.mp3');
@@ -238,10 +390,10 @@ export default function Quick() {
   );
   const currentProject = projects[currentProjectIndex];
   const blocks: Block[]                    = currentProject?.blocks ?? moveUncToTop(ensureUncExists([]));
-  const collapsed = useMemo<Record<string, boolean>>(
-      () => currentProject?.collapsed ?? {},
-      [currentProject?.collapsed],
-    );
+ const collapsed = useMemo<Record<string, boolean>>(
+    () => currentProject?.quickCollapsed ?? {},
+    [currentProject?.quickCollapsed],
+  );
 
   /* ── Setters de bloque / collapsed para el proyecto activo ── */
   const setCurrentBlocks = (nextFn: Block[] | ((prev: Block[]) => Block[])) => {
@@ -401,6 +553,47 @@ export default function Quick() {
    
     [blocks, collapsed, showHidden, dateMode, focusDay, sortBy],
   );
+
+  /** Progress block — always scoped to TODAY's due tasks only */
+  const progress = useMemo(() => {
+    const today = todayYMD();
+    const todayTasks = blocks.filter(b =>
+      b.indent > 0 &&
+      b.archived !== true &&
+      isValidDateYYYYMMDD(b.deadline) &&
+      b.deadline === today &&
+      !(b.isHidden === true && !showHidden),
+    );
+    const total = todayTasks.length;
+    const done = todayTasks.filter(t => t.checked === true).length;
+    const remaining = Math.max(0, total - done);
+    const pct = total > 0 ? done / total : 0;
+    return { total, done, remaining, pct };
+  }, [blocks, showHidden]);
+
+  /** Calendar “today” — tasks due today (deadline), for fixed footer summary */
+  const todayCompletedSummary = useMemo(() => {
+    const day = todayYMD();
+    const dueToday = blocks.filter(b => {
+      if (b.indent === 0 || b.archived === true) return false;
+      if (b.isHidden === true && !showHidden) return false;
+      return isValidDateYYYYMMDD(b.deadline) && b.deadline === day;
+    });
+    const total = dueToday.length;
+    const completed = dueToday.filter(t => t.checked === true).length;
+    return { total, completed };
+  }, [blocks, showHidden]);
+
+  /** Incomplete tasks with deadline before today (calendar overdue) */
+  const overdueCount = useMemo(() => {
+    return blocks.filter(b => {
+      if (b.indent === 0 || b.archived === true) return false;
+      if (b.isHidden === true && !showHidden) return false;
+      if (b.checked === true) return false;
+      const diff = dayDiffFromToday(b.deadline);
+      return diff !== null && diff < 0;
+    }).length;
+  }, [blocks, showHidden]);
 
   const listSections = useMemo<ListSection[]>(
     () => buildListSections(blocks),
@@ -636,6 +829,7 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
 
   const openNewListModal = () => { setListModalOpen(true); setListPickId(''); setListNewText(''); };
 
+
   /* ── Text measurement ── */
   let __textMeasureCanvas: HTMLCanvasElement | null = null;
   function measureTextWidth(text: string, font: string) {
@@ -658,18 +852,26 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
       <div key={b.id} className={['group flex items-center gap-2 px-0.5 py-1 rounded-md', b.isHidden && showHidden ? 'opacity-40' : ''].join(' ')} style={{ paddingLeft: indentPx }}>
         <div className="w-3 shrink-0" /><div className="w-3 shrink-0" />
         <button type="button" onClick={() => handleUpdateBlock(b.id, { checked: !b.checked })}
-          className={['relative h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-[transform,background-color,border-color] duration-150 ease-out group-hover:scale-[1.06]', b.checked ? 'bg-emerald-500/15 border-emerald-400/70' : 'border-white/25'].join(' ')} title="Complete">
-          {pulseId === b.id ? (<><span className="absolute -inset-2 rounded-full border border-emerald-400/35 animate-ping" /><span className="absolute -inset-3 rounded-full border border-emerald-300/20 animate-ping [animation-delay:90ms]" /><span className="absolute -inset-4 rounded-full border border-emerald-200/15 animate-ping [animation-delay:160ms]" /><span className="absolute -inset-2 rounded-full bg-emerald-500/10 blur-sm" /></>) : null}
-          {b.checked ? <span className="text-emerald-300 text-xs">✓</span> : null}
+          className="relative h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
+          title="Complete">
+          {pulseId === b.id ? (<><span className="absolute -inset-2 rounded-full border border-[#52b352]/35 animate-ping" /><span className="absolute -inset-3 rounded-full border border-[#52b352]/24 animate-ping [animation-delay:90ms]" /><span className="absolute -inset-4 rounded-full border border-[#52b352]/14 animate-ping [animation-delay:160ms]" /><span className="absolute -inset-2 rounded-full bg-[#52b352]/10 blur-sm" /></>) : null}
+          {b.checked ? (
+            <span className="relative flex h-3 w-3 items-center justify-center">
+              <span className="absolute h-2.5 w-2.5 rounded-full bg-[#52b352]/85 blur-[2px]" />
+              <span className="absolute h-1.5 w-1.5 rounded-full bg-[#52b352]" />
+            </span>
+          ) : (
+            <span className="h-3 w-3 rounded border border-white/25 group-hover:border-white/40 transition-colors" />
+          )}
         </button>
         <div className="min-w-0 flex flex-wrap items-center gap-[2px] w-full">
           <input ref={el => void (inputRefs.current[b.id] = el)} value={b.text} placeholder="Task…" onChange={e => handleUpdateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
             className={['bg-transparent outline-none text-sm flex-none', b.checked ? 'text-white/40 line-through' : 'text-white/80'].join(' ')} style={{ width:`${inputWidthPx(b.text)}px` }} />
-          <button type="button" className={['shrink-0 text-[11px] px-1.5 py-0.5 rounded-full border transition-colors', pillClass(b.deadline, b.checked)].join(' ')} title={pill ? 'Change date' : 'Set date'}
+          <button type="button" className={['shrink-0 text-[11px] px-1.5 py-0.5 rounded-full border transition-colors', pillClassNike(b.deadline, b.checked)].join(' ')} title={pill ? 'Change date' : 'Set date'}
             onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} el.click(); }}>
             {pill ? pill : '📅'}
           </button>
-          <input ref={el => void (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; handleUpdateBlock(b.id, { deadline: v ? v : undefined }); }} />
+          <input ref={el => void (dateRefs.current[b.id] = el)} type="date" lang="en-US" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; handleUpdateBlock(b.id, { deadline: v ? v : undefined }); }} />
         </div>
       </div>
     );
@@ -708,7 +910,7 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
   const renderNormalList = () => {
     const { uncIndex, start: uncStart, end: uncEnd } = findUncRange(blocks);
     return (
-      <div className="space-y-1">
+      <div className="space-y-1 quick-rows">
         {blocks.map((b, idx) => {
           if (uncIndex >= 0 && idx === uncIndex) return null;
           if (hiddenMap[b.id]) return null;
@@ -731,31 +933,46 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
                 ) : <div className="w-3 shrink-0" />}
                 {isTask ? (
                   <button type="button" onClick={() => handleUpdateBlock(b.id, { checked: !b.checked })}
-                    className={['relative h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-[transform,background-color,border-color] duration-150 ease-out group-hover:scale-[1.06]', b.checked ? 'bg-emerald-500/15 border-emerald-400/70' : 'border-white/25'].join(' ')} title="Complete">
-                    {pulseId === b.id ? (<><span className="absolute -inset-2 rounded-full border border-emerald-400/35 animate-ping" /><span className="absolute -inset-3 rounded-full border border-emerald-300/20 animate-ping [animation-delay:90ms]" /><span className="absolute -inset-4 rounded-full border border-emerald-200/15 animate-ping [animation-delay:160ms]" /><span className="absolute -inset-2 rounded-full bg-emerald-500/10 blur-sm" /></>) : null}
-                    {b.checked ? <span className="text-emerald-300 text-xs">✓</span> : null}
+                    className="relative h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
+                    title="Complete">
+                    {pulseId === b.id ? (<><span className="absolute -inset-2 rounded-full border border-[#52b352]/35 animate-ping" /><span className="absolute -inset-3 rounded-full border border-[#52b352]/24 animate-ping [animation-delay:90ms]" /><span className="absolute -inset-4 rounded-full border border-[#52b352]/14 animate-ping [animation-delay:160ms]" /><span className="absolute -inset-2 rounded-full bg-[#52b352]/10 blur-sm" /></>) : null}
+                    {b.checked ? (
+                      <span className="relative flex h-3 w-3 items-center justify-center">
+                        <span className="absolute h-2.5 w-2.5 rounded-full bg-[#52b352]/85 blur-[2px]" />
+                        <span className="absolute h-1.5 w-1.5 rounded-full bg-[#52b352]" />
+                      </span>
+                    ) : (
+                      <span className="h-3 w-3 rounded border border-white/25 group-hover:border-white/40 transition-colors" />
+                    )}
                   </button>
                 ) : null}
-                <div className="min-w-0 flex flex-wrap items-center gap-[2px] w-full">
+                <div className="min-w-0 flex flex-wrap items-center gap-[2px] flex-1">
                   <input ref={el => void (inputRefs.current[b.id] = el)} value={b.text} placeholder={isList ? 'List…' : 'Task…'} onChange={e => handleUpdateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
                     className={['bg-transparent outline-none text-sm cursor-pointer transition-opacity duration-150 flex-none', isList ? 'text-white font-semibold' : b.checked ? 'text-white/40 line-through' : 'text-white/80'].join(' ')}
                     style={{ width:`${inputWidthPx(b.text)}px` }} />
                   {isTask ? (
                     <>
-                      <button type="button" className={['shrink-0 text-[11px] px-1.5 py-0.5 rounded-full border transition-colors', pillClass(b.deadline, b.checked)].join(' ')} title="Set date"
+                      <button type="button" className={['shrink-0 text-[11px] px-1.5 py-0.5 rounded-full border transition-colors', pillClassNike(b.deadline, b.checked)].join(' ')} title="Set date"
                         onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} el.click(); }}>
                         {formatPill(b.deadline) || '📅'}
                       </button>
-                      <input ref={el => void (dateRefs.current[b.id] = el)} type="date" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; handleUpdateBlock(b.id, { deadline: v ? v : undefined }); }} />
+                      <input ref={el => void (dateRefs.current[b.id] = el)} type="date" lang="en-US" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; handleUpdateBlock(b.id, { deadline: v ? v : undefined }); }} />
                     </>
-                  ) : isList && !isUncList ? (
-                    <div className="flex items-center" style={{ paddingLeft: 24 }}>
-                      <button style={{width: "50px" }} type="button" onClick={() => handleAddTaskUnderList(b.id)} className="mt-1 text-[18px] px-0 py-0 rounded-md border border-white/10 text-white/50 hover:text-white/80 bg-white/5 hover:bg-white/10 transition-colors">
-                        +
-                      </button>
-                    </div>
                   ) : null}
                 </div>
+                {isList && !isUncList ? (
+                  <button
+                    type="button"
+                    onClick={() => handleAddTaskUnderList(b.id)}
+                    className="ml-auto shrink-0 text-[18px] w-7 h-7 flex items-center justify-center rounded-full border border-[#52b352]/70 text-black transition-all hover:scale-105 hover:shadow-lg"
+                    style={{
+                      background: 'linear-gradient(145deg, #72d472 0%, #52b352 55%, #2e8b2e 100%)',
+                      boxShadow: '0 2px 10px rgba(82,179,82,.35), inset 0 1px 0 rgba(255,255,255,.3)',
+                    }}
+                  >
+                    +
+                  </button>
+                ) : null}
               </div>
             </React.Fragment>
           );
@@ -778,8 +995,24 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
         })).filter(section => showEmptyLists || section.tasks.length > 0);
         if (!daySections.length) return null;
         return (
-          <div key={day} className="rounded-2xl overflow-hidden">
-            <div className="px-4 py-3">
+          <div key={day} className="rounded-2xl overflow-hidden"
+            style={{
+              background: [
+                'linear-gradient(160deg, rgba(82,179,82,.07) 0%, transparent 40%)',
+                'linear-gradient(to bottom, rgba(255,255,255,.05) 0%, transparent 20%)',
+                'rgba(8,8,8,0.58)',
+              ].join(', '),
+              backdropFilter: 'blur(20px) saturate(1.3)',
+              WebkitBackdropFilter: 'blur(20px) saturate(1.3)',
+              border: '1px solid rgba(82,179,82,.10)',
+              boxShadow: [
+                '0 0 0 1px rgba(255,255,255,.04)',
+                'inset 0 1px 0 rgba(255,255,255,.09)',
+                '0 6px 32px rgba(0,0,0,.45)',
+                '0 1px 60px rgba(82,179,82,.04)',
+              ].join(', '),
+            }}>
+            <div className="px-4 py-3 border-b border-white/[0.06]">
               <div className="text-[18px] md:text-[20px] font-bold text-white/95">{weekdayLabel(day)}</div>
               <div className="text-[17px] text-white/40 mt-0.5">{labelForYMD(day)} · {fullDateLabel(day)}</div>
             </div>
@@ -807,11 +1040,19 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
     onNewList: openNewListModal,
   };
 
-  const sortAxisLabel = sortBy === 'createdAt' ? 'created' : 'due';
-
   /* ── Render ── */
   return (
-    <div className="h-full w-full bg-gray-900 text-white overflow-y-auto">
+    <div className="h-full w-full text-white overflow-y-auto pb-16"
+      style={{
+        background: [
+          'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(82,179,82,.07) 0%, transparent 65%)',
+          'radial-gradient(ellipse 55% 40% at 90%  90%, rgba(82,179,82,.05) 0%, transparent 60%)',
+          'radial-gradient(ellipse 40% 50% at 0%   80%, rgba(50,130,50,.04) 0%, transparent 60%)',
+          'radial-gradient(ellipse 30% 60% at 3%   40%, rgba(82,179,82,.03) 0%, transparent 70%)',
+          '#060606',
+        ].join(', '),
+      }}
+    >
       <ConfettiRain show={showConfetti} />
       <GamificationToast show={toastShow} message={toastMsg} />
 
@@ -819,12 +1060,21 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
       {drawerOpen && (
         <div className="md:hidden fixed inset-0 z-40 flex justify-end">
           <button type="button" className="absolute inset-0 bg-black/60" onClick={() => setDrawerOpen(false)} aria-label="Close filters" />
-          <div className="relative w-72 max-w-[85vw] h-full bg-gray-900 border-l border-white/10 flex flex-col shadow-2xl overflow-hidden"
+          <div className="relative w-72 max-w-[85vw] h-full bg-black border-l border-white/10 flex flex-col shadow-2xl overflow-hidden"
             style={{ animation: 'drawerSlideIn 0.25s cubic-bezier(.22,.9,.28,1)' }}>
             <style>{`@keyframes drawerSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
-              <span className="text-[13px] font-semibold text-white/80">Actions</span>
-              <button type="button" onClick={() => setDrawerOpen(false)} className="w-7 h-7 flex items-center justify-center rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors">✕</button>
+            <div className="px-4 pt-4 pb-3 border-b border-white/10 shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt=""
+                className="mx-auto mb-3 w-[90%] max-w-full h-auto object-contain"
+              />
+              <QuickProgressBlock progress={progress} className="mb-3" />
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-semibold text-white/80">Actions</span>
+                <button type="button" onClick={() => setDrawerOpen(false)} className="w-7 h-7 flex items-center justify-center rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors">✕</button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto">
               <ActionsPanel {...actionsPanelProps} />
@@ -833,22 +1083,38 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
         </div>
       )}
 
-      <div className="h-full w-full bg-gray-900 text-white">
+      <div className="h-full w-full">
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8">
           <div className="flex gap-4">
             <div className="min-w-0 flex-1">
 
               {/* Date pagination header */}
-          <div className="mb-5">
-                <div className="flex items-center justify-between gap-3 rounded-2xl  px-4 py-3">
-                  
+              <div className="mb-5">
+                <div className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3"
+                  style={{
+                    background: [
+                      'linear-gradient(135deg, rgba(82,179,82,.06) 0%, transparent 45%)',
+                      'linear-gradient(to bottom, rgba(255,255,255,.07) 0%, transparent 30%)',
+                      'rgba(10,10,10,0.65)',
+                    ].join(', '),
+                    backdropFilter: 'blur(18px) saturate(1.3)',
+                    WebkitBackdropFilter: 'blur(18px) saturate(1.3)',
+                    border: '1px solid rgba(82,179,82,.09)',
+                    boxShadow: [
+                      '0 0 0 1px rgba(255,255,255,.04)',
+                      'inset 0 1px 0 rgba(255,255,255,.10)',
+                      '0 4px 24px rgba(0,0,0,.4)',
+                    ].join(', '),
+                  }}>
+
                   {/* Left: navigation */}
                   <div className="flex items-center gap-2 min-w-[96px]">
                     <button
                       type="button"
                       onClick={navigatePrev}
                       disabled={navDisabled}
-                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm text-white/70 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
+                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#52b352]/60 text-sm text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-25 disabled:text-white/40 disabled:border-white/10"
+                      style={{ background: 'linear-gradient(160deg, #72d472 0%, #2e8b2e 100%)', boxShadow: '0 2px 12px rgba(82,179,82,.3), inset 0 1px 0 rgba(255,255,255,.35)' }}
                     >
                       ‹
                     </button>
@@ -857,7 +1123,8 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
                       type="button"
                       onClick={navigateNext}
                       disabled={navDisabled}
-                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm text-white/70 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
+                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#52b352]/60 text-sm text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-25 disabled:text-white/40 disabled:border-white/10"
+                      style={{ background: 'linear-gradient(160deg, #72d472 0%, #2e8b2e 100%)', boxShadow: '0 2px 12px rgba(82,179,82,.3), inset 0 1px 0 rgba(255,255,255,.35)' }}
                     >
                       ›
                     </button>
@@ -901,12 +1168,8 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
 
                   {/* Right: meta info */}
                   <div className="hidden md:flex min-w-[170px] items-center justify-end gap-3 text-[11px] font-medium text-white/40">
-                    <div>
-                      by <span className="text-white/65">{sortAxisLabel}</span>
-                    </div>
-
                     {splitMode ? (
-                      <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-emerald-300">
+                      <div className="rounded-full border border-[#52b352]/35 bg-[#52b352]/15 px-2 py-1 text-[#52b352]">
                         Split: {splitDays.length} days
                       </div>
                     ) : null}
@@ -920,7 +1183,7 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
                   >
                     <span>⚙</span>
                     <span className="capitalize">{dateMode}</span>
-                    {splitMode ? <span className="h-2 w-2 rounded-full bg-emerald-400" /> : null}
+                    {splitMode ? <span className="h-2 w-2 rounded-full bg-[#52b352]" /> : null}
                   </button>
                 </div>
               </div>
@@ -928,13 +1191,13 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
             
 
               {isBrandNewEmpty ? (
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-5" >
                   <div className="text-sm font-semibold text-white/90">Start here</div>
                   <div className="text-[12px] text-white/50 mt-1">Create your first list and then add tasks under it.</div>
                  <button
                       type="button"
                       onClick={openNewListModal}
-                      className="mt-4 max-w-[260px] w-full text-left text-[13px] px-4 py-3 rounded-2xl border border-emerald-400/25 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/20 transition-colors wobble-loop"
+                      className="mt-4 max-w-[260px] w-full text-left text-[13px] px-4 py-3 rounded-2xl border border-[#52b352]/35 bg-[#52b352]/20 text-[#52b352] hover:bg-[#52b352]/26 transition-colors wobble-loop"
                     >
                       + New List
                     </button>
@@ -946,16 +1209,47 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
             {/* Desktop sidebar */}
             <div className="hidden md:block w-[220px] shrink-0">
               <div className="sticky top-6">
-                <div className="rounded-2xl ">
-                  <div className="px-3 py-2 border-b border-white/10">
+                <div className="rounded-2xl overflow-hidden"
+                  style={{
+                    /* Layered glass: frosted dark base + lime tint + top shine */
+                    background: [
+                      'linear-gradient(160deg, rgba(82,179,82,.07) 0%, transparent 40%)',
+                      'linear-gradient(to bottom, rgba(255,255,255,.06) 0%, transparent 18%)',
+                      'rgba(8,8,8,0.62)',
+                    ].join(', '),
+                    backdropFilter: 'blur(24px) saturate(1.4)',
+                    WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
+                    border: '1px solid rgba(82,179,82,.10)',
+                    boxShadow: [
+                      /* outer glow */
+                      '0 0 0 1px rgba(255,255,255,.05)',
+                      '0 8px 40px rgba(0,0,0,.55)',
+                      '0 2px 80px rgba(82,179,82,.04)',
+                      /* top-edge glass sheen */
+                      'inset 0 1px 0 rgba(255,255,255,.11)',
+                      /* left-edge micro highlight */
+                      'inset 1px 0 0 rgba(255,255,255,.05)',
+                    ].join(', '),
+                  }}>
+                  <div className="px-3 py-3 border-b border-white/[0.07]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/logo.png"
+                      alt=""
+                      className="mx-auto mb-3 w-[70%] max-w-full h-auto object-contain"
+                    />
+                    <QuickProgressBlock progress={progress} className="mb-3" />
                     <div className="text-[11px] text-white/50">Actions</div>
                   </div>
-                  <div style={{ height: '78vh' }}>
+                  <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
                     <ActionsPanel {...actionsPanelProps} />
                   </div>
                 </div>
               </div>
             </div>
+
+
+            
           </div>
         </div>
 
@@ -963,7 +1257,7 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
         {listModalOpen ? (
           <div className="fixed inset-0 z-[999] flex items-center justify-center">
             <button type="button" className="absolute inset-0 bg-black/60" onClick={() => setListModalOpen(false)} aria-label="Close" />
-            <div className="relative w-[92vw] max-w-md rounded-2xl border border-white/10 bg-gray-950 shadow-2xl">
+            <div className="relative w-[92vw] max-w-md rounded-2xl border border-white/10 bg-black shadow-2xl">
               <div className="px-4 py-3 border-b border-white/10">
                 <div className="text-sm font-semibold text-white/90">Select or create List</div>
                 <div className="text-[11px] text-white/45 mt-0.5">Pick an existing list to add a task under it, or type a new one.</div>
@@ -994,12 +1288,49 @@ const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
               </div>
               <div className="px-4 py-3 border-t border-white/10 flex items-center justify-end gap-2">
                 <button type="button" onClick={() => setListModalOpen(false)} className="text-[12px] px-3 py-2 rounded-md border border-white/10 text-white/70 hover:text-white/90 hover:bg-white/5 transition-colors">Cancel</button>
-                <button type="button" onClick={confirmListModal} className="text-[12px] px-3 py-2 rounded-md border border-emerald-400/25 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/20 transition-colors">Select</button>
+                <button type="button" onClick={confirmListModal} className="text-[12px] px-3 py-2 rounded-md border border-[#52b352]/35 bg-[#52b352]/20 text-[#52b352] hover:bg-[#52b352]/26 transition-colors">Select</button>
               </div>
             </div>
           </div>
         ) : null}
       </div>
+
+      {/* Fixed status bar — darker than Quick bg, today completion summary */}
+      <div
+        className="pointer-events-none fixed bottom-0 left-0 right-0 z-[45] border-t border-white/[0.08] bg-[#060606] px-4 py-2.5 shadow-[0_-8px_24px_rgba(0,0,0,.35)]"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="pointer-events-auto mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div className="min-w-0 flex flex-col gap-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
+              Today
+            </span>
+            <span className="text-[12px] text-white/70">
+              <span className="font-semibold text-[#52b352] tabular-nums">{todayCompletedSummary.completed}</span>
+              <span className="text-white/45"> / </span>
+              <span className="tabular-nums text-white/55">{todayCompletedSummary.total}</span>
+              <span className="text-white/40"> · completed</span>
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+              Overdue
+            </span>
+            <span
+              className={[
+                'min-w-[2rem] rounded-lg border px-2.5 py-1 text-center text-[13px] font-semibold tabular-nums',
+                overdueCount > 0
+                  ? 'border-rose-500/35 bg-rose-500/10 text-rose-200'
+                  : 'border-white/10 bg-white/5 text-white/45',
+              ].join(' ')}
+            >
+              {overdueCount}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <OnboardingModal />
     </div>
   );

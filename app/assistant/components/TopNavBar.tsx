@@ -27,6 +27,8 @@ interface TopNavBarProps {
 }
 
 const LS_REMINDERS = 'youtask_reminders_v1';
+const PRISMA_USER_ID_KEY = 'prisma_user_id';
+const TWOFA_SESSION_KEY = 'youtask_2fa';
 
 function todayYMD() {
   const d = new Date();
@@ -127,14 +129,46 @@ const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.Rea
 */
 
 export default function TopNavBar({
-  title,
   activeView,
   setActiveView,
-  onHome,
   sidebarOpen,
   onToggleSidebar,
-}: TopNavBarProps) {
+}: Omit<TopNavBarProps, 'title' | 'onHome'> & { title?: string; onHome?: () => void }) {
   const router = useRouter();
+
+  const clearPrismaLocalStorage = useCallback(() => {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (k.startsWith('prisma_user_')) keysToRemove.push(k);
+      }
+      // También se setea en login flow (no es prisma_, pero es parte de la sesión)
+      keysToRemove.push('firebase_uid');
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch {}
+
+    try {
+      sessionStorage.removeItem('twofa_ok');
+      sessionStorage.removeItem(TWOFA_SESSION_KEY);
+    } catch {}
+  }, []);
+
+  const enforcePrismaSession = useCallback(() => {
+    let ok = false;
+    try {
+      ok = !!localStorage.getItem(PRISMA_USER_ID_KEY);
+    } catch {
+      ok = false;
+    }
+    if (ok) return;
+
+    // Si falta prisma_user_id, cerramos sesión Firebase y mandamos a Home.
+    void signOut(auth).catch(() => {});
+    clearPrismaLocalStorage();
+    router.replace('/');
+  }, [clearPrismaLocalStorage, router]);
 
   // ── Reminders state ──
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -142,6 +176,23 @@ export default function TopNavBar({
   const [dropOpen, setDropOpen]   = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
   const today = todayYMD();
+
+  // Enforce session on mount + when tab refocuses or storage changes
+  useEffect(() => {
+    enforcePrismaSession();
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === PRISMA_USER_ID_KEY) enforcePrismaSession();
+    };
+    const onFocus = () => enforcePrismaSession();
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [enforcePrismaSession]);
 
   const load = useCallback(() => {
     setReminders(readReminders());
@@ -205,8 +256,14 @@ export default function TopNavBar({
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
-    router.replace('/login');
+    try {
+      await signOut(auth);
+    } catch {
+      // ignore
+    } finally {
+      clearPrismaLocalStorage();
+    }
+    router.replace('/');
   };
 
   return (
@@ -235,7 +292,7 @@ export default function TopNavBar({
       `}</style>
 
       {/* ── Top bar ── */}
-      <header className="shrink-0 h-12 bg-gray-900 border-b border-white/8 flex items-center px-3 md:px-4 gap-2 z-50">
+      <header className="shrink-0 h-12 bg-black border-b border-white/8 flex items-center px-3 md:px-4 gap-2 z-50">
 
         {/* Sidebar toggle */}
         <button
@@ -244,8 +301,8 @@ export default function TopNavBar({
           className={[
             'h-8 w-8 rounded-lg flex items-center justify-center transition-colors shrink-0',
             sidebarOpen
-              ? 'bg-white/10 text-white border border-white/15'
-              : 'text-white/50 hover:text-white/80 hover:bg-white/8 border border-transparent',
+              ? 'bg-[#d5fc43]/20 text-[#d5fc43] border border-[#d5fc43]/35'
+              : 'text-white/50 hover:text-white/85 hover:bg-white/8 border border-transparent',
           ].join(' ')}
           aria-label="Toggle sidebar"
           title="Toggle sidebar"
@@ -255,14 +312,7 @@ export default function TopNavBar({
           </svg>
         </button>
 
-        {/* Logo / title */}
-        <button
-          type="button"
-          onClick={onHome}
-          className="text-[14px] font-bold text-white/90 hover:text-white transition-colors shrink-0 tracking-tight mr-1"
-        >
-          {title}
-        </button>
+      
 
         {/* Divider */}
         <div className="hidden md:block w-px h-5 bg-white/10 mx-1 shrink-0" />
@@ -279,12 +329,12 @@ export default function TopNavBar({
                 className={[
                   'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap shrink-0',
                   isActive
-                    ? 'bg-white/10 text-white border border-white/12'
-                    : 'text-white/45 hover:text-white/75 hover:bg-white/6 border border-transparent',
+                    ? 'bg-[#d5fc43]/20 text-[#d5fc43] border border-[#d5fc43]/35'
+                    : 'text-white/45 hover:text-white/80 hover:bg-white/6 border border-transparent',
                 ].join(' ')}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <span className={isActive ? 'text-white' : 'text-white/45'}>{item.icon}</span>
+                <span className={isActive ? 'text-[#d5fc43]' : 'text-white/45'}>{item.icon}</span>
                 <span>{item.label}</span>
               </button>
             );
@@ -308,7 +358,7 @@ export default function TopNavBar({
                 : hasPending ? `${pendingCount} reminder${pendingCount > 1 ? 's' : ''} pending`
                 : 'All reminders done today'
               }
-              className="relative h-8 w-8 flex items-center justify-center rounded-lg text-white/45 hover:text-white/80 hover:bg-white/8 border border-transparent transition-colors shrink-0"
+              className="relative h-8 w-8 flex items-center justify-center rounded-lg text-white/45 hover:text-[#d5fc43] hover:bg-[#d5fc43]/10 border border-transparent transition-colors shrink-0"
             >
               <span
                 className={hasPending ? 'bell-ring' : ''}
@@ -328,7 +378,7 @@ export default function TopNavBar({
 
             {/* Dropdown */}
             {dropOpen && (
-              <div className="drop-in absolute right-0 top-10 w-72 rounded-xl border border-white/10 bg-gray-950 shadow-2xl overflow-hidden z-[200] isolate">
+              <div className="drop-in absolute right-0 top-10 w-72 rounded-xl border border-white/10 bg-black shadow-2xl overflow-hidden z-[200] isolate">
                 <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8">
                   <span className="text-[12px] font-semibold text-white/70 tracking-wide">
                     Today s reminders
@@ -336,7 +386,7 @@ export default function TopNavBar({
                   {hasPending && (
                     <button
                       onClick={dismissAll}
-                      className="text-[11px] text-white/40 hover:text-emerald-400 transition-colors"
+                      className="text-[11px] text-white/40 hover:text-[#d5fc43] transition-colors"
                     >
                       Dismiss all
                     </button>
@@ -381,12 +431,12 @@ export default function TopNavBar({
                           {!isDone ? (
                             <button
                               onClick={() => dismissOne(r.id)}
-                              className="shrink-0 opacity-0 group-hover:opacity-100 text-[11px] px-2 py-1 rounded-md border border-white/10 text-white/40 hover:text-emerald-400 hover:border-emerald-400/30 transition-all"
+                              className="shrink-0 opacity-0 group-hover:opacity-100 text-[11px] px-2 py-1 rounded-md border border-white/10 text-white/40 hover:text-[#d5fc43] hover:border-[#d5fc43]/35 transition-all"
                             >
                               ✓
                             </button>
                           ) : (
-                            <span className="shrink-0 text-[11px] text-emerald-500/60">✓</span>
+                            <span className="shrink-0 text-[11px] text-[#d5fc43]/80">✓</span>
                           )}
                         </div>
                       );
@@ -395,7 +445,7 @@ export default function TopNavBar({
                 </div>
 
                 {!hasPending && todayReminders.length > 0 && (
-                  <div className="px-4 py-2.5 border-t border-white/8 text-center text-[11px] text-emerald-400/70">
+                  <div className="px-4 py-2.5 border-t border-white/8 text-center text-[11px] text-[#d5fc43]/80">
                     All done for today 🎉
                   </div>
                 )}
@@ -408,7 +458,7 @@ export default function TopNavBar({
         <button
           type="button"
           onClick={handleLogout}
-          className="h-8 w-8 rounded-lg flex items-center justify-center text-white/45 hover:text-white/80 hover:bg-white/8 border border-transparent transition-colors shrink-0"
+          className="h-8 w-8 rounded-lg flex items-center justify-center text-white/45 hover:text-[#d5fc43] hover:bg-[#d5fc43]/10 border border-transparent transition-colors shrink-0"
           aria-label="Sign out"
           title="Sign out"
         >
@@ -421,7 +471,7 @@ export default function TopNavBar({
       </header>
 
       {/* ── Bottom tab bar — mobile only ── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex bg-gray-900 border-t border-white/10">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex bg-black border-t border-white/10">
         {NAV_ITEMS.map(item => {
           const isActive = activeView === item.id;
           return (
@@ -436,7 +486,7 @@ export default function TopNavBar({
               <span className="text-base leading-none">{item.icon}</span>
               <span className="text-[10px] font-medium">{item.mobileLabel}</span>
               {isActive && (
-                <span className="absolute bottom-0 w-8 h-0.5 bg-white rounded-full" />
+                <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
               )}
             </button>
           );

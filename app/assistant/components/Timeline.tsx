@@ -253,22 +253,15 @@ export default function Timeline() {
         .sort((a, b) => a.localeCompare(b));
     }
 
-    if (!normalRange) return [];
+    // Non-completed: only show columns that actually have cards (skip empty dates).
+    // Always keep OVERDUE_KEY first, then future dates sorted ascending.
+    const dateKeys = Object.keys(cardsByDate)
+      .filter(k => k !== OVERDUE_KEY && (cardsByDate[k]?.length ?? 0) > 0)
+      .sort((a, b) => a.localeCompare(b));
 
-    const minD = startOfLocalDay(parseYMD(normalRange.min));
-    const maxD = startOfLocalDay(parseYMD(normalRange.max));
-    const out: string[] = [OVERDUE_KEY];
-
-    for (
-      let d = new Date(minD);
-      d.getTime() <= maxD.getTime();
-      d.setDate(d.getDate() + 1)
-    ) {
-      out.push(toYMD(d));
-    }
-
-    return out;
-  }, [showCompleted, cardsByDate, normalRange]);
+    const hasOverdue = (cardsByDate[OVERDUE_KEY]?.length ?? 0) > 0;
+    return hasOverdue ? [OVERDUE_KEY, ...dateKeys] : dateKeys;
+  }, [showCompleted, cardsByDate]);
 
   const nowMonth = useMemo(() => monthStart(new Date()), []);
 
@@ -351,7 +344,7 @@ export default function Timeline() {
               {' '}· {projectTitle || 'Project'}
               {!normalRange
                 ? ' · (sin deadlines)'
-                : ` · Overdue (${overdueCount}) · ${normalRange.min} → ${normalRange.max} · ${Math.max(0, columns.length - 1)} days`}
+                : ` · Overdue (${overdueCount}) · ${columns.filter(k => k !== OVERDUE_KEY).length} column${columns.filter(k => k !== OVERDUE_KEY).length === 1 ? '' : 's'}`}
             </span>
           ) : (
             <span
@@ -388,10 +381,6 @@ export default function Timeline() {
                 title="Next month"
                 aria-label="Next month"
                 disabled={!canGoNextMonth}
-                style={{
-                  opacity: canGoNextMonth ? 1 : 0.35,
-                  cursor: canGoNextMonth ? 'pointer' : 'default',
-                }}
               >
                 ›
               </button>
@@ -506,7 +495,14 @@ export default function Timeline() {
                                 title={card.checked ? 'Marcar como pendiente' : 'Marcar como completado'}
                                 aria-label={card.checked ? 'Completed' : 'Mark completed'}
                               >
-                                {card.checked ? '' : '○'}
+                                {card.checked ? (
+                                  <span className="relative flex h-3 w-3 items-center justify-center">
+                                    <span className="absolute h-2.5 w-2.5 rounded-full bg-[#d5fc43]/85 blur-[2px]" />
+                                    <span className="absolute h-1.5 w-1.5 rounded-full bg-[#d5fc43]" />
+                                  </span>
+                                ) : (
+                                  <span className="h-3 w-3 rounded border border-white/30" />
+                                )}
                               </button>
 
                               {card.checked ? <div className="yt-donebadge">✓</div> : null}

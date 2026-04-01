@@ -511,6 +511,16 @@ export const Sidebar = () => {
     }
   };
 
+  const pillClassNike = (deadline?: string, checked?: boolean) => {
+    // `pillClass` viene de datacenter y usa amber para "today".
+    // En Sidebar lo re-skinneamos a NRC/Nike green (#d5fc43).
+    return pillClass(deadline, checked)
+      .replaceAll('bg-amber-500/15', 'bg-[#d5fc43]/20')
+      .replaceAll('text-amber-200', 'text-[#d5fc43]')
+      .replaceAll('border-amber-400/25', 'border-[#d5fc43]/35')
+      .replaceAll('hover:bg-amber-500/20', 'hover:bg-[#d5fc43]/26');
+  };
+
   /* ── Keyboard (tasks) ── */
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
     if (e.key === 'Enter') {
@@ -714,7 +724,7 @@ export const Sidebar = () => {
   /* ===================== Render ===================== */
   return (
     <>
-      <aside className="bg-gray-800 h-full flex flex-col w-full min-h-0">
+      <aside className="bg-black h-full flex flex-col w-full min-h-0">
         <div className="px-4 pt-4 pb-2 text-white/80 font-semibold shrink-0">Organizer</div>
 
         {/* Tabs */}
@@ -727,11 +737,7 @@ export const Sidebar = () => {
               className={[
                 'flex-1 text-[12px] px-2 py-2 rounded-md border transition-colors',
                 tab === t
-                  ? t === 'tasks'
-                    ? 'border-sky-400/35 bg-sky-500/10 text-sky-100'
-                    : t === 'habits'
-                      ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-100'
-                      : 'border-violet-400/35 bg-violet-500/10 text-violet-100'
+                  ? 'border-[#d5fc43]/35 bg-[#d5fc43]/18 text-[#d5fc43]'
                   : 'border-white/10 bg-white/5 text-white/70 hover:text-white/85 hover:bg-white/7',
               ].join(' ')}
             >
@@ -827,8 +833,8 @@ export const Sidebar = () => {
                             >
                               {b.checked ? (
                                 <span className="relative flex h-3 w-3 items-center justify-center">
-                                  <span className="absolute h-2.5 w-2.5 rounded-full bg-emerald-300/80 blur-[2px]" />
-                                  <span className="absolute h-1.5 w-1.5 rounded-full bg-emerald-200" />
+                                  <span className="absolute h-2.5 w-2.5 rounded-full bg-[#d5fc43]/85 blur-[2px]" />
+                                  <span className="absolute h-1.5 w-1.5 rounded-full bg-[#d5fc43]" />
 
                                 </span>
                               ) : (
@@ -871,7 +877,7 @@ export const Sidebar = () => {
                                 type="button"
                                 style={{ minWidth: '66px' }}
                                 onClick={() => openDatePicker(b.id)}
-                                className={['text-[11px] px-2 py-1 rounded-full border transition-colors', pillClass(b.deadline, b.checked)].join(' ')}
+                                className={['text-[11px] px-2 py-1 rounded-full border transition-colors', pillClassNike(b.deadline, b.checked)].join(' ')}
                                 title={pill ? 'Change date' : 'Set date'}
                               >
                                 {pill || '📅'}
@@ -967,10 +973,10 @@ export const Sidebar = () => {
                         onClick={() => handleUpdateHabit(h.id, { checked: !h.checked })}
                         className={[
                           'h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-[transform,background-color,border-color] duration-150 ease-out group-hover:scale-[1.06]',
-                          h.checked ? 'bg-emerald-500/15 border-emerald-400/70' : 'border-white/25',
+                          h.checked ? 'bg-[#d5fc43]/20 border-[#d5fc43]/75' : 'border-white/25',
                         ].join(' ')}
                       >
-                        {h.checked ? <span className="text-emerald-300 text-xs">✓</span> : null}
+                        {h.checked ? <span className="text-[#d5fc43] text-xs">✓</span> : null}
                       </button>
                       <input
                         ref={el => void (habitInputRefs.current[h.id] = el)}
@@ -989,7 +995,7 @@ export const Sidebar = () => {
                         className={[
                           'shrink-0 text-[11px] px-2 py-1 rounded-full border transition-colors',
                           h.weekly
-                            ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+                            ? 'border-[#d5fc43]/35 bg-[#d5fc43]/16 text-[#d5fc43]'
                             : 'border-white/10 bg-transparent text-white/40 hover:text-white/60 hover:bg-white/5',
                         ].join(' ')}
                       >
@@ -1081,7 +1087,7 @@ export const Sidebar = () => {
                           className={[
                             'shrink-0 text-[11px] px-2 py-1 rounded-full border transition-colors',
                             r.daily
-                              ? 'border-violet-400/35 bg-violet-500/10 text-violet-200'
+                              ? 'border-[#d5fc43]/35 bg-[#d5fc43]/16 text-[#d5fc43]'
                               : 'border-white/10 bg-transparent text-white/40 hover:text-white/60 hover:bg-white/5',
                           ].join(' ')}
                         >
@@ -1113,17 +1119,17 @@ export const Sidebar = () => {
         </div>
 
        {/* Fixed footer */}
-          <div className="shrink-0 border-t border-white/10 bg-gray-800/95 backdrop-blur px-4 py-3 space-y-3">
+          <div className="shrink-0 border-t border-white/10 bg-black/95 backdrop-blur px-4 py-3 space-y-3">
             <div className="rounded-2xl  px-3 py-3 min-h-[128px]">
               {hintIndex === 0 ? (
                 <div>
                   <div className="flex items-start gap-3">
-                    <div className="h-9 w-9 rounded-xl border border-yellow-400/20 bg-yellow-500/10 flex items-center justify-center text-lg shrink-0">
+                    <div className="h-9 w-9 rounded-xl border border-[#d5fc43]/30 bg-[#d5fc43]/12 flex items-center justify-center text-lg shrink-0">
                       🎨
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-yellow-200/70">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#d5fc43]/75">
                         Hint
                       </div>
                       <div className="mt-1 text-[12px] leading-5 text-white/80">
@@ -1133,8 +1139,8 @@ export const Sidebar = () => {
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-yellow-400/30 bg-yellow-500/10 px-2 py-1 text-[11px] text-yellow-200">
-                      <span className="h-2 w-2 rounded-full bg-yellow-300" />
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[#d5fc43]/35 bg-[#d5fc43]/14 px-2 py-1 text-[11px] text-[#d5fc43]">
+                      <span className="h-2 w-2 rounded-full bg-[#d5fc43]" />
                       Today
                     </span>
 
@@ -1156,12 +1162,12 @@ export const Sidebar = () => {
                 </div>
               ) : (
                 <div className="flex items-start gap-3">
-                  <div className="h-9 w-9 rounded-xl border border-yellow-400/20 bg-yellow-500/10 flex items-center justify-center text-lg shrink-0">
+                  <div className="h-9 w-9 rounded-xl border border-[#d5fc43]/30 bg-[#d5fc43]/12 flex items-center justify-center text-lg shrink-0">
                     💡
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-yellow-200/70">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-[#d5fc43]/75">
                       Hint
                     </div>
                     <div className="mt-1 text-[12px] leading-5 text-white/80 transition-all">
@@ -1183,7 +1189,7 @@ export const Sidebar = () => {
                       onClick={() => setHintIndex(i)}
                       className={[
                         'h-1.5 rounded-full transition-all',
-                        i === hintIndex ? 'w-5 bg-yellow-300/90' : 'w-1.5 bg-white/20 hover:bg-white/35',
+                        i === hintIndex ? 'w-5 bg-[#d5fc43]' : 'w-1.5 bg-white/20 hover:bg-white/35',
                       ].join(' ')}
                       aria-label={`Go to slide ${i + 1}`}
                     />
@@ -1223,7 +1229,7 @@ export const Sidebar = () => {
         onClose={closePivot}
         onGoTo={(blockId) => { focusBlock(blockId, true); }}
         pillText={(r) => (r.indent > 0 ? formatPill(r.deadline) : '')}
-        pillClass={(r) => pillClass(r.deadline, r.checked)}
+        pillClass={(r) => pillClassNike(r.deadline, r.checked)}
       />
     </>
   );

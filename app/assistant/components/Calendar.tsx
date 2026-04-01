@@ -59,18 +59,45 @@ function dayDiff(ymd: string): number {
 }
 
 function pillColorForList(index: number): string {
+  /* Lime-first NRC palette; extra hues only to separate adjacent lists */
   const palettes = [
-    'bg-sky-500/20 text-sky-200 border-sky-400/25',
-    'bg-violet-500/20 text-violet-200 border-violet-400/25',
-    'bg-amber-500/20 text-amber-200 border-amber-400/25',
-    'bg-rose-500/20 text-rose-200 border-rose-400/25',
-    'bg-teal-500/20 text-teal-200 border-teal-400/25',
-    'bg-orange-500/20 text-orange-200 border-orange-400/25',
-    'bg-pink-500/20 text-pink-200 border-pink-400/25',
-    'bg-cyan-500/20 text-cyan-200 border-cyan-400/25',
+    'bg-[#d5fc43]/15 text-[#d5fc43] border-[#d5fc43]/28',
+    'bg-sky-500/15 text-sky-200 border-sky-400/25',
+    'bg-[#d5fc43]/10 text-[#d5fc43] border-[#d5fc43]/22',
+    'bg-violet-500/15 text-violet-200 border-violet-400/25',
+    'bg-[#d5fc43]/12 text-[#d5fc43] border-[#d5fc43]/26',
+    'bg-cyan-500/15 text-cyan-200 border-cyan-400/25',
+    'bg-[#d5fc43]/8 text-[#d5fc43]/95 border-[#d5fc43]/18',
+    'bg-emerald-500/12 text-emerald-200 border-emerald-400/25',
   ];
   return palettes[index % palettes.length];
 }
+
+/** Pills inside month grid cells — no lime (lime reserved for calendar chrome / today / nav) */
+function pillColorForCalendarCell(index: number): string {
+  const palettes = [
+    'bg-sky-500/15 text-sky-200 border-sky-400/25',
+    'bg-violet-500/15 text-violet-200 border-violet-400/25',
+    'bg-rose-500/15 text-rose-200 border-rose-400/25',
+    'bg-cyan-500/15 text-cyan-200 border-cyan-400/25',
+    'bg-teal-500/15 text-teal-200 border-teal-400/25',
+    'bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-400/25',
+    'bg-indigo-500/15 text-indigo-200 border-indigo-400/25',
+    'bg-orange-500/18 text-orange-200 border-orange-400/25',
+  ];
+  return palettes[index % palettes.length];
+}
+
+const CALENDAR_CELL_FILL_COLORS = [
+  'bg-sky-400',
+  'bg-violet-400',
+  'bg-rose-400',
+  'bg-cyan-400',
+  'bg-teal-400',
+  'bg-fuchsia-400',
+  'bg-indigo-400',
+  'bg-orange-400',
+] as const;
 
 const WEEKDAYS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTH_NAMES = [
@@ -106,7 +133,7 @@ function DaySidebar({
 
   const diffClass = (() => {
     if (diff < 0) return 'text-red-300';
-    if (diff === 0) return 'text-amber-300';
+    if (diff === 0) return 'text-[#d5fc43]';
     if (diff === 1) return 'text-emerald-300';
     return 'text-sky-300';
   })();
@@ -136,10 +163,24 @@ function DaySidebar({
 
       {/* Panel */}
       <div
-        className="fixed top-0 right-0 h-full z-[201] flex flex-col bg-gray-900 border-l border-white/10 shadow-2xl"
+        className="fixed top-0 right-0 h-full z-[201] flex flex-col"
         style={{
           width: 'min(420px, 92vw)',
           animation: 'calSidebarIn 0.28s cubic-bezier(.22,.9,.28,1)',
+          background: [
+            'linear-gradient(160deg, rgba(82,179,82,.07) 0%, transparent 35%)',
+            'linear-gradient(to bottom, rgba(255,255,255,.05) 0%, transparent 18%)',
+            'rgba(7,7,7,0.82)',
+          ].join(', '),
+          backdropFilter: 'blur(28px) saturate(1.4)',
+          WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
+          borderLeft: '1px solid rgba(82,179,82,.12)',
+          boxShadow: [
+            '-4px 0 60px rgba(0,0,0,.6)',
+            '-1px 0 0 rgba(255,255,255,.04)',
+            'inset 1px 0 0 rgba(255,255,255,.05)',
+            '0 0 80px rgba(82,179,82,.06)',
+          ].join(', '),
         }}
       >
         <style>{`
@@ -166,7 +207,7 @@ function DaySidebar({
             <div className="mt-2 flex items-center gap-2">
               <div className="h-1 rounded-full bg-white/10 flex-1 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-emerald-400/70 transition-all duration-500"
+                  className="h-full rounded-full bg-[#d5fc43]/85 transition-all duration-500 shadow-[0_0_12px_rgba(213,252,67,.25)]"
                   style={{ width: totalCount ? `${(doneCount / totalCount) * 100}%` : '0%' }}
                 />
               </div>
@@ -176,7 +217,7 @@ function DaySidebar({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors mt-1"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-[#d5fc43] hover:bg-[#d5fc43]/10 transition-colors mt-1"
           >
             ✕
           </button>
@@ -213,7 +254,7 @@ function DaySidebar({
                     <div className="p-3">
                       {/* Top row */}
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2 min-w-0 flex-1">
+                        <div className="group flex items-start gap-2 min-w-0 flex-1">
                           {/* Checkbox / archived indicator */}
                           {card.archived ? (
                             <span className="mt-0.5 h-4 w-4 rounded border border-white/15 flex items-center justify-center shrink-0 text-white/30 text-[9px]">
@@ -223,15 +264,17 @@ function DaySidebar({
                             <button
                               type="button"
                               onClick={() => onToggleDone(card.id)}
-                              className={[
-                                'relative mt-0.5 h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-all duration-150',
-                                card.checked
-                                  ? 'bg-emerald-500/20 border-emerald-400/60'
-                                  : 'border-white/25 hover:border-white/50',
-                              ].join(' ')}
+                              className="relative mt-0.5 h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
                               title={card.checked ? 'Mark pending' : 'Mark done'}
                             >
-                              {card.checked && <span className="text-emerald-300 text-[10px] font-bold">✓</span>}
+                              {card.checked ? (
+                                <span className="relative flex h-3 w-3 items-center justify-center">
+                                  <span className="absolute h-2.5 w-2.5 rounded-full bg-[#d5fc43]/85 blur-[2px]" />
+                                  <span className="absolute h-1.5 w-1.5 rounded-full bg-[#d5fc43]" />
+                                </span>
+                              ) : (
+                                <span className="h-3 w-3 rounded border border-white/25 group-hover:border-white/40 transition-colors" />
+                              )}
                             </button>
                           )}
 
@@ -452,23 +495,12 @@ export default function CalendarView() {
           const allDone = done === total && total > 0;
           const idx   = listTitleIndex[g.listTitle] ?? 0;
 
-          // Extract just the fill color for the progress bar from the palette
-          const fillColors = [
-            'bg-sky-400',
-            'bg-violet-400',
-            'bg-amber-400',
-            'bg-rose-400',
-            'bg-teal-400',
-            'bg-orange-400',
-            'bg-pink-400',
-            'bg-cyan-400',
-          ];
-          const fillColor = fillColors[idx % fillColors.length];
+          const fillColor = CALENDAR_CELL_FILL_COLORS[idx % CALENDAR_CELL_FILL_COLORS.length];
 
           return (
             <div
               key={g.listId}
-              className={`relative overflow-hidden rounded-md border px-1.5 pt-[3px] pb-[5px] ${pillColorForList(idx)}`}
+              className={`relative overflow-hidden rounded-md border px-1.5 pt-[3px] pb-[5px] ${pillColorForCalendarCell(idx)}`}
               title={`${g.listTitle}: ${done}/${total}`}
             >
               {/* Label row */}
@@ -483,10 +515,10 @@ export default function CalendarView() {
               </div>
 
               {/* Progress track */}
-              <div className="h-[3px] w-full rounded-full bg-black/20 overflow-hidden">
+              <div className="h-[3px] w-full rounded-full bg-black/30 overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${allDone ? 'bg-emerald-400' : fillColor}`}
-                  style={{ width: `${pct}%`, opacity: allDone ? 0.9 : 0.75 }}
+                  className={`h-full rounded-full transition-all duration-500 ${allDone ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.35)]' : fillColor}`}
+                  style={{ width: `${pct}%`, opacity: allDone ? 0.95 : 0.8 }}
                 />
               </div>
             </div>
@@ -508,44 +540,80 @@ export default function CalendarView() {
 
   if (!hydrated) {
     return (
-      <div className="h-full w-full bg-gray-900 flex items-center justify-center">
-        <span className="text-white/40 text-sm">Loading calendar…</span>
+      <div className="h-full w-full bg-[#060606] flex items-center justify-center">
+        <span className="text-[#d5fc43]/60 text-sm">Loading calendar…</span>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full bg-gray-900 text-white overflow-y-auto">
+    <div className="h-full w-full text-white overflow-y-auto"
+      style={{
+        background: [
+          'radial-gradient(ellipse 80% 55% at 50% -5%,  rgba(82,179,82,.08) 0%, transparent 60%)',
+          'radial-gradient(ellipse 55% 40% at 95%  95%,  rgba(82,179,82,.05) 0%, transparent 55%)',
+          'radial-gradient(ellipse 40% 50% at 0%   80%,  rgba(50,130,50,.04) 0%, transparent 60%)',
+          '#060606',
+        ].join(', '),
+      }}>
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8">
 
-        {/* ── Header ── */}
-        <div className="flex items-center justify-between mb-6">
+        {/* ── Header / nav bar ── */}
+        <div className="flex items-center justify-between mb-6 rounded-2xl px-4 py-3"
+          style={{
+            background: [
+              'linear-gradient(135deg, rgba(82,179,82,.07) 0%, transparent 45%)',
+              'linear-gradient(to bottom, rgba(255,255,255,.06) 0%, transparent 30%)',
+              'rgba(10,10,10,0.65)',
+            ].join(', '),
+            backdropFilter: 'blur(18px) saturate(1.3)',
+            WebkitBackdropFilter: 'blur(18px) saturate(1.3)',
+            border: '1px solid rgba(82,179,82,.09)',
+            boxShadow: [
+              '0 0 0 1px rgba(255,255,255,.04)',
+              'inset 0 1px 0 rgba(255,255,255,.09)',
+              '0 4px 24px rgba(0,0,0,.4)',
+            ].join(', '),
+          }}>
           <div>
             <h1 className="text-[24px] md:text-[28px] font-bold text-white leading-none">
-              {MONTH_NAMES[viewMonth]} <span className="text-white/40">{viewYear}</span>
+              {MONTH_NAMES[viewMonth]}{' '}
+              <span className="text-[#52b352]/85">{viewYear}</span>
             </h1>
-            <p className="text-[12px] text-white/35 mt-1">{projectTitle}</p>
+            <p className="text-[12px] text-white/40 mt-1">{projectTitle}</p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={goToday}
-              className="text-[11px] px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white/60 hover:text-white/90 hover:bg-white/10 transition-colors"
+              className="text-[11px] px-3 py-1.5 rounded-xl border border-[#52b352]/40 text-[#52b352] transition-all hover:scale-105"
+              style={{
+                background: 'linear-gradient(135deg, rgba(82,179,82,.2) 0%, rgba(82,179,82,.1) 100%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.1), 0 2px 8px rgba(0,0,0,.25)',
+              }}
             >
               Today
             </button>
             <button
               type="button"
               onClick={prevMonth}
-              className="h-8 w-8 rounded-lg border border-white/10 bg-white/5 text-white/60 hover:text-white/90 hover:bg-white/10 transition-colors flex items-center justify-center"
+              className="h-8 w-8 rounded-full border border-[#52b352]/70 text-black transition-all hover:scale-105 flex items-center justify-center"
+              style={{
+                background: 'linear-gradient(145deg, #72d472 0%, #52b352 55%, #2e8b2e 100%)',
+                boxShadow: '0 2px 10px rgba(82,179,82,.3), inset 0 1px 0 rgba(255,255,255,.3)',
+              }}
             >
               ‹
             </button>
             <button
               type="button"
               onClick={nextMonth}
-              className="h-8 w-8 rounded-lg border border-white/10 bg-white/5 text-white/60 hover:text-white/90 hover:bg-white/10 transition-colors flex items-center justify-center"
+              className="h-8 w-8 rounded-full border border-[#52b352]/70 text-black transition-all hover:scale-105 flex items-center justify-center"
+              style={{
+                background: 'linear-gradient(145deg, #72d472 0%, #52b352 55%, #2e8b2e 100%)',
+                boxShadow: '0 2px 10px rgba(82,179,82,.3), inset 0 1px 0 rgba(255,255,255,.3)',
+              }}
             >
               ›
             </button>
@@ -555,7 +623,7 @@ export default function CalendarView() {
         {/* ── Weekday headers ── */}
         <div className="grid grid-cols-7 mb-1">
           {WEEKDAYS_SHORT.map(wd => (
-            <div key={wd} className="text-center text-[11px] font-semibold text-white/30 py-2 uppercase tracking-wider">
+            <div key={wd} className="text-center text-[11px] font-semibold text-[#d5fc43]/55 py-2 uppercase tracking-wider">
               <span className="hidden md:inline">{wd}</span>
               <span className="md:hidden">{wd[0]}</span>
             </div>
@@ -563,7 +631,14 @@ export default function CalendarView() {
         </div>
 
         {/* ── Desktop: 7-col grid ── */}
-        <div className="hidden md:grid grid-cols-7 border-l border-t border-white/8">
+        <div className="hidden md:grid grid-cols-7 gap-[3px] rounded-2xl overflow-hidden p-[3px]"
+          style={{
+            background: 'rgba(8,8,8,0.5)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid rgba(82,179,82,.08)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,.05), 0 8px 32px rgba(0,0,0,.4)',
+          }}>
           {grid.map((ymd, idx) => {
             const isToday    = ymd === today;
             const isSelected = ymd === selectedDay;
@@ -578,11 +653,31 @@ export default function CalendarView() {
                 key={idx}
                 onClick={() => ymd && setSelectedDay(prev => prev === ymd ? null : ymd)}
                 className={[
-                  'relative min-h-[100px] border-r border-b border-white/8 p-2 transition-colors',
-                  ymd
-                    ? `cursor-pointer ${isSelected ? 'bg-white/8' : isOverdue ? 'bg-red-500/4 hover:bg-red-500/8' : hasCards ? 'hover:bg-white/5' : 'hover:bg-white/3'}`
-                    : 'bg-black/10',
+                  'relative min-h-[100px] rounded-xl p-2 transition-all duration-150',
+                  ymd ? 'cursor-pointer' : '',
                 ].join(' ')}
+                style={ymd ? {
+                  background: isSelected
+                    ? 'linear-gradient(145deg, rgba(82,179,82,.2) 0%, rgba(82,179,82,.08) 100%)'
+                    : isOverdue
+                    ? 'rgba(239,68,68,.06)'
+                    : hasCards
+                    ? 'linear-gradient(145deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)'
+                    : 'rgba(88,88,88,.02)',
+                  border: isSelected
+                    ? '1px solid rgba(82,179,82,.3)'
+                    : isToday
+                    ? '1px solid rgba(82,179,82,.22)'
+                    : isOverdue
+                    ? '1px solid rgba(239,68,68,.15)'
+                    : '1px solid rgba(255,255,255,.05)',
+                  boxShadow: isSelected
+                    ? 'inset 0 1px 0 rgba(255,255,255,.1), 0 2px 12px rgba(82,179,82,.15)'
+                    : 'inset 0 1px 0 rgba(255,255,255,.04)',
+                } : {
+                  background: 'rgba(0,0,0,.25)',
+                  border: '1px solid rgba(255,255,255,.03)',
+                }}
               >
                 {ymd && (
                   <>
@@ -591,9 +686,9 @@ export default function CalendarView() {
                       <div className={[
                         'relative inline-flex items-center justify-center w-7 h-7 rounded-full text-[13px] font-semibold leading-none transition-colors shrink-0',
                         isToday
-                          ? 'bg-emerald-400/20 text-emerald-300 border border-emerald-400/30'
+                          ? 'bg-[#d5fc43]/18 text-[#d5fc43] border border-[#d5fc43]/40 shadow-[0_0_14px_rgba(213,252,67,.22)]'
                           : isSelected
-                          ? 'bg-white/15 text-white'
+                          ? 'bg-[#d5fc43]/14 text-white border border-[#d5fc43]/30'
                           : isOverdue
                           ? 'text-red-300/80'
                           : 'text-white/60',
@@ -633,18 +728,30 @@ export default function CalendarView() {
               <div
                 key={ymd}
                 onClick={() => setSelectedDay(prev => prev === ymd ? null : ymd)}
-                className={[
-                  'rounded-xl border p-3 cursor-pointer transition-all duration-150',
-                  isSelected
-                    ? 'bg-white/10 border-white/20'
+                className="rounded-xl p-3 cursor-pointer transition-all duration-150"
+                style={{
+                  background: isSelected
+                    ? 'linear-gradient(145deg, rgba(82,179,82,.2) 0%, rgba(82,179,82,.08) 100%)'
                     : isOverdue
-                    ? 'bg-red-500/6 border-red-400/15 hover:bg-red-500/10'
+                    ? 'rgba(239,68,68,.06)'
                     : isToday
-                    ? 'bg-emerald-500/8 border-emerald-400/20'
+                    ? 'linear-gradient(145deg, rgba(82,179,82,.14) 0%, rgba(82,179,82,.05) 100%)'
                     : hasAnyTask
-                    ? 'bg-white/5 border-white/10 hover:bg-white/8'
-                    : 'bg-black/20 border-white/6 hover:bg-white/4',
-                ].join(' ')}
+                    ? 'linear-gradient(145deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)'
+                    : 'rgba(88,88,88,.02)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: isSelected
+                    ? '1px solid rgba(82,179,82,.3)'
+                    : isToday
+                    ? '1px solid rgba(82,179,82,.22)'
+                    : isOverdue
+                    ? '1px solid rgba(239,68,68,.15)'
+                    : '1px solid rgba(255,255,255,.06)',
+                  boxShadow: isSelected
+                    ? 'inset 0 1px 0 rgba(255,255,255,.1), 0 2px 12px rgba(82,179,82,.15)'
+                    : 'inset 0 1px 0 rgba(255,255,255,.05)',
+                }}
               >
                 {/* Day header */}
                 <div className="flex items-center justify-between mb-2">
@@ -652,7 +759,7 @@ export default function CalendarView() {
                     <span className={[
                       'text-[18px] font-bold leading-none',
                       isOverdue ? 'text-red-300/80' :
-                      isToday   ? 'text-emerald-300' : 'text-white/85',
+                      isToday   ? 'text-[#d5fc43]' : 'text-white/85',
                     ].join(' ')}>
                       {parseInt(dayNum)}
                     </span>
@@ -672,22 +779,21 @@ export default function CalendarView() {
                       const pct   = total > 0 ? (done / total) * 100 : 0;
                       const pillDone = done === total && total > 0;
                       const colorIdx = listTitleIndex[g.listTitle] ?? gi;
-                      const fillColors = ['bg-sky-400','bg-violet-400','bg-amber-400','bg-rose-400','bg-teal-400','bg-orange-400','bg-pink-400','bg-cyan-400'];
-                      const fillColor = fillColors[colorIdx % fillColors.length];
+                      const fillColor = CALENDAR_CELL_FILL_COLORS[colorIdx % CALENDAR_CELL_FILL_COLORS.length];
                       return (
                         <div
                           key={g.listId}
-                          className={`relative overflow-hidden rounded-md border px-1.5 pt-[3px] pb-[5px] ${pillColorForList(colorIdx)}`}
+                          className={`relative overflow-hidden rounded-md border px-1.5 pt-[3px] pb-[5px] ${pillColorForCalendarCell(colorIdx)}`}
                           title={`${g.listTitle}: ${done}/${total}`}
                         >
                           <div className="flex items-center justify-between gap-1 leading-none mb-[4px]">
                             <span className="text-[9px] font-medium truncate">{g.listTitle.slice(0, 10)}</span>
                             <span className="text-[8px] opacity-60 shrink-0">{pillDone ? '✓' : `${done}/${total}`}</span>
                           </div>
-                          <div className="h-[3px] w-full rounded-full bg-black/20 overflow-hidden">
+                          <div className="h-[3px] w-full rounded-full bg-black/30 overflow-hidden">
                             <div
-                              className={`h-full rounded-full transition-all duration-500 ${pillDone ? 'bg-emerald-400' : fillColor}`}
-                              style={{ width: `${pct}%`, opacity: pillDone ? 0.9 : 0.75 }}
+                              className={`h-full rounded-full transition-all duration-500 ${pillDone ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.35)]' : fillColor}`}
+                              style={{ width: `${pct}%`, opacity: pillDone ? 0.95 : 0.8 }}
                             />
                           </div>
                         </div>
