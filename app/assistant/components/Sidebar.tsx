@@ -8,20 +8,14 @@ import {
   // Types
   type Block,
   type Project,
-  type HabitBlock,
-  type HabitsPayload,
-  type ReminderItem,
   // Constants
   LS_KEY_V2,
   LS_KEY_V1,
-  LS_KEY_HABITS,
-  LS_KEY_REMINDERS,
   UNC_TITLE,
   // Utilities
   uid,
   arrayMove,
   isValidDateYYYYMMDD,
-  isValidTimeHHMM,
   todayYMD,
   formatPill,
   pillClass,
@@ -45,24 +39,6 @@ import {
   // Projects persistence
   readProjectsLS,
   writeProjectsLS,
-  // Habits
-  makeDefaultHabit,
-  ensureOneHabit,
-  readHabitsLS,
-  writeHabitsLS,
-  applyHabitResets,
-  forceResetHabits,
-  insertHabitAfter as insertHabitAfterArr,
-  removeHabit as removeHabitArr,
-  updateHabit as updateHabitArr,
-  // Reminders
-  makeDefaultReminder,
-  ensureOneReminder,
-  readRemindersLS,
-  writeRemindersLS,
-  insertReminderAfter as insertReminderAfterArr,
-  removeReminder as removeReminderArr,
-  updateReminder as updateReminderArr,
 } from '@/lib/datacenter';
 
 /* ===================== Pivot state ===================== */
@@ -72,51 +48,10 @@ type PivotState = {
   blockId: string | null;
 };
 
-/* ===================== US date helpers ===================== */
-function formatDateUS(date?: string) {
-  if (!date || !isValidDateYYYYMMDD(date)) return '—';
-  const [y, m, d] = date.split('-').map(Number);
-  const dt = new Date(y, (m || 1) - 1, d || 1);
-  return new Intl.DateTimeFormat('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    year: 'numeric',
-  }).format(dt);
-}
-
-function formatTimeUS(time?: string) {
-  const safe = isValidTimeHHMM(time) ? time : '11:00';
-  const [hh, mm] = safe.split(':').map(Number);
-  const dt = new Date();
-  dt.setHours(hh || 0, mm || 0, 0, 0);
-  return new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  }).format(dt);
-}
-
-function formatReminderDateTimeUS(date?: string, time?: string) {
-  const datePart = formatDateUS(date);
-  const timePart = formatTimeUS(time);
-  return `${datePart} · ${timePart}`;
-}
-
-
-
 export const Sidebar = () => {
-  const [tab, setTab] = useState<'tasks' | 'habits' | 'reminders'>('tasks');
-
   /* ── Projects ── */
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-
-  /* ── Habits ── */
-  const [habits, setHabits] = useState<HabitBlock[]>([makeDefaultHabit()]);
-  const [habitsMeta, setHabitsMeta] = useState<{ lastDaily?: string; lastWeekly?: string }>({});
-
-  /* ── Reminders ── */
-  const [reminders, setReminders] = useState<ReminderItem[]>([makeDefaultReminder()]);
 
   const [hydrated, setHydrated] = useState(false);
 
@@ -126,8 +61,6 @@ export const Sidebar = () => {
   /* ── Refs ── */
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const habitInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const reminderTitleRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const [nudge, setNudge] = useState<{ id: string; dir: 'left' | 'right' } | null>(null);
   const nudgeTimerRef = useRef<number | null>(null);
@@ -269,48 +202,6 @@ export const Sidebar = () => {
     };
   }, []);
 
-  /* ===================== Load Habits ===================== */
-  useEffect(() => {
-    const load = () => {
-      const raw = readHabitsLS();
-      const payload = applyHabitResets(raw);
-      const habits = ensureOneHabit(payload.habits);
-      setHabits(habits);
-      setHabitsMeta({ lastDaily: payload.lastDailyResetYMD, lastWeekly: payload.lastWeeklyResetYMD });
-      const needWrite =
-        raw.lastDailyResetYMD !== payload.lastDailyResetYMD ||
-        raw.lastWeeklyResetYMD !== payload.lastWeeklyResetYMD ||
-        JSON.stringify(raw.habits) !== JSON.stringify(habits);
-      if (needWrite) writeHabitsLS({ ...payload, habits });
-    };
-    load();
-    const onStorage = (e: StorageEvent) => { if (e.key === LS_KEY_HABITS) load(); };
-    window.addEventListener('youtask_habits_updated', load);
-    window.addEventListener('storage', onStorage);
-    return () => {
-      window.removeEventListener('youtask_habits_updated', load);
-      window.removeEventListener('storage', onStorage);
-    };
-  }, []);
-
-  /* ===================== Load Reminders ===================== */
-  useEffect(() => {
-    const load = () => {
-      const p = readRemindersLS();
-      const next = ensureOneReminder(p.reminders);
-      setReminders(next);
-      if (JSON.stringify(p.reminders) !== JSON.stringify(next)) writeRemindersLS({ reminders: next });
-    };
-    load();
-    const onStorage = (e: StorageEvent) => { if (e.key === LS_KEY_REMINDERS) load(); };
-    window.addEventListener('youtask_reminders_updated', load);
-    window.addEventListener('storage', onStorage);
-    return () => {
-      window.removeEventListener('youtask_reminders_updated', load);
-      window.removeEventListener('storage', onStorage);
-    };
-  }, []);
-
   useEffect(() => setHydrated(true), []);
 
   useEffect(() => {
@@ -336,30 +227,6 @@ export const Sidebar = () => {
   const focusBlock = (id: string, caretToEnd = false) => {
     requestAnimationFrame(() => {
       const el = inputRefs.current[id];
-      if (!el) return;
-      el.focus();
-      if (caretToEnd) {
-        const len = el.value.length;
-        el.setSelectionRange(len, len);
-      } else el.setSelectionRange(0, 0);
-    });
-  };
-
-  const focusHabit = (id: string, caretToEnd = false) => {
-    requestAnimationFrame(() => {
-      const el = habitInputRefs.current[id];
-      if (!el) return;
-      el.focus();
-      if (caretToEnd) {
-        const len = el.value.length;
-        el.setSelectionRange(len, len);
-      } else el.setSelectionRange(0, 0);
-    });
-  };
-
-  const focusReminder = (id: string, caretToEnd = false) => {
-    requestAnimationFrame(() => {
-      const el = reminderTitleRefs.current[id];
       if (!el) return;
       el.focus();
       if (caretToEnd) {
@@ -515,10 +382,9 @@ export const Sidebar = () => {
     // `pillClass` viene de datacenter y usa amber para "today".
     // En Sidebar lo re-skinneamos a NRC/Nike green (#d5fc43).
     return pillClass(deadline, checked)
-      .replaceAll('bg-amber-500/15', 'bg-[#d5fc43]/20')
+      .replaceAll('bg-amber-500/20', 'bg-[#d5fc43]/22')
       .replaceAll('text-amber-200', 'text-[#d5fc43]')
-      .replaceAll('border-amber-400/25', 'border-[#d5fc43]/35')
-      .replaceAll('hover:bg-amber-500/20', 'hover:bg-[#d5fc43]/26');
+      .replaceAll('hover:bg-amber-500/28', 'hover:bg-[#d5fc43]/30');
   };
 
   /* ── Keyboard (tasks) ── */
@@ -573,100 +439,6 @@ export const Sidebar = () => {
     }
   };
 
-  /* ===================== Habits — wrappers ===================== */
-  const persistHabits = (next: HabitBlock[], metaOverride?: Partial<HabitsPayload>) => {
-    setHabits(next);
-    writeHabitsLS({
-      habits: next,
-      lastDailyResetYMD: metaOverride?.lastDailyResetYMD ?? habitsMeta.lastDaily,
-      lastWeeklyResetYMD: metaOverride?.lastWeeklyResetYMD ?? habitsMeta.lastWeekly,
-    });
-  };
-
-  const handleAddHabit = () => {
-    const next = makeDefaultHabit();
-    persistHabits([...habits, next]);
-    focusHabit(next.id, false);
-  };
-
-  const handleUpdateHabit = (id: string, patch: Partial<HabitBlock>) => {
-    persistHabits(updateHabitArr(habits, id, patch));
-  };
-
-  const handleRemoveHabit = (id: string) => {
-    const result = removeHabitArr(habits, id);
-    persistHabits(result.habits);
-    focusHabit(result.focusId, result.habits.length === 1);
-  };
-
-  const handleInsertHabitAfter = (id: string) => {
-    const result = insertHabitAfterArr(habits, id);
-    persistHabits(result.habits);
-    triggerNewLineAnim(result.newHabit.id);
-    focusHabit(result.newHabit.id, false);
-  };
-
-  const handleForceResetHabits = () => {
-    const payload = forceResetHabits(habits, { lastDaily: habitsMeta.lastDaily, lastWeekly: habitsMeta.lastWeekly });
-    setHabitsMeta({ lastDaily: payload.lastDailyResetYMD, lastWeekly: payload.lastWeeklyResetYMD });
-    persistHabits(payload.habits, payload);
-  };
-
-  const handleHabitKey = (e: React.KeyboardEvent<HTMLInputElement>, h: HabitBlock) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleInsertHabitAfter(h.id);
-      return;
-    }
-    if (e.key === 'Backspace' && h.text === '') {
-      e.preventDefault();
-      handleRemoveHabit(h.id);
-      return;
-    }
-  };
-
-  /* ===================== Reminders — wrappers ===================== */
-  const persistReminders = (next: ReminderItem[]) => {
-    setReminders(next);
-    writeRemindersLS({ reminders: next });
-  };
-
-  const handleAddReminder = () => {
-    const next = makeDefaultReminder();
-    persistReminders([...reminders, next]);
-    focusReminder(next.id, false);
-  };
-
-  const handleUpdateReminder = (id: string, patch: Partial<ReminderItem>) => {
-    persistReminders(updateReminderArr(reminders, id, patch));
-  };
-
-  const handleRemoveReminder = (id: string) => {
-    const result = removeReminderArr(reminders, id);
-    persistReminders(result.reminders);
-    focusReminder(result.focusId, result.reminders.length === 1);
-  };
-
-  const handleInsertReminderAfter = (id: string) => {
-    const result = insertReminderAfterArr(reminders, id);
-    persistReminders(result.reminders);
-    triggerNewLineAnim(result.newReminder.id);
-    focusReminder(result.newReminder.id, false);
-  };
-
-  const handleReminderKey = (e: React.KeyboardEvent<HTMLInputElement>, r: ReminderItem) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleInsertReminderAfter(r.id);
-      return;
-    }
-    if (e.key === 'Backspace' && r.title === '') {
-      e.preventDefault();
-      handleRemoveReminder(r.id);
-      return;
-    }
-  };
-
   /* ===================== Drag & drop ===================== */
   const onDragStartRow = (e: React.DragEvent, id: string, index: number) => {
     dragRef.current = { id, fromIndex: index };
@@ -688,25 +460,6 @@ export const Sidebar = () => {
     const drag = dragRef.current;
     if (!drag) return;
 
-    if (tab === 'habits') {
-      const toIndex = habits.findIndex(h => h.id === overId);
-      if (toIndex < 0) return;
-      const next = arrayMove(habits, drag.fromIndex, toIndex);
-      persistHabits(next);
-      dragRef.current = null;
-      setDragOverId(null);
-      return;
-    }
-
-    if (tab === 'reminders') {
-      const toIndex = reminders.findIndex(r => r.id === overId);
-      if (toIndex < 0) return;
-      persistReminders(arrayMove(reminders, drag.fromIndex, toIndex));
-      dragRef.current = null;
-      setDragOverId(null);
-      return;
-    }
-
     const toIndex = blocks.findIndex(b => b.id === overId);
     if (toIndex < 0) return;
     setCurrentBlocks(prev => arrayMove(prev, drag.fromIndex, toIndex));
@@ -727,35 +480,14 @@ export const Sidebar = () => {
       <aside className="bg-black h-full flex flex-col w-full min-h-0">
         <div className="px-4 pt-4 pb-2 text-white/80 font-semibold shrink-0">Organizer</div>
 
-        {/* Tabs */}
-        <div className="px-4 mb-3 flex items-center gap-2 shrink-0">
-          {(['tasks', 'habits', 'reminders'] as const).map(t => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={[
-                'flex-1 text-[12px] px-2 py-2 rounded-md border transition-colors',
-                tab === t
-                  ? 'border-[#d5fc43]/35 bg-[#d5fc43]/18 text-[#d5fc43]'
-                  : 'border-white/10 bg-white/5 text-white/70 hover:text-white/85 hover:bg-white/7',
-              ].join(' ')}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-
         {/* Scrollable content */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
-          {/* ===================== TASKS TAB ===================== */}
-          {tab === 'tasks' && (
-            <>
+          <>
               <div className="flex items-center justify-end mb-3 gap-2">
                 <button
                   type="button"
                   onClick={handleDismissCompleted}
-                  className="text-[11px] px-2 py-1 rounded-md border border-white/10 text-white/60 hover:text-white/80 hover:bg-white/5 transition-colors"
+                  className="text-[11px] px-2 py-1 rounded-md bg-white/10 text-white/60 hover:text-white/80 hover:bg-white/16 transition-colors"
                   title="Dismiss completed tasks"
                 >
                   Dismiss Completed
@@ -763,7 +495,7 @@ export const Sidebar = () => {
                 <button
                   type="button"
                   onClick={handleAddNewList}
-                  className="text-[11px] px-2 py-1 rounded-md border border-white/10 text-white/60 hover:text-white/80 hover:bg-white/5 transition-colors"
+                  className="text-[11px] px-2 py-1 rounded-md bg-white/10 text-white/60 hover:text-white/80 hover:bg-white/16 transition-colors"
                   title="Add a new list"
                 >
                   + New List
@@ -862,7 +594,7 @@ export const Sidebar = () => {
                               <button
                                 type="button"
                                 onClick={() => handleAddTaskUnderList(b.id)}
-                                className="mt-1 text-[18px] px-2 py-1 rounded-md border border-white/10 text-white/50 hover:text-white/80 bg-white/5 hover:bg-white/10 transition-colors"
+                                className="mt-1 text-[18px] px-2 py-1 rounded-md text-white/50 hover:text-white/80 bg-white/10 hover:bg-white/16 transition-colors"
                               >
                                 +
                               </button>
@@ -877,7 +609,7 @@ export const Sidebar = () => {
                                 type="button"
                                 style={{ minWidth: '66px' }}
                                 onClick={() => openDatePicker(b.id)}
-                                className={['text-[11px] px-2 py-1 rounded-full border transition-colors', pillClassNike(b.deadline, b.checked)].join(' ')}
+                                className={['text-[11px] px-2 py-1 rounded-full transition-colors', pillClassNike(b.deadline, b.checked)].join(' ')}
                                 title={pill ? 'Change date' : 'Set date'}
                               >
                                 {pill || '📅'}
@@ -915,207 +647,7 @@ export const Sidebar = () => {
                   });
                 })()}
               </div>
-            </>
-          )}
-
-          {/* ===================== HABITS TAB ===================== */}
-          {tab === 'habits' && (
-            <>
-              <div className="mb-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-white/80 font-semibold">Habits</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleAddHabit}
-                      className="h-8 w-8 shrink-0 rounded-md border border-white/10 bg-white/5 text-white/80 hover:text-white hover:bg-white/10 transition-all"
-                      title="New habit"
-                    >
-                      +
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleForceResetHabits}
-                      className="text-[11px] px-2 py-1 rounded-md border border-white/10 text-white/60 hover:text-white/80 hover:bg-white/5 transition-colors"
-                      title="Reset now"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-1 text-[10px] text-white/35">
-                  Daily reset: {habitsMeta.lastDaily || '—'} · Weekly reset (Monday): {habitsMeta.lastWeekly || '—'}
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                {habits.map((h, idx) => {
-                  const isDraggingOver = dragOverId === h.id && dragRef.current?.id !== h.id;
-                  const isDraggingMe = dragRef.current?.id === h.id;
-                  return (
-                    <div
-                      key={h.id}
-                      draggable
-                      onDragStart={e => onDragStartRow(e, h.id, idx)}
-                      onDragOver={e => onDragOverRow(e, h.id)}
-                      onDrop={e => onDropRow(e, h.id)}
-                      onDragEnd={onDragEndRow}
-                      className={[
-                        'group flex items-center gap-2 px-0.5 py-1 rounded-md',
-                        isDraggingOver ? 'bg-white/7 outline outline-1 outline-white/10' : '',
-                        isDraggingMe ? 'opacity-60' : '',
-                        newId === h.id ? 'wadu-line-in' : '',
-                      ].join(' ')}
-                    >
-                      <div className="w-3 shrink-0 text-white/20 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" title="Drag">⋮⋮</div>
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateHabit(h.id, { checked: !h.checked })}
-                        className={[
-                          'h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-[transform,background-color,border-color] duration-150 ease-out group-hover:scale-[1.06]',
-                          h.checked ? 'bg-[#d5fc43]/20 border-[#d5fc43]/75' : 'border-white/25',
-                        ].join(' ')}
-                      >
-                        {h.checked ? <span className="text-[#d5fc43] text-xs">✓</span> : null}
-                      </button>
-                      <input
-                        ref={el => void (habitInputRefs.current[h.id] = el)}
-                        value={h.text}
-                        placeholder="Habit…"
-                        onChange={e => handleUpdateHabit(h.id, { text: e.target.value })}
-                        onKeyDown={e => handleHabitKey(e, h)}
-                        className={[
-                          'w-full bg-transparent outline-none text-sm cursor-pointer transition-opacity duration-150',
-                          h.checked ? 'text-white/40 line-through' : 'text-white/80',
-                        ].join(' ')}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateHabit(h.id, { weekly: !h.weekly })}
-                        className={[
-                          'shrink-0 text-[11px] px-2 py-1 rounded-full border transition-colors',
-                          h.weekly
-                            ? 'border-[#d5fc43]/35 bg-[#d5fc43]/16 text-[#d5fc43]'
-                            : 'border-white/10 bg-transparent text-white/40 hover:text-white/60 hover:bg-white/5',
-                        ].join(' ')}
-                      >
-                        {h.weekly ? 'Weekly' : 'Daily'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          {/* ===================== REMINDERS TAB ===================== */}
-          {tab === 'reminders' && (
-            <>
-              <div className="mb-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-white/80 font-semibold">Reminders</div>
-                  <button
-                    type="button"
-                    onClick={handleAddReminder}
-                    className="h-8 w-8 shrink-0 rounded-md border border-white/10 bg-white/5 text-white/80 hover:text-white hover:bg-white/10 transition-all"
-                    title="New reminder"
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="mt-1 text-[10px] text-white/35">
-                  US format preview: MM/DD/YYYY · h:mm AM/PM · Optional daily
-                </div>
-              </div>
-
-              <div className="space-y-1">
-
-           
-                {reminders.map((r, idx) => {
-                  const isDraggingOver = dragOverId === r.id && dragRef.current?.id !== r.id;
-                  const isDraggingMe = dragRef.current?.id === r.id;
-                  return (
-                    <div
-                      key={r.id}
-                      draggable
-                      onDragStart={e => onDragStartRow(e, r.id, idx)}
-                      onDragOver={e => onDragOverRow(e, r.id)}
-                      onDrop={e => onDropRow(e, r.id)}
-                      onDragEnd={onDragEndRow}
-                      className={[
-                        'group flex flex-col gap-1 px-0.5 py-1 rounded-md',
-                        isDraggingOver ? 'bg-white/7 outline outline-1 outline-white/10' : '',
-                        isDraggingMe ? 'opacity-60' : '',
-                        newId === r.id ? 'wadu-line-in' : '',
-                      ].join(' ')}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 shrink-0 text-white/20 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" title="Drag">⋮⋮</div>
-
-                        <input
-                          ref={el => void (reminderTitleRefs.current[r.id] = el)}
-                          value={r.title}
-                          placeholder="Reminder…"
-                          onChange={e => handleUpdateReminder(r.id, { title: e.target.value })}
-                          onKeyDown={e => handleReminderKey(e, r)}
-                          className="w-full bg-transparent outline-none text-sm cursor-pointer text-white/80"
-                        />
-
-                        <input
-                          type="date"
-                          value={isValidDateYYYYMMDD(r.date) ? r.date : todayYMD()}
-                          onChange={e => {
-                            const v = e.target.value;
-                            handleUpdateReminder(r.id, { date: isValidDateYYYYMMDD(v) ? v : todayYMD() });
-                          }}
-                          className="shrink-0 text-[11px] px-2 py-1 rounded-md border outline-none bg-black/20 border-white/10 text-white/75 hover:bg-black/25 focus:border-white/20"
-                        />
-
-                        <input
-                          type="time"
-                          value={isValidTimeHHMM(r.time) ? r.time : '11:00'}
-                          onChange={e => {
-                            const v = e.target.value;
-                            handleUpdateReminder(r.id, { time: isValidTimeHHMM(v) ? v : '11:00' });
-                          }}
-                          className="shrink-0 text-[11px] px-2 py-1 rounded-md border outline-none bg-black/20 border-white/10 text-white/75 hover:bg-black/25 focus:border-white/20"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateReminder(r.id, { daily: !r.daily })}
-                          className={[
-                            'shrink-0 text-[11px] px-2 py-1 rounded-full border transition-colors',
-                            r.daily
-                              ? 'border-[#d5fc43]/35 bg-[#d5fc43]/16 text-[#d5fc43]'
-                              : 'border-white/10 bg-transparent text-white/40 hover:text-white/60 hover:bg-white/5',
-                          ].join(' ')}
-                        >
-                          {r.daily ? 'Daily' : 'Once'}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveReminder(r.id)}
-                          className="h-7 w-7 rounded-full border border-white/10 bg-white/5 text-white/60 hover:text-white/85 hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100"
-                          title="Delete"
-                        >
-                          ×
-                        </button>
-                      </div>
-
-                      <div className="pl-5 text-[10px] text-white/35">
-                        {formatReminderDateTimeUS(
-                          isValidDateYYYYMMDD(r.date) ? r.date : todayYMD(),
-                          isValidTimeHHMM(r.time) ? r.time : '11:00',
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+          </>
         </div>
 
        {/* Fixed footer */}
@@ -1200,7 +732,7 @@ export const Sidebar = () => {
                   <button
                     type="button"
                     onClick={() => setHintIndex((prev) => (prev - 1 + 5) % 5)}
-                    className="h-7 w-7 rounded-full border border-white/10 bg-white/5 text-white/60 hover:text-white/85 hover:bg-white/10"
+                    className="h-7 w-7 rounded-full bg-white/10 text-white/60 hover:text-white/85 hover:bg-white/16"
                     aria-label="Previous slide"
                   >
                     ‹
@@ -1208,7 +740,7 @@ export const Sidebar = () => {
                   <button
                     type="button"
                     onClick={() => setHintIndex((prev) => (prev + 1) % 5)}
-                    className="h-7 w-7 rounded-full border border-white/10 bg-white/5 text-white/60 hover:text-white/85 hover:bg-white/10"
+                    className="h-7 w-7 rounded-full bg-white/10 text-white/60 hover:text-white/85 hover:bg-white/16"
                     aria-label="Next slide"
                   >
                     ›

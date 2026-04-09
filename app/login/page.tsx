@@ -32,6 +32,34 @@ async function sha256Hex(input: string): Promise<string> {
 type TwoFAStored = { salt: string; hash: string; exp: number };
 const TWOFA_KEY = 'youtask_2fa';
 
+/** Email-password: skip 2FA on this browser when set (after a successful 2FA once). */
+const TRUSTED_BROWSER_KEY = 'youtask_trusted_browser_v1';
+type TrustedBrowserStored = { email: string; trustedAt: number };
+
+function readTrustedEmail(): string | null {
+  try {
+    const raw = localStorage.getItem(TRUSTED_BROWSER_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw) as TrustedBrowserStored;
+    if (typeof o?.email !== 'string' || !o.email.trim()) return null;
+    return o.email.trim().toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function setTrustedBrowser(email: string) {
+  try {
+    const payload: TrustedBrowserStored = {
+      email: email.trim().toLowerCase(),
+      trustedAt: Date.now(),
+    };
+    localStorage.setItem(TRUSTED_BROWSER_KEY, JSON.stringify(payload));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 /* ─── Styles ───────────────────────────────────────────────── */
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
@@ -372,6 +400,7 @@ export default function LoginPage() {
     // TEMP: Prisma/DB sync disabled — use email as the user identifier everywhere
     localStorage.setItem('prisma_user_id', payload.email);
     localStorage.setItem('prisma_user_email', payload.email);
+    localStorage.setItem('firebase_uid', payload.firebaseUid ?? payload.email);
     if (payload.name) localStorage.setItem('prisma_user_name', payload.name);
     if (payload.avatarUrl) localStorage.setItem('prisma_user_avatar', payload.avatarUrl);
 
@@ -449,6 +478,20 @@ export default function LoginPage() {
         firebaseUid,
       });
 
+      if (readTrustedEmail() === firebaseEmail) {
+        setPstate('exploding');
+        await upsertPrismaUser({
+          email: firebaseEmail,
+          name: firebaseName,
+          avatarUrl: firebaseAvatar,
+          firebaseUid,
+        });
+        sessionStorage.setItem('twofa_ok', '1');
+        localStorage.setItem('firebase_uid', firebaseUid);
+        router.replace('/assistant');
+        return;
+      }
+
       setPstate('exploding');
       await createAndSend2FA(firebaseEmail);
       setShow2FA(true);
@@ -488,6 +531,7 @@ export default function LoginPage() {
         firebaseUid: cred.user.uid,
       });
 
+      setTrustedBrowser(firebaseEmail);
       sessionStorage.setItem('twofa_ok', '1');
       router.replace('/assistant');
     } catch (err: unknown) {
@@ -553,6 +597,7 @@ export default function LoginPage() {
         firebaseUid: pendingFirebaseUser.firebaseUid,
       });
 
+      setTrustedBrowser(pendingFirebaseUser.email);
       sessionStorage.setItem('twofa_ok', '1');
       localStorage.setItem('firebase_uid', pendingUID);
 

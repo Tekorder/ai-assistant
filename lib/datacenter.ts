@@ -170,13 +170,13 @@ export function dayDiffFromToday(yyyyMmDd?: string): number | null {
 }
 
 export function pillClass(deadline?: string, checked?: boolean): string {
-  if (checked) return 'bg-emerald-500/15 text-emerald-200 border-emerald-400/25 hover:bg-emerald-500/20';
+  if (checked) return 'bg-emerald-500/22 text-emerald-200 hover:bg-emerald-500/30';
   const diff = dayDiffFromToday(deadline);
-  if (diff === null) return 'bg-transparent text-white/25 hover:text-white/45 border-white/10';
-  if (diff < 0)  return 'bg-red-500/15 text-red-200 border-red-400/25 hover:bg-red-500/20';
-  if (diff === 0) return 'bg-amber-500/15 text-amber-200 border-amber-400/25 hover:bg-amber-500/20';
-  if (diff === 1) return 'bg-emerald-500/15 text-emerald-200 border-emerald-400/25 hover:bg-emerald-500/20';
-  return 'bg-sky-500/10 text-sky-200/80 border-sky-400/20 hover:bg-sky-500/15';
+  if (diff === null) return 'bg-white/[0.06] text-white/30 hover:text-white/50 hover:bg-white/10';
+  if (diff < 0)  return 'bg-red-500/20 text-red-200 hover:bg-red-500/28';
+  if (diff === 0) return 'bg-amber-500/20 text-amber-200 hover:bg-amber-500/28';
+  if (diff === 1) return 'bg-emerald-500/18 text-emerald-200 hover:bg-emerald-500/26';
+  return 'bg-sky-500/16 text-sky-200/80 hover:bg-sky-500/24';
 }
 
 export function labelForYMD(ymd: string): string {

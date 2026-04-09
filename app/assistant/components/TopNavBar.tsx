@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { readProjectsLS, writeProjectsLS, cleanupEmptyTasks } from '@/lib/datacenter';
+import HabitsPanel from './HabitsPanel';
+import RemindersPanel from './RemindersPanel';
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 
@@ -95,9 +97,8 @@ const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.Rea
         <path strokeLinecap="round" d="M5 5v6M11 5v6" />
       </svg>
     ),
-  }
-  ,
-   {
+  },
+  {
     id: 'calendar',
     label: 'Calendar',
     mobileLabel: 'Cal',
@@ -105,12 +106,37 @@ const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.Rea
       <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
         <rect x="1.5" y="2.5" width="13" height="12" rx="2" />
         <path strokeLinecap="round" d="M5 1v3M11 1v3M1.5 6.5h13" />
-        <circle cx="5.5"  cy="10" r="0.8" fill="currentColor" />
-        <circle cx="8"    cy="10" r="0.8" fill="currentColor" />
+        <circle cx="5.5" cy="10" r="0.8" fill="currentColor" />
+        <circle cx="8" cy="10" r="0.8" fill="currentColor" />
         <circle cx="10.5" cy="10" r="0.8" fill="currentColor" />
       </svg>
     ),
-  }
+  },
+];
+
+const PANEL_NAV: { id: 'habits' | 'reminders'; label: string; mobileLabel: string; icon: React.ReactNode }[] = [
+  {
+    id: 'habits',
+    label: 'Habits',
+    mobileLabel: 'Habits',
+    icon: (
+      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 2v2M8 12v2M2 8h2M12 8h2" />
+        <circle cx="8" cy="8" r="3" />
+      </svg>
+    ),
+  },
+  {
+    id: 'reminders',
+    label: 'Reminders',
+    mobileLabel: 'Remind',
+    icon: (
+      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path strokeLinecap="round" d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 1.2v.8H2.8v-.8L4 9V6.5a4 4 0 0 1 4-4z" />
+        <path strokeLinecap="round" d="M6 12.5a2 2 0 0 0 4 0" />
+      </svg>
+    ),
+  },
 ];
 
 /*
@@ -174,6 +200,7 @@ export default function TopNavBar({
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [hydrated, setHydrated]   = useState(false);
   const [dropOpen, setDropOpen]   = useState(false);
+  const [slidePanel, setSlidePanel] = useState<null | 'habits' | 'reminders'>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const today = todayYMD();
 
@@ -252,6 +279,7 @@ export default function TopNavBar({
         });
       }
     }
+    setSlidePanel(null);
     setActiveView(v);
   };
 
@@ -294,6 +322,10 @@ export default function TopNavBar({
       {/* ── Top bar ── */}
       <header className="shrink-0 h-12 bg-black border-b border-white/8 flex items-center px-3 md:px-4 gap-2 z-50">
 
+        {/* Logo */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="" className="h-9 w-auto object-contain shrink-0" />
+
         {/* Sidebar toggle */}
         <button
           type="button"
@@ -301,8 +333,8 @@ export default function TopNavBar({
           className={[
             'h-8 w-8 rounded-lg flex items-center justify-center transition-colors shrink-0',
             sidebarOpen
-              ? 'bg-[#d5fc43]/20 text-[#d5fc43] border border-[#d5fc43]/35'
-              : 'text-white/50 hover:text-white/85 hover:bg-white/8 border border-transparent',
+              ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
+              : 'text-white/50 hover:text-white/85 hover:bg-white/10',
           ].join(' ')}
           aria-label="Toggle sidebar"
           title="Toggle sidebar"
@@ -329,12 +361,32 @@ export default function TopNavBar({
                 className={[
                   'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap shrink-0',
                   isActive
-                    ? 'bg-[#d5fc43]/20 text-[#d5fc43] border border-[#d5fc43]/35'
-                    : 'text-white/45 hover:text-white/80 hover:bg-white/6 border border-transparent',
+                    ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
+                    : 'text-white/45 hover:text-white/80 hover:bg-white/8',
                 ].join(' ')}
                 aria-current={isActive ? 'page' : undefined}
               >
                 <span className={isActive ? 'text-[#d5fc43]' : 'text-white/45'}>{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+          {PANEL_NAV.map(item => {
+            const isOpen = slidePanel === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSlidePanel(p => (p === item.id ? null : item.id))}
+                className={[
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap shrink-0',
+                  isOpen
+                    ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
+                    : 'text-white/45 hover:text-white/80 hover:bg-white/8',
+                ].join(' ')}
+                aria-expanded={isOpen}
+              >
+                <span className={isOpen ? 'text-[#d5fc43]' : 'text-white/45'}>{item.icon}</span>
                 <span>{item.label}</span>
               </button>
             );
@@ -358,7 +410,7 @@ export default function TopNavBar({
                 : hasPending ? `${pendingCount} reminder${pendingCount > 1 ? 's' : ''} pending`
                 : 'All reminders done today'
               }
-              className="relative h-8 w-8 flex items-center justify-center rounded-lg text-white/45 hover:text-[#d5fc43] hover:bg-[#d5fc43]/10 border border-transparent transition-colors shrink-0"
+              className="relative h-8 w-8 flex items-center justify-center rounded-lg text-white/45 hover:text-[#d5fc43] hover:bg-[#d5fc43]/12 transition-colors shrink-0"
             >
               <span
                 className={hasPending ? 'bell-ring' : ''}
@@ -431,7 +483,7 @@ export default function TopNavBar({
                           {!isDone ? (
                             <button
                               onClick={() => dismissOne(r.id)}
-                              className="shrink-0 opacity-0 group-hover:opacity-100 text-[11px] px-2 py-1 rounded-md border border-white/10 text-white/40 hover:text-[#d5fc43] hover:border-[#d5fc43]/35 transition-all"
+                              className="shrink-0 opacity-0 group-hover:opacity-100 text-[11px] px-2 py-1 rounded-md bg-white/10 text-white/40 hover:text-[#d5fc43] hover:bg-[#d5fc43]/15 transition-all"
                             >
                               ✓
                             </button>
@@ -458,7 +510,7 @@ export default function TopNavBar({
         <button
           type="button"
           onClick={handleLogout}
-          className="h-8 w-8 rounded-lg flex items-center justify-center text-white/45 hover:text-[#d5fc43] hover:bg-[#d5fc43]/10 border border-transparent transition-colors shrink-0"
+          className="h-8 w-8 rounded-lg flex items-center justify-center text-white/45 hover:text-[#d5fc43] hover:bg-[#d5fc43]/12 transition-colors shrink-0"
           aria-label="Sign out"
           title="Sign out"
         >
@@ -471,7 +523,7 @@ export default function TopNavBar({
       </header>
 
       {/* ── Bottom tab bar — mobile only ── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex bg-black border-t border-white/10">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex bg-black border-t border-white/10 overflow-x-auto">
         {NAV_ITEMS.map(item => {
           const isActive = activeView === item.id;
           return (
@@ -479,19 +531,41 @@ export default function TopNavBar({
               key={item.id}
               type="button"
               onClick={() => handleSetActiveView(item.id)}
-              className={`relative flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
+              className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
                 isActive ? 'text-white' : 'text-white/40 hover:text-white/70'
               }`}
             >
               <span className="text-base leading-none">{item.icon}</span>
-              <span className="text-[10px] font-medium">{item.mobileLabel}</span>
+              <span className="text-[9px] font-medium">{item.mobileLabel}</span>
               {isActive && (
                 <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
               )}
             </button>
           );
         })}
+        {PANEL_NAV.map(item => {
+          const isOpen = slidePanel === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setSlidePanel(p => (p === item.id ? null : item.id))}
+              className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
+                isOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
+              }`}
+            >
+              <span className="text-base leading-none">{item.icon}</span>
+              <span className="text-[9px] font-medium">{item.mobileLabel}</span>
+              {isOpen && (
+                <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
+              )}
+            </button>
+          );
+        })}
       </div>
+
+      <HabitsPanel open={slidePanel === 'habits'} onClose={() => setSlidePanel(null)} />
+      <RemindersPanel open={slidePanel === 'reminders'} onClose={() => setSlidePanel(null)} />
     </>
   );
 }

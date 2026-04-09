@@ -224,7 +224,7 @@ const clampSidebar = (w: number) =>
             'fixed z-[9999] right-5 bottom-20 md:bottom-5',
             'w-14 h-14 rounded-full',
             'bg-white/10 hover:bg-white/15 active:scale-95',
-            'border border-white/15 shadow-2xl backdrop-blur-md',
+            'shadow-2xl backdrop-blur-md',
             'flex items-center justify-center',
             'transition-all duration-200',
           ].join(' ')}
