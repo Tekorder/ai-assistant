@@ -289,8 +289,8 @@ export default function Entities({
                 type="button"
                 onClick={() => onPick?.(e.kind, e.label)}
                 className={[
-                  'w-full text-left rounded-xl border border-white/10 bg-white/5',
-                  'px-3 py-3 hover:bg-white/7 transition-colors',
+                  'w-full text-left rounded-xl bg-white/8',
+                  'px-3 py-3 hover:bg-white/12 transition-colors',
                 ].join(' ')}
                 title={e.examples.map(x => `${x.projectTitle} · ${x.sectionTitle}`).join('\n')}
               >
@@ -306,10 +306,10 @@ export default function Entities({
 
                   <span
                     className={[
-                      'shrink-0 text-[11px] px-2 py-1 rounded-full border',
+                      'shrink-0 text-[11px] px-2 py-1 rounded-full',
                       e.kind === 'person'
-                        ? 'border-emerald-400/25 text-emerald-200 bg-emerald-500/10'
-                        : 'border-sky-400/25 text-sky-200 bg-sky-500/10',
+                        ? 'text-emerald-200 bg-emerald-500/16'
+                        : 'text-sky-200 bg-sky-500/14',
                     ].join(' ')}
                   >
                     {e.kind === 'person' ? '👤' : '📍'}

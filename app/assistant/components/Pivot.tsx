@@ -236,7 +236,7 @@ export function PivotModal(props: {
             <button
               type="button"
               onClick={onClose}
-              className="h-8 w-8 rounded-full border border-white/10 bg-white/5 text-white/70 hover:text-white hover:bg-white/10 transition-all"
+              className="h-8 w-8 rounded-full bg-white/10 text-white/70 hover:text-white hover:bg-white/16 transition-all"
               aria-label="Close"
               title="Close"
             >

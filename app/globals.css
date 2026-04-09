@@ -528,14 +528,13 @@ input[type="checkbox"]:checked::before {
 .yt-pill {
   font-size: 11px; padding: 4px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.10);
   color: rgba(255,255,255,.70);
-  background: rgba(255,255,255,.03);
+  background: rgba(255,255,255,.08);
 }
-.yt-pill-overdue  { background: rgba(239, 68, 68, .12)  !important; border-color: rgba(239, 68, 68, .22)  !important; color: rgba(254, 202, 202, .95) !important; }
-.yt-pill-today    { background: rgba(82,179,82,.14);  border-color: rgba(82,179,82,.30);  color: #52b352; }
-.yt-pill-tomorrow { background: rgba(16, 185, 129, .10);  border-color: rgba(16, 185, 129, .22);  color: rgba(209, 250, 229, .95); }
-.yt-pill-future   { background: rgba(56, 189, 248, .08);  border-color: rgba(56, 189, 248, .18);  color: rgba(224, 242, 254, .90); }
+.yt-pill-overdue  { background: rgba(239, 68, 68, .18)  !important; color: rgba(254, 202, 202, .95) !important; }
+.yt-pill-today    { background: rgba(82,179,82,.18);  color: #52b352; }
+.yt-pill-tomorrow { background: rgba(16, 185, 129, .14);  color: rgba(209, 250, 229, .95); }
+.yt-pill-future   { background: rgba(56, 189, 248, .12);  color: rgba(224, 242, 254, .90); }
 
 .yt-col-body { padding: 10px; overflow-y: auto; height: 100%; }
 
@@ -703,15 +702,13 @@ input[type="checkbox"]:checked::before {
 .youtask-archive-btnsmall {
   font-size: 12px; padding: 7px 10px;
   border-radius: 12px;
-  border: 1px solid rgba(16, 185, 129, .22);
-  background: rgba(16, 185, 129, .10);
+  background: rgba(16, 185, 129, .14);
   color: rgba(209, 250, 229, .95);
-  transition: transform .15s ease, background-color .15s ease, border-color .15s ease;
+  transition: transform .15s ease, background-color .15s ease;
 }
 .youtask-archive-btnsmall:hover {
   transform: translateY(-1px);
-  background: rgba(16, 185, 129, .14);
-  border-color: rgba(16, 185, 129, .28);
+  background: rgba(16, 185, 129, .20);
 }
 .youtask-archive-taskcell { max-width: 720px; }
 .youtask-archive-task     { font-weight: 700; color: rgba(255,255,255,.90); }
