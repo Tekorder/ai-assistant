@@ -11,6 +11,7 @@ import {
   parseYMD,
   readSelectedProject,
   writeSelectedProjectBlocks,
+  isListVisible,
 } from '@/lib/datacenter';
 
 /* ===================== Local types ===================== */
@@ -150,38 +151,17 @@ function DaySidebar({
     } catch { el.click(); }
   };
 
-  // Animation: slide in from right
   return (
     <>
-      {/* Backdrop */}
       <button
         type="button"
-        className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-[2px]"
+        className="absolute inset-0 z-[200] bg-black/50"
         onClick={onClose}
         aria-label="Close"
       />
-
-      {/* Panel */}
       <div
-        className="fixed top-0 right-0 h-full z-[201] flex flex-col"
-        style={{
-          width: 'min(420px, 92vw)',
-          animation: 'calSidebarIn 0.28s cubic-bezier(.22,.9,.28,1)',
-          background: [
-            'linear-gradient(160deg, rgba(82,179,82,.07) 0%, transparent 35%)',
-            'linear-gradient(to bottom, rgba(255,255,255,.05) 0%, transparent 18%)',
-            'rgba(7,7,7,0.82)',
-          ].join(', '),
-          backdropFilter: 'blur(28px) saturate(1.4)',
-          WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
-          borderLeft: '1px solid rgba(82,179,82,.12)',
-          boxShadow: [
-            '-4px 0 60px rgba(0,0,0,.6)',
-            '-1px 0 0 rgba(255,255,255,.04)',
-            'inset 1px 0 0 rgba(255,255,255,.05)',
-            '0 0 80px rgba(82,179,82,.06)',
-          ].join(', '),
-        }}
+        className="absolute top-0 right-0 z-[201] flex h-full w-full max-w-md flex-col border-l border-[#52b352]/15 bg-black shadow-[inset_1px_0_0_rgba(255,255,255,.05)]"
+        style={{ animation: 'calSidebarIn 0.28s cubic-bezier(.22,.9,.28,1)' }}
       >
         <style>{`
           @keyframes calSidebarIn {
@@ -336,6 +316,7 @@ export default function CalendarView() {
   const [hydrated, setHydrated]         = useState(false);
   const [projectId, setProjectId]       = useState<string | null>(null);
   const [projectTitle, setProjectTitle] = useState<string>('Project');
+  const [visibleLists, setVisibleLists] = useState<Record<string, boolean>>({});
 
   // Calendar nav
   const today = todayYMD();
@@ -352,6 +333,7 @@ export default function CalendarView() {
       setBlocks(snap.blocks);
       setProjectTitle(snap.projectTitle);
       setProjectId(snap.project_id);
+      setVisibleLists(snap.visibleLists);
       setHydrated(true);
     };
     load();
@@ -372,16 +354,21 @@ export default function CalendarView() {
   const allCards = useMemo<CalCard[]>(() => {
   const out: CalCard[] = [];
   let currentListTitle = '';
+  let currentListId: string | null = null;
+  let currentListVisible = true;
 
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
 
     if (b.indent === 0) {
       currentListTitle = (b.text || '').trim();
+      currentListId = b.id;
+      currentListVisible = isListVisible(visibleLists, b.id);
       continue;
     }
 
     if (b.indent !== 1) continue;
+    if (currentListId && !currentListVisible) continue;
     if (b.archived) continue; // 👈 ocultar archivados
     if (!isValidDateYYYYMMDD(b.deadline)) continue;
 
@@ -392,12 +379,12 @@ export default function CalendarView() {
       checked:   Boolean(b.checked),
       deadline:  b.deadline!,
       isHidden:  b.isHidden === true,
-      archived:  b.archived // error aqui 
+      archived:  b.archived,
     });
   }
 
   return out;
-}, [blocks, projectTitle]);
+}, [blocks, projectTitle, visibleLists]);
 
   /* ── Cards by date ── */
   const cardsByDate = useMemo(() => {
@@ -540,41 +527,18 @@ export default function CalendarView() {
 
   if (!hydrated) {
     return (
-      <div className="h-full w-full bg-[#060606] flex items-center justify-center">
+      <div className="h-full w-full bg-transparent flex items-center justify-center">
         <span className="text-[#d5fc43]/60 text-sm">Loading calendar…</span>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full text-white overflow-y-auto"
-      style={{
-        background: [
-          'radial-gradient(ellipse 80% 55% at 50% -5%,  rgba(82,179,82,.08) 0%, transparent 60%)',
-          'radial-gradient(ellipse 55% 40% at 95%  95%,  rgba(82,179,82,.05) 0%, transparent 55%)',
-          'radial-gradient(ellipse 40% 50% at 0%   80%,  rgba(50,130,50,.04) 0%, transparent 60%)',
-          '#060606',
-        ].join(', '),
-      }}>
-      <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8">
+    <div className="relative h-full w-full overflow-y-auto bg-transparent text-white">
+      <div className="mx-auto max-w-6xl min-w-[770px] px-4 py-6 md:px-8 md:py-8">
 
         {/* ── Header / nav bar ── */}
-        <div className="flex items-center justify-between mb-6 rounded-2xl px-4 py-3"
-          style={{
-            background: [
-              'linear-gradient(135deg, rgba(82,179,82,.07) 0%, transparent 45%)',
-              'linear-gradient(to bottom, rgba(255,255,255,.06) 0%, transparent 30%)',
-              'rgba(10,10,10,0.65)',
-            ].join(', '),
-            backdropFilter: 'blur(18px) saturate(1.3)',
-            WebkitBackdropFilter: 'blur(18px) saturate(1.3)',
-            border: '1px solid rgba(82,179,82,.09)',
-            boxShadow: [
-              '0 0 0 1px rgba(255,255,255,.04)',
-              'inset 0 1px 0 rgba(255,255,255,.09)',
-              '0 4px 24px rgba(0,0,0,.4)',
-            ].join(', '),
-          }}>
+        <div className="mb-6 flex items-center justify-between rounded-2xl border border-[#52b352]/12 bg-transparent px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
           <div>
             <h1 className="text-[24px] md:text-[28px] font-bold text-white leading-none">
               {MONTH_NAMES[viewMonth]}{' '}
@@ -631,12 +595,8 @@ export default function CalendarView() {
         </div>
 
         {/* ── Desktop: 7-col grid ── */}
-        <div className="hidden md:grid grid-cols-7 gap-[3px] rounded-2xl overflow-hidden p-[3px]"
+        <div className="hidden md:grid grid-cols-7 gap-[3px] rounded-2xl overflow-hidden border border-[#52b352]/10 p-[3px] bg-transparent"
           style={{
-            background: 'rgba(8,8,8,0.5)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            border: '1px solid rgba(82,179,82,.08)',
             boxShadow: 'inset 0 1px 0 rgba(255,255,255,.05), 0 8px 32px rgba(0,0,0,.4)',
           }}>
           {grid.map((ymd, idx) => {
@@ -739,8 +699,6 @@ export default function CalendarView() {
                     : hasAnyTask
                     ? 'linear-gradient(145deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)'
                     : 'rgba(88,88,88,.02)',
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
                   border: isSelected
                     ? '1px solid rgba(82,179,82,.3)'
                     : isToday
@@ -813,7 +771,6 @@ export default function CalendarView() {
 
       </div>
 
-      {/* ── Day Sidebar ── */}
       {selectedDay && (
         <DaySidebar
           ymd={selectedDay}
@@ -824,7 +781,6 @@ export default function CalendarView() {
           }}
           onReschedule={(id, date) => {
             handleReschedule(id, date);
-            // If rescheduled to a different month, close sidebar
             if (date.slice(0, 7) !== selectedDay.slice(0, 7)) {
               const [y, m] = date.split('-').map(Number);
               setViewYear(y);

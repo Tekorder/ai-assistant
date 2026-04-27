@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { PivotModal, buildPrunedPivotTree, extractWordAt, type PivotTreeRow } from './Pivot';
 
 import {
   // Types
@@ -11,14 +10,10 @@ import {
   // Constants
   LS_KEY_V2,
   LS_KEY_V1,
-  UNC_TITLE,
   // Utilities
   uid,
   arrayMove,
-  isValidDateYYYYMMDD,
   todayYMD,
-  formatPill,
-  pillClass,
   // Array structure
   isUncTitleBlock,
   findUncRange,
@@ -31,40 +26,46 @@ import {
   insertBlockAfter,
   removeBlock as removeBlockArr,
   removeTitleSendChildrenToUnc,
-  dismissCompleted as dismissCompletedArr,
   addNewList as addNewListArr,
-  addTaskUnderList as addTaskUnderListArr,
-  // Hidden map
-  buildHiddenMap,
   // Projects persistence
   readProjectsLS,
   writeProjectsLS,
 } from '@/lib/datacenter';
 
-/* ===================== Pivot state ===================== */
-type PivotState = {
-  open: boolean;
-  word: string;
-  blockId: string | null;
+type SidebarProps = {
+  onOpenPivot?: (detail: {
+    word: string;
+    blockId: string | null;
+    origin: 'sidebar';
+    listId?: string | null;
+  }) => void;
 };
 
-export const Sidebar = () => {
+export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot }) => {
+  const buildAllCollapsedFromBlocks = (listBlocks: Block[]): Record<string, boolean> => {
+    const next: Record<string, boolean> = {};
+    for (const b of listBlocks) {
+      if (b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true) next[b.id] = true;
+    }
+    return next;
+  };
+
   /* ── Projects ── */
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
 
   const [hydrated, setHydrated] = useState(false);
 
-  const [pivot, setPivot] = useState<PivotState>({ open: false, word: '', blockId: null });
   const [hintIndex, setHintIndex] = useState(0);
+  const [deleteListConfirmId, setDeleteListConfirmId] = useState<string | null>(null);
+  const [editingDateTaskId] = useState<string | null>(null);
+  const [editingListTitleId, setEditingListTitleId] = useState<string | null>(null);
 
   /* ── Refs ── */
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const inlineDateRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const [nudge, setNudge] = useState<{ id: string; dir: 'left' | 'right' } | null>(null);
   const nudgeTimerRef = useRef<number | null>(null);
-  const [newId, setNewId] = useState<string | null>(null);
   const newTimerRef = useRef<number | null>(null);
 
   const dragRef = useRef<{ id: string; fromIndex: number } | null>(null);
@@ -82,9 +83,9 @@ export const Sidebar = () => {
   const currentProject = projects[currentProjectIndex];
   const blocks: Block[] = currentProject?.blocks
     ?? moveUncToTop(ensureUncExists([{ id: uid(), text: '', indent: 0 }]));
- const collapsed = useMemo<Record<string, boolean>>(
-  () => currentProject?.collapsed ?? {},
-  [currentProject?.collapsed],
+const visibleLists = useMemo<Record<string, boolean>>(
+  () => currentProject?.visibleLists ?? {},
+  [currentProject?.visibleLists],
 );
 
   /* ===================== setCurrentBlocks / setCurrentCollapsed ===================== */
@@ -131,15 +132,37 @@ export const Sidebar = () => {
     });
   };
 
+  const setCurrentVisibleLists = (
+    nextFn: Record<string, boolean> | ((prev: Record<string, boolean>) => Record<string, boolean>),
+  ) => {
+    setProjects(prev => {
+      if (!prev.length) {
+        const personal = makePersonalProject(
+          moveUncToTop(ensureUncExists([])),
+          {},
+          {},
+          typeof nextFn === 'function' ? nextFn({}) : nextFn,
+        );
+        setSelectedProjectId(personal.project_id);
+        return [personal];
+      }
+      const idx = prev.findIndex(p => p.project_id === selectedProjectId);
+      const safeIdx = idx >= 0 ? idx : 0;
+      const next = prev.map(p => ({ ...p }));
+      const old = next[safeIdx].visibleLists ?? {};
+      const newVisible = typeof nextFn === 'function' ? nextFn(old) : nextFn;
+      next[safeIdx] = { ...next[safeIdx], visibleLists: newVisible };
+      return next;
+    });
+  };
+
   /* ===================== Initial load — Projects ===================== */
   useEffect(() => {
     try {
       const payload = readProjectsLS();
       if (payload) {
         const normalized = payload.projects.map(p => {
-          const col = p.collapsed && typeof p.collapsed === 'object' ? p.collapsed : {};
-          const newCollapsed: Record<string, boolean> = {};
-          for (const k in col) newCollapsed[k] = true;
+          const newCollapsed = buildAllCollapsedFromBlocks(p.blocks ?? []);
           return { ...p, collapsed: newCollapsed };
         });
         setProjects(normalized);
@@ -152,7 +175,7 @@ export const Sidebar = () => {
       if (rawV1) {
         const parsed = JSON.parse(rawV1);
         const loadedBlocks = normalizeLoadedBlocks(parsed?.blocks ?? parsed);
-        const loadedCollapsed = parsed?.collapsed && typeof parsed.collapsed === 'object' ? parsed.collapsed : {};
+        const loadedCollapsed = buildAllCollapsedFromBlocks(loadedBlocks);
         const personal = makePersonalProject(loadedBlocks, loadedCollapsed);
         setProjects([personal]);
         setSelectedProjectId(personal.project_id);
@@ -211,6 +234,22 @@ export const Sidebar = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!editingDateTaskId) return;
+    const input = inlineDateRefs.current[editingDateTaskId];
+    if (!input) return;
+    requestAnimationFrame(() => {
+      input.focus();
+      try {
+        const picker = input as HTMLInputElement & { showPicker?: () => void };
+        if (typeof picker.showPicker === 'function') picker.showPicker();
+        else input.click();
+      } catch {
+        input.click();
+      }
+    });
+  }, [editingDateTaskId]);
+
   /* ===================== Save Projects ===================== */
   useEffect(() => {
     if (!hydrated || applyingExternalRef.current) return;
@@ -236,56 +275,15 @@ export const Sidebar = () => {
     });
   };
 
-  const triggerNudge = (id: string, dir: 'left' | 'right') => {
-    setNudge({ id, dir });
+  const triggerNudge = () => {
     if (nudgeTimerRef.current) window.clearTimeout(nudgeTimerRef.current);
-    nudgeTimerRef.current = window.setTimeout(() => setNudge(null), 180);
+    nudgeTimerRef.current = window.setTimeout(() => {}, 180);
   };
 
-  const triggerNewLineAnim = (id: string) => {
-    setNewId(id);
+  const triggerNewLineAnim = () => {
     if (newTimerRef.current) window.clearTimeout(newTimerRef.current);
-    newTimerRef.current = window.setTimeout(() => setNewId(null), 220);
+    newTimerRef.current = window.setTimeout(() => {}, 220);
   };
-
-  /* ===================== Pivot ===================== */
-  const closePivot = () => setPivot({ open: false, word: '', blockId: null });
-
-  const openPivotForInput = (blockId: string, inputEl: HTMLInputElement) => {
-    const start = inputEl.selectionStart ?? 0;
-    const end = inputEl.selectionEnd ?? start;
-    const word = extractWordAt(inputEl.value, start, end);
-    if (!word) return;
-    setPivot({ open: true, word, blockId });
-  };
-
-  const maybeUpdatePivotFromInput = (blockId: string, inputEl: HTMLInputElement) => {
-    setPivot(p => {
-      if (!p.open || p.blockId !== blockId) return p;
-      const start = inputEl.selectionStart ?? 0;
-      const end = inputEl.selectionEnd ?? start;
-      const word = extractWordAt(inputEl.value, start, end);
-      if (!word || word === p.word) return p;
-      return { ...p, word };
-    });
-  };
-
-  const pivotRows: PivotTreeRow[] = useMemo(() => {
-    if (!pivot.open) return [];
-    return buildPrunedPivotTree(blocks, pivot.word, { uncTitle: UNC_TITLE });
-  }, [pivot.open, pivot.word, blocks]);
-
-  /* ===================== Hidden map ===================== */
-  const hiddenMap = useMemo(
-    () => buildHiddenMap(blocks, {
-      collapsed,
-      showHidden: false,
-      dateMode: 'all',
-      focusDay: todayYMD(),
-      sortBy: 'dueDate',
-    }),
-    [blocks, collapsed],
-  );
 
   /* ===================== Tasks — wrappers ===================== */
   const handleUpdateBlock = (id: string, patch: Partial<Block>) => {
@@ -294,7 +292,7 @@ export const Sidebar = () => {
 
   const handleInsertAfter = (id: string, block: Block) => {
     setCurrentBlocks(prev => insertBlockAfter(prev, id, block));
-    triggerNewLineAnim(block.id);
+    triggerNewLineAnim();
     focusBlock(block.id, false);
   };
 
@@ -332,7 +330,11 @@ export const Sidebar = () => {
     });
   };
 
-  const handleDismissCompleted = () => setCurrentBlocks(prev => dismissCompletedArr(prev));
+  const handleConfirmDeleteList = (listId: string) => {
+    setDeleteListConfirmId(null);
+    armedDeleteListRef.current = null;
+    handleRemoveTitle(listId);
+  };
 
 
   const handleAddNewList = () => {
@@ -342,7 +344,7 @@ export const Sidebar = () => {
       newListId = result.newListId;
       return result.blocks;
     });
-    triggerNewLineAnim(newListId);
+    triggerNewLineAnim();
     requestAnimationFrame(() => {
       const el = inputRefs.current[newListId];
       if (!el) return;
@@ -352,40 +354,8 @@ export const Sidebar = () => {
     });
   };
 
-  const handleAddTaskUnderList = (listId: string) => {
-    let newTaskId = '';
-    setCurrentBlocks(prev => {
-      const result = addTaskUnderListArr(prev, listId, {});
-      newTaskId = result.newTaskId;
-      return result.blocks;
-    });
-    setCurrentCollapsed(prev => ({ ...prev, [listId]: false }));
-    focusBlock(newTaskId, false);
-  };
-
-  const toggleList = (listId: string) =>
-    setCurrentCollapsed(prev => ({ ...prev, [listId]: !prev[listId] }));
-
-  const openDatePicker = (id: string) => {
-    const el = dateRefs.current[id];
-    if (!el) return;
-    try {
-      const picker = el as HTMLInputElement & { showPicker?: () => void };
-      if (typeof picker.showPicker === 'function') picker.showPicker();
-      else el.click();
-    } catch {
-      el.click();
-    }
-  };
-
-  const pillClassNike = (deadline?: string, checked?: boolean) => {
-    // `pillClass` viene de datacenter y usa amber para "today".
-    // En Sidebar lo re-skinneamos a NRC/Nike green (#d5fc43).
-    return pillClass(deadline, checked)
-      .replaceAll('bg-amber-500/20', 'bg-[#d5fc43]/22')
-      .replaceAll('text-amber-200', 'text-[#d5fc43]')
-      .replaceAll('hover:bg-amber-500/28', 'hover:bg-[#d5fc43]/30');
-  };
+  const toggleListVisibility = (listId: string) =>
+    setCurrentVisibleLists(prev => ({ ...prev, [listId]: prev[listId] === false }));
 
   /* ── Keyboard (tasks) ── */
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
@@ -415,7 +385,7 @@ export const Sidebar = () => {
         isHidden: nextIndent === 0 ? undefined : b.isHidden,
         archived: nextIndent === 0 ? undefined : b.archived,
       });
-      triggerNudge(b.id, e.shiftKey ? 'left' : 'right');
+      triggerNudge();
       return;
     }
 
@@ -427,7 +397,7 @@ export const Sidebar = () => {
         const armed = armedDeleteListRef.current;
         if (armed?.id === b.id && now - armed.t < 800) {
           armedDeleteListRef.current = null;
-          handleRemoveTitle(b.id);
+          setDeleteListConfirmId(b.id);
           return;
         }
         armedDeleteListRef.current = { id: b.id, t: now };
@@ -472,30 +442,28 @@ export const Sidebar = () => {
     setDragOverId(null);
   };
 
-
+  const openPivotForList = (block: Block) => {
+    if (block.indent !== 0) return;
+    if (isUncTitleBlock(block)) return;
+    const title = (block.text || '').trim() || 'List';
+    onOpenPivot?.({ word: title, blockId: block.id, listId: block.id, origin: 'sidebar' });
+  };
 
   /* ===================== Render ===================== */
   return (
     <>
-      <aside className="bg-black h-full flex flex-col w-full min-h-0">
-        <div className="px-4 pt-4 pb-2 text-white/80 font-semibold shrink-0">Organizer</div>
-
+      <div className="hidden h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col m-3 md:flex">
+        <aside
+          className="relative z-[60] flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#52b352]/55 bg-transparent shadow-[inset_0_1px_0_rgba(255,255,255,.06)]"
+        >
         {/* Scrollable content */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
           <>
-              <div className="flex items-center justify-end mb-3 gap-2">
-                <button
-                  type="button"
-                  onClick={handleDismissCompleted}
-                  className="text-[11px] px-2 py-1 rounded-md bg-white/10 text-white/60 hover:text-white/80 hover:bg-white/16 transition-colors"
-                  title="Dismiss completed tasks"
-                >
-                  Dismiss Completed
-                </button>
+              <div className="flex items-center justify-start mt-2 mb-4 gap-2">
                 <button
                   type="button"
                   onClick={handleAddNewList}
-                  className="text-[11px] px-2 py-1 rounded-md bg-white/10 text-white/60 hover:text-white/80 hover:bg-white/16 transition-colors"
+                  className="my-1 text-[11px] px-2 py-1 rounded-md bg-white/10 text-white/60 hover:text-white/80 hover:bg-white/16 transition-colors"
                   title="Add a new list"
                 >
                   + New List
@@ -504,22 +472,16 @@ export const Sidebar = () => {
 
               <div className="space-y-1">
                 {(() => {
-                  const { uncIndex, start: uncStart, end: uncEnd } = findUncRange(blocks);
-                  return blocks.map((b, idx) => {
-                    if (uncIndex >= 0 && idx === uncIndex) return null;
-                    if (hiddenMap[b.id]) return null;
-                    if (b.isHidden === true) return null;
-
-                    const isList = b.indent === 0;
-                    const isTask = b.indent > 0;
-                    const inUncTasks = uncIndex >= 0 && idx >= uncStart && idx < uncEnd && b.indent > 0;
-                    const rowNudgeClass = nudge?.id === b.id ? (nudge.dir === 'right' ? 'wadu-nudge-right' : 'wadu-nudge-left') : '';
-                    const rowNewClass = newId === b.id ? 'wadu-line-in' : '';
-                    const isDraggingOver = dragOverId === b.id && dragRef.current?.id !== b.id;
-                    const isDraggingMe = dragRef.current?.id === b.id;
-                    const pill = isTask ? formatPill(b.deadline) : '';
-
-
+                  const listBlocks = blocks.filter(b => b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true);
+                  if (!listBlocks.length) {
+                    return (
+                      <div className="text-[12px] text-white/40 px-1 py-2">
+                        No lists yet.
+                      </div>
+                    );
+                  }
+                  return listBlocks.map((b, idx) => {
+                    const isVisible = visibleLists[b.id] !== false;
                     return (
                       <React.Fragment key={b.id}>
                         <div
@@ -530,12 +492,10 @@ export const Sidebar = () => {
                           onDragEnd={onDragEndRow}
                           className={[
                             'group flex items-center gap-1 px-0.5 py-1 rounded-md',
-                            rowNudgeClass,
-                            rowNewClass,
-                            isDraggingOver ? 'bg-white/7 outline outline-1 outline-white/10' : '',
-                            isDraggingMe ? 'opacity-60' : '',
+                            dragOverId === b.id && dragRef.current?.id !== b.id ? 'bg-white/7 outline outline-1 outline-white/10' : '',
+                            dragRef.current?.id === b.id ? 'opacity-60' : '',
                           ].join(' ')}
-                          style={{ paddingLeft: isList ? 2 : (inUncTasks ? 6 : 8 + b.indent * 16) }}
+                          style={{ paddingLeft: 2 }}
                         >
                           <div
                             className="w-3 shrink-0 text-white/20 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
@@ -543,104 +503,48 @@ export const Sidebar = () => {
                           >
                             ⋮⋮
                           </div>
-                          <div />
+                          <label className="relative h-4 w-4 shrink-0 flex items-center justify-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isVisible}
+                              onChange={() => toggleListVisibility(b.id)}
+                              className="sr-only"
+                            />
+                            <span className={['h-3 w-3 rounded-full border transition-colors', isVisible ? 'border-[#d5fc43] bg-[#d5fc43]' : 'border-white/30 bg-transparent'].join(' ')} />
+                          </label>
 
-                          {isList ? (
+                          {editingListTitleId === b.id ? (
+                            <input
+                              data-youtask-block={b.id}
+                              ref={el => void (inputRefs.current[b.id] = el)}
+                              value={b.text}
+                              placeholder="List…"
+                              onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
+                              onKeyDown={e => handleKey(e, b)}
+                              onBlur={() => setEditingListTitleId(null)}
+                              className={[
+                                'w-full cursor-text bg-transparent text-sm font-semibold text-white outline-none transition-opacity duration-150',
+                              ].join(' ')}
+                            />
+                          ) : (
                             <button
                               type="button"
-                              onClick={() => toggleList(b.id)}
-                              className="w-3 shrink-0 text-white/35 hover:text-white/60 transition-colors"
-                              title={collapsed[b.id] ? 'Expand' : 'Collapse'}
+                              data-youtask-block={b.id}
+                              className="w-full truncate text-left text-sm font-semibold text-white underline decoration-[#d5fc43]/65 underline-offset-[3px] outline-none transition-colors hover:text-white"
+                              onClick={() => openPivotForList(b)}
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setEditingListTitleId(b.id);
+                                requestAnimationFrame(() => inputRefs.current[b.id]?.focus());
+                              }}
                             >
-                              {collapsed[b.id] ? '▸' : '▾'}
+                              {(b.text || '').trim() ? b.text : 'List…'}
                             </button>
-                          ) : <div className="w-3 shrink-0" />}
+                          )}
 
-                        {isTask ? (
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateBlock(b.id, { checked: !b.checked })}
-                              className="relative h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.08] transition-transform"
-                              title="Complete"
-                            >
-                              {b.checked ? (
-                                <span className="relative flex h-3 w-3 items-center justify-center">
-                                  <span className="absolute h-2.5 w-2.5 rounded-full bg-[#d5fc43]/85 blur-[2px]" />
-                                  <span className="absolute h-1.5 w-1.5 rounded-full bg-[#d5fc43]" />
-
-                                </span>
-                              ) : (
-                                <span className="h-3 w-3 rounded border border-white/25 group-hover:border-white/40 transition-colors" />
-                              )}
-                            </button>
-                          ) : null}
-
-                          <input
-                            ref={el => void (inputRefs.current[b.id] = el)}
-                            value={b.text}
-                            placeholder={isList ? 'List…' : 'Task…'}
-                            onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
-                            onKeyDown={e => handleKey(e, b)}
-                            onDoubleClick={e => { if (!(b.indent > 0)) return; openPivotForInput(b.id, e.currentTarget); }}
-                            onSelect={e => { if (!(b.indent > 0)) return; maybeUpdatePivotFromInput(b.id, e.currentTarget); }}
-                            className={[
-                              'w-full bg-transparent outline-none text-sm cursor-pointer transition-opacity duration-150',
-                              isList ? 'text-white font-semibold' : b.checked ? 'text-white/40 line-through' : 'text-white/80',
-                            ].join(' ')}
-                          />
-
-                          {isList && !isUncTitleBlock(b) ? (
-                            <div className="flex items-center" style={{ whiteSpace: 'pre' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleAddTaskUnderList(b.id)}
-                                className="mt-1 text-[18px] px-2 py-1 rounded-md text-white/50 hover:text-white/80 bg-white/10 hover:bg-white/16 transition-colors"
-                              >
-                                +
-                              </button>
-                            </div>
-                          ) : null}
-                          
-
-
-                          {isTask ? (
-                            <div className="shrink-0 pl-2 flex items-center gap-2">
-                              <button
-                                type="button"
-                                style={{ minWidth: '66px' }}
-                                onClick={() => openDatePicker(b.id)}
-                                className={['text-[11px] px-2 py-1 rounded-full transition-colors', pillClassNike(b.deadline, b.checked)].join(' ')}
-                                title={pill ? 'Change date' : 'Set date'}
-                              >
-                                {pill || '📅'}
-                              </button>
-
-                              <input
-                                ref={el => void (dateRefs.current[b.id] = el)}
-                                type="date"
-                                className="hidden"
-                                value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''}
-                                onChange={e => {
-                                  const v = e.target.value;
-                                  handleUpdateBlock(b.id, { deadline: v || undefined });
-                                }}
-                              />
-
-                              {/* <button
-                                type="button"
-                                onClick={() => { if (canArchive) handleArchiveTask(b.id); }}
-                                className={[
-                                  'h-7 w-7 rounded-full border flex items-center justify-center transition-[transform,opacity,background-color,border-color] duration-150 ease-out',
-                                  canArchive
-                                    ? 'border-white/10 bg-white/5 text-white/70 hover:text-white/90 hover:bg-white/10 hover:border-white/15 group-hover:scale-[1.03]'
-                                    : 'border-white/5 bg-white/0 text-white/25 opacity-40 cursor-not-allowed',
-                                ].join(' ')}
-                                title={canArchive ? 'Move to Trash' : 'Complete it first'}
-                              >
-                                🗑️
-                              </button> */}
-                            </div>
-                          ) : null}
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-white/35 pr-1">
+                            {isVisible ? 'On' : 'Off'}
+                          </div>
                         </div>
                       </React.Fragment>
                     );
@@ -651,7 +555,7 @@ export const Sidebar = () => {
         </div>
 
        {/* Fixed footer */}
-          <div className="shrink-0 border-t border-white/10 bg-black/95 backdrop-blur px-4 py-3 space-y-3">
+          <div className="shrink-0 space-y-3 border-t border-white/10 bg-transparent px-4 py-3">
             <div className="rounded-2xl  px-3 py-3 min-h-[128px]">
               {hintIndex === 0 ? (
                 <div>
@@ -752,17 +656,57 @@ export const Sidebar = () => {
        
           </div>
        
-      </aside>
+        </aside>
+      </div>
 
-      <PivotModal
-        open={pivot.open}
-        word={pivot.word}
-        rows={pivotRows}
-        onClose={closePivot}
-        onGoTo={(blockId) => { focusBlock(blockId, true); }}
-        pillText={(r) => (r.indent > 0 ? formatPill(r.deadline) : '')}
-        pillClass={(r) => pillClassNike(r.deadline, r.checked)}
-      />
+      {deleteListConfirmId ? (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            onClick={() => {
+              setDeleteListConfirmId(null);
+              armedDeleteListRef.current = null;
+            }}
+            aria-label="Close"
+          />
+          <div className="relative w-[92vw] max-w-md rounded-2xl border border-white/10 bg-black shadow-2xl">
+            <div className="px-4 py-3 border-b border-white/10">
+              <div className="text-sm font-semibold text-white/90">Estas por borrar una lista</div>
+              <p className="text-[12px] text-white/65 mt-2 leading-relaxed">
+                Estás por borrar una lista con todas sus tareas. ¿Seguro que quieres continuar?
+              </p>
+              {(() => {
+                const t = blocks.find(x => x.id === deleteListConfirmId)?.text?.trim();
+                if (!t) return null;
+                return <div className="text-[11px] text-white/40 mt-2 truncate" title={t}>Lista: {t}</div>;
+              })()}
+            </div>
+            <div className="px-4 py-3 border-t border-white/10 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteListConfirmId(null);
+                  armedDeleteListRef.current = null;
+                }}
+                className="text-[12px] px-3 py-2 rounded-md bg-white/10 text-white/70 hover:text-white/90 hover:bg-white/16 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteListConfirmId) handleConfirmDeleteList(deleteListConfirmId);
+                }}
+                className="text-[12px] px-3 py-2 rounded-md bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
+              >
+                Si, borrar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
     </>
   );
 };

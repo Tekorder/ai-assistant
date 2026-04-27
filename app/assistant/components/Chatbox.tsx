@@ -96,9 +96,9 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
   };
 
   return (
-    <div className="flex flex-col h-full w-full relative">
+    <div className="relative flex h-full w-full flex-col bg-[#050505]">
       {pendingTask && !showReminders && (
-        <div className="absolute top-0 left-0 right-0 z-50 bg-blue-600 text-white px-4 py-2 text-sm flex items-center justify-between shadow-lg">
+        <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between border-b border-[#52b352]/30 bg-[#52b352]/25 px-4 py-2 text-sm text-white shadow-lg">
           <div className="flex items-center gap-2">
             <span className="animate-pulse">💬</span>
             <span className="font-medium">

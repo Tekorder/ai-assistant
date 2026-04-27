@@ -17,6 +17,7 @@ import {
   // Persistence
   readSelectedProject,
   writeSelectedProjectBlocks,
+  isListVisible,
 } from '@/lib/datacenter';
 
 /* ===================== Local UI types (no van a datacenter) ===================== */
@@ -91,8 +92,10 @@ export default function Timeline() {
   const [projectTitle, setProjectTitle] = useState<string>('Project');
   const [showCompleted, setShowCompleted] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => monthStart(new Date()));
+  const [editingDateCardId, setEditingDateCardId] = useState<string | null>(null);
+  const [visibleLists, setVisibleLists] = useState<Record<string, boolean>>({});
 
-  const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const inlineDateRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   /* ── Load & sync ── */
   useEffect(() => {
@@ -101,6 +104,7 @@ export default function Timeline() {
       setBlocks(snap.blocks);
       setProjectTitle(snap.projectTitle);
       setProjectId(snap.project_id);
+      setVisibleLists(snap.visibleLists);
       setHydrated(true);
     };
 
@@ -132,16 +136,21 @@ export default function Timeline() {
   const cards = useMemo<Card[]>(() => {
     const out: Card[] = [];
     let currentSectionTitle = '';
+    let currentSectionId: string | null = null;
+    let currentSectionVisible = true;
 
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i];
 
       if (b.indent === 0) {
         currentSectionTitle = (b.text || '').trim();
+        currentSectionId = b.id;
+        currentSectionVisible = isListVisible(visibleLists, b.id);
         continue;
       }
 
       if (b.indent !== 1) continue;
+      if (currentSectionId && !currentSectionVisible) continue;
       if (!isValidDateYYYYMMDD(b.deadline)) continue;
       if (b.archived === true) continue;
 
@@ -177,7 +186,7 @@ export default function Timeline() {
     }
 
     return out;
-  }, [blocks, showCompleted, projectTitle]);
+  }, [blocks, showCompleted, projectTitle, visibleLists]);
 
   /* ── Range normal (modo timeline clásico) ── */
   const normalRange = useMemo(() => {
@@ -291,20 +300,21 @@ export default function Timeline() {
     setBlocks(next);
   };
 
-  const openReschedulePicker = (cardId: string) => {
-    const el = dateRefs.current[cardId];
-    if (!el) return;
-
-    try {
-      if (typeof (el as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
-        (el as HTMLInputElement & { showPicker?: () => void }).showPicker!();
-      } else {
-        el.click();
+  useEffect(() => {
+    if (!editingDateCardId) return;
+    const input = inlineDateRefs.current[editingDateCardId];
+    if (!input) return;
+    requestAnimationFrame(() => {
+      input.focus();
+      try {
+        const picker = input as HTMLInputElement & { showPicker?: () => void };
+        if (typeof picker.showPicker === 'function') picker.showPicker();
+        else input.click();
+      } catch {
+        input.click();
       }
-    } catch {
-      el.click();
-    }
-  };
+    });
+  }, [editingDateCardId]);
 
   const rescheduleDeadline = (cardId: string, newDeadline: string) => {
     if (!isValidDateYYYYMMDD(newDeadline)) return;
@@ -467,22 +477,24 @@ export default function Timeline() {
                                   <button
                                     type="button"
                                     className="yt-reschedule"
-                                    onClick={() => openReschedulePicker(card.id)}
+                                    onClick={() => setEditingDateCardId(card.id)}
                                     title="Re-schedule"
                                     aria-label="Reschedule"
                                   >
                                     📅
                                   </button>
-
                                   <input
-                                    ref={el => {
-                                      dateRefs.current[card.id] = el;
-                                    }}
+                                    ref={el => { inlineDateRefs.current[card.id] = el; }}
                                     type="date"
-                                    className="hidden"
+                                    className="fixed opacity-0 pointer-events-none -z-10"
                                     value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
                                     onChange={e => {
                                       if (e.target.value) rescheduleDeadline(card.id, e.target.value);
+                                      setEditingDateCardId(null);
+                                    }}
+                                    onBlur={() => setEditingDateCardId(null)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Escape' || e.key === 'Enter') setEditingDateCardId(null);
                                     }}
                                   />
                                 </>

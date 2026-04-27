@@ -17,9 +17,24 @@ import {
   updateHabit as updateHabitArr,
 } from '@/lib/datacenter';
 
-type Props = { open: boolean; onClose: () => void };
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  /** `dock` = flex column like Sidebar (pushes main). `overlay` = fixed sheet (mobile). */
+  variant?: 'overlay' | 'dock';
+};
 
-export default function HabitsPanel({ open, onClose }: Props) {
+/** Sin capa de fondo propia: el gradiente vive en app/assistant/page.tsx */
+const panelGlass: React.CSSProperties = {
+  background: 'transparent',
+  border: '1px solid rgba(82,179,82,.5)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06)',
+};
+
+export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Props) {
+  const [shouldRender, setShouldRender] = useState(open);
+  const [isClosing, setIsClosing] = useState(false);
+  const closeTimeoutRef = useRef<number | null>(null);
   const [habits, setHabits] = useState<HabitBlock[]>([makeDefaultHabit()]);
   const [habitsMeta, setHabitsMeta] = useState<{ lastDaily?: string; lastWeekly?: string }>({});
   const habitInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -56,8 +71,34 @@ export default function HabitsPanel({ open, onClose }: Props) {
   useEffect(() => {
     return () => {
       if (newTimerRef.current) window.clearTimeout(newTimerRef.current);
+      if (closeTimeoutRef.current) window.clearTimeout(closeTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (open) {
+      setShouldRender(true);
+      setIsClosing(false);
+      return;
+    }
+    if (!shouldRender) return;
+    setIsClosing(true);
+    const t = window.setTimeout(() => {
+      setShouldRender(false);
+      setIsClosing(false);
+    }, 260);
+    return () => window.clearTimeout(t);
+  }, [open, shouldRender]);
+
+  const requestClose = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    if (closeTimeoutRef.current) window.clearTimeout(closeTimeoutRef.current);
+    closeTimeoutRef.current = window.setTimeout(() => {
+      closeTimeoutRef.current = null;
+      onClose();
+    }, 220);
+  };
 
   const focusHabit = (id: string, caretToEnd = false) => {
     requestAnimationFrame(() => {
@@ -159,35 +200,19 @@ export default function HabitsPanel({ open, onClose }: Props) {
     setDragOverId(null);
   };
 
-  if (!open) return null;
+  if (!shouldRender) return null;
 
-  return (
+  const body = (
     <>
-      <button
-        type="button"
-        className="fixed inset-0 z-[200] bg-black/55"
-        onClick={onClose}
-        aria-label="Close habits"
-      />
-      <div
-        className="fixed top-0 right-0 h-full z-[201] flex flex-col w-full max-w-md text-white overflow-hidden"
-        style={{
-          animation: 'habitsPanelIn 0.28s cubic-bezier(.22,.9,.28,1)',
-          background: [
-            'linear-gradient(160deg, rgba(82,179,82,.07) 0%, transparent 35%)',
-            'linear-gradient(to bottom, rgba(255,255,255,.05) 0%, transparent 18%)',
-            'rgba(7,7,7,0.88)',
-          ].join(', '),
-          backdropFilter: 'blur(28px) saturate(1.4)',
-          WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
-          borderLeft: '1px solid rgba(82,179,82,.12)',
-          boxShadow: '-4px 0 60px rgba(0,0,0,.6), inset 1px 0 0 rgba(255,255,255,.05)',
-        }}
-      >
         <style>{`
           @keyframes habitsPanelIn {
-            from { transform: translateX(100%); opacity: 0; }
+            from { transform: translateX(-34px); opacity: 0; filter: blur(1px); }
+            60% { transform: translateX(3px); opacity: .92; filter: blur(0); }
             to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes habitsPanelOut {
+            from { transform: translateX(0); opacity: 1; filter: blur(0); }
+            to { transform: translateX(14px); opacity: 0; filter: blur(1px); }
           }
         `}</style>
 
@@ -195,7 +220,7 @@ export default function HabitsPanel({ open, onClose }: Props) {
           <h2 className="text-[15px] font-semibold text-white/90">Habits</h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="h-8 w-8 rounded-lg text-white/50 hover:text-white hover:bg-white/12 transition-colors"
             aria-label="Close"
           >
@@ -290,6 +315,52 @@ export default function HabitsPanel({ open, onClose }: Props) {
             })}
           </div>
         </div>
+    </>
+  );
+
+  if (variant === 'dock') {
+    return (
+      <div
+        className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl text-white"
+        style={{
+          ...panelGlass,
+          animation: isClosing
+            ? 'habitsPanelOut 0.24s cubic-bezier(0.4, 0, 1, 1) both'
+            : 'habitsPanelIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both',
+        }}
+      >
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="fixed inset-0 z-[200] bg-black/50"
+        onClick={requestClose}
+        aria-label="Close habits"
+        style={{
+          animation: isClosing
+            ? 'habitsOverlayOut 0.2s ease-out both'
+            : 'habitsOverlayIn 0.22s ease-out both',
+        }}
+      />
+      <div
+        className="fixed right-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] max-w-md flex-col overflow-hidden rounded-2xl text-white"
+        style={{
+          animation: isClosing
+            ? 'habitsPanelOut 0.24s cubic-bezier(0.4, 0, 1, 1) both'
+            : 'habitsPanelIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both',
+          ...panelGlass,
+        }}
+      >
+        <style>{`
+          @keyframes habitsOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+          @keyframes habitsOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+        `}</style>
+        {body}
       </div>
     </>
   );

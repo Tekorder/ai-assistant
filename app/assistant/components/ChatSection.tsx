@@ -88,7 +88,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
   const canSend = !isLoading && !isListening && !!inputMessage.trim();
 
   return (
-    <div className="bg-gray-900 p-6 md:p-8 flex flex-col justify-end border-t border-gray-700 h-full relative">
+    <div className="relative flex h-full flex-col justify-end border-t border-white/[0.08] bg-[#050505] p-4 md:p-5">
       {/* keyframes locales (sin tocar tailwind.config) */}
       <style>{`
           /*  Loader dots (NO quitar) */
@@ -131,7 +131,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
       {/* Mensajes */}
       <div
         ref={listRef}
-        className="flex-1 overflow-y-auto mb-4 p-4 bg-gray-800 rounded-2xl h-full scroll-smooth"
+        className="mb-3 h-full flex-1 scroll-smooth overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0a0a] p-3"
       >
         {messages.map((msg) => {
           const isUser = msg.sender === 'user';
@@ -150,7 +150,9 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
                     'p-3 rounded-2xl max-w-xs md:max-w-md lg:max-w-lg break-words whitespace-pre-wrap',
                     'shadow-sm shadow-black/20',
                     'will-change-transform',
-                    isUser ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200',
+                    isUser
+                      ? 'border border-[#52b352]/30 bg-[#52b352]/25 text-white shadow-[0_0_20px_rgba(82,179,82,.12)]'
+                      : 'border border-white/10 bg-white/[0.08] text-white/90',
                     // ✅ animación premium SOLO cuando es nuevo
                     isNew ? (isUser ? 'anim-user' : 'anim-bot') : '',
                   ].join(' ')}
@@ -169,7 +171,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
         {/* Loader premium */}
         {isLoading && (
           <div className="flex justify-start mb-4">
-            <div className="p-3 rounded-2xl bg-gray-700 text-gray-200 shadow-sm shadow-black/20 anim-left">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.08] p-3 text-white/85 shadow-sm shadow-black/20 anim-left">
               <div className="flex items-center gap-2">
                 <span className="text-sm opacity-80">{WRITING}</span>
                 <span className="flex items-center gap-1">
@@ -193,11 +195,11 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
             onKeyDown={handleKeyDown}
             placeholder="Type here..."
             className={[
-              'w-full bg-gray-700 text-white rounded-3xl py-3 px-6 pr-14',
-              'focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400',
-              'resize-none overflow-y-auto text-sm md:text-base',
-              'transition-[transform,box-shadow] duration-150',
-              'focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)]',
+              'w-full rounded-3xl border border-white/12 bg-[#141414] py-3 pl-5 pr-14 text-white',
+              'placeholder:text-white/35 focus:border-[#52b352]/40 focus:outline-none focus:ring-2 focus:ring-[#52b352]/25',
+              'resize-none overflow-hidden text-sm md:text-base',
+              'transition-[transform,box-shadow,border-color] duration-150',
+              'focus:shadow-[0_0_0_3px_rgba(82,179,82,0.12)]',
               isListening ? 'opacity-70' : 'opacity-100',
             ].join(' ')}
             disabled={isLoading || isListening}
@@ -216,7 +218,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
                 'active:scale-95',
                 isListening
                   ? 'bg-red-600 hover:bg-red-700 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]'
-                  : 'bg-gray-600 hover:bg-gray-500',
+                  : 'bg-white/12 hover:bg-white/18 text-white/80',
               ].join(' ')}
               disabled={isLoading}
               title={isListening ? 'Detener grabación' : 'Iniciar dictado por voz'}
@@ -239,8 +241,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
             'transition-all duration-150 ease-out',
             'active:scale-95',
             canSend
-              ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-sm shadow-black/30 anim-pop'
-              : 'bg-gray-600 text-white/60',
+              ? 'border border-[#52b352]/40 bg-[#52b352]/90 text-white shadow-[0_4px_20px_rgba(82,179,82,.25)] hover:bg-[#5ec55e] anim-pop'
+              : 'border border-white/10 bg-white/10 text-white/40',
           ].join(' ')}
           disabled={!canSend}
           title="Enviar"

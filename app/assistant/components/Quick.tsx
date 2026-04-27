@@ -9,7 +9,6 @@ import {
   // Types
   type Block,
   type Project,
-  type ListSection,
   type DateMode,
   type SortBy,
   type ProjectsPayload,
@@ -29,27 +28,39 @@ import {
   isUncTitleBlock,
   insertBlockAfter,
   removeBlock,
-  removeTitleSendChildrenToUnc,
+  removeListAndChildren,
   updateBlock as updateBlockArr,
   addTaskUnderList as addTaskUnderListArr,
   createList as createListArr,
+  createBlankList,
   // UI helpers
   formatPill,
   pillClass,
   labelForYMD,
-  weekdayLabel,
-  fullDateLabel,
   getWeekRangeLabel,
   getMonthRangeLabel,
   todayYMD,
   isValidDateYYYYMMDD,
   addDaysYMD,
-  dayDiffFromToday,
   // Filter / view helpers
   buildHiddenMap,
-  buildListSections,
-  buildSplitDays,
+  buildListVisibilityHiddenMap,
 } from '@/lib/datacenter';
+
+/** First incomplete task under this list with empty text (for Enter → focus instead of duplicating). */
+function findFirstEmptyTaskUnderList(blocks: Block[], listId: string): string | null {
+  const i = blocks.findIndex(b => b.id === listId && b.indent === 0);
+  if (i < 0) return null;
+  for (let j = i + 1; j < blocks.length && blocks[j].indent !== 0; j++) {
+    const t = blocks[j];
+    if (!(t.indent > 0)) continue;
+    if (t.archived === true) continue;
+    if (t.checked === true) continue;
+    if ((t.text || '').trim() !== '') continue;
+    return t.id;
+  }
+  return null;
+}
 
 /* ===================== FX ===================== */
 function ConfettiRain({ show }: { show: boolean }) {
@@ -145,41 +156,13 @@ function QuickProgressBlock({
 
 /* ===================== Actions Panel ===================== */
 function ActionsPanel({
-  dateMode, setDateMode, splitMode, setSplitMode,
-  showEmptyLists, setShowEmptyLists, showHidden, setShowHidden,
+  dateMode, setDateMode, showCompleted, setShowCompleted,
   sortBy, setSortBy,
-  onOpenCalendar,
 }: {
   dateMode: DateMode; setDateMode: (m: DateMode) => void;
-  splitMode: boolean; setSplitMode: (v: boolean | ((p: boolean) => boolean)) => void;
-  showEmptyLists: boolean; setShowEmptyLists: (v: boolean | ((p: boolean) => boolean)) => void;
-  showHidden: boolean; setShowHidden: (v: boolean | ((p: boolean) => boolean)) => void;
+  showCompleted: boolean; setShowCompleted: (v: boolean | ((p: boolean) => boolean)) => void;
   sortBy: SortBy; setSortBy: (v: SortBy) => void;
-  onOpenCalendar: () => void;
 }) {
-  const toggle = (label: string, icon: React.ReactNode, active: boolean, onClick: () => void) => (
-    <button type="button" onClick={onClick}
-      className={['w-full flex items-center justify-between text-[12px] px-3 py-2 rounded-xl transition-all',
-        active
-          ? 'text-[#52b352]'
-          : 'text-white/70 hover:text-white/90'].join(' ')}
-      style={active ? {
-        background: 'linear-gradient(135deg, rgba(82,179,82,.22) 0%, rgba(82,179,82,.1) 100%)',
-        boxShadow: 'inset 0 1px 0 rgba(82,179,82,.12), 0 2px 8px rgba(0,0,0,.25)',
-      } : {
-        background: 'linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.2)',
-      }}>
-      <span className="inline-flex items-center gap-2">
-        <span className="text-white/45">{icon}</span>
-        <span>{label}</span>
-      </span>
-      <span className={['inline-flex h-5 w-9 rounded-full p-[2px] transition-colors', active ? 'bg-[#52b352]/35' : 'bg-white/10'].join(' ')}>
-        <span className={['h-4 w-4 rounded-full transition-transform shadow-sm', active ? 'translate-x-4 bg-[#52b352]' : 'translate-x-0 bg-white'].join(' ')} />
-      </span>
-    </button>
-  );
-
   const filterBtn = (mode: DateMode, label: string, icon: React.ReactNode) => (
     <button type="button" key={mode} onClick={() => setDateMode(mode)}
       className={['w-full text-left text-[12px] px-3 py-2 rounded-xl transition-all',
@@ -199,32 +182,7 @@ function ActionsPanel({
   );
 
   return (
-    <div className="p-2 space-y-2 overflow-y-auto">
-      {toggle(
-        'View by Days',
-        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
-          <rect x="2" y="3" width="12" height="10" rx="2" />
-          <path strokeLinecap="round" d="M2 7.5h12M6.2 3v10M10 3v10" />
-        </svg>,
-        splitMode,
-        () => {
-          const next = !splitMode;
-          setSplitMode(next);
-          if (next && dateMode === 'today') setDateMode('week');
-        },
-      )}
-      {splitMode && toggle(
-        'Show Empty Lists',
-        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
-          <path strokeLinecap="round" d="M3 4.5h10M3 8h10M3 11.5h10" />
-          <circle cx="3" cy="8" r="1" fill="currentColor" stroke="none" />
-        </svg>,
-        showEmptyLists,
-        () => setShowEmptyLists(s => !s),
-      )}
-
-      <div className="h-px bg-white/10 my-1" />
-
+    <div className="p-2 space-y-2">
       <div className="px-1 py-1">
         <div className="text-[11px] text-white/50 mb-1.5 px-2">View By</div>
         <div className="space-y-1">
@@ -285,10 +243,10 @@ function ActionsPanel({
 
       <div className="h-px bg-white/10 my-1" />
 
-      <button type="button" onClick={() => setShowHidden(s => !s)}
+      <button type="button" onClick={() => setShowCompleted(s => !s)}
         className={['w-full text-left text-[12px] px-3 py-2 rounded-xl transition-all',
-          showHidden ? 'text-[#52b352]' : 'text-white/70 hover:text-white/90'].join(' ')}
-        style={showHidden ? {
+          showCompleted ? 'text-[#52b352]' : 'text-white/70 hover:text-white/90'].join(' ')}
+        style={showCompleted ? {
           background: 'linear-gradient(135deg, rgba(82,179,82,.22) 0%, rgba(82,179,82,.1) 100%)',
           boxShadow: 'inset 0 1px 0 rgba(82,179,82,.12), 0 2px 8px rgba(0,0,0,.25)',
         } : {
@@ -298,7 +256,7 @@ function ActionsPanel({
         <span className="inline-flex items-center gap-2">
           <span className="text-white/45">
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
-              {showHidden ? (
+              {showCompleted ? (
                 <>
                   <path strokeLinecap="round" d="M1.8 8s2.4-3.8 6.2-3.8S14.2 8 14.2 8s-2.4 3.8-6.2 3.8S1.8 8 1.8 8z" />
                   <circle cx="8" cy="8" r="1.7" />
@@ -311,24 +269,7 @@ function ActionsPanel({
               )}
             </svg>
           </span>
-          <span>{showHidden ? 'Hide dismissed' : 'Show dismissed'}</span>
-        </span>
-      </button>
-
-      <button type="button" onClick={onOpenCalendar}
-        className="w-full text-left text-[12px] px-3 py-2 rounded-xl text-white/70 hover:text-white/90 transition-all"
-        style={{
-          background: 'linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.2)',
-        }}>
-        <span className="inline-flex items-center gap-2">
-          <span className="text-white/45">
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <rect x="1.5" y="2.5" width="13" height="12" rx="2" />
-              <path strokeLinecap="round" d="M5 1v3M11 1v3M1.5 6.5h13" />
-            </svg>
-          </span>
-          <span>Open calendar</span>
+          <span>{showCompleted ? 'Hide Completed' : 'Show Completed'}</span>
         </span>
       </button>
 
@@ -338,7 +279,17 @@ function ActionsPanel({
 
 /* ===================== Main Component ===================== */
 
-export default function Quick() {
+export type QuickProps = {
+  onOpenPivot?: (detail: {
+    word: string;
+    blockId: string | null;
+    origin: 'quick';
+    listId?: string | null;
+  }) => void;
+};
+
+export default function Quick(props: QuickProps = {}) {
+  const { onOpenPivot } = props;
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
@@ -346,16 +297,14 @@ export default function Quick() {
 
   const [dateMode, setDateMode] = useState<DateMode>('today');
   const [focusDay, setFocusDay] = useState<string>(todayYMD());
-  const [showHidden, setShowHidden] = useState(false);
-  const [splitMode, setSplitMode] = useState(false);
-  const [showEmptyLists, setShowEmptyLists] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(true);
   const [sortBy, setSortBy] = useState<SortBy>('dueDate');
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [calendarPanelOpen, setCalendarPanelOpen] = useState(false);
+  const [editingDateTaskId, setEditingDateTaskId] = useState<string | null>(null);
 
   const inputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
-  const dateRefs  = useRef<Record<string, HTMLInputElement | null>>({});
+  const inlineDateRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const resizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = '1px';
@@ -367,6 +316,21 @@ export default function Quick() {
       if (el instanceof HTMLTextAreaElement) resizeTextarea(el);
     });
   });
+  useEffect(() => {
+    if (!editingDateTaskId) return;
+    const input = inlineDateRefs.current[editingDateTaskId];
+    if (!input) return;
+    requestAnimationFrame(() => {
+      input.focus();
+      try {
+        const picker = input as HTMLInputElement & { showPicker?: () => void };
+        if (typeof picker.showPicker === 'function') picker.showPicker();
+        else input.click();
+      } catch {
+        input.click();
+      }
+    });
+  }, [editingDateTaskId]);
   const dragRef   = useRef<{ id: string; fromIndex: number } | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
@@ -412,10 +376,13 @@ export default function Quick() {
   );
   const currentProject = projects[currentProjectIndex];
   const blocks: Block[]                    = currentProject?.blocks ?? moveUncToTop(ensureUncExists([]));
-  const uncRangeForRows = useMemo(() => findUncRange(blocks), [blocks]);
  const collapsed = useMemo<Record<string, boolean>>(
     () => currentProject?.quickCollapsed ?? {},
     [currentProject?.quickCollapsed],
+  );
+  const visibleLists = useMemo<Record<string, boolean>>(
+    () => currentProject?.visibleLists ?? {},
+    [currentProject?.visibleLists],
   );
 
   /* ── Setters de bloque / collapsed para el proyecto activo ── */
@@ -572,62 +539,30 @@ export default function Quick() {
 
   /* ── Memoized view data (via datacenter helpers) ── */
   const hiddenMap = useMemo(
-    () => buildHiddenMap(blocks, { collapsed, showHidden, dateMode, focusDay, sortBy }),
+    () => buildHiddenMap(blocks, { collapsed, showHidden: false, dateMode, focusDay, sortBy }),
    
-    [blocks, collapsed, showHidden, dateMode, focusDay, sortBy],
+    [blocks, collapsed, dateMode, focusDay, sortBy],
+  );
+  const hiddenByListMap = useMemo(
+    () => buildListVisibilityHiddenMap(blocks, visibleLists),
+    [blocks, visibleLists],
   );
 
-  /** Progress block — always scoped to TODAY's due tasks only */
+  /** Progress block — scoped to tasks currently visible with active filters */
   const progress = useMemo(() => {
-    const today = todayYMD();
-    const todayTasks = blocks.filter(b =>
+    const visibleTasks = blocks.filter(b =>
       b.indent > 0 &&
       b.archived !== true &&
-      isValidDateYYYYMMDD(b.deadline) &&
-      b.deadline === today &&
-      !(b.isHidden === true && !showHidden),
+      (showCompleted || b.checked !== true) &&
+      !hiddenMap[b.id] &&
+      !hiddenByListMap[b.id],
     );
-    const total = todayTasks.length;
-    const done = todayTasks.filter(t => t.checked === true).length;
+    const total = visibleTasks.length;
+    const done = visibleTasks.filter(t => t.checked === true).length;
     const remaining = Math.max(0, total - done);
     const pct = total > 0 ? done / total : 0;
     return { total, done, remaining, pct };
-  }, [blocks, showHidden]);
-
-  /** Calendar “today” — tasks due today (deadline), for fixed footer summary */
-  const todayCompletedSummary = useMemo(() => {
-    const day = todayYMD();
-    const dueToday = blocks.filter(b => {
-      if (b.indent === 0 || b.archived === true) return false;
-      if (b.isHidden === true && !showHidden) return false;
-      return isValidDateYYYYMMDD(b.deadline) && b.deadline === day;
-    });
-    const total = dueToday.length;
-    const completed = dueToday.filter(t => t.checked === true).length;
-    return { total, completed };
-  }, [blocks, showHidden]);
-
-  /** Incomplete tasks with deadline before today (calendar overdue) */
-  const overdueCount = useMemo(() => {
-    return blocks.filter(b => {
-      if (b.indent === 0 || b.archived === true) return false;
-      if (b.isHidden === true && !showHidden) return false;
-      if (b.checked === true) return false;
-      const diff = dayDiffFromToday(b.deadline);
-      return diff !== null && diff < 0;
-    }).length;
-  }, [blocks, showHidden]);
-
-  const listSections = useMemo<ListSection[]>(
-    () => buildListSections(blocks),
-    [blocks],
-  );
-
-  const splitDays = useMemo(
-    () => buildSplitDays({ dateMode, focusDay, blocks, showHidden, sortBy }),
-   
-    [dateMode, focusDay, blocks, showHidden, sortBy],
-  );
+  }, [blocks, hiddenMap, hiddenByListMap, showCompleted]);
 
   const isBrandNewEmpty = useMemo(
     () => blocks.length === 1 && isUncTitleBlock(blocks[0]),
@@ -657,7 +592,7 @@ export default function Quick() {
 
     const willCompleteDay = isChecking && dateMode === 'today' && (() => {
       const tasksForDay = blocks.filter(
-        b => b.indent > 0 && b.archived !== true && !(b.isHidden === true && !showHidden)
+        b => b.indent > 0 && b.archived !== true && b.isHidden !== true
           && isValidDateYYYYMMDD(b.deadline) && b.deadline === focusDay,
       );
       const remaining = tasksForDay.filter(t => t.id !== id && t.checked !== true);
@@ -680,7 +615,7 @@ export default function Quick() {
 
       if (isChecking && dateMode === 'today') {
         const tasksForDay = next.filter(
-          b => b.indent > 0 && b.archived !== true && !(b.isHidden === true && !showHidden)
+          b => b.indent > 0 && b.archived !== true && b.isHidden !== true
             && isValidDateYYYYMMDD(b.deadline) && b.deadline === focusDay,
         );
         if (tasksForDay.length > 0 && tasksForDay.every(t => t.checked === true)) {
@@ -713,10 +648,12 @@ export default function Quick() {
     });
   };
 
-  const handleRemoveTitle = (listId: string) => {
+  const handleConfirmDeleteList = (listId: string) => {
+    setDeleteListConfirmId(null);
+    armedDeleteListRef.current = null;
     setCurrentBlocks(prev => {
       const i = prev.findIndex(b => b.id === listId);
-      const next = removeTitleSendChildrenToUnc(prev, listId);
+      const next = removeListAndChildren(prev, listId);
       if (next === prev) return prev;
       setCurrentCollapsed(c => { const { [listId]: _omit, ...rest } = c; void _omit; return rest; });
       const { uncIndex } = findUncRange(next);
@@ -743,6 +680,23 @@ export default function Quick() {
       if (!el) return;
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.focus(); el.setSelectionRange(0, 0);
+    });
+  };
+
+  const handleCreateBlankList = () => {
+    let newListId = '';
+    setCurrentBlocks(prev => {
+      const result = createBlankList(prev, { focusDay });
+      newListId = result.newListId;
+      return result.blocks;
+    });
+    setCurrentCollapsed(prev => ({ ...prev, [newListId]: false }));
+    requestAnimationFrame(() => {
+      const el = inputRefs.current[newListId];
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.focus();
+      el.setSelectionRange(0, 0);
     });
   };
 
@@ -775,10 +729,20 @@ const handleKey = (
   e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
   b: Block,
 ) => {
+  if (e.key === 'Enter' && e.ctrlKey) {
+    e.preventDefault();
+    handleCreateBlankList();
+    return;
+  }
   if (e.key === 'Enter') {
     e.preventDefault();
     if (b.indent === 0) {
-      // Lista → agregar tarea bajo ella con la fecha del día en foco
+      const reuseId = findFirstEmptyTaskUnderList(blocks, b.id);
+      if (reuseId) {
+        setCurrentCollapsed(prev => ({ ...prev, [b.id]: false }));
+        focusBlock(reuseId, false);
+        return;
+      }
       handleAddTaskUnderList(b.id, isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD());
     } else {
       handleInsertAfter(
@@ -795,10 +759,14 @@ const handleKey = (
   if (e.key === 'Backspace' && b.text === '') {
     if (b.indent === 0) {
       e.preventDefault(); e.stopPropagation();
+      if (isUncTitleBlock(b)) {
+        armedDeleteListRef.current = null;
+        return;
+      }
       const now = Date.now(); const armed = armedDeleteListRef.current;
       if (armed?.id === b.id && now - armed.t < 800) {
         armedDeleteListRef.current = null;
-        handleRemoveTitle(b.id);
+        setDeleteListConfirmId(b.id);
         return;
       }
       armedDeleteListRef.current = { id: b.id, t: now };
@@ -840,7 +808,10 @@ const handleKey = (
   const [listModalOpen, setListModalOpen] = useState(false);
   const [listPickId, setListPickId]       = useState<string>('');
   const [listNewText, setListNewText]     = useState<string>('');
-
+  const [pivotSearch, setPivotSearch]     = useState('');
+  const [deleteListConfirmId, setDeleteListConfirmId] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingListTitleId, setEditingListTitleId] = useState<string | null>(null);
   const confirmListModal = () => {
     const newName = listNewText.trim();
     if (newName) { handleCreateList(newName); setListModalOpen(false); return; }
@@ -871,88 +842,117 @@ const handleKey = (
     return Math.max(60, width + 8 + Math.floor(safe.length * 1.1));
   }
 
-  /* ── Render helpers ── */
-  const renderTaskRow = (b: Block) => {
-    if (hiddenMap[b.id]) return null;
-    const idx = blocks.findIndex(x => x.id === b.id);
-    if (idx < 0) return null;
-    const { uncIndex, start: uncStart, end: uncEnd } = uncRangeForRows;
-    const inUncTasks = uncIndex >= 0 && idx >= uncStart && idx < uncEnd && b.indent > 0;
-    const isDraggingOver = dragOverId === b.id && dragRef.current?.id !== b.id;
-    const isDraggingMe   = dragRef.current?.id === b.id;
-    const paddingLeft = inUncTasks ? 6 : 8 + b.indent * 16;
+  const isClickableWord = (token: string) => {
+    const core = token.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+    return core.length >= 4;
+  };
+
+  const openPivotForWord = (blockId: string, token: string) => {
+    const word = token.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').trim();
+    if (!isClickableWord(word)) return;
+    onOpenPivot?.({ word, blockId, origin: 'quick' });
+  };
+
+  const openPivotForList = (list: Block) => {
+    if (list.indent !== 0) return;
+    if (isUncTitleBlock(list)) return;
+    const title = (list.text || '').trim() || 'List';
+    onOpenPivot?.({ word: title, blockId: list.id, listId: list.id, origin: 'quick' });
+  };
+
+  const listTitleSignature = (value: string) =>
+    value
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(part => part.toLocaleLowerCase())
+      .sort()
+      .join(' ');
+
+  const openPivotFromSearch = (rawValue: string) => {
+    const query = rawValue.trim();
+    if (!query) return;
+
+    const querySignature = listTitleSignature(query);
+    const matchedList = blocks.find(b => {
+      if (b.indent !== 0) return false;
+      if (isUncTitleBlock(b)) return false;
+      if (b.archived === true) return false;
+      const title = (b.text || '').trim();
+      if (!title) return false;
+      return listTitleSignature(title) === querySignature;
+    });
+
+    if (matchedList) {
+      const title = (matchedList.text || '').trim() || query;
+      onOpenPivot?.({
+        word: title,
+        blockId: matchedList.id,
+        listId: matchedList.id,
+        origin: 'quick',
+      });
+      return;
+    }
+
+    onOpenPivot?.({ word: query, blockId: null, origin: 'quick' });
+  };
+
+  const renderTaskTextWithWordHover = (b: Block) => {
+    const isEditing = editingTaskId === b.id;
+    const tokens = b.text.split(/(\s+)/);
     return (
-      <div key={b.id} draggable onDragStart={e => onDragStartRow(e, b.id, idx)} onDragOver={e => onDragOverRow(e, b.id)} onDrop={e => onDropRow(e, b.id)} onDragEnd={onDragEndRow}
-        className={['group flex items-center gap-2 px-0.5 py-1 rounded-md', b.isHidden && showHidden ? 'opacity-40' : '', isDraggingOver ? 'bg-white/7 outline outline-1 outline-white/10' : '', isDraggingMe ? 'opacity-60' : ''].join(' ')}
-        style={{ paddingLeft }}>
-        <div className="w-3 shrink-0 text-white/20 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" title="Drag">⋮⋮</div>
-        <div className="w-3 shrink-0" />
-        <button type="button" onClick={() => handleUpdateBlock(b.id, { checked: !b.checked })}
-          className="relative h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
-          title="Complete">
-          {pulseId === b.id ? (<><span className="absolute -inset-2 rounded-full border border-[#52b352]/35 animate-ping" /><span className="absolute -inset-3 rounded-full border border-[#52b352]/24 animate-ping [animation-delay:90ms]" /><span className="absolute -inset-4 rounded-full border border-[#52b352]/14 animate-ping [animation-delay:160ms]" /><span className="absolute -inset-2 rounded-full bg-[#52b352]/10 blur-sm" /></>) : null}
-          {b.checked ? (
-            <span className="relative flex h-3 w-3 items-center justify-center">
-              <span className="absolute h-2.5 w-2.5 rounded-full bg-[#52b352]/85 blur-[2px]" />
-              <span className="absolute h-1.5 w-1.5 rounded-full bg-[#52b352]" />
-            </span>
-          ) : (
-            <span className="h-3 w-3 rounded border border-white/25 group-hover:border-white/40 transition-colors" />
-          )}
-        </button>
-        <div className="min-w-0 flex-1 flex items-start gap-[6px]">
-          <textarea ref={el => void (inputRefs.current[b.id] = el)} value={b.text} placeholder="Task…"
-            onChange={e => handleUpdateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
-            onInput={e => resizeTextarea(e.currentTarget)}
-            className={['bg-transparent outline-none text-sm resize-none overflow-hidden flex-1 min-w-0 mt-[2px] cursor-pointer transition-opacity duration-150', b.checked ? 'text-white/40 line-through' : 'text-white/80'].join(' ')}
-            style={{ lineHeight: '1.45', minHeight: '1.45em' }} />
-          <button type="button" className={['shrink-0 mt-[2px] text-[11px] px-1.5 py-0.5 rounded-full transition-colors', pillClassNike(b.deadline, b.checked)].join(' ')} title="Set date"
-            onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} el.click(); }}>
-            {formatPill(b.deadline) || '📅'}
-          </button>
-          <input ref={el => void (dateRefs.current[b.id] = el)} type="date" lang="en-US" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; handleUpdateBlock(b.id, { deadline: v ? v : undefined }); }} />
-        </div>
+      <div className="relative flex-1 min-w-0 mt-[2px]">
+        <textarea
+          data-youtask-block={b.id}
+          ref={el => void (inputRefs.current[b.id] = el)}
+          value={b.text}
+          placeholder="Task…"
+          onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
+          onKeyDown={e => handleKey(e, b)}
+          onInput={e => resizeTextarea(e.currentTarget)}
+          onFocus={() => setEditingTaskId(b.id)}
+          onBlur={() => setEditingTaskId(prev => (prev === b.id ? null : prev))}
+          className={[
+            'bg-transparent outline-none text-sm resize-none overflow-hidden w-full min-w-0 transition-opacity duration-150',
+            isEditing ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none absolute inset-0',
+            b.checked ? 'text-white/40 line-through' : 'text-white/80',
+          ].join(' ')}
+          style={{ lineHeight: '1.45', minHeight: '1.45em' }}
+        />
+
+        {!isEditing ? (
+          <div
+            className={['text-sm whitespace-pre-wrap break-words leading-[1.45] min-h-[1.45em]', b.checked ? 'text-white/40 line-through' : 'text-white/80'].join(' ')}
+            onDoubleClick={() => focusBlock(b.id, true)}
+          >
+            {tokens.map((token, idx) => {
+              if (/^\s+$/.test(token)) return <React.Fragment key={`${b.id}-ws-${idx}`}>{token}</React.Fragment>;
+              const clickable = isClickableWord(token);
+              return (
+                <span
+                  key={`${b.id}-tk-${idx}`}
+                  className={clickable ? 'quick-word-clickable' : 'quick-word-muted'}
+                  onClick={clickable ? () => openPivotForWord(b.id, token) : undefined}
+                >
+                  {token}
+                </span>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
     );
   };
 
-  const renderListRow = (list: Block, opts?: { virtualDay?: string; showAddButton?: boolean; subtitle?: string }) => {
-    const showAddButton = opts?.showAddButton !== false;
-    return (
-      <React.Fragment key={`${list.id}${opts?.virtualDay ? `__${opts.virtualDay}` : ''}`}>
-        <div className="group flex items-center gap-2 px-0.5 py-1 rounded-md" style={{ paddingLeft: 2 }}>
-          <div className="w-3 shrink-0 text-white/20 select-none opacity-0">⋮⋮</div>
-          <button type="button" onClick={() => toggleList(list.id)} className="w-3 shrink-0 text-white/35 hover:text-white/60 transition-colors" title={collapsed[list.id] ? 'Expand' : 'Collapse'}>
-            {collapsed[list.id] ? '▸' : '▾'}
-          </button>
-          <div className="min-w-0 flex flex-wrap items-center gap-2 w-full">
-            <input ref={el => void (inputRefs.current[list.id] = el)} value={list.text} placeholder="List…" onChange={e => handleUpdateBlock(list.id, { text: e.target.value })} onKeyDown={e => handleKey(e, list)}
-              className="bg-transparent outline-none text-sm text-white font-semibold flex-none" style={{ width:`${inputWidthPx(list.text)}px` }} />
-            {showAddButton ? (
-          <div className="flex items-center" >
-           <button
-                    type="button"
-                    onClick={() => handleAddTaskUnderList(list.id, opts?.virtualDay)}
-                    className="mt-1 flex items-center justify-center h-9 w-9 rounded-full bg-white/10 text-white/60 text-[18px] hover:text-white hover:bg-white/16 transition"
-                  >
-                    +
-                  </button>
-          </div>
-        ) : null}
-          </div>
-        </div>
-       
-      </React.Fragment>
-    );
-  };
-
+  /* ── Render helpers ── */
   const renderNormalList = () => {
     const { uncIndex, start: uncStart, end: uncEnd } = findUncRange(blocks);
     return (
       <div className="space-y-1 quick-rows">
         {blocks.map((b, idx) => {
           if (uncIndex >= 0 && idx === uncIndex) return null;
-          if (hiddenMap[b.id]) return null;
+          if (hiddenMap[b.id] || hiddenByListMap[b.id]) return null;
+          if (!showCompleted && b.indent > 0 && b.checked === true) return null;
           const isList    = b.indent === 0;
           const isTask    = b.indent > 0;
           const inUncTasks = uncIndex >= 0 && idx >= uncStart && idx < uncEnd && b.indent > 0;
@@ -962,7 +962,7 @@ const handleKey = (
           return (
             <React.Fragment key={b.id}>
               <div draggable onDragStart={e => onDragStartRow(e, b.id, idx)} onDragOver={e => onDragOverRow(e, b.id)} onDrop={e => onDropRow(e, b.id)} onDragEnd={onDragEndRow}
-                className={['group flex items-center gap-2 px-0.5 py-1 rounded-md', b.isHidden && showHidden ? 'opacity-40' : '', isDraggingOver ? 'bg-white/7 outline outline-1 outline-white/10' : '', isDraggingMe ? 'opacity-60' : ''].join(' ')}
+                className={['group flex items-center gap-2 px-0.5 py-1 rounded-md', isDraggingOver ? 'bg-white/7 outline outline-1 outline-white/10' : '', isDraggingMe ? 'opacity-60' : ''].join(' ')}
                 style={{ paddingLeft: isList ? 2 : inUncTasks ? 6 : 8 + b.indent * 16 }}>
                 <div className="w-3 shrink-0 text-white/20 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" title="Drag">⋮⋮</div>
                 {isList ? (
@@ -987,23 +987,83 @@ const handleKey = (
                 ) : null}
                 <div className={['min-w-0 flex-1', isTask ? 'flex items-start gap-[6px]' : 'flex flex-wrap items-center gap-[2px]'].join(' ')}>
                   {isTask ? (
-                    <textarea ref={el => void (inputRefs.current[b.id] = el)} value={b.text} placeholder="Task…"
-                      onChange={e => handleUpdateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
-                      onInput={e => resizeTextarea(e.currentTarget)}
-                      className={['bg-transparent outline-none text-sm resize-none overflow-hidden flex-1 min-w-0 mt-[2px] cursor-pointer transition-opacity duration-150', b.checked ? 'text-white/40 line-through' : 'text-white/80'].join(' ')}
-                      style={{ lineHeight: '1.45', minHeight: '1.45em' }} />
+                    renderTaskTextWithWordHover(b)
+                  ) : isUncList ? (
+                    <input
+                      ref={el => void (inputRefs.current[b.id] = el)}
+                      value={b.text}
+                      placeholder="List…"
+                      onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
+                      onKeyDown={e => handleKey(e, b)}
+                      className="flex-none cursor-pointer bg-transparent text-sm font-semibold text-white outline-none transition-opacity duration-150"
+                      style={{ width: `${inputWidthPx(b.text)}px`, maxWidth: 'calc(100% - 48px)' }}
+                    />
+                  ) : editingListTitleId === b.id ? (
+                    <input
+                      ref={el => void (inputRefs.current[b.id] = el)}
+                      value={b.text}
+                      placeholder="List…"
+                      onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
+                      onKeyDown={e => handleKey(e, b)}
+                      onBlur={() => setEditingListTitleId(null)}
+                      className="flex-none bg-transparent text-sm font-semibold text-white outline-none"
+                      style={{ width: `${inputWidthPx(b.text)}px`, maxWidth: 'calc(100% - 48px)' }}
+                    />
                   ) : (
-                    <input ref={el => void (inputRefs.current[b.id] = el)} value={b.text} placeholder="List…" onChange={e => handleUpdateBlock(b.id, { text: e.target.value })} onKeyDown={e => handleKey(e, b)}
-                      className="bg-transparent outline-none text-sm cursor-pointer transition-opacity duration-150 flex-none text-white font-semibold"
-                      style={{ width:`${inputWidthPx(b.text)}px`, maxWidth: 'calc(100% - 48px)' }} />
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="quick-word-clickable flex-none truncate text-sm font-semibold text-white"
+                      style={{ maxWidth: 'calc(100% - 48px)' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openPivotForList(b);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openPivotForList(b);
+                        }
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setEditingListTitleId(b.id);
+                        requestAnimationFrame(() => inputRefs.current[b.id]?.focus());
+                      }}
+                    >
+                      {(b.text || '').trim() ? b.text : 'List…'}
+                    </span>
                   )}
                   {isTask ? (
                     <>
-                      <button type="button" className={['shrink-0 mt-[2px] text-[11px] px-1.5 py-0.5 rounded-full transition-colors', pillClassNike(b.deadline, b.checked)].join(' ')} title="Set date"
-                        onClick={() => { const el = dateRefs.current[b.id]; if (!el) return; try { (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch {} el.click(); }}>
-                        {formatPill(b.deadline) || '📅'}
-                      </button>
-                      <input ref={el => void (dateRefs.current[b.id] = el)} type="date" lang="en-US" className="hidden" value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''} onChange={e => { const v = e.target.value; handleUpdateBlock(b.id, { deadline: v ? v : undefined }); }} />
+                      {editingDateTaskId === b.id ? (
+                        <input
+                          ref={el => void (inlineDateRefs.current[b.id] = el)}
+                          autoFocus
+                          type="date"
+                          lang="en-US"
+                          className="shrink-0 mt-[2px] text-[11px] px-1.5 py-0.5 rounded-full bg-[#52b352]/16 border border-[#52b352]/35 text-[#52b352] outline-none"
+                          value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''}
+                          onChange={e => {
+                            const v = e.target.value;
+                            handleUpdateBlock(b.id, { deadline: v ? v : undefined });
+                            setEditingDateTaskId(null);
+                          }}
+                          onBlur={() => setEditingDateTaskId(null)}
+                          onKeyDown={e => {
+                            if (e.key === 'Escape' || e.key === 'Enter') setEditingDateTaskId(null);
+                          }}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className={['shrink-0 mt-[2px] text-[11px] px-1.5 py-0.5 rounded-full transition-colors', pillClassNike(b.deadline, b.checked)].join(' ')}
+                          title="Set date"
+                          onClick={() => setEditingDateTaskId(b.id)}
+                        >
+                          {formatPill(b.deadline) || '📅'}
+                        </button>
+                      )}
                     </>
                   ) : null}
                 </div>
@@ -1028,138 +1088,36 @@ const handleKey = (
     );
   };
 
-  const renderSplitView = () => (
-    <div className="space-y-8">
-      {splitDays.map(day => {
-        const daySections = listSections.map(section => ({
-          list: section.list,
-          tasks: section.tasks.filter(t => {
-            if (t.archived === true) return false;
-            if (!showHidden && t.isHidden === true) return false;
-            const date = sortBy === 'createdAt' ? t.createdAt : t.deadline;
-            return isValidDateYYYYMMDD(date) && date === day;
-          }),
-        })).filter(section => showEmptyLists || section.tasks.length > 0);
-        if (!daySections.length) return null;
-        return (
-          <div key={day} className="rounded-2xl overflow-hidden"
-            style={{
-              background: [
-                'linear-gradient(160deg, rgba(82,179,82,.07) 0%, transparent 40%)',
-                'linear-gradient(to bottom, rgba(255,255,255,.05) 0%, transparent 20%)',
-                'rgba(8,8,8,0.58)',
-              ].join(', '),
-              backdropFilter: 'blur(20px) saturate(1.3)',
-              WebkitBackdropFilter: 'blur(20px) saturate(1.3)',
-              border: '1px solid rgba(82,179,82,.10)',
-              boxShadow: [
-                '0 0 0 1px rgba(255,255,255,.04)',
-                'inset 0 1px 0 rgba(255,255,255,.09)',
-                '0 6px 32px rgba(0,0,0,.45)',
-                '0 1px 60px rgba(82,179,82,.04)',
-              ].join(', '),
-            }}>
-            <div className="px-4 py-3 border-b border-white/[0.06]">
-              <div className="text-[18px] md:text-[20px] font-bold text-white/95">{weekdayLabel(day)}</div>
-              <div className="text-[17px] text-white/40 mt-0.5">{labelForYMD(day)} · {fullDateLabel(day)}</div>
-            </div>
-            <div className="p-3 md:p-4 space-y-5">
-              {daySections.map(section => {
-                const isCollapsed = !!collapsed[section.list.id];
-                return (
-                  <div key={`${day}__${section.list.id}`} className="space-y-1">
-                    {renderListRow(section.list, { virtualDay: day, showAddButton: true, subtitle: section.tasks.length ? `${section.tasks.length} task${section.tasks.length === 1 ? '' : 's'}` : 'empty' })}
-                    {!isCollapsed ? (section.tasks.length ? <div className="space-y-1 quick-rows">{section.tasks.map(task => renderTaskRow(task))}</div> : <div className="pl-10 pt-1 text-[11px] text-white/28">No tasks for this day.</div>) : null}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-
   const actionsPanelProps = {
-    dateMode, setDateMode, splitMode, setSplitMode,
-    showEmptyLists, setShowEmptyLists, showHidden, setShowHidden,
+    dateMode, setDateMode, showCompleted, setShowCompleted,
     sortBy, setSortBy,
-    onOpenCalendar: () => {
-      setDrawerOpen(false);
-      setCalendarPanelOpen(true);
-    },
+  };
+
+  const handleMiniCalendarPickDay = (ymd: string) => {
+    setDateMode('today');
+    setFocusDay(ymd);
+    setDrawerOpen(false);
   };
 
   /* ── Render ── */
   return (
-    <div
-      className="h-full w-full min-h-0 text-white overflow-y-auto"
-      style={{
-        background: [
-          'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(82,179,82,.07) 0%, transparent 65%)',
-          'radial-gradient(ellipse 55% 40% at 90%  90%, rgba(82,179,82,.05) 0%, transparent 60%)',
-          'radial-gradient(ellipse 40% 50% at 0%   80%, rgba(50,130,50,.04) 0%, transparent 60%)',
-          'radial-gradient(ellipse 30% 60% at 3%   40%, rgba(82,179,82,.03) 0%, transparent 70%)',
-          '#060606',
-        ].join(', '),
-      }}
-    >
+    <div className="h-full w-full min-h-0 flex flex-col overflow-hidden bg-transparent text-white">
       <ConfettiRain show={showConfetti} />
       <GamificationToast show={toastShow} message={toastMsg} />
-
-      {calendarPanelOpen ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-[200] bg-black/55"
-            onClick={() => setCalendarPanelOpen(false)}
-            aria-label="Close calendar"
-          />
-          <div
-            className="fixed top-0 right-0 h-full z-[201] flex flex-col w-1/2 text-white overflow-hidden"
-            style={{
-              animation: 'quickCalendarPanelIn 0.28s cubic-bezier(.22,.9,.28,1)',
-              background: [
-                'linear-gradient(160deg, rgba(82,179,82,.07) 0%, transparent 35%)',
-                'linear-gradient(to bottom, rgba(255,255,255,.05) 0%, transparent 18%)',
-                'rgba(7,7,7,0.88)',
-              ].join(', '),
-              backdropFilter: 'blur(28px) saturate(1.4)',
-              WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
-              borderLeft: '1px solid rgba(82,179,82,.12)',
-              boxShadow: '-4px 0 60px rgba(0,0,0,.6), inset 1px 0 0 rgba(255,255,255,.05)',
-            }}
-          >
-            <style>{`
-              @keyframes quickCalendarPanelIn {
-                from { transform: translateX(100%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-              }
-            `}</style>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] shrink-0">
-              <h2 className="text-[15px] font-semibold text-white/90">Calendar</h2>
-              <button
-                type="button"
-                onClick={() => setCalendarPanelOpen(false)}
-                className="h-8 w-8 rounded-lg text-white/50 hover:text-white hover:bg-white/12 transition-colors"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3">
-              <MiniCalendar
-                onPickDay={ymd => {
-                  setDateMode('today');
-                  setFocusDay(ymd);
-                  setSplitMode(false);
-                  setCalendarPanelOpen(false);
-                }}
-              />
-            </div>
-          </div>
-        </>
-      ) : null}
+      <style>{`
+        .quick-word-clickable {
+          cursor: pointer;
+        }
+        .quick-word-clickable:hover {
+          text-decoration-line: underline;
+          text-decoration-color: #d5fc43;
+          text-decoration-thickness: 1px;
+          text-underline-offset: 3px;
+        }
+        .quick-word-muted {
+          cursor: default;
+        }
+      `}</style>
 
       {/* Mobile drawer */}
       {drawerOpen && (
@@ -1168,27 +1126,42 @@ const handleKey = (
           <div className="relative w-72 max-w-[85vw] h-full bg-black border-l border-white/10 flex flex-col shadow-2xl overflow-hidden"
             style={{ animation: 'drawerSlideIn 0.25s cubic-bezier(.22,.9,.28,1)' }}>
             <style>{`@keyframes drawerSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
-            <div className="px-4 pt-4 pb-3 border-b border-white/10 shrink-0">
-              <QuickProgressBlock progress={progress} className="mb-3" />
-              <div className="flex items-center justify-between">
-                <span className="text-[13px] font-semibold text-white/80">Actions</span>
-                <button type="button" onClick={() => setDrawerOpen(false)} className="w-7 h-7 flex items-center justify-center rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors">✕</button>
-              </div>
+            <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
+              <span className="text-[13px] font-semibold text-white/80">Pivot Search</span>
+              <button type="button" onClick={() => setDrawerOpen(false)} className="flex h-7 w-7 items-center justify-center rounded-md text-white/50 transition-colors hover:bg-white/10 hover:text-white">✕</button>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
+              <input
+                type="text"
+                value={pivotSearch}
+                onChange={e => setPivotSearch(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    openPivotFromSearch(pivotSearch);
+                    setDrawerOpen(false);
+                  }
+                }}
+                placeholder="Search keyword"
+                className="mb-3 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[12px] text-white/85 outline-none hover:bg-black/25 focus:border-[#52b352]/45"
+              />
+              <QuickProgressBlock progress={progress} className="mb-3" />
+              <div className="mb-3 overflow-hidden rounded-2xl border border-white/10">
+                <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact />
+              </div>
               <ActionsPanel {...actionsPanelProps} />
             </div>
           </div>
         </div>
       )}
 
-      <div className="w-full min-h-0">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8">
-          <div className="flex gap-4">
-            <div className="min-w-0 flex-1">
+      <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-4 py-6 md:px-8 md:py-8">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
 
-              {/* Date pagination header */}
-              <div className="mb-5">
+              {/* Date pagination header — sticky within main column scroll */}
+              <div className="sticky top-0 z-30 mb-5">
                 <div className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3"
                   style={{
                     background: [
@@ -1207,12 +1180,12 @@ const handleKey = (
                   }}>
 
                   {/* Left: navigation */}
-                  <div className="flex items-center gap-2 min-w-[96px]">
+                  <div className="flex items-center gap-1 sm:gap-2 min-w-[120px] sm:min-w-[140px] shrink-0">
                     <button
                       type="button"
                       onClick={navigatePrev}
                       disabled={navDisabled}
-                      className="flex items-center justify-center w-8 h-8 text-[28px] leading-none text-[#52b352] hover:text-[#72d472] transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="grid place-items-center size-8 shrink-0 text-[28px] leading-none text-[#52b352] hover:text-[#72d472] transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                     >
                       ‹
                     </button>
@@ -1221,10 +1194,11 @@ const handleKey = (
                       type="button"
                       onClick={navigateNext}
                       disabled={navDisabled}
-                      className="flex items-center justify-center w-8 h-8 text-[28px] leading-none text-[#52b352] hover:text-[#72d472] transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="grid place-items-center size-8 shrink-0 text-[28px] leading-none text-[#52b352] hover:text-[#72d472] transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                     >
                       ›
                     </button>
+
                   </div>
 
                   {/* Center: title */}
@@ -1263,13 +1237,8 @@ const handleKey = (
                     </div>
                   </div>
 
-                  {/* Right: New List + split badge */}
+                  {/* Right: New List */}
                   <div className="flex items-center justify-end gap-2 min-w-[120px]">
-                    {splitMode ? (
-                      <div className="hidden md:flex rounded-full border border-[#52b352]/35 bg-[#52b352]/15 px-2 py-1 text-[11px] font-medium text-[#52b352]">
-                        {splitDays.length}d
-                      </div>
-                    ) : null}
                     <button
                       type="button"
                       onClick={openNewListModal}
@@ -1291,7 +1260,6 @@ const handleKey = (
                     >
                       <span>⚙</span>
                       <span className="capitalize">{dateMode}</span>
-                      {splitMode ? <span className="h-2 w-2 rounded-full bg-[#52b352]" /> : null}
                     </button>
                   </div>
                 </div>
@@ -1312,56 +1280,70 @@ const handleKey = (
                     </button>
                   <div className="text-[11px] text-white/35 mt-3">Hint: after you create a list, you&apos;ll always see an <span className="text-white/55">+ task</span> button right below it.</div>
                 </div>
-              ) : splitMode ? renderSplitView() : renderNormalList()}
+              ) : renderNormalList()}
+
+              {/* In-flow spacer: fixed footer (z-[45]) does not reserve layout space */}
+              <div
+                aria-hidden
+                className="w-full shrink-0"
+                style={{
+                  height: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
+                }}
+              />
             </div>
 
-            {/* Desktop sidebar */}
-            <div className="hidden md:block w-[220px] shrink-0">
-              <div className="sticky top-6">
-                <div className="rounded-2xl overflow-hidden"
-                  style={{
-                    /* Layered glass: frosted dark base + lime tint + top shine */
-                    background: [
-                      'linear-gradient(160deg, rgba(82,179,82,.07) 0%, transparent 40%)',
-                      'linear-gradient(to bottom, rgba(255,255,255,.06) 0%, transparent 18%)',
-                      'rgba(8,8,8,0.62)',
-                    ].join(', '),
-                    backdropFilter: 'blur(24px) saturate(1.4)',
-                    WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
-                    border: '1px solid rgba(82,179,82,.10)',
-                    boxShadow: [
-                      /* outer glow */
-                      '0 0 0 1px rgba(255,255,255,.05)',
-                      '0 8px 40px rgba(0,0,0,.55)',
-                      '0 2px 80px rgba(82,179,82,.04)',
-                      /* top-edge glass sheen */
-                      'inset 0 1px 0 rgba(255,255,255,.11)',
-                      /* left-edge micro highlight */
-                      'inset 1px 0 0 rgba(255,255,255,.05)',
-                    ].join(', '),
-                  }}>
-                  <div className="px-3 py-3 border-b border-white/[0.07]">
-                    <QuickProgressBlock progress={progress} className="mb-3" />
-                    <div className="text-[11px] text-white/50">Actions</div>
+            {/* Desktop sidebar — outside main scroll: stays fixed while lists scroll */}
+            <div className="hidden max-h-[77vh] min-h-0 w-[270px] shrink-0 flex-col md:flex">
+              <div
+                className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl"
+                style={{
+                  /* Layered glass: frosted dark base + lime tint + top shine */
+                  background: [
+                    'linear-gradient(160deg, rgba(82,179,82,.07) 0%, transparent 40%)',
+                    'linear-gradient(to bottom, rgba(255,255,255,.06) 0%, transparent 18%)',
+                    'rgba(8,8,8,0.62)',
+                  ].join(', '),
+                  backdropFilter: 'blur(24px) saturate(1.4)',
+                  WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
+                  border: '1px solid rgba(82,179,82,.10)',
+                  boxShadow: [
+                    /* outer glow */
+                    '0 0 0 1px rgba(255,255,255,.05)',
+                    '0 8px 40px rgba(0,0,0,.55)',
+                    '0 2px 80px rgba(82,179,82,.04)',
+                    /* top-edge glass sheen */
+                    'inset 0 1px 0 rgba(255,255,255,.11)',
+                    /* left-edge micro highlight */
+                    'inset 1px 0 0 rgba(255,255,255,.05)',
+                  ].join(', '),
+                }}
+              >
+                <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] px-3 py-3">
+                  <QuickProgressBlock progress={progress} className="mb-3" />
+                  <div className="mb-3 overflow-hidden rounded-2xl border border-white/10">
+                    <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact />
                   </div>
-                  <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
-                    <ActionsPanel {...actionsPanelProps} />
-                  </div>
+                  <input
+                    type="text"
+                    value={pivotSearch}
+                    onChange={e => setPivotSearch(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        openPivotFromSearch(pivotSearch);
+                      }
+                    }}
+                    placeholder="Search keyword"
+                    className="mb-3 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[12px] text-white/85 outline-none hover:bg-black/25 focus:border-[#52b352]/45"
+                  />
+                  <ActionsPanel {...actionsPanelProps} />
                 </div>
               </div>
             </div>
 
           </div>
-
-          {/* In-flow spacer: fixed footer (z-[45]) does not reserve layout space */}
-          <div
-            aria-hidden
-            className="shrink-0 w-full"
-            style={{
-              height: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
-            }}
-          />
         </div>
+      </div>
 
         {/* List Modal */}
         {listModalOpen ? (
@@ -1403,43 +1385,49 @@ const handleKey = (
             </div>
           </div>
         ) : null}
-      </div>
 
-      {/* Fixed status bar — darker than Quick bg, today completion summary */}
-      <div
-        className="pointer-events-none fixed bottom-0 left-0 right-0 z-[45] border-t border-white/[0.08] bg-[#060606] px-4 py-2.5 shadow-[0_-8px_24px_rgba(0,0,0,.35)]"
-        role="status"
-        aria-live="polite"
-      >
-        <div className="pointer-events-auto mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <div className="min-w-0 flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
-              Today
-            </span>
-            <span className="text-[12px] text-white/70">
-              <span className="font-semibold text-[#52b352] tabular-nums">{todayCompletedSummary.completed}</span>
-              <span className="text-white/45"> / </span>
-              <span className="tabular-nums text-white/55">{todayCompletedSummary.total}</span>
-              <span className="text-white/40"> · completed</span>
-            </span>
+        {deleteListConfirmId ? (
+          <div className="fixed inset-0 z-[999] flex items-center justify-center">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/60"
+              onClick={() => { setDeleteListConfirmId(null); armedDeleteListRef.current = null; }}
+              aria-label="Close"
+            />
+            <div className="relative w-[92vw] max-w-md rounded-2xl border border-white/10 bg-black shadow-2xl">
+              <div className="px-4 py-3 border-b border-white/10">
+                <div className="text-sm font-semibold text-white/90">Delete list?</div>
+                <p className="text-[12px] text-white/65 mt-2 leading-relaxed">
+                  Are you sure you want to delete this list and all its child tasks?
+                </p>
+                <p className="text-[11px] text-rose-200/90 mt-2">
+                  If you choose Yes, every task in this list is removed permanently.
+                </p>
+                {(() => {
+                  const t = blocks.find(x => x.id === deleteListConfirmId)?.text?.trim();
+                  if (!t) return null;
+                  return <div className="text-[11px] text-white/40 mt-2 truncate" title={t}>List: {t}</div>;
+                })()}
+              </div>
+              <div className="px-4 py-3 border-t border-white/10 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setDeleteListConfirmId(null); armedDeleteListRef.current = null; }}
+                  className="text-[12px] px-3 py-2 rounded-md bg-white/10 text-white/70 hover:text-white/90 hover:bg-white/16 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { if (deleteListConfirmId) handleConfirmDeleteList(deleteListConfirmId); }}
+                  className="text-[12px] px-3 py-2 rounded-md bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
+                >
+                  Yes, delete
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
-              Overdue
-            </span>
-            <span
-              className={[
-                'min-w-[2rem] rounded-lg border px-2.5 py-1 text-center text-[13px] font-semibold tabular-nums',
-                overdueCount > 0
-                  ? 'border-rose-500/35 bg-rose-500/10 text-rose-200'
-                  : 'border-white/10 bg-white/5 text-white/45',
-              ].join(' ')}
-            >
-              {overdueCount}
-            </span>
-          </div>
-        </div>
-      </div>
+        ) : null}
 
       <OnboardingModal />
     </div>
