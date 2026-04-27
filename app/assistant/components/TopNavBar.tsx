@@ -4,8 +4,6 @@ import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { readProjectsLS, writeProjectsLS, cleanupEmptyTasks } from '@/lib/datacenter';
-import HabitsPanel from './HabitsPanel';
-import RemindersPanel from './RemindersPanel';
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 
@@ -25,7 +23,16 @@ interface TopNavBarProps {
   setActiveView: (v: View) => void;
   onHome: () => void;
   sidebarOpen: boolean;
+  onOpenMenu: () => void;
   onToggleSidebar: () => void;
+  habitsOpen: boolean;
+  remindersOpen: boolean;
+  activityOpen: boolean;
+  timelineOpen?: boolean;
+  calendarOpen?: boolean;
+  onToggleHabits: () => void;
+  onToggleReminders: () => void;
+  onToggleActivity: () => void;
 }
 
 const LS_REMINDERS = 'youtask_reminders_v1';
@@ -64,27 +71,16 @@ function isReminderToday(r: Reminder, today: string): boolean {
 }
 
 const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.ReactNode }[] = [
- {
-  id: 'quick',
-  label: 'Daily',
-  mobileLabel: 'Tasks',
-  icon: (
-    <svg
-      viewBox="0 0 16 16"
-      className="w-4 h-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3.5 8.5l3 3 6-7"
-      />
-    </svg>
-  ),
-},
- 
+  {
+    id: 'quick',
+    label: 'Daily',
+    mobileLabel: 'Daily',
+    icon: (
+      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 8.5l3 3 6-7" />
+      </svg>
+    ),
+  },
   {
     id: 'timeline',
     label: 'Timeline',
@@ -114,6 +110,16 @@ const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.Rea
   },
 ];
 
+const SIDEBAR_TAB = {
+  label: 'Lists',
+  mobileLabel: 'Lists',
+  icon: (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 8.5l3 3 6-7" />
+    </svg>
+  ),
+};
+
 const PANEL_NAV: { id: 'habits' | 'reminders'; label: string; mobileLabel: string; icon: React.ReactNode }[] = [
   {
     id: 'habits',
@@ -139,6 +145,16 @@ const PANEL_NAV: { id: 'habits' | 'reminders'; label: string; mobileLabel: strin
   },
 ];
 
+const ACTIVITY_TAB = {
+  label: 'Activity',
+  mobileLabel: 'Activity',
+  icon: (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2 10h2.5l1.2-3 2.1 6 1.8-4H14" />
+    </svg>
+  ),
+};
+
 /*
 {
     id: 'archive',
@@ -158,7 +174,16 @@ export default function TopNavBar({
   activeView,
   setActiveView,
   sidebarOpen,
+  onOpenMenu,
   onToggleSidebar,
+  habitsOpen,
+  remindersOpen,
+  activityOpen,
+  timelineOpen = false,
+  calendarOpen = false,
+  onToggleHabits,
+  onToggleReminders,
+  onToggleActivity,
 }: Omit<TopNavBarProps, 'title' | 'onHome'> & { title?: string; onHome?: () => void }) {
   const router = useRouter();
 
@@ -200,7 +225,6 @@ export default function TopNavBar({
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [hydrated, setHydrated]   = useState(false);
   const [dropOpen, setDropOpen]   = useState(false);
-  const [slidePanel, setSlidePanel] = useState<null | 'habits' | 'reminders'>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const today = todayYMD();
 
@@ -279,19 +303,7 @@ export default function TopNavBar({
         });
       }
     }
-    setSlidePanel(null);
     setActiveView(v);
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch {
-      // ignore
-    } finally {
-      clearPrismaLocalStorage();
-    }
-    router.replace('/');
   };
 
   return (
@@ -323,8 +335,16 @@ export default function TopNavBar({
       <header className="shrink-0 h-12 bg-black border-b border-white/8 flex items-center px-3 md:px-4 gap-2 z-50">
 
         {/* Logo */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="" className="h-9 w-auto object-contain shrink-0" />
+        <button
+          type="button"
+          onClick={onOpenMenu}
+          className="shrink-0 rounded-md transition-opacity hover:opacity-90"
+          aria-label="Open menu"
+          title="Open menu"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="" className="h-9 w-auto object-contain" />
+        </button>
 
         {/* Sidebar toggle */}
         <button
@@ -333,11 +353,11 @@ export default function TopNavBar({
           className={[
             'h-8 w-8 rounded-lg flex items-center justify-center transition-colors shrink-0',
             sidebarOpen
-              ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
-              : 'text-white/50 hover:text-white/85 hover:bg-white/10',
+              ? 'bg-[#d5fc43]/16 text-[#d5fc43]/70'
+              : 'text-white/40 hover:text-white/85 hover:bg-white/10',
           ].join(' ')}
-          aria-label="Toggle sidebar"
-          title="Toggle sidebar"
+          aria-label="Toggle lists sidebar"
+          title="Toggle lists sidebar"
         >
           <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
             <path strokeLinecap="round" d="M2 4h12M2 8h12M2 12h12" />
@@ -351,8 +371,14 @@ export default function TopNavBar({
 
         {/* Nav tabs */}
         <nav className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none">
+          {/* Main views */}
           {NAV_ITEMS.map(item => {
-            const isActive = activeView === item.id;
+            const isActive =
+              item.id === 'timeline'
+                ? activeView === 'timeline' || timelineOpen
+                : item.id === 'calendar'
+                ? activeView === 'calendar' || calendarOpen
+                : activeView === item.id;
             return (
               <button
                 key={item.id}
@@ -371,13 +397,20 @@ export default function TopNavBar({
               </button>
             );
           })}
+
+        </nav>
+
+        {/* Spacer on mobile */}
+        <div className="flex-1 md:hidden" />
+
+        <div className="hidden md:flex items-center gap-0.5 shrink-0">
           {PANEL_NAV.map(item => {
-            const isOpen = slidePanel === item.id;
+            const isOpen = item.id === 'habits' ? habitsOpen : remindersOpen;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setSlidePanel(p => (p === item.id ? null : item.id))}
+                onClick={item.id === 'habits' ? onToggleHabits : onToggleReminders}
                 className={[
                   'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap shrink-0',
                   isOpen
@@ -391,12 +424,25 @@ export default function TopNavBar({
               </button>
             );
           })}
-        </nav>
 
-        {/* Spacer on mobile */}
-        <div className="flex-1 md:hidden" />
+          <button
+            type="button"
+            onClick={onToggleActivity}
+            className={[
+              'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium whitespace-nowrap shrink-0 transition-all duration-150',
+              activityOpen
+                ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
+                : 'text-white/45 hover:text-white/80 hover:bg-white/8',
+            ].join(' ')}
+            aria-expanded={activityOpen}
+            title="Toggle activity log"
+          >
+            <span className={activityOpen ? 'text-[#d5fc43]' : 'text-white/45'}>{ACTIVITY_TAB.icon}</span>
+            <span>{ACTIVITY_TAB.label}</span>
+          </button>
+        </div>
 
-        {/* Divider */}
+        {/* Divider before bell */}
         <div className="w-px h-5 bg-white/10 mx-1 shrink-0" />
 
         {/* ── Bell ── */}
@@ -506,26 +552,31 @@ export default function TopNavBar({
           </div>
         )}
 
-        {/* Logout */}
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="h-8 w-8 rounded-lg flex items-center justify-center text-white/45 hover:text-[#d5fc43] hover:bg-[#d5fc43]/12 transition-colors shrink-0"
-          aria-label="Sign out"
-          title="Sign out"
-        >
-          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <path strokeLinecap="round" d="M6 8h7M11 6l2 2-2 2" />
-            <path strokeLinecap="round" d="M10 4V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-1" />
-          </svg>
-        </button>
-
       </header>
 
       {/* ── Bottom tab bar — mobile only ── */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex bg-black border-t border-white/10 overflow-x-auto">
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
+            sidebarOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
+          }`}
+        >
+          <span className="text-base leading-none">{SIDEBAR_TAB.icon}</span>
+          <span className="text-[9px] font-medium">{SIDEBAR_TAB.mobileLabel}</span>
+          {sidebarOpen && (
+            <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
+          )}
+        </button>
+
         {NAV_ITEMS.map(item => {
-          const isActive = activeView === item.id;
+          const isActive =
+            item.id === 'timeline'
+              ? activeView === 'timeline' || timelineOpen
+              : item.id === 'calendar'
+              ? activeView === 'calendar' || calendarOpen
+              : activeView === item.id;
           return (
             <button
               key={item.id}
@@ -544,12 +595,12 @@ export default function TopNavBar({
           );
         })}
         {PANEL_NAV.map(item => {
-          const isOpen = slidePanel === item.id;
+          const isOpen = item.id === 'habits' ? habitsOpen : remindersOpen;
           return (
             <button
               key={item.id}
               type="button"
-              onClick={() => setSlidePanel(p => (p === item.id ? null : item.id))}
+              onClick={item.id === 'habits' ? onToggleHabits : onToggleReminders}
               className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
                 isOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
               }`}
@@ -564,8 +615,6 @@ export default function TopNavBar({
         })}
       </div>
 
-      <HabitsPanel open={slidePanel === 'habits'} onClose={() => setSlidePanel(null)} />
-      <RemindersPanel open={slidePanel === 'reminders'} onClose={() => setSlidePanel(null)} />
     </>
   );
 }

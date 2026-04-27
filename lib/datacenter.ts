@@ -31,6 +31,7 @@ export type Project = {
   blocks: Block[];
   collapsed: Record<string, boolean>;
   quickCollapsed?: Record<string, boolean>;
+  visibleLists?: Record<string, boolean>;
 };
 
 export type ListSection = {
@@ -91,6 +92,7 @@ type RawProject = {
   blocks?: unknown;
   collapsed?: unknown;
   quickCollapsed?: unknown;
+  visibleLists?: unknown;
   payload?: { blocks?: unknown };
 };
 
@@ -302,6 +304,7 @@ export function makePersonalProject(
   blocks?: Block[],
   collapsed?: Record<string, boolean>,
   quickCollapsed?: Record<string, boolean>,
+  visibleLists?: Record<string, boolean>,
 ): Project {
   return {
     project_id: pid(),
@@ -311,6 +314,7 @@ export function makePersonalProject(
       : moveUncToTop(ensureUncExists([])),
     collapsed: collapsed && typeof collapsed === 'object' ? collapsed : {},
     quickCollapsed: quickCollapsed && typeof quickCollapsed === 'object' ? quickCollapsed : {},
+    visibleLists: visibleLists && typeof visibleLists === 'object' ? visibleLists : {},
   };
 }
 
@@ -369,6 +373,9 @@ export function readProjectsLS(): ProjectsPayload | null {
             : {},
           quickCollapsed: p?.quickCollapsed && typeof p.quickCollapsed === 'object'
             ? p.quickCollapsed as Record<string, boolean>
+            : {},
+          visibleLists: p?.visibleLists && typeof p.visibleLists === 'object'
+            ? p.visibleLists as Record<string, boolean>
             : {},
         })).filter(Boolean)
       : [];
@@ -495,6 +502,41 @@ export function buildHiddenMap(
   return hidden;
 }
 
+export function isListVisible(
+  visibleLists: Record<string, boolean> | undefined,
+  listId: string,
+): boolean {
+  return visibleLists?.[listId] !== false;
+}
+
+export function buildListVisibilityHiddenMap(
+  blocks: Block[],
+  visibleLists: Record<string, boolean> | undefined,
+): Record<string, boolean> {
+  const hidden: Record<string, boolean> = {};
+  let currentListId: string | null = null;
+  let currentListVisible = true;
+
+  for (const b of blocks) {
+    if (b.indent === 0) {
+      if (isUncTitleBlock(b)) {
+        currentListId = null;
+        currentListVisible = true;
+        hidden[b.id] = false;
+        continue;
+      }
+      currentListId = b.id;
+      currentListVisible = isListVisible(visibleLists, b.id);
+      hidden[b.id] = !currentListVisible;
+      continue;
+    }
+
+    hidden[b.id] = Boolean(currentListId && !currentListVisible);
+  }
+
+  return hidden;
+}
+
 export function buildListSections(blocks: Block[]): ListSection[] {
   const sections: ListSection[] = [];
   let current: ListSection | null = null;
@@ -553,6 +595,20 @@ export function removeTitleSendChildrenToUnc(blocks: Block[], listId: string): B
   }
 
   return next;
+}
+
+/** Remove a list title and all nested blocks until the next list (does not move tasks to Uncategorized). */
+export function removeListAndChildren(blocks: Block[], listId: string): Block[] {
+  const i = blocks.findIndex(b => b.id === listId);
+  if (i < 0) return blocks;
+  const list = blocks[i];
+  if (list.indent !== 0 || isUncTitleBlock(list)) return blocks;
+
+  let end = i + 1;
+  while (end < blocks.length && blocks[end].indent !== 0) end++;
+
+  const next = blocks.slice(0, i).concat(blocks.slice(end));
+  return moveUncToTop(ensureUncExists(next));
 }
 
 export function updateBlock(
@@ -668,6 +724,22 @@ export function createList(
   next.splice(insertAt + 1, 0, makeTaskBlock({ id: newTaskId }, opts.focusDay));
 
   return { blocks: next, newListId, newTaskId, existed: false };
+}
+
+/** New list with empty title + one empty task (no duplicate merge on empty name). */
+export function createBlankList(
+  blocks: Block[],
+  opts: { focusDay?: string } = {},
+): { blocks: Block[]; newListId: string; newTaskId: string } {
+  const newListId = uid();
+  const newTaskId = uid();
+  const base = moveUncToTop(ensureUncExists(blocks));
+  const { end: uncEnd } = findUncRange(base);
+  const insertAt = Math.max(uncEnd, base.length);
+  const next = base.slice();
+  next.splice(insertAt, 0, { id: newListId, text: '', indent: 0, createdAt: todayYMD() });
+  next.splice(insertAt + 1, 0, makeTaskBlock({ id: newTaskId }, opts.focusDay));
+  return { blocks: next, newListId, newTaskId };
 }
 
 /* ===================== Block mutations — Sidebar extras ===================== */
@@ -922,6 +994,7 @@ export function readSelectedProject(): {
   blocks: Block[];
   projectTitle: string;
   project_id: string | null;
+  visibleLists: Record<string, boolean>;
 } {
   try {
     const raw = localStorage.getItem(LS_KEY_V2);
@@ -935,6 +1008,12 @@ export function readSelectedProject(): {
             collapsed:  p?.collapsed && typeof p.collapsed === 'object'
               ? p.collapsed as Record<string, boolean>
               : {},
+            quickCollapsed: p?.quickCollapsed && typeof p.quickCollapsed === 'object'
+              ? p.quickCollapsed as Record<string, boolean>
+              : {},
+            visibleLists: p?.visibleLists && typeof p.visibleLists === 'object'
+              ? p.visibleLists as Record<string, boolean>
+              : {},
           }))
         : [];
 
@@ -947,6 +1026,9 @@ export function readSelectedProject(): {
           blocks:       normalizeLoadedBlocks(p?.blocks ?? []),
           projectTitle: (p?.title || 'Project').trim() || 'Project',
           project_id:   p?.project_id || null,
+          visibleLists: p?.visibleLists && typeof p.visibleLists === 'object'
+            ? p.visibleLists as Record<string, boolean>
+            : {},
         };
       }
     }
@@ -954,15 +1036,16 @@ export function readSelectedProject(): {
 
   try {
     const raw = localStorage.getItem(LS_KEY_V1);
-    if (!raw) return { blocks: [], projectTitle: 'General', project_id: null };
+    if (!raw) return { blocks: [], projectTitle: 'General', project_id: null, visibleLists: {} };
     const parsed = JSON.parse(raw) as { blocks?: unknown };
     return {
       blocks:       normalizeLoadedBlocks(parsed?.blocks ?? parsed),
       projectTitle: 'General',
       project_id:   null,
+      visibleLists: {},
     };
   } catch {
-    return { blocks: [], projectTitle: 'General', project_id: null };
+    return { blocks: [], projectTitle: 'General', project_id: null, visibleLists: {} };
   }
 }
 
@@ -1001,6 +1084,12 @@ export function writeSelectedProjectBlocks(
           collapsed:  p?.collapsed && typeof p.collapsed === 'object'
             ? p.collapsed as Record<string, boolean>
             : {},
+          quickCollapsed: p?.quickCollapsed && typeof p.quickCollapsed === 'object'
+            ? p.quickCollapsed as Record<string, boolean>
+            : {},
+          visibleLists: p?.visibleLists && typeof p.visibleLists === 'object'
+            ? p.visibleLists as Record<string, boolean>
+            : {},
         }))
       : [];
     if (!projects.length) return;
@@ -1038,6 +1127,12 @@ export function writeSelectedProject(
           blocks:     normalizeLoadedBlocks(p?.blocks ?? []),
           collapsed:  p?.collapsed && typeof p.collapsed === 'object'
             ? p.collapsed as Record<string, boolean>
+            : {},
+          quickCollapsed: p?.quickCollapsed && typeof p.quickCollapsed === 'object'
+            ? p.quickCollapsed as Record<string, boolean>
+            : {},
+          visibleLists: p?.visibleLists && typeof p.visibleLists === 'object'
+            ? p.visibleLists as Record<string, boolean>
             : {},
         }))
       : [];

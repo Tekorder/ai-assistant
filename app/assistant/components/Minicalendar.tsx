@@ -61,10 +61,11 @@ const MONTH_NAMES = [
 export type MiniCalendarProps = {
   /** If set, clicking a day invokes this (compact picker; no day sidebar) */
   onPickDay?: (ymd: string) => void;
+  compact?: boolean;
 };
 
 /** Compact month grid for side drawer (e.g. Quick). Full app calendar is `Calendar.tsx`. */
-export default function MiniCalendar({ onPickDay }: MiniCalendarProps) {
+export default function MiniCalendar({ onPickDay, compact = false }: MiniCalendarProps) {
   const [blocks, setBlocks]             = useState<Block[]>([]);
   const [hydrated, setHydrated]         = useState(false);
   const [projectTitle, setProjectTitle] = useState<string>('Project');
@@ -190,41 +191,68 @@ export default function MiniCalendar({ onPickDay }: MiniCalendarProps) {
 
   if (!hydrated) {
     return (
-      <div className="h-full w-full bg-[#060606] flex items-center justify-center">
+      <div className="flex h-full w-full items-center justify-center bg-transparent">
         <span className="text-[#d5fc43]/60 text-sm">Loading calendar…</span>
       </div>
     );
   }
 
+  if (compact) {
+    return (
+      <div className="w-full text-white p-2">
+        <div className="flex items-center justify-between mb-2">
+          <button type="button" onClick={prevMonth} className="h-6 w-6 rounded-md bg-white/10 text-white/70 hover:bg-white/16">‹</button>
+          <div className="text-[12px] font-semibold text-white/85">
+            {MONTH_NAMES[viewMonth]} <span className="text-[#52b352]/85">{viewYear}</span>
+          </div>
+          <button type="button" onClick={nextMonth} className="h-6 w-6 rounded-md bg-white/10 text-white/70 hover:bg-white/16">›</button>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {WEEKDAYS_SHORT.map(wd => (
+            <div key={wd} className="text-center text-[9px] text-white/35">{wd[0]}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {grid.map((ymd, idx) => {
+            if (!ymd) return <div key={`empty-${idx}`} className="h-7 rounded-md bg-transparent" />;
+            const isToday = ymd === today;
+            const dayCards = getVisibleDayCards(ymd);
+            const hasPending = dayCards.some(c => !c.checked);
+            const hasDone = dayCards.some(c => c.checked);
+            const [, , day] = ymd.split('-');
+            return (
+              <button
+                key={ymd}
+                type="button"
+                onClick={() => onPickDay?.(ymd)}
+                className={[
+                  'h-7 rounded-md text-[11px] transition-colors',
+                  isToday ? 'bg-[#52b352]/22 text-[#52b352]' : 'text-white/75 hover:bg-white/10',
+                ].join(' ')}
+                title={ymd}
+              >
+                <span className="inline-flex items-center gap-1">
+                  {Number(day)}
+                  {(hasPending || hasDone) ? (
+                    <span className={['h-1.5 w-1.5 rounded-full', hasPending ? 'bg-rose-300/90' : 'bg-emerald-300/90'].join(' ')} />
+                  ) : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full w-full text-white overflow-y-auto"
-      style={{
-        background: [
-          'radial-gradient(ellipse 80% 55% at 50% -5%,  rgba(82,179,82,.08) 0%, transparent 60%)',
-          'radial-gradient(ellipse 55% 40% at 95%  95%,  rgba(82,179,82,.05) 0%, transparent 55%)',
-          'radial-gradient(ellipse 40% 50% at 0%   80%,  rgba(50,130,50,.04) 0%, transparent 60%)',
-          '#060606',
-        ].join(', '),
-      }}>
+    <div className="h-full w-full overflow-y-auto bg-transparent text-white">
       <div className="w-full max-w-[min(100%,1000px)] mx-auto px-2 sm:px-3 py-2 md:py-3">
 
         {/* ── Header / nav bar (compact) ── */}
-        <div className="flex items-center justify-between mb-3 rounded-xl px-2.5 py-2 md:px-3 md:py-2.5"
-          style={{
-            background: [
-              'linear-gradient(135deg, rgba(82,179,82,.07) 0%, transparent 45%)',
-              'linear-gradient(to bottom, rgba(255,255,255,.06) 0%, transparent 30%)',
-              'rgba(10,10,10,0.65)',
-            ].join(', '),
-            backdropFilter: 'blur(18px) saturate(1.3)',
-            WebkitBackdropFilter: 'blur(18px) saturate(1.3)',
-            border: '1px solid rgba(82,179,82,.09)',
-            boxShadow: [
-              '0 0 0 1px rgba(255,255,255,.04)',
-              'inset 0 1px 0 rgba(255,255,255,.09)',
-              '0 4px 24px rgba(0,0,0,.4)',
-            ].join(', '),
-          }}>
+        <div className="mb-3 flex items-center justify-between rounded-xl border border-[#52b352]/12 bg-transparent px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] md:px-3 md:py-2.5">
           <div className="min-w-0">
             <h1 className="text-[15px] md:text-[17px] font-bold text-white leading-tight truncate">
               {MONTH_NAMES[viewMonth]}{' '}
@@ -281,14 +309,10 @@ export default function MiniCalendar({ onPickDay }: MiniCalendarProps) {
         </div>
 
         {/* ── Desktop: 7-col grid ── */}
-        <div className="hidden md:grid grid-cols-7 grid-auto-rows-[minmax(72px,auto)] gap-0.5 rounded-xl overflow-hidden p-0.5"
-          style={{
-            background: 'rgba(8,8,8,0.5)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            border: '1px solid rgba(82,179,82,.08)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,.05), 0 8px 32px rgba(0,0,0,.4)',
-          }}>
+        <div
+          className="hidden md:grid grid-cols-7 grid-auto-rows-[minmax(72px,auto)] gap-0.5 overflow-hidden rounded-xl border border-[#52b352]/10 bg-transparent p-0.5"
+          style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,.05)' }}
+        >
           {grid.map((ymd, idx) => {
             const isToday    = ymd === today;
             const visible    = ymd ? getVisibleDayCards(ymd) : [];
@@ -380,8 +404,6 @@ export default function MiniCalendar({ onPickDay }: MiniCalendarProps) {
                     : hasAnyTask
                     ? 'linear-gradient(145deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)'
                     : 'rgba(88,88,88,.02)',
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
                   border: isToday
                     ? '1px solid rgba(82,179,82,.22)'
                     : isOverdue
