@@ -12,6 +12,7 @@ import Menu from './components/Menu';
 import HabitsPanel from './components/HabitsPanel';
 import RemindersPanel from './components/RemindersPanel';
 import ActivityLogPanel from './components/ActivityLogPanel';
+import { assistantThemes, getAssistantThemeVars, type AssistantThemeName } from './_theme/themes';
 import { PivotPanel, buildPrunedPivotTree, buildListPivotTree, type PivotTreeRow } from './components/Pivot';
 import {
   UNC_TITLE,
@@ -27,8 +28,11 @@ import {
 } from '@/lib/datacenter';
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
+const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
 
 export default function App() {
+  const [selectedTheme, setSelectedTheme] = useState<AssistantThemeName>('purity');
+  const theme = assistantThemes[selectedTheme];
   const [activeView, setActiveView] = useState<View>('quick');
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -44,6 +48,15 @@ export default function App() {
   const PANEL_WIDTH = 320;
 
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+  useEffect(() => {
+    const stored = window.localStorage.getItem(ASSISTANT_THEME_LS_KEY);
+    if (!stored) return;
+    if (stored in assistantThemes) setSelectedTheme(stored as AssistantThemeName);
+  }, []);
+  useEffect(() => {
+    window.localStorage.setItem(ASSISTANT_THEME_LS_KEY, selectedTheme);
+  }, [selectedTheme]);
+
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
     const apply = () => setIsDesktop(mq.matches);
@@ -304,12 +317,21 @@ export default function App() {
       <div
         className="font-inter flex h-screen flex-col"
         style={{
+          ...getAssistantThemeVars(theme),
           background: [
-            'radial-gradient(ellipse 85% 70% at 50% -20%, rgba(82,179,82,.10) 0%, transparent 62%)',
-            'radial-gradient(ellipse 55% 45% at 90% 85%, rgba(82,179,82,.07) 0%, transparent 62%)',
-            'radial-gradient(ellipse 45% 55% at 5% 75%, rgba(42,120,42,.06) 0%, transparent 64%)',
-            '#050505',
+            'linear-gradient(120deg, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-soft), transparent) 0%, transparent 38%)',
+            'linear-gradient(300deg, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-soft), transparent) 0%, transparent 42%)',
+            'radial-gradient(ellipse 120% 95% at 50% -30%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-boost), transparent) 0%, transparent 58%)',
+            'radial-gradient(ellipse 88% 70% at 16% 10%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-tone2), transparent) 0%, transparent 62%)',
+            'radial-gradient(ellipse 78% 65% at 88% 14%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 64%)',
+            'radial-gradient(ellipse 80% 68% at 96% 88%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-mid), transparent) 0%, transparent 66%)',
+            'radial-gradient(ellipse 76% 70% at 6% 84%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 67%)',
+            'radial-gradient(ellipse 96% 78% at 50% 122%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-soft), transparent) 0%, transparent 72%)',
+            'radial-gradient(ellipse 90% 48% at 50% 50%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-center), transparent) 0%, transparent 70%)',
+            'linear-gradient(to bottom, rgba(255,255,255,.035) 0%, rgba(255,255,255,.01) 16%, rgba(0,0,0,.18) 100%)',
+            'var(--assistant-bg)',
           ].join(', '),
+          color: 'var(--assistant-text)',
         }}
       >
         <TopNavBar
@@ -335,8 +357,8 @@ export default function App() {
 
           {(sidebarOpen || sidebarClosing) && (
             <button
-              className="absolute inset-0 bg-black/50 transition-opacity duration-200"
-              style={{ opacity: sidebarVisualOpen ? 1 : 0 }}
+              className="absolute inset-0 transition-opacity duration-200"
+              style={{ background: 'var(--assistant-overlay)', opacity: sidebarVisualOpen ? 1 : 0 }}
               onClick={requestCloseSidebar}
               aria-label="Close sidebar"
             />
@@ -349,7 +371,11 @@ export default function App() {
             ].join(' ')}
           >
             <div className="h-full overflow-hidden">
-              <Sidebar onOpenPivot={requestOpenPivot} />
+              <Sidebar
+                onOpenPivot={requestOpenPivot}
+                selectedTheme={selectedTheme}
+                onSelectTheme={setSelectedTheme}
+              />
             </div>
           </div>
         </div>
@@ -364,6 +390,8 @@ export default function App() {
           <div
             className="h-full"
             style={{
+              height: '85vh',
+              marginTop: '12px',
               width: sidebarVisualOpen ? MIN_SIDEBAR : 0,
               opacity: sidebarVisualOpen ? 1 : 0,
               transform: sidebarVisualOpen ? 'translateX(0)' : 'translateX(-10px)',
@@ -375,26 +403,30 @@ export default function App() {
               style={{
                 width: MIN_SIDEBAR,
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.04)',
+                  'inset 0 1px 0 rgba(255,255,255,.04), 0 6px 16px rgba(0,0,0,.14)',
               }}
             >
               <button
                 type="button"
-                  onClick={requestCloseSidebar}
-                className="absolute right-5 top-3 z-[120] flex h-8 w-8 items-center justify-center rounded-md bg-black/35 text-white transition-colors hover:bg-black/55 hover:text-white"
+                onClick={requestCloseSidebar}
+                className="absolute right-5 top-4 z-[120] flex h-8 w-8 items-center justify-center rounded-md text-white transition-colors hover:text-white"
+                style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)' }}
                 aria-label="Close sidebar"
                 title="Close sidebar"
               >
                 ✕
               </button>
-              <Sidebar onOpenPivot={requestOpenPivot} />
+              <Sidebar
+                onOpenPivot={requestOpenPivot}
+                selectedTheme={selectedTheme}
+                onSelectTheme={setSelectedTheme}
+              />
             </div>
           </div>
 
           <div
             className="min-h-0 shrink-0 overflow-hidden"
             style={{
-              width: mainPanelWidth,
               minWidth: mainPanelWidth,
               marginLeft: mainPanelSolo ? 'auto' : undefined,
               marginRight: mainPanelSolo ? 'auto' : undefined,
@@ -404,9 +436,9 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 minWidth: `calc(${mainPanelWidth} - 1.5rem)`,
-                border: '1px solid rgba(82,179,82,.5)',
+                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 50%, transparent)',
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.06)',
+                  'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
               }}
             >
               {renderView()}
@@ -425,7 +457,7 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05)',
+                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
               }}
             >
               {isDesktop && habitsOpen && (
@@ -446,7 +478,7 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05)',
+                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
               }}
             >
               {isDesktop && remindersOpen && (
@@ -467,7 +499,7 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05)',
+                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
               }}
             >
               {isDesktop && activityOpen && (
@@ -496,7 +528,7 @@ export default function App() {
                   className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
                   style={{
                     boxShadow:
-                      'inset 0 1px 0 rgba(255,255,255,.05)',
+                      'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
                   }}
                 >
                   <PivotPanel
@@ -555,7 +587,8 @@ export default function App() {
           <>
             <button
               type="button"
-              className="fixed inset-0 z-[9998] bg-black/50"
+              className="fixed inset-0 z-[9998]"
+              style={{ background: 'var(--assistant-overlay)' }}
               onClick={closeChatOverlay}
               aria-label="Close AI overlay"
             />
@@ -569,18 +602,33 @@ export default function App() {
                 'flex flex-col overflow-hidden',
               ].join(' ')}
               style={{
-                background: '#050505',
-                border: '1px solid rgba(82,179,82,.5)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06)',
+                background: 'var(--assistant-glass-bg)',
+                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 50%, transparent)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
               }}
             >
-              <div className="flex shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#050505] px-4 py-3">
+              <div
+                className="flex shrink-0 items-center justify-between border-b px-4 py-3"
+                style={{ borderColor: 'var(--assistant-border-soft)', background: 'var(--assistant-bg)' }}
+              >
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-[#52b352] opacity-60 animate-ping" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[#52b352] shadow-[0_0_10px_rgba(82,179,82,.8)]" />
+                    <span
+                      className="absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping"
+                      style={{ background: 'var(--assistant-tone-1)' }}
+                    />
+                    <span
+                      className="relative inline-flex h-2 w-2 rounded-full"
+                      style={{
+                        background: 'var(--assistant-tone-1)',
+                        boxShadow: '0 0 10px color-mix(in srgb, var(--assistant-tone-1) 80%, transparent)',
+                      }}
+                    />
                   </span>
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#52b352]/90">
+                  <span
+                    className="text-[11px] font-semibold uppercase tracking-[0.16em]"
+                    style={{ color: 'color-mix(in srgb, var(--assistant-tone-1) 90%, transparent)' }}
+                  >
                     Assistant
                   </span>
                   <span className="text-sm font-semibold text-white/90">AI chat</span>
@@ -594,7 +642,7 @@ export default function App() {
                   ✕
                 </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden bg-[#050505]">
+              <div className="min-h-0 flex-1 overflow-hidden" style={{ background: 'var(--assistant-bg)' }}>
                 <ChatBox showReminders={false} onCloseReminders={() => {}} />
               </div>
             </div>
@@ -605,7 +653,8 @@ export default function App() {
 
 
         <div
-          className="pointer-events-none fixed bottom-0 left-0 right-0 z-[45] border-t border-white/[0.08] bg-black px-4 py-2.5"
+          className="pointer-events-none fixed bottom-0 left-0 right-0 z-[45] border-t px-4 py-2.5"
+          style={{ borderColor: 'var(--assistant-border-soft)', background: 'var(--assistant-bg)' }}
           role="status"
           aria-live="polite"
         >
@@ -615,7 +664,9 @@ export default function App() {
                 Today
               </span>
               <span className="text-[12px] text-white/70">
-                <span className="font-semibold text-[#52b352] tabular-nums">{todayCompletedSummary.completed}</span>
+                <span className="font-semibold tabular-nums" style={{ color: 'var(--assistant-tone-1)' }}>
+                  {todayCompletedSummary.completed}
+                </span>
                 <span className="text-white/45"> / </span>
                 <span className="tabular-nums text-white/55">{todayCompletedSummary.total}</span>
                 <span className="text-white/40"> · completed</span>
@@ -647,8 +698,14 @@ export default function App() {
           title={chatOpen ? 'Close chat' : 'AI Assistant'}
         >
           <span className="pointer-events-none absolute -right-1 -top-1">
-            <span className="absolute inline-flex h-3 w-3 rounded-full bg-green-400 opacity-75 animate-ping" />
-            <span className="relative inline-flex h-3 w-3 rounded-full border border-black/30 bg-green-400" />
+            <span
+              className="absolute inline-flex h-3 w-3 rounded-full opacity-75 animate-ping"
+              style={{ background: 'var(--assistant-tone-1)' }}
+            />
+            <span
+              className="relative inline-flex h-3 w-3 rounded-full border border-black/30"
+              style={{ background: 'var(--assistant-tone-1)' }}
+            />
           </span>
 
           {chatOpen ? (
@@ -663,6 +720,57 @@ export default function App() {
             </svg>
           )}
         </button>
+
+        <style jsx global>{`
+          [class*='bg-[#050505]'] { background-color: var(--assistant-bg) !important; }
+          [class*='text-[#52b352]'] { color: var(--assistant-tone-1) !important; }
+          [class*='bg-[#52b352]'] { background-color: var(--assistant-tone-1) !important; }
+          [class*='border-[#52b352]'] { border-color: color-mix(in srgb, var(--assistant-tone-1) 60%, transparent) !important; }
+          [class*='text-[#d5fc43]'] { color: var(--assistant-tone-2) !important; }
+          [class*='bg-[#d5fc43]'] { background-color: var(--assistant-tone-2) !important; }
+          [class*='border-[#d5fc43]'] { border-color: color-mix(in srgb, var(--assistant-tone-2) 55%, transparent) !important; }
+
+          /* Active chips/buttons that used same bg/text tone: force white label/icon for contrast */
+          [class*='bg-[#d5fc43]'][class*='text-[#d5fc43]'],
+          [class*='bg-[#52b352]'][class*='text-[#52b352]'] {
+            color: #fff !important;
+          }
+          [class*='bg-[#d5fc43]'][class*='text-[#d5fc43]'] [class*='text-[#d5fc43]'],
+          [class*='bg-[#52b352]'][class*='text-[#52b352]'] [class*='text-[#52b352]'] {
+            color: #fff !important;
+          }
+          [class*='bg-[#52b352]'][class*='text-[#52b352]'] {
+            background-color: color-mix(in srgb, var(--assistant-tone-3) 82%, black) !important;
+          }
+          [class*='bg-[#52b352]'][class*='text-[#52b352]'][class*='hover:bg-[#52b352]']:hover {
+            background-color: color-mix(in srgb, var(--assistant-tone-3) 90%, black) !important;
+          }
+
+          /* Date pill combo in Quick: make it dark and readable */
+          [class*='bg-emerald-'][class*='text-emerald-'],
+          [class*='bg-green-'][class*='text-green-'] {
+            background-color: color-mix(in srgb, var(--assistant-tone-3) 80%, black) !important;
+            color: #fff !important;
+          }
+          [class*='hover:bg-emerald-']:hover,
+          [class*='hover:bg-green-']:hover {
+            background-color: color-mix(in srgb, var(--assistant-tone-3) 88%, black) !important;
+          }
+
+          /* Normalize hardcoded green/emerald utilities into current theme */
+          [class*='text-emerald-'],
+          [class*='text-green-'] {
+            color: var(--assistant-tone-1) !important;
+          }
+          [class*='bg-emerald-'],
+          [class*='bg-green-'] {
+            background-color: var(--assistant-tone-1) !important;
+          }
+          [class*='border-emerald-'],
+          [class*='border-green-'] {
+            border-color: color-mix(in srgb, var(--assistant-tone-1) 60%, transparent) !important;
+          }
+        `}</style>
       </div>
     </RemindersProvider>
   );

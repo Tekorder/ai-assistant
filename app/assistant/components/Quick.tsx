@@ -97,7 +97,7 @@ function GamificationToast({ show, message }: { show: boolean; message: string }
         @keyframes gamiShine{0%{transform:translateX(-160%) skewX(-20deg);opacity:0}10%{opacity:.10}25%{opacity:.22}40%{opacity:.10}100%{transform:translateX(260%) skewX(-20deg);opacity:0}}
         @keyframes gamiPulseGlow{0%,100%{box-shadow:0 10px 30px rgba(82,179,82,.14),inset 0 1px 0 rgba(255,255,255,.06)}50%{box-shadow:0 12px 38px rgba(82,179,82,.22),inset 0 1px 0 rgba(255,255,255,.09)}}
       `}</style>
-      <div className="pointer-events-none fixed left-1/2 bottom-24 md:bottom-8 z-[9998]">
+      <div className="pointer-events-none fixed left-1/2 bottom-32 md:bottom-16 z-[10020]">
         <div className="relative overflow-hidden min-w-[320px] md:min-w-[420px] max-w-[90vw] rounded-3xl border border-[#52b352]/25 bg-black/90 backdrop-blur-xl px-6 py-5 md:px-8 md:py-6 text-center"
           style={{ transform:'translateX(-50%)', animation:'gamiToastIn .35s cubic-bezier(.22,.9,.28,1), gamiPulseGlow 1.6s ease-in-out infinite' }}>
           <span className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-white/10 blur-md" style={{ animation:'gamiShine 2.8s ease-in-out infinite' }} />
@@ -166,10 +166,12 @@ function ActionsPanel({
   const filterBtn = (mode: DateMode, label: string, icon: React.ReactNode) => (
     <button type="button" key={mode} onClick={() => setDateMode(mode)}
       className={['w-full text-left text-[12px] px-3 py-2 rounded-xl transition-all',
-        dateMode === mode ? 'text-[#52b352]' : 'text-white/70 hover:text-white/90'].join(' ')}
+        dateMode === mode ? 'text-white' : 'text-white/70 hover:text-white/90'].join(' ')}
       style={dateMode === mode ? {
-        background: 'linear-gradient(135deg, rgba(82,179,82,.22) 0%, rgba(82,179,82,.1) 100%)',
-        boxShadow: 'inset 0 1px 0 rgba(82,179,82,.12), 0 2px 8px rgba(0,0,0,.25)',
+        background:
+          'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 22%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent) 100%)',
+        boxShadow:
+          'inset 0 1px 0 color-mix(in srgb, var(--assistant-tone-1, #52b352) 12%, transparent), 0 2px 8px rgba(0,0,0,.25)',
       } : {
         background: 'linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.2)',
@@ -189,10 +191,12 @@ function ActionsPanel({
           {([['dueDate', 'Due Date'], ['createdAt', 'Created Date']] as const).map(([value, label]) => (
             <button key={value} type="button" onClick={() => setSortBy(value)}
               className={['w-full text-left text-[12px] px-3 py-2 rounded-xl transition-all',
-                sortBy === value ? 'text-[#52b352]' : 'text-white/70 hover:text-white/90'].join(' ')}
+                sortBy === value ? 'text-white' : 'text-white/70 hover:text-white/90'].join(' ')}
               style={sortBy === value ? {
-                background: 'linear-gradient(135deg, rgba(82,179,82,.22) 0%, rgba(82,179,82,.10) 100%)',
-                boxShadow: 'inset 0 1px 0 rgba(82,179,82,.12), 0 2px 8px rgba(0,0,0,.25)',
+                background:
+                  'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 22%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent) 100%)',
+                boxShadow:
+                  'inset 0 1px 0 color-mix(in srgb, var(--assistant-tone-1, #52b352) 12%, transparent), 0 2px 8px rgba(0,0,0,.25)',
               } : {
                 background: 'linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)',
                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.2)',
@@ -245,10 +249,12 @@ function ActionsPanel({
 
       <button type="button" onClick={() => setShowCompleted(s => !s)}
         className={['w-full text-left text-[12px] px-3 py-2 rounded-xl transition-all',
-          showCompleted ? 'text-[#52b352]' : 'text-white/70 hover:text-white/90'].join(' ')}
+          showCompleted ? 'text-white' : 'text-white/70 hover:text-white/90'].join(' ')}
         style={showCompleted ? {
-          background: 'linear-gradient(135deg, rgba(82,179,82,.22) 0%, rgba(82,179,82,.1) 100%)',
-          boxShadow: 'inset 0 1px 0 rgba(82,179,82,.12), 0 2px 8px rgba(0,0,0,.25)',
+          background:
+            'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 22%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent) 100%)',
+          boxShadow:
+            'inset 0 1px 0 color-mix(in srgb, var(--assistant-tone-1, #52b352) 12%, transparent), 0 2px 8px rgba(0,0,0,.25)',
         } : {
           background: 'linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)',
           boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.2)',
@@ -843,12 +849,13 @@ const handleKey = (
   }
 
   const isClickableWord = (token: string) => {
-    const core = token.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
-    return core.length >= 4;
+    const core = token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+    if (core.length < 2) return false;
+    return /[\p{L}]/u.test(core);
   };
 
   const openPivotForWord = (blockId: string, token: string) => {
-    const word = token.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').trim();
+    const word = token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').trim();
     if (!isClickableWord(word)) return;
     onOpenPivot?.({ word, blockId, origin: 'quick' });
   };
@@ -931,7 +938,11 @@ const handleKey = (
               return (
                 <span
                   key={`${b.id}-tk-${idx}`}
-                  className={clickable ? 'quick-word-clickable' : 'quick-word-muted'}
+                  className={
+                    clickable
+                      ? 'cursor-pointer hover:underline decoration-[var(--assistant-tone-1,#52b352)] underline-offset-[3px]'
+                      : 'cursor-default'
+                  }
                   onClick={clickable ? () => openPivotForWord(b.id, token) : undefined}
                 >
                   {token}
@@ -1071,10 +1082,12 @@ const handleKey = (
                   <button
                     type="button"
                     onClick={() => handleAddTaskUnderList(b.id)}
-                    className="ml-auto shrink-0 text-[18px] w-7 h-7 flex items-center justify-center rounded-full text-black transition-all hover:scale-105 hover:shadow-lg"
+                    className="ml-auto shrink-0 text-[18px] w-7 h-7 flex items-center justify-center rounded-full text-white transition-all hover:scale-105 hover:shadow-lg"
                     style={{
-                      background: 'linear-gradient(145deg, #72d472 0%, #52b352 55%, #2e8b2e 100%)',
-                      boxShadow: '0 2px 10px rgba(82,179,82,.35), inset 0 1px 0 rgba(255,255,255,.3)',
+                      background:
+                        'linear-gradient(145deg, color-mix(in srgb, var(--assistant-tone-3, #0f5f94) 85%, black) 0%, color-mix(in srgb, var(--assistant-tone-3, #0f5f94) 92%, black) 55%, color-mix(in srgb, var(--assistant-tone-3, #0f5f94) 72%, var(--assistant-tone-1, #0c263d)) 100%)',
+                      boxShadow:
+                        '0 2px 10px color-mix(in srgb, var(--assistant-tone-3, #0f5f94) 45%, transparent), inset 0 1px 0 rgba(255,255,255,.18)',
                     }}
                   >
                     +
@@ -1105,18 +1118,7 @@ const handleKey = (
       <ConfettiRain show={showConfetti} />
       <GamificationToast show={toastShow} message={toastMsg} />
       <style>{`
-        .quick-word-clickable {
-          cursor: pointer;
-        }
-        .quick-word-clickable:hover {
-          text-decoration-line: underline;
-          text-decoration-color: #d5fc43;
-          text-decoration-thickness: 1px;
-          text-underline-offset: 3px;
-        }
-        .quick-word-muted {
-          cursor: default;
-        }
+        .quick-word-clickable { cursor: pointer; }
       `}</style>
 
       {/* Mobile drawer */}
@@ -1165,13 +1167,13 @@ const handleKey = (
                 <div className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3"
                   style={{
                     background: [
-                      'linear-gradient(135deg, rgba(82,179,82,.06) 0%, transparent 45%)',
+                      'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 6%, transparent) 0%, transparent 45%)',
                       'linear-gradient(to bottom, rgba(255,255,255,.07) 0%, transparent 30%)',
                       'rgba(10,10,10,0.65)',
                     ].join(', '),
                     backdropFilter: 'blur(18px) saturate(1.3)',
                     WebkitBackdropFilter: 'blur(18px) saturate(1.3)',
-                    border: '1px solid rgba(82,179,82,.09)',
+                    border: '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 9%, transparent)',
                     boxShadow: [
                       '0 0 0 1px rgba(255,255,255,.04)',
                       'inset 0 1px 0 rgba(255,255,255,.10)',
@@ -1185,7 +1187,7 @@ const handleKey = (
                       type="button"
                       onClick={navigatePrev}
                       disabled={navDisabled}
-                      className="grid place-items-center size-8 shrink-0 text-[28px] leading-none text-[#52b352] hover:text-[#72d472] transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="grid place-items-center size-8 shrink-0 text-[28px] leading-none text-[#52b352] hover:text-white transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                     >
                       ‹
                     </button>
@@ -1194,7 +1196,7 @@ const handleKey = (
                       type="button"
                       onClick={navigateNext}
                       disabled={navDisabled}
-                      className="grid place-items-center size-8 shrink-0 text-[28px] leading-none text-[#52b352] hover:text-[#72d472] transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="grid place-items-center size-8 shrink-0 text-[28px] leading-none text-[#52b352] hover:text-white transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                     >
                       ›
                     </button>
@@ -1242,10 +1244,12 @@ const handleKey = (
                     <button
                       type="button"
                       onClick={openNewListModal}
-                      className="hidden md:flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-xl text-[#52b352] transition-all hover:scale-105"
+                      className="hidden md:flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-xl text-white/95 transition-all hover:scale-105"
                       style={{
-                        background: 'linear-gradient(135deg, rgba(82,179,82,.22) 0%, rgba(82,179,82,.10) 100%)',
-                        boxShadow: 'inset 0 1px 0 rgba(82,179,82,.12), 0 2px 8px rgba(0,0,0,.25)',
+                        background:
+                          'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 22%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent) 100%)',
+                        boxShadow:
+                          'inset 0 1px 0 color-mix(in srgb, var(--assistant-tone-1, #52b352) 12%, transparent), 0 2px 8px rgba(0,0,0,.25)',
                       }}
                     >
                       <span className="text-[15px] leading-none">+</span>
@@ -1299,18 +1303,18 @@ const handleKey = (
                 style={{
                   /* Layered glass: frosted dark base + lime tint + top shine */
                   background: [
-                    'linear-gradient(160deg, rgba(82,179,82,.07) 0%, transparent 40%)',
+                    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 7%, transparent) 0%, transparent 40%)',
                     'linear-gradient(to bottom, rgba(255,255,255,.06) 0%, transparent 18%)',
                     'rgba(8,8,8,0.62)',
                   ].join(', '),
                   backdropFilter: 'blur(24px) saturate(1.4)',
                   WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
-                  border: '1px solid rgba(82,179,82,.10)',
+                  border: '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent)',
                   boxShadow: [
                     /* outer glow */
                     '0 0 0 1px rgba(255,255,255,.05)',
                     '0 8px 40px rgba(0,0,0,.55)',
-                    '0 2px 80px rgba(82,179,82,.04)',
+                    '0 2px 80px color-mix(in srgb, var(--assistant-tone-1, #52b352) 4%, transparent)',
                     /* top-edge glass sheen */
                     'inset 0 1px 0 rgba(255,255,255,.11)',
                     /* left-edge micro highlight */

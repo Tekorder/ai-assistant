@@ -96,9 +96,15 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
   };
 
   return (
-    <div className="relative flex h-full w-full flex-col bg-[#050505]">
+    <div className="relative flex h-full w-full flex-col" style={{ background: 'var(--assistant-bg, #050505)' }}>
       {pendingTask && !showReminders && (
-        <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between border-b border-[#52b352]/30 bg-[#52b352]/25 px-4 py-2 text-sm text-white shadow-lg">
+        <div
+          className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between border-b px-4 py-2 text-sm text-white shadow-lg"
+          style={{
+            borderColor: 'color-mix(in srgb, var(--assistant-tone-1, #52b352) 30%, transparent)',
+            background: 'color-mix(in srgb, var(--assistant-tone-1, #52b352) 25%, transparent)',
+          }}
+        >
           <div className="flex items-center gap-2">
             <span className="animate-pulse">💬</span>
             <span className="font-medium">
@@ -119,7 +125,8 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
         <div className="relative flex-1">
           <button
             onClick={onCloseReminders}
-            className="absolute top-4 right-4 z-10 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition"
+            className="absolute top-4 right-4 z-10 rounded-md px-4 py-2 text-white transition"
+            style={{ background: 'var(--assistant-tone-1, #52b352)' }}
           >
             back
           </button>

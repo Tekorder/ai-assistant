@@ -553,7 +553,8 @@ export default function CalendarView() {
               onClick={goToday}
               className="text-[11px] px-3 py-1.5 rounded-xl border border-[#52b352]/40 text-[#52b352] transition-all hover:scale-105"
               style={{
-                background: 'linear-gradient(135deg, rgba(82,179,82,.2) 0%, rgba(82,179,82,.1) 100%)',
+                background:
+                  'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 20%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent) 100%)',
                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,.1), 0 2px 8px rgba(0,0,0,.25)',
               }}
             >
@@ -562,22 +563,14 @@ export default function CalendarView() {
             <button
               type="button"
               onClick={prevMonth}
-              className="h-8 w-8 rounded-full border border-[#52b352]/70 text-black transition-all hover:scale-105 flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(145deg, #72d472 0%, #52b352 55%, #2e8b2e 100%)',
-                boxShadow: '0 2px 10px rgba(82,179,82,.3), inset 0 1px 0 rgba(255,255,255,.3)',
-              }}
+              className="h-8 w-8 flex items-center justify-center text-white/80 transition-colors hover:text-white"
             >
               ‹
             </button>
             <button
               type="button"
               onClick={nextMonth}
-              className="h-8 w-8 rounded-full border border-[#52b352]/70 text-black transition-all hover:scale-105 flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(145deg, #72d472 0%, #52b352 55%, #2e8b2e 100%)',
-                boxShadow: '0 2px 10px rgba(82,179,82,.3), inset 0 1px 0 rgba(255,255,255,.3)',
-              }}
+              className="h-8 w-8 flex items-center justify-center text-white/80 transition-colors hover:text-white"
             >
               ›
             </button>
@@ -587,7 +580,7 @@ export default function CalendarView() {
         {/* ── Weekday headers ── */}
         <div className="grid grid-cols-7 mb-1">
           {WEEKDAYS_SHORT.map(wd => (
-            <div key={wd} className="text-center text-[11px] font-semibold text-[#d5fc43]/55 py-2 uppercase tracking-wider">
+            <div key={wd} className="text-center py-2 text-[11px] font-semibold uppercase tracking-wider text-white/75">
               <span className="hidden md:inline">{wd}</span>
               <span className="md:hidden">{wd[0]}</span>
             </div>
