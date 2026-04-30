@@ -179,8 +179,8 @@ const dockShell: React.CSSProperties = {
   background: 'rgba(8,8,8,0.42)',
   backdropFilter: 'blur(16px) saturate(1.2)',
   WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
-  border: '1px solid rgba(82,179,82,.5)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06)',
+  border: '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 50%, transparent)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
 };
 
 export type PivotPanelProps = {
@@ -467,8 +467,8 @@ export function PivotPanel({
             ? 'pivotFadeOut 0.24s cubic-bezier(0.4, 0, 1, 1) both'
             : 'pivotFadeInLeft 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both',
           background: 'transparent',
-          borderLeft: '1px solid rgba(82,179,82,.5)',
-          boxShadow: '-4px 0 60px rgba(0,0,0,.4), inset 1px 0 0 rgba(255,255,255,.05)',
+          borderLeft: '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 50%, transparent)',
+          boxShadow: '-2px 0 18px rgba(0,0,0,.18), inset 1px 0 0 rgba(255,255,255,.05)',
         }}
       >
         <style>{`

@@ -846,12 +846,12 @@ input[type="checkbox"]:checked::before {
 .quick-rows > div:nth-child(even) {
   background: linear-gradient(
     135deg,
-    rgba(82,179,82,.07) 0%,
+    color-mix(in srgb, var(--assistant-tone-1, #52b352) 7%, transparent) 0%,
     rgba(255,255,255,.04) 50%,
-    rgba(82,179,82,.03) 100%
+    color-mix(in srgb, var(--assistant-tone-1, #52b352) 3%, transparent) 100%
   );
   border-radius: 8px;
-  border: 1px solid rgba(82,179,82,.10);
+  border: 1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.07),
     0 1px 6px rgba(0,0,0,.18);
@@ -871,10 +871,10 @@ input[type="checkbox"]:checked::before {
 .quick-rows > div:nth-child(odd):hover {
   background: linear-gradient(
     135deg,
-    rgba(82,179,82,.12) 0%,
+    color-mix(in srgb, var(--assistant-tone-1, #52b352) 12%, transparent) 0%,
     rgba(255,255,255,.06) 100%
   );
-  border-color: rgba(82,179,82,.18);
+  border-color: color-mix(in srgb, var(--assistant-tone-1, #52b352) 18%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.09),
     0 2px 10px rgba(0,0,0,.22);

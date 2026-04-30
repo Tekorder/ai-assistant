@@ -51,9 +51,11 @@ type Props = {
 };
 
 const panelGlass: React.CSSProperties = {
-  background: 'transparent',
-  border: '1px solid rgba(82,179,82,.5)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06)',
+  background: 'rgba(8,8,8,0.42)',
+  backdropFilter: 'blur(16px) saturate(1.2)',
+  WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
+  border: '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 50%, transparent)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
 };
 
 export default function RemindersPanel({ open, onClose, variant = 'overlay' }: Props) {

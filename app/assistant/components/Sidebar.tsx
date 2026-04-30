@@ -31,6 +31,7 @@ import {
   readProjectsLS,
   writeProjectsLS,
 } from '@/lib/datacenter';
+import { assistantThemes, type AssistantThemeName } from '../_theme/themes';
 
 type SidebarProps = {
   onOpenPivot?: (detail: {
@@ -39,9 +40,35 @@ type SidebarProps = {
     origin: 'sidebar';
     listId?: string | null;
   }) => void;
+  selectedTheme: AssistantThemeName;
+  onSelectTheme: (theme: AssistantThemeName) => void;
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, onSelectTheme }) => {
+  const darkThemes: AssistantThemeName[] = [
+    'matrix',
+    'ocean',
+    'purity',
+    'vader',
+    'obsidian',
+    'midnight',
+    'ember',
+    'nebula',
+    'graphite',
+    'aurora',
+    'bloodmoon',
+    'deepsea',
+  ];
+  const lightThemes: AssistantThemeName[] = [];
+  const [themeTab, setThemeTab] = useState<'dark' | 'light'>('dark');
+  const [themePage, setThemePage] = useState(1);
+  const THEMES_PER_PAGE = 4;
+  const themesForTab = themeTab === 'dark' ? darkThemes : lightThemes;
+  const totalThemePages = Math.max(1, Math.ceil(themesForTab.length / THEMES_PER_PAGE));
+  const pagedThemes = themesForTab.slice(
+    (themePage - 1) * THEMES_PER_PAGE,
+    themePage * THEMES_PER_PAGE,
+  );
   const buildAllCollapsedFromBlocks = (listBlocks: Block[]): Record<string, boolean> => {
     const next: Record<string, boolean> = {};
     for (const b of listBlocks) {
@@ -55,11 +82,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
 
   const [hydrated, setHydrated] = useState(false);
-
   const [hintIndex, setHintIndex] = useState(0);
+
   const [deleteListConfirmId, setDeleteListConfirmId] = useState<string | null>(null);
   const [editingDateTaskId] = useState<string | null>(null);
   const [editingListTitleId, setEditingListTitleId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setThemePage(1);
+  }, [themeTab]);
 
   /* ── Refs ── */
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -82,7 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot }) => {
   );
   const currentProject = projects[currentProjectIndex];
   const blocks: Block[] = currentProject?.blocks
-    ?? moveUncToTop(ensureUncExists([{ id: uid(), text: '', indent: 0 }]));
+    ?? moveUncToTop(ensureUncExists([]));
 const visibleLists = useMemo<Record<string, boolean>>(
   () => currentProject?.visibleLists ?? {},
   [currentProject?.visibleLists],
@@ -92,7 +123,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
   const setCurrentBlocks = (nextFn: Block[] | ((prev: Block[]) => Block[])) => {
     setProjects(prev => {
       if (!prev.length) {
-        const base = moveUncToTop(ensureUncExists([{ id: uid(), text: '', indent: 0 }]));
+        const base = moveUncToTop(ensureUncExists([]));
         const personal = makePersonalProject(
           typeof nextFn === 'function' ? nextFn(base) : nextFn, {},
         );
@@ -452,9 +483,14 @@ const visibleLists = useMemo<Record<string, boolean>>(
   /* ===================== Render ===================== */
   return (
     <>
-      <div className="hidden h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col m-3 md:flex">
+      <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
         <aside
-          className="relative z-[60] flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#52b352]/55 bg-transparent shadow-[inset_0_1px_0_rgba(255,255,255,.06)]"
+          className="relative z-[60] flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-[#52b352]/55 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]"
+          style={{
+            background: 'rgba(8,8,8,0.42)',
+            backdropFilter: 'blur(16px) saturate(1.2)',
+            WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
+          }}
         >
         {/* Scrollable content */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
@@ -510,7 +546,22 @@ const visibleLists = useMemo<Record<string, boolean>>(
                               onChange={() => toggleListVisibility(b.id)}
                               className="sr-only"
                             />
-                            <span className={['h-3 w-3 rounded-full border transition-colors', isVisible ? 'border-[#d5fc43] bg-[#d5fc43]' : 'border-white/30 bg-transparent'].join(' ')} />
+                            <span
+                              className={[
+                                'h-3 w-3 rounded-full border transition-all duration-200',
+                                isVisible ? '' : 'border-white/30 bg-transparent',
+                              ].join(' ')}
+                              style={
+                                isVisible
+                                  ? {
+                                      borderColor: 'var(--assistant-tone-1, #52b352)',
+                                      background: 'var(--assistant-tone-1, #52b352)',
+                                      boxShadow:
+                                        '0 0 0 1px color-mix(in srgb, var(--assistant-tone-1, #52b352) 82%, transparent), 0 0 18px color-mix(in srgb, var(--assistant-tone-1, #52b352) 95%, transparent), 0 0 28px color-mix(in srgb, var(--assistant-tone-1, #52b352) 65%, transparent)',
+                                    }
+                                  : undefined
+                              }
+                            />
                           </label>
 
                           {editingListTitleId === b.id ? (
@@ -554,108 +605,138 @@ const visibleLists = useMemo<Record<string, boolean>>(
           </>
         </div>
 
-       {/* Fixed footer */}
-          <div className="shrink-0 space-y-3 border-t border-white/10 bg-transparent px-4 py-3">
-            <div className="rounded-2xl  px-3 py-3 min-h-[128px]">
-              {hintIndex === 0 ? (
-                <div>
-                  <div className="flex items-start gap-3">
-                    <div className="h-9 w-9 rounded-xl border border-[#d5fc43]/30 bg-[#d5fc43]/12 flex items-center justify-center text-lg shrink-0">
-                      🎨
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-[#d5fc43]/75">
-                        Hint
-                      </div>
-                      <div className="mt-1 text-[12px] leading-5 text-white/80">
-                        Learn the duedate colors to understand your tasks faster.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[#d5fc43]/35 bg-[#d5fc43]/14 px-2 py-1 text-[11px] text-[#d5fc43]">
-                      <span className="h-2 w-2 rounded-full bg-[#d5fc43]" />
-                      Today
-                    </span>
-
-                    <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-200">
-                      <span className="h-2 w-2 rounded-full bg-emerald-300" />
-                      Tomorrow
-                    </span>
-
-                    <span className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-1 text-[11px] text-sky-200">
-                      <span className="h-2 w-2 rounded-full bg-sky-300" />
-                      Upcoming
-                    </span>
-
-                    <span className="inline-flex items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200">
-                      <span className="h-2 w-2 rounded-full bg-rose-300" />
-                      Overdue
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-start gap-3">
-                  <div className="h-9 w-9 rounded-xl border border-[#d5fc43]/30 bg-[#d5fc43]/12 flex items-center justify-center text-lg shrink-0">
-                    💡
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-[#d5fc43]/75">
-                      Hint
-                    </div>
-                    <div className="mt-1 text-[12px] leading-5 text-white/80 transition-all">
-                      {hintIndex === 1 && 'Use Daily view to get focused on today’s tasks.'}
-                      {hintIndex === 2 && 'Use Organizer to plan your tasks based on your list.'}
-                      {hintIndex === 3 && 'Use Timeline to check your week progress.'}
-                      {hintIndex === 4 && 'Use Calendar to plan the future.'}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-3 flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setHintIndex(i)}
-                      className={[
-                        'h-1.5 rounded-full transition-all',
-                        i === hintIndex ? 'w-5 bg-[#d5fc43]' : 'w-1.5 bg-white/20 hover:bg-white/35',
-                      ].join(' ')}
-                      aria-label={`Go to slide ${i + 1}`}
-                    />
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-1">
+        {/* Fixed footer */}
+        <div className="shrink-0 space-y-3 border-t border-white/10 bg-transparent px-4 py-3">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Themes</div>
+            <div className="mt-2 flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1">
+              <button
+                type="button"
+                onClick={() => setThemeTab('dark')}
+                className={[
+                  'flex-1 rounded-md px-2 py-1 text-[11px] transition-colors',
+                  themeTab === 'dark'
+                    ? 'bg-white/12 text-white'
+                    : 'text-white/60 hover:bg-white/6 hover:text-white/85',
+                ].join(' ')}
+              >
+                Dark
+              </button>
+              <button
+                type="button"
+                onClick={() => setThemeTab('light')}
+                className={[
+                  'flex-1 rounded-md px-2 py-1 text-[11px] transition-colors',
+                  themeTab === 'light'
+                    ? 'bg-white/12 text-white'
+                    : 'text-white/60 hover:bg-white/6 hover:text-white/85',
+                ].join(' ')}
+              >
+                Light
+              </button>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {pagedThemes.map((themeKey) => {
+                const isActive = selectedTheme === themeKey;
+                return (
                   <button
+                    key={themeKey}
                     type="button"
-                    onClick={() => setHintIndex((prev) => (prev - 1 + 5) % 5)}
-                    className="h-7 w-7 rounded-full bg-white/10 text-white/60 hover:text-white/85 hover:bg-white/16"
-                    aria-label="Previous slide"
+                    onClick={() => onSelectTheme(themeKey)}
+                    className={[
+                      'rounded-lg border px-2 py-1.5 text-left text-[11px] transition-colors',
+                      isActive
+                        ? 'border-white/30 bg-white/12 text-white'
+                        : 'border-white/12 bg-white/[0.03] text-white/70 hover:bg-white/[0.07] hover:text-white/90',
+                    ].join(' ')}
+                    aria-pressed={isActive}
                   >
-                    ‹
+                    {assistantThemes[themeKey].themeName}
                   </button>
+                );
+              })}
+              {themeTab === 'light' && pagedThemes.length === 0 ? (
+                <div className="col-span-2 rounded-lg border border-white/10 bg-white/[0.02] px-2 py-2 text-[11px] text-white/45">
+                  Light themes coming soon.
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-2 flex items-center justify-center gap-1.5">
+              {Array.from({ length: totalThemePages }).map((_, i) => {
+                const page = i + 1;
+                const isActive = page === themePage;
+                return (
                   <button
+                    key={page}
                     type="button"
-                    onClick={() => setHintIndex((prev) => (prev + 1) % 5)}
-                    className="h-7 w-7 rounded-full bg-white/10 text-white/60 hover:text-white/85 hover:bg-white/16"
-                    aria-label="Next slide"
+                    onClick={() => setThemePage(page)}
+                    className={[
+                      'h-6 min-w-6 rounded-md px-1.5 text-[11px] transition-colors',
+                      isActive
+                        ? 'bg-white/15 text-white'
+                        : 'bg-white/[0.03] text-white/55 hover:bg-white/8 hover:text-white/85',
+                    ].join(' ')}
+                    aria-label={`Theme page ${page}`}
                   >
-                    ›
+                    {page}
                   </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-2xl px-3 py-3 min-h-[128px]">
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 rounded-xl border border-white/20 bg-white/8 flex items-center justify-center text-lg shrink-0">
+                💡
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-white/55">Hint</div>
+                <div className="mt-1 text-[12px] leading-5 text-white/80 transition-all">
+                  {hintIndex === 0 && 'Use Daily view to get focused on today’s tasks.'}
+                  {hintIndex === 1 && 'Use Organizer to plan your tasks based on your list.'}
+                  {hintIndex === 2 && 'Use Timeline to check your week progress.'}
+                  {hintIndex === 3 && 'Use Calendar to plan the future.'}
                 </div>
               </div>
             </div>
 
-       
+            <div className="mt-3 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                {[0, 1, 2, 3].map((i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setHintIndex(i)}
+                    className={[
+                      'h-1.5 rounded-full transition-all',
+                      i === hintIndex ? 'w-5 bg-white/65' : 'w-1.5 bg-white/20 hover:bg-white/35',
+                    ].join(' ')}
+                    aria-label={`Go to slide ${i + 1}`}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setHintIndex((prev) => (prev - 1 + 4) % 4)}
+                  className="h-7 w-7 rounded-full bg-white/10 text-white/60 hover:text-white/85 hover:bg-white/16"
+                  aria-label="Previous slide"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHintIndex((prev) => (prev + 1) % 4)}
+                  className="h-7 w-7 rounded-full bg-white/10 text-white/60 hover:text-white/85 hover:bg-white/16"
+                  aria-label="Next slide"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
           </div>
-       
+        </div>
         </aside>
       </div>
 

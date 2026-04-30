@@ -509,8 +509,14 @@ export default function Timeline() {
                               >
                                 {card.checked ? (
                                   <span className="relative flex h-3 w-3 items-center justify-center">
-                                    <span className="absolute h-2.5 w-2.5 rounded-full bg-[#d5fc43]/85 blur-[2px]" />
-                                    <span className="absolute h-1.5 w-1.5 rounded-full bg-[#d5fc43]" />
+                                    <span
+                                      className="absolute h-2.5 w-2.5 rounded-full blur-[2px]"
+                                      style={{ background: 'color-mix(in srgb, var(--assistant-tone-1, #52b352) 85%, transparent)' }}
+                                    />
+                                    <span
+                                      className="absolute h-1.5 w-1.5 rounded-full"
+                                      style={{ background: 'var(--assistant-tone-1, #52b352)' }}
+                                    />
                                   </span>
                                 ) : (
                                   <span className="h-3 w-3 rounded border border-white/30" />

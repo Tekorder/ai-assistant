@@ -117,20 +117,22 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
           : 'activityPanelIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both',
         background:
           variant === 'overlay'
-            ? [
-                'linear-gradient(160deg, rgba(82,179,82,.07) 0%, transparent 35%)',
-                'linear-gradient(to bottom, rgba(255,255,255,.05) 0%, transparent 18%)',
-                'rgba(7,7,7,0.88)',
-              ].join(', ')
-            : 'transparent',
-        backdropFilter: variant === 'overlay' ? 'blur(28px) saturate(1.4)' : undefined,
-        WebkitBackdropFilter: variant === 'overlay' ? 'blur(28px) saturate(1.4)' : undefined,
-        borderLeft: variant === 'overlay' ? '1px solid rgba(82,179,82,.5)' : undefined,
-        border: variant === 'dock' ? '1px solid rgba(82,179,82,.5)' : undefined,
+            ? 'rgba(8,8,8,0.42)'
+            : 'rgba(8,8,8,0.42)',
+        backdropFilter: 'blur(16px) saturate(1.2)',
+        WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
+        borderLeft:
+          variant === 'overlay'
+            ? '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 50%, transparent)'
+            : undefined,
+        border:
+          variant === 'dock'
+            ? '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 50%, transparent)'
+            : undefined,
         boxShadow:
           variant === 'overlay'
-            ? '-4px 0 60px rgba(0,0,0,.6), inset 1px 0 0 rgba(255,255,255,.05)'
-            : 'inset 0 1px 0 rgba(255,255,255,.06)',
+            ? '-2px 0 18px rgba(0,0,0,.18), inset 1px 0 0 rgba(255,255,255,.05)'
+            : 'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
       }}
     >
       <style>{`
