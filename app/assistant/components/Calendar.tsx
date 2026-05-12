@@ -24,6 +24,7 @@ type CalCard = {
   deadline: string;
   isHidden?: boolean;
   archived?: boolean;
+  priority?: boolean;
 };
 
 type DayGroup = {
@@ -269,6 +270,15 @@ function DaySidebar({
                                 : 'text-white/85',
                             ].join(' ')}
                           >
+                            {card.priority ? (
+                              <span
+                                className="mr-1 inline-block align-[-1px] text-[12px] leading-none drop-shadow-[0_0_6px_rgba(244,63,94,0.55)]"
+                                title="High priority"
+                                aria-label="High priority"
+                              >
+                                🚩
+                              </span>
+                            ) : null}
                             {card.text || '(no text)'}
                           </span>
                         </div>
@@ -380,6 +390,7 @@ export default function CalendarView() {
       deadline:  b.deadline!,
       isHidden:  b.isHidden === true,
       archived:  b.archived,
+      priority:  b.priority === true,
     });
   }
 
@@ -648,6 +659,15 @@ export default function CalendarView() {
                       ].join(' ')}>
                         {parseInt(dayNum)}
                       </div>
+                      {dayCards.some(c => c.priority && !c.checked) && (
+                        <span
+                          className="text-[12px] leading-none drop-shadow-[0_0_5px_rgba(244,63,94,0.55)]"
+                          title="Has high priority task"
+                          aria-label="Has high priority task"
+                        >
+                          🚩
+                        </span>
+                      )}
                       {isOverdue && (
                         <span className="text-[9px] font-semibold text-red-400/70 uppercase tracking-wide leading-none">
                           overdue
@@ -715,6 +735,15 @@ export default function CalendarView() {
                       {parseInt(dayNum)}
                     </span>
                     <span className="text-[10px] text-white/35 uppercase">{weekday}</span>
+                    {groups.flatMap(g => g.cards).some(c => c.priority && !c.checked) && (
+                      <span
+                        className="text-[11px] leading-none drop-shadow-[0_0_5px_rgba(244,63,94,0.55)]"
+                        title="Has high priority task"
+                        aria-label="Has high priority task"
+                      >
+                        🚩
+                      </span>
+                    )}
                   </div>
                   {isOverdue && (
                     <span className="text-[9px] font-semibold text-red-400/70 uppercase tracking-wide">overdue</span>

@@ -78,6 +78,7 @@ model Block {
   createdAt String?
   isHidden  Boolean  @default(false)
   archived  Boolean  @default(false)
+  priority  Boolean  @default(false)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 

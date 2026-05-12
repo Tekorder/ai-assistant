@@ -12,6 +12,7 @@ import Menu from './components/Menu';
 import HabitsPanel from './components/HabitsPanel';
 import RemindersPanel from './components/RemindersPanel';
 import ActivityLogPanel from './components/ActivityLogPanel';
+import ChecklistsPanel from './components/ChecklistsPanel';
 import { assistantThemes, getAssistantThemeVars, type AssistantThemeName } from './_theme/themes';
 import { PivotPanel, buildPrunedPivotTree, buildListPivotTree, type PivotTreeRow } from './components/Pivot';
 import {
@@ -25,6 +26,8 @@ import {
   todayYMD,
   isValidDateYYYYMMDD,
   dayDiffFromToday,
+  LS_KEY_CHECKLISTS,
+  readChecklistsLS,
 } from '@/lib/datacenter';
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
@@ -40,6 +43,7 @@ export default function App() {
   const [habitsOpen, setHabitsOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [listsOpen, setListsOpen] = useState(false);
   const [pivotInstances, setPivotInstances] = useState<
     Array<{ id: string; word: string; listId?: string }>
   >([]);
@@ -75,6 +79,7 @@ export default function App() {
     habits: false,
     reminders: false,
     activity: false,
+    lists: false,
     pivots: 0,
   });
 
@@ -104,6 +109,7 @@ export default function App() {
   const toggleHabits = useCallback(() => setHabitsOpen((v) => !v), []);
   const toggleReminders = useCallback(() => setRemindersOpen((v) => !v), []);
   const toggleActivity = useCallback(() => setActivityOpen((v) => !v), []);
+  const toggleLists = useCallback(() => setListsOpen((v) => !v), []);
 
   useEffect(() => {
     return () => {
@@ -166,6 +172,7 @@ export default function App() {
       (!prev.habits && habitsOpen) ||
       (!prev.reminders && remindersOpen) ||
       (!prev.activity && activityOpen) ||
+      (!prev.lists && listsOpen) ||
       pivotInstances.length > prev.pivots;
 
     const el = deckScrollRef.current;
@@ -182,6 +189,7 @@ export default function App() {
       habits: habitsOpen,
       reminders: remindersOpen,
       activity: activityOpen,
+      lists: listsOpen,
       pivots: pivotInstances.length,
     };
   }, [
@@ -190,6 +198,7 @@ export default function App() {
     habitsOpen,
     remindersOpen,
     activityOpen,
+    listsOpen,
     pivotInstances.length,
   ]);
 
@@ -211,6 +220,27 @@ export default function App() {
     return () => {
       window.removeEventListener('youtask_projects_updated', load);
       window.removeEventListener('youtask_blocks_updated', load);
+    };
+  }, []);
+
+  const [listsCount, setListsCount] = useState(0);
+  useEffect(() => {
+    const load = () => {
+      try {
+        setListsCount(readChecklistsLS().lists.length);
+      } catch {
+        setListsCount(0);
+      }
+    };
+    load();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LS_KEY_CHECKLISTS) load();
+    };
+    window.addEventListener('youtask_checklists_updated', load);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('youtask_checklists_updated', load);
+      window.removeEventListener('storage', onStorage);
     };
   }, []);
 
@@ -256,6 +286,7 @@ export default function App() {
           id: b.id,
           text: b.text ?? '',
           date: b.deadline as string,
+          priority: b.priority === true,
         })),
     [projectBlocks],
   );
@@ -302,9 +333,21 @@ export default function App() {
   };
 
   const mainPanelSolo =
-    !sidebarOpen && !habitsOpen && !remindersOpen && !activityOpen && pivotInstances.length === 0;
+    !sidebarOpen &&
+    !habitsOpen &&
+    !remindersOpen &&
+    !activityOpen &&
+    !listsOpen &&
+    pivotInstances.length === 0;
   const sidebarVisualOpen = sidebarOpen && !sidebarClosing;
   const mainPanelWidth = mainPanelSolo ? '90vw' : '70vw';
+
+  // Lists panel: starts as wide as the other side panels (PANEL_WIDTH),
+  // grows ~60px per extra tab, and is capped at half the main dock width
+  // (main is 70vw whenever any panel is open, including this one → cap at 35vw).
+  const LISTS_TAB_STEP = 60;
+  const desiredListsPx = PANEL_WIDTH + Math.max(0, listsCount - 1) * LISTS_TAB_STEP;
+  const listsPanelWidth = `min(${desiredListsPx}px, 35vw)`;
 
   const closePivotInstance = useCallback((id: string) => {
     setPivotInstances((prev) => prev.filter((p) => p.id !== id));
@@ -345,11 +388,13 @@ export default function App() {
           habitsOpen={habitsOpen}
           remindersOpen={remindersOpen}
           activityOpen={activityOpen}
+          listsOpen={listsOpen}
           timelineOpen={activeView === 'timeline'}
           calendarOpen={activeView === 'calendar'}
           onToggleHabits={toggleHabits}
           onToggleReminders={toggleReminders}
           onToggleActivity={toggleActivity}
+          onToggleLists={toggleLists}
         />
 
         <div className="relative flex-1 overflow-hidden md:hidden">
@@ -513,6 +558,30 @@ export default function App() {
             </div>
           </div>
 
+          <div
+            className="h-full shrink-0 overflow-hidden"
+            style={{
+              width: listsOpen && isDesktop === true ? listsPanelWidth : 0,
+              opacity: listsOpen && isDesktop === true ? 1 : 0,
+              transform:
+                listsOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
+              transition:
+                'width 460ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 460ms cubic-bezier(0.22, 1, 0.36, 1)',
+            }}
+          >
+            <div
+              className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
+              style={{
+                boxShadow:
+                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
+              }}
+            >
+              {isDesktop && listsOpen && (
+                <ChecklistsPanel variant="dock" open onClose={() => setListsOpen(false)} />
+              )}
+            </div>
+          </div>
+
           {isDesktop &&
             pivotInstances.map((pivot) => (
               <div
@@ -563,6 +632,11 @@ export default function App() {
               open={activityOpen}
               onClose={() => setActivityOpen(false)}
               tasks={activityTasks}
+            />
+            <ChecklistsPanel
+              variant="overlay"
+              open={listsOpen}
+              onClose={() => setListsOpen(false)}
             />
             <PivotPanel
               variant="overlay"

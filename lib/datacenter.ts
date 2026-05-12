@@ -10,6 +10,7 @@ export const LS_KEY_V2        = 'youtask_projects_v1';
 export const LS_KEY_V1        = 'youtask_blocks_v1';      // legacy migration
 export const LS_KEY_HABITS    = 'youtask_habits_v1';
 export const LS_KEY_REMINDERS = 'youtask_reminders_v1';
+export const LS_KEY_CHECKLISTS = 'youtask_checklists_v1';
 export const UNC_TITLE        = 'Uncategorized';
 
 /* ===================== Types ===================== */
@@ -23,6 +24,7 @@ export type Block = {
   createdAt?: string;
   isHidden?: boolean;
   archived?: boolean;
+  priority?: boolean;
 };
 
 export type Project = {
@@ -67,10 +69,28 @@ export type ReminderItem = {
   date: string;
   time: string;
   daily?: boolean;
+  priority?: boolean;
 };
 
 export type RemindersPayload = {
   reminders: ReminderItem[];
+};
+
+export type ChecklistItem = {
+  id: string;
+  text: string;
+  checked: boolean;
+};
+
+export type Checklist = {
+  id: string;
+  name: string;
+  items: ChecklistItem[];
+};
+
+export type ChecklistsPayload = {
+  lists: Checklist[];
+  selectedListId?: string;
 };
 
 /* ─── Internal raw types (for deserialization) ─── */
@@ -84,6 +104,7 @@ type RawBlock = {
   createdAt?: unknown;
   isHidden?: unknown;
   archived?: unknown;
+  priority?: unknown;
 };
 
 type RawProject = {
@@ -338,6 +359,7 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
     b.createdAt = isValidDateYYYYMMDD(x?.createdAt) ? (x.createdAt as string) : today;
     if (typeof x?.isHidden === 'boolean') b.isHidden = x.isHidden;
     if (typeof x?.archived === 'boolean') b.archived = x.archived;
+    if (typeof x?.priority === 'boolean') b.priority = x.priority;
     return b;
   }).filter(Boolean) as Block[];
 
@@ -918,11 +940,12 @@ export function updateHabit(habits: HabitBlock[], id: string, patch: Partial<Hab
 function normalizeReminders(raw: unknown): ReminderItem[] {
   if (!Array.isArray(raw)) return [];
   return (raw as Record<string, unknown>[]).map(x => ({
-    id:    typeof x?.id    === 'string' ? x.id    : uid(),
-    title: typeof x?.title === 'string' ? x.title : '',
-    date:  isValidDateYYYYMMDD(x?.date) ? x.date as string : todayYMD(),
-    time:  isValidTimeHHMM(x?.time)     ? x.time as string : '11:00',
-    daily: typeof x?.daily === 'boolean' ? x.daily : false,
+    id:       typeof x?.id    === 'string' ? x.id    : uid(),
+    title:    typeof x?.title === 'string' ? x.title : '',
+    date:     isValidDateYYYYMMDD(x?.date) ? x.date as string : todayYMD(),
+    time:     isValidTimeHHMM(x?.time)     ? x.time as string : '11:00',
+    daily:    typeof x?.daily === 'boolean'    ? x.daily    : false,
+    priority: typeof x?.priority === 'boolean' ? x.priority : false,
   }));
 }
 
@@ -1520,4 +1543,164 @@ export function aipatchtask(
       message: err instanceof Error ? err.message : 'Unknown error applying AI patch.',
     };
   }
+}
+
+/* ===================== Checklists — normalization ===================== */
+
+function normalizeChecklistItems(raw: unknown): ChecklistItem[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Record<string, unknown>[]).map(x => ({
+    id:      typeof x?.id === 'string'   ? x.id   : uid(),
+    text:    typeof x?.text === 'string' ? x.text : '',
+    checked: Boolean(x?.checked),
+  }));
+}
+
+function normalizeChecklists(raw: unknown): Checklist[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Record<string, unknown>[]).map(x => ({
+    id:    typeof x?.id === 'string'   ? x.id   : uid(),
+    name:  typeof x?.name === 'string' ? x.name : 'New list',
+    items: normalizeChecklistItems(x?.items),
+  }));
+}
+
+export function makeDefaultChecklistItem(): ChecklistItem {
+  return { id: uid(), text: '', checked: false };
+}
+
+export function makeDefaultChecklist(name = 'New list'): Checklist {
+  return { id: uid(), name, items: [] };
+}
+
+/* ===================== Checklists — persistence ===================== */
+
+export function readChecklistsLS(): ChecklistsPayload {
+  try {
+    const raw = localStorage.getItem(LS_KEY_CHECKLISTS);
+    if (!raw) return { lists: [] };
+    const parsed = JSON.parse(raw);
+    return {
+      lists:           normalizeChecklists(parsed?.lists ?? parsed),
+      selectedListId:  typeof parsed?.selectedListId === 'string' ? parsed.selectedListId : undefined,
+    };
+  } catch {
+    return { lists: [] };
+  }
+}
+
+export function writeChecklistsLS(payload: ChecklistsPayload): void {
+  try {
+    localStorage.setItem(LS_KEY_CHECKLISTS, JSON.stringify(payload));
+    window.dispatchEvent(new Event('youtask_checklists_updated'));
+  } catch {}
+}
+
+/* ===================== Checklists — list-level mutations ===================== */
+
+export function addChecklist(
+  lists: Checklist[],
+  name?: string,
+): { lists: Checklist[]; newList: Checklist } {
+  const fallback = `List ${lists.length + 1}`;
+  const newList  = makeDefaultChecklist((name ?? '').trim() || fallback);
+  return { lists: [...lists, newList], newList };
+}
+
+export function removeChecklist(
+  lists: Checklist[],
+  id: string,
+): { lists: Checklist[]; focusId: string | null } {
+  const idx  = lists.findIndex(l => l.id === id);
+  const next = lists.filter(l => l.id !== id);
+  const focusId = next[Math.max(0, idx - 1)]?.id ?? next[0]?.id ?? null;
+  return { lists: next, focusId };
+}
+
+export function emptyChecklist(lists: Checklist[], id: string): Checklist[] {
+  return lists.map(l => l.id === id ? { ...l, items: [] } : l);
+}
+
+export function renameChecklist(lists: Checklist[], id: string, name: string): Checklist[] {
+  return lists.map(l => l.id === id ? { ...l, name } : l);
+}
+
+export function updateChecklist(
+  lists: Checklist[],
+  id: string,
+  patch: Partial<Omit<Checklist, 'id'>>,
+): Checklist[] {
+  return lists.map(l => l.id === id ? { ...l, ...patch } : l);
+}
+
+/* ===================== Checklists — item-level mutations ===================== */
+
+export function addChecklistItem(
+  lists: Checklist[],
+  listId: string,
+): { lists: Checklist[]; newItem: ChecklistItem | null } {
+  const newItem = makeDefaultChecklistItem();
+  const next    = lists.map(l =>
+    l.id === listId ? { ...l, items: [...l.items, newItem] } : l,
+  );
+  const found = lists.some(l => l.id === listId);
+  return { lists: next, newItem: found ? newItem : null };
+}
+
+export function insertChecklistItemAfter(
+  lists: Checklist[],
+  listId: string,
+  afterItemId: string,
+): { lists: Checklist[]; newItem: ChecklistItem | null } {
+  const newItem = makeDefaultChecklistItem();
+  let inserted = false;
+  const next = lists.map(l => {
+    if (l.id !== listId) return l;
+    const i = l.items.findIndex(it => it.id === afterItemId);
+    const items = l.items.slice();
+    items.splice(i < 0 ? items.length : i + 1, 0, newItem);
+    inserted = true;
+    return { ...l, items };
+  });
+  return { lists: next, newItem: inserted ? newItem : null };
+}
+
+export function removeChecklistItem(
+  lists: Checklist[],
+  listId: string,
+  itemId: string,
+): { lists: Checklist[]; focusId: string | null } {
+  let focusId: string | null = null;
+  const next = lists.map(l => {
+    if (l.id !== listId) return l;
+    const idx  = l.items.findIndex(it => it.id === itemId);
+    const items = l.items.filter(it => it.id !== itemId);
+    focusId = items[Math.max(0, idx - 1)]?.id ?? items[0]?.id ?? null;
+    return { ...l, items };
+  });
+  return { lists: next, focusId };
+}
+
+export function updateChecklistItem(
+  lists: Checklist[],
+  listId: string,
+  itemId: string,
+  patch: Partial<ChecklistItem>,
+): Checklist[] {
+  return lists.map(l =>
+    l.id === listId
+      ? { ...l, items: l.items.map(it => it.id === itemId ? { ...it, ...patch } : it) }
+      : l,
+  );
+}
+
+export function moveChecklistItem(
+  lists: Checklist[],
+  listId: string,
+  fromIndex: number,
+  toIndex: number,
+): Checklist[] {
+  return lists.map(l =>
+    l.id === listId ? { ...l, items: arrayMove(l.items, fromIndex, toIndex) } : l,
+  );
 }

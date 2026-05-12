@@ -10,6 +10,7 @@ export type PivotTreeRow = {
   isMatch: boolean;
   checked?: boolean;
   deadline?: string;
+  priority?: boolean;
 };
 
 function isWordChar(ch: string) {
@@ -62,7 +63,7 @@ function isUncTitleBlock(text: string, indent: number, uncTitle?: string) {
   return indent === 0 && (text || '').trim().toLowerCase() === uncTitle.trim().toLowerCase();
 }
 
-export function buildPrunedPivotTree<T extends { id: string; text: string; indent: number; checked?: boolean; deadline?: string; archived?: boolean }>(
+export function buildPrunedPivotTree<T extends { id: string; text: string; indent: number; checked?: boolean; deadline?: string; archived?: boolean; priority?: boolean }>(
   blocks: T[],
   word: string,
   opts?: { uncTitle?: string },
@@ -126,6 +127,7 @@ export function buildPrunedPivotTree<T extends { id: string; text: string; inden
       isMatch: b.indent > 0 && includesWord(b.text || '', w),
       checked: b.indent > 0 ? Boolean(b.checked) : undefined,
       deadline: b.indent > 0 ? b.deadline : undefined,
+      priority: b.indent > 0 ? Boolean(b.priority) : undefined,
     });
   }
 
@@ -133,7 +135,7 @@ export function buildPrunedPivotTree<T extends { id: string; text: string; inden
 }
 
 /** All tasks under a list block (indent 0) until the next list — for list-title pivot. */
-export function buildListPivotTree<T extends { id: string; text: string; indent: number; checked?: boolean; deadline?: string; archived?: boolean }>(
+export function buildListPivotTree<T extends { id: string; text: string; indent: number; checked?: boolean; deadline?: string; archived?: boolean; priority?: boolean }>(
   blocks: T[],
   listBlockId: string,
   opts?: { uncTitle?: string },
@@ -169,6 +171,7 @@ export function buildListPivotTree<T extends { id: string; text: string; indent:
       isMatch: false,
       checked: b.indent > 0 ? Boolean(b.checked) : undefined,
       deadline: b.indent > 0 ? b.deadline : undefined,
+      priority: b.indent > 0 ? Boolean(b.priority) : undefined,
     });
   }
 
@@ -262,6 +265,16 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
               {r.checked ? <span className="text-xs text-emerald-300">✓</span> : null}
             </button>
           )}
+
+          {!isTitle && r.priority ? (
+            <span
+              className="shrink-0 h-4 w-4 flex items-center justify-center text-[12px] leading-none drop-shadow-[0_0_6px_rgba(244,63,94,0.55)]"
+              title="High priority"
+              aria-label="High priority"
+            >
+              🚩
+            </span>
+          ) : null}
 
           <div className="min-w-0 flex-1">
             <div

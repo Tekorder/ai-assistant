@@ -15,6 +15,7 @@ type Reminder = {
   daily?: boolean;
   weekly?: boolean;
   dismissed?: boolean;
+  priority?: boolean;
 };
 
 interface TopNavBarProps {
@@ -28,11 +29,13 @@ interface TopNavBarProps {
   habitsOpen: boolean;
   remindersOpen: boolean;
   activityOpen: boolean;
+  listsOpen: boolean;
   timelineOpen?: boolean;
   calendarOpen?: boolean;
   onToggleHabits: () => void;
   onToggleReminders: () => void;
   onToggleActivity: () => void;
+  onToggleLists: () => void;
 }
 
 const LS_REMINDERS = 'youtask_reminders_v1';
@@ -155,6 +158,18 @@ const ACTIVITY_TAB = {
   ),
 };
 
+const LISTS_TAB = {
+  label: 'Lists',
+  mobileLabel: 'Lists',
+  icon: (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="2" y="3" width="3" height="3" rx="0.6" />
+      <rect x="2" y="10" width="3" height="3" rx="0.6" />
+      <path strokeLinecap="round" d="M7 4.5h7M7 11.5h7" />
+    </svg>
+  ),
+};
+
 /*
 {
     id: 'archive',
@@ -179,11 +194,13 @@ export default function TopNavBar({
   habitsOpen,
   remindersOpen,
   activityOpen,
+  listsOpen,
   timelineOpen = false,
   calendarOpen = false,
   onToggleHabits,
   onToggleReminders,
   onToggleActivity,
+  onToggleLists,
 }: Omit<TopNavBarProps, 'title' | 'onHome'> & { title?: string; onHome?: () => void }) {
   const router = useRouter();
 
@@ -440,6 +457,22 @@ export default function TopNavBar({
             <span className={activityOpen ? 'text-[#d5fc43]' : 'text-white/45'}>{ACTIVITY_TAB.icon}</span>
             <span>{ACTIVITY_TAB.label}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={onToggleLists}
+            className={[
+              'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium whitespace-nowrap shrink-0 transition-all duration-150',
+              listsOpen
+                ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
+                : 'text-white/45 hover:text-white/80 hover:bg-white/8',
+            ].join(' ')}
+            aria-expanded={listsOpen}
+            title="Toggle lists"
+          >
+            <span className={listsOpen ? 'text-[#d5fc43]' : 'text-white/45'}>{LISTS_TAB.icon}</span>
+            <span>{LISTS_TAB.label}</span>
+          </button>
         </div>
 
         {/* Divider before bell */}
@@ -516,6 +549,15 @@ export default function TopNavBar({
                                 textDecoration: isDone ? 'line-through' : 'none',
                               }}
                             >
+                              {r.priority ? (
+                                <span
+                                  className="mr-1 inline-block align-[-1px] text-[12px] leading-none drop-shadow-[0_0_5px_rgba(244,63,94,0.55)]"
+                                  title="High priority"
+                                  aria-label="High priority"
+                                >
+                                  🚩
+                                </span>
+                              ) : null}
                               {r.title}
                             </div>
                             {(r.time || r.daily || r.weekly) && (
@@ -613,6 +655,34 @@ export default function TopNavBar({
             </button>
           );
         })}
+
+        <button
+          type="button"
+          onClick={onToggleActivity}
+          className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
+            activityOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
+          }`}
+        >
+          <span className="text-base leading-none">{ACTIVITY_TAB.icon}</span>
+          <span className="text-[9px] font-medium">{ACTIVITY_TAB.mobileLabel}</span>
+          {activityOpen && (
+            <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={onToggleLists}
+          className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
+            listsOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
+          }`}
+        >
+          <span className="text-base leading-none">{LISTS_TAB.icon}</span>
+          <span className="text-[9px] font-medium">{LISTS_TAB.mobileLabel}</span>
+          {listsOpen && (
+            <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
+          )}
+        </button>
       </div>
 
     </>
