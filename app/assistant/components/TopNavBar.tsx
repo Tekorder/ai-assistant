@@ -58,6 +58,7 @@ function readReminders(): Reminder[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed?.reminders) ? parsed.reminders : [];
+    
   } catch { return []; }
 }
 
