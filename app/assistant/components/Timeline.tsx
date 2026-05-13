@@ -37,6 +37,7 @@ type Card = {
   subtasks: SubTask[];
   isHidden?: boolean;
   archived?: boolean;
+  priority?: boolean;
 };
 
 /* ===================== Constants ===================== */
@@ -182,6 +183,7 @@ export default function Timeline() {
         subtasks,
         isHidden,
         archived: false,
+        priority: b.priority === true,
       });
     }
 
@@ -527,7 +529,18 @@ export default function Timeline() {
                             </div>
                           </div>
 
-                          <div className="yt-card-title">{card.text || '(sin texto)'}</div>
+                          <div className="yt-card-title">
+                            {card.priority ? (
+                              <span
+                                className="mr-1 inline-block align-[-1px] text-[12px] leading-none drop-shadow-[0_0_6px_rgba(244,63,94,0.55)]"
+                                title="High priority"
+                                aria-label="High priority"
+                              >
+                                🚩
+                              </span>
+                            ) : null}
+                            {card.text || '(sin texto)'}
+                          </div>
 
                           {isOverdueCol ? (
                             <div className="yt-overdue-meta" title={card.deadline}>

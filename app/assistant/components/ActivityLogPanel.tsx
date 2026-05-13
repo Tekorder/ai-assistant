@@ -6,6 +6,7 @@ type ActivityTask = {
   id: string;
   text: string;
   date: string;
+  priority?: boolean;
 };
 
 type Props = {
@@ -197,7 +198,18 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
           <div className="space-y-2">
             {current.items.map(item => (
               <div key={item.id} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                <div className="text-[13px] text-white/85">{item.text || '(untitled task)'}</div>
+                <div className="text-[13px] text-white/85">
+                  {item.priority ? (
+                    <span
+                      className="mr-1 inline-block align-[-1px] text-[12px] leading-none drop-shadow-[0_0_6px_rgba(244,63,94,0.55)]"
+                      title="High priority"
+                      aria-label="High priority"
+                    >
+                      🚩
+                    </span>
+                  ) : null}
+                  {item.text || '(untitled task)'}
+                </div>
                 <div className="mt-1 text-[11px] text-white/45">{dateLabel(item.date)}</div>
               </div>
             ))}

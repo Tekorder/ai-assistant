@@ -996,6 +996,26 @@ const handleKey = (
                     )}
                   </button>
                 ) : null}
+                {isTask ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUpdateBlock(b.id, { priority: !b.priority });
+                    }}
+                    aria-pressed={b.priority === true}
+                    aria-label={b.priority ? 'Remove high priority' : 'Mark as high priority'}
+                    title={b.priority ? 'High priority — click to remove' : 'Mark as high priority'}
+                    className={[
+                      'shrink-0 h-4 w-4 flex items-center justify-center text-[12px] leading-none select-none transition-all duration-150',
+                      b.priority
+                        ? 'opacity-100 drop-shadow-[0_0_6px_rgba(244,63,94,0.55)]'
+                        : 'opacity-0 group-hover:opacity-40 hover:!opacity-80 hover:scale-110',
+                    ].join(' ')}
+                  >
+                    🚩
+                  </button>
+                ) : null}
                 <div className={['min-w-0 flex-1', isTask ? 'flex items-start gap-[6px]' : 'flex flex-wrap items-center gap-[2px]'].join(' ')}>
                   {isTask ? (
                     renderTaskTextWithWordHover(b)
