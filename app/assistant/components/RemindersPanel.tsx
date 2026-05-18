@@ -16,6 +16,7 @@ import {
   removeReminder as removeReminderArr,
   updateReminder as updateReminderArr,
 } from '@/lib/datacenter';
+import { TaskFlagButton } from './TaskFlag';
 
 function formatDateUS(date?: string) {
   if (!date || !isValidDateYYYYMMDD(date)) return '—';
@@ -274,24 +275,10 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                       ⋮⋮
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleUpdateReminder(r.id, { priority: !r.priority });
-                      }}
-                      aria-pressed={r.priority === true}
-                      aria-label={r.priority ? 'Remove high priority' : 'Mark as high priority'}
-                      title={r.priority ? 'High priority — click to remove' : 'Mark as high priority'}
-                      className={[
-                        'shrink-0 h-4 w-4 flex items-center justify-center text-[12px] leading-none select-none transition-all duration-150',
-                        r.priority
-                          ? 'opacity-100 drop-shadow-[0_0_6px_rgba(244,63,94,0.55)]'
-                          : 'opacity-0 group-hover:opacity-40 hover:!opacity-80 hover:scale-110',
-                      ].join(' ')}
-                    >
-                      🚩
-                    </button>
+                    <TaskFlagButton
+                      source={r}
+                      onChange={(next) => handleUpdateReminder(r.id, { flag: next, priority: undefined })}
+                    />
 
                     <input
                       ref={el => void (reminderTitleRefs.current[r.id] = el)}

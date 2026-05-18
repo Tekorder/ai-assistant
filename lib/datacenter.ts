@@ -15,6 +15,8 @@ export const UNC_TITLE        = 'Uncategorized';
 
 /* ===================== Types ===================== */
 
+export type TaskFlagColor = 'blue' | 'yellow' | 'red';
+
 export type Block = {
   id: string;
   text: string;
@@ -24,7 +26,9 @@ export type Block = {
   createdAt?: string;
   isHidden?: boolean;
   archived?: boolean;
+  /** @deprecated use `flag` — kept for legacy data */
   priority?: boolean;
+  flag?: TaskFlagColor;
 };
 
 export type Project = {
@@ -69,7 +73,9 @@ export type ReminderItem = {
   date: string;
   time: string;
   daily?: boolean;
+  /** @deprecated use `flag` — kept for legacy data */
   priority?: boolean;
+  flag?: TaskFlagColor;
 };
 
 export type RemindersPayload = {
@@ -105,6 +111,7 @@ type RawBlock = {
   isHidden?: unknown;
   archived?: unknown;
   priority?: unknown;
+  flag?: unknown;
 };
 
 type RawProject = {
@@ -359,7 +366,12 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
     b.createdAt = isValidDateYYYYMMDD(x?.createdAt) ? (x.createdAt as string) : today;
     if (typeof x?.isHidden === 'boolean') b.isHidden = x.isHidden;
     if (typeof x?.archived === 'boolean') b.archived = x.archived;
-    if (typeof x?.priority === 'boolean') b.priority = x.priority;
+    const flag = parseTaskFlag(x?.flag);
+    if (flag) {
+      b.flag = flag;
+    } else if (x?.priority === true) {
+      b.flag = 'red';
+    }
     return b;
   }).filter(Boolean) as Block[];
 
@@ -946,7 +958,35 @@ function normalizeReminders(raw: unknown): ReminderItem[] {
     time:     isValidTimeHHMM(x?.time)     ? x.time as string : '11:00',
     daily:    typeof x?.daily === 'boolean'    ? x.daily    : false,
     priority: typeof x?.priority === 'boolean' ? x.priority : false,
+    flag: parseTaskFlag(x?.flag) ?? (x?.priority === true ? 'red' : undefined),
   }));
+}
+
+const TASK_FLAG_COLORS: TaskFlagColor[] = ['blue', 'yellow', 'red'];
+
+export function parseTaskFlag(raw: unknown): TaskFlagColor | undefined {
+  return typeof raw === 'string' && TASK_FLAG_COLORS.includes(raw as TaskFlagColor)
+    ? (raw as TaskFlagColor)
+    : undefined;
+}
+
+export function getTaskFlag(source: { flag?: TaskFlagColor; priority?: boolean }): TaskFlagColor | undefined {
+  return source.flag ?? (source.priority === true ? 'red' : undefined);
+}
+
+export function cycleTaskFlag(current: TaskFlagColor | undefined): TaskFlagColor | undefined {
+  if (!current) return 'blue';
+  if (current === 'blue') return 'yellow';
+  if (current === 'yellow') return 'red';
+  return undefined;
+}
+
+/** Highest flag on a day cell: red > yellow > blue */
+export function highestTaskFlag(flags: (TaskFlagColor | undefined)[]): TaskFlagColor | undefined {
+  if (flags.includes('red')) return 'red';
+  if (flags.includes('yellow')) return 'yellow';
+  if (flags.includes('blue')) return 'blue';
+  return undefined;
 }
 
 export function makeDefaultReminder(): ReminderItem {

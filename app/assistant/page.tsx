@@ -28,6 +28,7 @@ import {
   dayDiffFromToday,
   LS_KEY_CHECKLISTS,
   readChecklistsLS,
+  getTaskFlag,
 } from '@/lib/datacenter';
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
@@ -286,7 +287,7 @@ export default function App() {
           id: b.id,
           text: b.text ?? '',
           date: b.deadline as string,
-          priority: b.priority === true,
+          flag: getTaskFlag(b),
         })),
     [projectBlocks],
   );
