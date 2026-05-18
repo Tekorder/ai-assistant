@@ -46,6 +46,7 @@ import {
   buildHiddenMap,
   buildListVisibilityHiddenMap,
 } from '@/lib/datacenter';
+import { TaskFlagButton } from './TaskFlag';
 
 /** First incomplete task under this list with empty text (for Enter → focus instead of duplicating). */
 function findFirstEmptyTaskUnderList(blocks: Block[], listId: string): string | null {
@@ -908,7 +909,7 @@ const handleKey = (
     const isEditing = editingTaskId === b.id;
     const tokens = b.text.split(/(\s+)/);
     return (
-      <div className="relative flex-1 min-w-0 mt-[2px]">
+      <div className="relative flex-1 min-w-0">
         <textarea
           data-youtask-block={b.id}
           ref={el => void (inputRefs.current[b.id] = el)}
@@ -973,7 +974,7 @@ const handleKey = (
           return (
             <React.Fragment key={b.id}>
               <div draggable onDragStart={e => onDragStartRow(e, b.id, idx)} onDragOver={e => onDragOverRow(e, b.id)} onDrop={e => onDropRow(e, b.id)} onDragEnd={onDragEndRow}
-                className={['group flex items-center gap-2 px-0.5 py-1 rounded-md', isDraggingOver ? 'bg-white/7 outline outline-1 outline-white/10' : '', isDraggingMe ? 'opacity-60' : ''].join(' ')}
+                className={['group flex items-center px-0.5 py-1 rounded-md', isTask ? 'gap-1' : 'gap-2', isDraggingOver ? 'bg-white/7 outline outline-1 outline-white/10' : '', isDraggingMe ? 'opacity-60' : ''].join(' ')}
                 style={{ paddingLeft: isList ? 2 : inUncTasks ? 6 : 8 + b.indent * 16 }}>
                 <div className="w-3 shrink-0 text-white/20 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" title="Drag">⋮⋮</div>
                 {isList ? (
@@ -981,40 +982,64 @@ const handleKey = (
                     {collapsed[b.id] ? '▸' : '▾'}
                   </button>
                 ) : <div className="w-3 shrink-0" />}
-                {isTask ? (
-                  <button type="button" onClick={() => handleUpdateBlock(b.id, { checked: !b.checked })}
-                    className="relative h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
-                    title="Complete">
-                    {pulseId === b.id ? (<><span className="absolute -inset-2 rounded-full border border-[#52b352]/35 animate-ping" /><span className="absolute -inset-3 rounded-full border border-[#52b352]/24 animate-ping [animation-delay:90ms]" /><span className="absolute -inset-4 rounded-full border border-[#52b352]/14 animate-ping [animation-delay:160ms]" /><span className="absolute -inset-2 rounded-full bg-[#52b352]/10 blur-sm" /></>) : null}
-                    {b.checked ? (
-                      <span className="relative flex h-3 w-3 items-center justify-center">
-                        <span className="absolute h-2.5 w-2.5 rounded-full bg-[#52b352]/85 blur-[2px]" />
-                        <span className="absolute h-1.5 w-1.5 rounded-full bg-[#52b352]" />
-                      </span>
-                    ) : (
-                      <span className="h-3 w-3 rounded border border-white/25 group-hover:border-white/40 transition-colors" />
-                    )}
-                  </button>
-                ) : null}
-                {isTask ? (
+                {isList && !isUncList && editingListTitleId !== b.id ? (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleUpdateBlock(b.id, { priority: !b.priority });
+                      setEditingListTitleId(b.id);
+                      requestAnimationFrame(() => {
+                        const el = inputRefs.current[b.id];
+                        if (!el) return;
+                        el.focus();
+                        const len = el.value.length;
+                        el.setSelectionRange(len, len);
+                      });
                     }}
-                    aria-pressed={b.priority === true}
-                    aria-label={b.priority ? 'Remove high priority' : 'Mark as high priority'}
-                    title={b.priority ? 'High priority — click to remove' : 'Mark as high priority'}
-                    className={[
-                      'shrink-0 h-4 w-4 flex items-center justify-center text-[12px] leading-none select-none transition-all duration-150',
-                      b.priority
-                        ? 'opacity-100 drop-shadow-[0_0_6px_rgba(244,63,94,0.55)]'
-                        : 'opacity-0 group-hover:opacity-40 hover:!opacity-80 hover:scale-110',
-                    ].join(' ')}
+                    aria-label="Edit list title"
+                    title="Edit list title"
+                    className="shrink-0 h-4 w-4 flex items-center justify-center text-[11px] text-white/35 opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-white/80 transition-all duration-150"
                   >
-                    🚩
+                    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
+                    </svg>
                   </button>
+                ) : null}
+                {isTask ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingTaskId(b.id);
+                        focusBlock(b.id, true);
+                      }}
+                      aria-label="Edit task"
+                      title="Edit task"
+                      className="shrink-0 h-4 w-4 flex items-center justify-center text-[11px] text-white/35 opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-white/80 transition-all duration-150"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
+                      </svg>
+                    </button>
+                    <TaskFlagButton
+                      source={b}
+                      onChange={(next) => handleUpdateBlock(b.id, { flag: next, priority: undefined })}
+                    />
+                    <button type="button" onClick={() => handleUpdateBlock(b.id, { checked: !b.checked })}
+                      className="relative h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
+                      title="Complete">
+                      {pulseId === b.id ? (<><span className="absolute -inset-2 rounded-full border border-[#52b352]/35 animate-ping" /><span className="absolute -inset-3 rounded-full border border-[#52b352]/24 animate-ping [animation-delay:90ms]" /><span className="absolute -inset-4 rounded-full border border-[#52b352]/14 animate-ping [animation-delay:160ms]" /><span className="absolute -inset-2 rounded-full bg-[#52b352]/10 blur-sm" /></>) : null}
+                      {b.checked ? (
+                        <span className="relative flex h-3 w-3 items-center justify-center">
+                          <span className="absolute h-2.5 w-2.5 rounded-full bg-[#52b352]/85 blur-[2px]" />
+                          <span className="absolute h-1.5 w-1.5 rounded-full bg-[#52b352]" />
+                        </span>
+                      ) : (
+                        <span className="h-3 w-3 rounded border border-white/25 group-hover:border-white/40 transition-colors" />
+                      )}
+                    </button>
+                  </>
                 ) : null}
                 <div className={['min-w-0 flex-1', isTask ? 'flex items-start gap-[6px]' : 'flex flex-wrap items-center gap-[2px]'].join(' ')}>
                   {isTask ? (

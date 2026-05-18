@@ -3,7 +3,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { readProjectsLS, writeProjectsLS, cleanupEmptyTasks } from '@/lib/datacenter';
+import { readProjectsLS, writeProjectsLS, cleanupEmptyTasks, type TaskFlagColor } from '@/lib/datacenter';
+import { TaskFlagBadge } from './TaskFlag';
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 
@@ -16,6 +17,7 @@ type Reminder = {
   weekly?: boolean;
   dismissed?: boolean;
   priority?: boolean;
+  flag?: TaskFlagColor;
 };
 
 interface TopNavBarProps {
@@ -550,15 +552,7 @@ export default function TopNavBar({
                                 textDecoration: isDone ? 'line-through' : 'none',
                               }}
                             >
-                              {r.priority ? (
-                                <span
-                                  className="mr-1 inline-block align-[-1px] text-[12px] leading-none drop-shadow-[0_0_5px_rgba(244,63,94,0.55)]"
-                                  title="High priority"
-                                  aria-label="High priority"
-                                >
-                                  🚩
-                                </span>
-                              ) : null}
+                              <TaskFlagBadge source={r} inline />
                               {r.title}
                             </div>
                             {(r.time || r.daily || r.weekly) && (

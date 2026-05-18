@@ -12,7 +12,11 @@ import {
   readSelectedProject,
   writeSelectedProjectBlocks,
   isListVisible,
+  getTaskFlag,
+  highestTaskFlag,
+  type TaskFlagColor,
 } from '@/lib/datacenter';
+import { TaskFlagBadge, TaskFlagIcon } from './TaskFlag';
 
 /* ===================== Local types ===================== */
 
@@ -24,7 +28,7 @@ type CalCard = {
   deadline: string;
   isHidden?: boolean;
   archived?: boolean;
-  priority?: boolean;
+  flag?: TaskFlagColor;
 };
 
 type DayGroup = {
@@ -270,15 +274,7 @@ function DaySidebar({
                                 : 'text-white/85',
                             ].join(' ')}
                           >
-                            {card.priority ? (
-                              <span
-                                className="mr-1 inline-block align-[-1px] text-[12px] leading-none drop-shadow-[0_0_6px_rgba(244,63,94,0.55)]"
-                                title="High priority"
-                                aria-label="High priority"
-                              >
-                                🚩
-                              </span>
-                            ) : null}
+                            <TaskFlagBadge source={{ flag: card.flag }} inline />
                             {card.text || '(no text)'}
                           </span>
                         </div>
@@ -390,7 +386,7 @@ export default function CalendarView() {
       deadline:  b.deadline!,
       isHidden:  b.isHidden === true,
       archived:  b.archived,
-      priority:  b.priority === true,
+      flag: getTaskFlag(b),
     });
   }
 
@@ -659,15 +655,16 @@ export default function CalendarView() {
                       ].join(' ')}>
                         {parseInt(dayNum)}
                       </div>
-                      {dayCards.some(c => c.priority && !c.checked) && (
-                        <span
-                          className="text-[12px] leading-none drop-shadow-[0_0_5px_rgba(244,63,94,0.55)]"
-                          title="Has high priority task"
-                          aria-label="Has high priority task"
-                        >
-                          🚩
-                        </span>
-                      )}
+                      {(() => {
+                        const dayFlag = highestTaskFlag(
+                          dayCards.filter(c => !c.checked).map(c => c.flag),
+                        );
+                        return dayFlag ? (
+                          <span className="h-4 w-4 flex items-center justify-center" title="Has flagged task" aria-label="Has flagged task">
+                            <TaskFlagIcon color={dayFlag} className="h-3.5 w-3.5" />
+                          </span>
+                        ) : null;
+                      })()}
                       {isOverdue && (
                         <span className="text-[9px] font-semibold text-red-400/70 uppercase tracking-wide leading-none">
                           overdue
@@ -735,15 +732,16 @@ export default function CalendarView() {
                       {parseInt(dayNum)}
                     </span>
                     <span className="text-[10px] text-white/35 uppercase">{weekday}</span>
-                    {groups.flatMap(g => g.cards).some(c => c.priority && !c.checked) && (
-                      <span
-                        className="text-[11px] leading-none drop-shadow-[0_0_5px_rgba(244,63,94,0.55)]"
-                        title="Has high priority task"
-                        aria-label="Has high priority task"
-                      >
-                        🚩
-                      </span>
-                    )}
+                    {(() => {
+                      const dayFlag = highestTaskFlag(
+                        groups.flatMap(g => g.cards).filter(c => !c.checked).map(c => c.flag),
+                      );
+                      return dayFlag ? (
+                        <span className="h-4 w-4 flex items-center justify-center" title="Has flagged task" aria-label="Has flagged task">
+                          <TaskFlagIcon color={dayFlag} className="h-3.5 w-3.5" />
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
                   {isOverdue && (
                     <span className="text-[9px] font-semibold text-red-400/70 uppercase tracking-wide">overdue</span>
