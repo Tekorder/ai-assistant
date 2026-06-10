@@ -116,3 +116,20 @@
   background: var(--assistant-hover-bg);
   color: var(--assistant-text);
 }
+.sidebarButton {
+  background: var(--assistant-control-bg);
+  color: var(--assistant-text-muted);
+  transition: all .2s ease;
+}
+
+.sidebarButton:hover {
+  background: var(--assistant-hover-bg);
+  color: var(--assistant-text);
+}
+.dragOver {
+  background: var(--assistant-hover-bg);
+  outline: 1px solid var(--assistant-border-soft);
+}
+.dragHandle {
+  color: var(--assistant-text-faint);
+}

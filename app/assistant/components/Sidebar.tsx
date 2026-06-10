@@ -500,7 +500,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 <button
                   type="button"
                   onClick={handleAddNewList}
-                  className="my-1 text-[11px] px-2 py-1 rounded-md bg-white/10 text-white/60 hover:text-white/80 hover:bg-white/16 transition-colors"
+                  className={`${classes.sidebarButton} my-1 text-[11px] px-2 py-1 rounded-md`}
                   title="Add a new list"
                 >
                   + New List
@@ -512,7 +512,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                   const listBlocks = blocks.filter(b => b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true);
                   if (!listBlocks.length) {
                     return (
-                      <div className="text-[12px] text-white/40 px-1 py-2">
+                      <div className="text-[12px] px-1 py-2" style={{ color: 'var(--assistant-text-faint)' }}>
                         No lists yet.
                       </div>
                     );
@@ -529,13 +529,14 @@ const visibleLists = useMemo<Record<string, boolean>>(
                           onDragEnd={onDragEndRow}
                           className={[
                             'group flex items-center gap-1 px-0.5 py-1 rounded-md',
-                            dragOverId === b.id && dragRef.current?.id !== b.id ? 'bg-white/7 outline outline-1 outline-white/10' : '',
+                            dragOverId === b.id && dragRef.current?.id !== b.id ? classes.dragOver : '',
                             dragRef.current?.id === b.id ? 'opacity-60' : '',
                           ].join(' ')}
                           style={{ paddingLeft: 2 }}
                         >
                           <div
-                            className="w-3 shrink-0 text-white/20 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                            className="w-3 shrink-0  select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                            style={{ color: 'var(--assistant-text-faint)' }}
                             title="Drag"
                           >
                             ⋮⋮
@@ -548,19 +549,21 @@ const visibleLists = useMemo<Record<string, boolean>>(
                               className="sr-only"
                             />
                             <span
-                              className={[
-                                'h-3 w-3 rounded-full border transition-all duration-200',
-                                isVisible ? '' : 'border-white/30 bg-transparent',
-                              ].join(' ')}
+                              className="h-3 w-3 rounded-full border transition-all duration-200"
                               style={
                                 isVisible
                                   ? {
-                                      borderColor: 'var(--assistant-tone-1, #52b352)',
-                                      background: 'var(--assistant-tone-1, #52b352)',
+                                      borderColor: 'var(--assistant-accent)',
+                                      background: 'var(--assistant-accent)',
                                       boxShadow:
-                                        '0 0 0 1px color-mix(in srgb, var(--assistant-tone-1, #52b352) 82%, transparent), 0 0 18px color-mix(in srgb, var(--assistant-tone-1, #52b352) 95%, transparent), 0 0 28px color-mix(in srgb, var(--assistant-tone-1, #52b352) 65%, transparent)',
+                                        '0 0 0 1px color-mix(in srgb, var(--assistant-accent) 82%, transparent), ' +
+                                        '0 0 18px color-mix(in srgb, var(--assistant-accent) 95%, transparent), ' +
+                                        '0 0 28px color-mix(in srgb, var(--assistant-accent) 65%, transparent)',
                                     }
-                                  : undefined
+                                  : {
+                                      borderColor: 'var(--assistant-border-soft)',
+                                      background: 'transparent',
+                                    }
                               }
                             />
                           </label>
@@ -575,14 +578,16 @@ const visibleLists = useMemo<Record<string, boolean>>(
                               onKeyDown={e => handleKey(e, b)}
                               onBlur={() => setEditingListTitleId(null)}
                               className={[
-                                'w-full cursor-text bg-transparent text-sm font-semibold text-white outline-none transition-opacity duration-150',
+                                'w-full cursor-text bg-transparent text-sm font-semibold outline-none transition-opacity duration-150',
                               ].join(' ')}
+                                style={{color: 'var(--assistant-text)'}}
                             />
                           ) : (
                             <button
                               type="button"
                               data-youtask-block={b.id}
-                              className="w-full truncate text-left text-sm font-semibold text-white underline decoration-[#d5fc43]/65 underline-offset-[3px] outline-none transition-colors hover:text-white"
+                              className="w-full truncate text-left text-sm font-semibold underline underline-offset-[3px] outline-none transition-colors"
+                                style={{color: 'var(--assistant-text)',textDecorationColor: 'color-mix(in srgb, var(--assistant-accent) 65%, transparent)',}}
                               onClick={() => openPivotForList(b)}
                               onDoubleClick={(e) => {
                                 e.stopPropagation();
@@ -594,7 +599,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
                             </button>
                           )}
 
-                          <div className="text-[10px] uppercase tracking-[0.14em] text-white/35 pr-1">
+                          <div className="text-[10px] uppercase tracking-[0.14em] pr-1"
+                            style={{color: 'var(--assistant-text-faint)',}}>
                             {isVisible ? 'On' : 'Off'}
                           </div>
                         </div>
