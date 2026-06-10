@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -20,7 +22,6 @@
   }
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
 
 .font-montserrat {
   font-family: 'Montserrat', sans-serif;
@@ -740,7 +741,7 @@ input[type="checkbox"]:checked::before {
 }
 
 /* ===== Onboarding ===== */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
+
 .ob-wrap * { box-sizing: border-box; }
 
 @keyframes ob-in      { from { opacity:0; transform:translateY(10px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }

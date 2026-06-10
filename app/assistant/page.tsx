@@ -669,7 +669,7 @@ export default function App() {
             />
             <div
               className={[
-                'fixed z-[9999] text-white',
+                'fixed z-[9999] var(--assistant-text)',
                 'right-5 bottom-24',
                 'w-[500px] max-w-[90vw]',
                 'h-[600px]',

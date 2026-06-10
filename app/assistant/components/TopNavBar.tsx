@@ -5,6 +5,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { readProjectsLS, writeProjectsLS, cleanupEmptyTasks, type TaskFlagColor } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 
@@ -352,7 +353,7 @@ export default function TopNavBar({
       `}</style>
 
       {/* ── Top bar ── */}
-      <header className="shrink-0 h-12 bg-black border-b border-white/8 flex items-center px-3 md:px-4 gap-2 z-50">
+      <header className={`shrink-0 h-12 ${classes.header}  flex items-center px-3 md:px-4 gap-2 z-50`}>
 
         {/* Logo */}
         <button
@@ -373,8 +374,8 @@ export default function TopNavBar({
           className={[
             'h-8 w-8 rounded-lg flex items-center justify-center transition-colors shrink-0',
             sidebarOpen
-              ? 'bg-[#d5fc43]/16 text-[#d5fc43]/70'
-              : 'text-white/40 hover:text-white/85 hover:bg-white/10',
+              ? classes.activeTab
+              : classes.inactiveTab,
           ].join(' ')}
           aria-label="Toggle lists sidebar"
           title="Toggle lists sidebar"
@@ -387,7 +388,7 @@ export default function TopNavBar({
       
 
         {/* Divider */}
-        <div className="hidden md:block w-px h-5 bg-white/10 mx-1 shrink-0" />
+       <div className={`hidden md:block w-px h-5 mx-1 shrink-0 ${classes.divider}`} />
 
         {/* Nav tabs */}
         <nav className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none">
@@ -407,12 +408,12 @@ export default function TopNavBar({
                 className={[
                   'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap shrink-0',
                   isActive
-                    ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
-                    : 'text-white/45 hover:text-white/80 hover:bg-white/8',
+                    ? classes.activeTab
+                    : classes.inactiveTab,
                 ].join(' ')}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <span className={isActive ? 'text-[#d5fc43]' : 'text-white/45'}>{item.icon}</span>
+                <span className={isActive ? classes.activeIcon : ''}>{item.icon}</span>
                 <span>{item.label}</span>
               </button>
             );
@@ -434,12 +435,12 @@ export default function TopNavBar({
                 className={[
                   'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap shrink-0',
                   isOpen
-                    ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
-                    : 'text-white/45 hover:text-white/80 hover:bg-white/8',
+                    ? classes.activeTab
+                    : classes.inactiveTab,
                 ].join(' ')}
                 aria-expanded={isOpen}
               >
-                <span className={isOpen ? 'text-[#d5fc43]' : 'text-white/45'}>{item.icon}</span>
+                <span className={isOpen ? classes.activeIcon : ''}>{item.icon}</span>
                 <span>{item.label}</span>
               </button>
             );
@@ -451,13 +452,13 @@ export default function TopNavBar({
             className={[
               'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium whitespace-nowrap shrink-0 transition-all duration-150',
               activityOpen
-                ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
-                : 'text-white/45 hover:text-white/80 hover:bg-white/8',
+                    ? classes.activeTab
+                    : classes.inactiveTab,
             ].join(' ')}
             aria-expanded={activityOpen}
             title="Toggle activity log"
           >
-            <span className={activityOpen ? 'text-[#d5fc43]' : 'text-white/45'}>{ACTIVITY_TAB.icon}</span>
+            <span className={activityOpen ? classes.activeIcon : ''}>{ACTIVITY_TAB.icon}</span>
             <span>{ACTIVITY_TAB.label}</span>
           </button>
 
@@ -467,13 +468,13 @@ export default function TopNavBar({
             className={[
               'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium whitespace-nowrap shrink-0 transition-all duration-150',
               listsOpen
-                ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
-                : 'text-white/45 hover:text-white/80 hover:bg-white/8',
+                    ? classes.activeTab
+                    : classes.inactiveTab,
             ].join(' ')}
             aria-expanded={listsOpen}
             title="Toggle lists"
           >
-            <span className={listsOpen ? 'text-[#d5fc43]' : 'text-white/45'}>{LISTS_TAB.icon}</span>
+            <span className={listsOpen ? classes.activeIcon : ''}>{LISTS_TAB.icon}</span>
             <span>{LISTS_TAB.label}</span>
           </button>
         </div>
@@ -639,7 +640,7 @@ export default function TopNavBar({
               type="button"
               onClick={item.id === 'habits' ? onToggleHabits : onToggleReminders}
               className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
-                isOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
+                isOpen ? classes.activeTab : classes.inactiveTab
               }`}
             >
               <span className="text-base leading-none">{item.icon}</span>
@@ -664,6 +665,7 @@ export default function TopNavBar({
             <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
           )}
         </button>
+
 
         <button
           type="button"

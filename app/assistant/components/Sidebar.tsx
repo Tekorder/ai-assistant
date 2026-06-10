@@ -32,6 +32,7 @@ import {
   writeProjectsLS,
 } from '@/lib/datacenter';
 import { assistantThemes, type AssistantThemeName } from '../_theme/themes';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 type SidebarProps = {
   onOpenPivot?: (detail: {
@@ -59,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, on
     'bloodmoon',
     'deepsea',
   ];
-  const lightThemes: AssistantThemeName[] = [];
+  const lightThemes: AssistantThemeName[] = ['cloud'];
   const [themeTab, setThemeTab] = useState<'dark' | 'light'>('dark');
   const [themePage, setThemePage] = useState(1);
   const THEMES_PER_PAGE = 4;
@@ -487,7 +488,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
         <aside
           className="relative z-[60] flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-[#52b352]/55 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]"
           style={{
-            background: 'rgba(8,8,8,0.42)',
+            background: 'var(--assistant-tab-bg)',
             backdropFilter: 'blur(16px) saturate(1.2)',
             WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
           }}
@@ -606,18 +607,34 @@ const visibleLists = useMemo<Record<string, boolean>>(
         </div>
 
         {/* Fixed footer */}
-        <div className="shrink-0 space-y-3 border-t border-white/10 bg-transparent px-4 py-3">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Themes</div>
-            <div className="mt-2 flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1">
+          <div
+            className="shrink-0 space-y-3 bg-transparent px-4 py-3"
+            style={{
+              borderTop: '1px solid var(--assistant-border-soft)',
+            }}
+          >
+          <div className="rounded-2xl px-3 py-3"
+            style={{
+                  border: '1px solid var(--assistant-border-soft)',
+                  background: 'var(--assistant-panel-bg)',
+                }}>
+            <div className="text-[10px] uppercase tracking-[0.18em]"
+            style={{ color: 'var(--assistant-text-muted)'}}>Themes</div>
+              <div
+                className="mt-2 flex items-center gap-1 rounded-lg p-1"
+                style={{
+                  border: '1px solid var(--assistant-border-soft)',
+                  background: 'var(--assistant-panel-bg)',
+                }}
+              >
               <button
                 type="button"
                 onClick={() => setThemeTab('dark')}
                 className={[
                   'flex-1 rounded-md px-2 py-1 text-[11px] transition-colors',
                   themeTab === 'dark'
-                    ? 'bg-white/12 text-white'
-                    : 'text-white/60 hover:bg-white/6 hover:text-white/85',
+                    ? classes.themeTabActive
+                    : classes.themeTabInactive,
                 ].join(' ')}
               >
                 Dark
@@ -628,8 +645,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 className={[
                   'flex-1 rounded-md px-2 py-1 text-[11px] transition-colors',
                   themeTab === 'light'
-                    ? 'bg-white/12 text-white'
-                    : 'text-white/60 hover:bg-white/6 hover:text-white/85',
+                    ? classes.themeTabActive
+                    : classes.themeTabInactive,
                 ].join(' ')}
               >
                 Light
@@ -644,11 +661,11 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     type="button"
                     onClick={() => onSelectTheme(themeKey)}
                     className={[
-                      'rounded-lg border px-2 py-1.5 text-left text-[11px] transition-colors',
+                      'rounded-lg px-2 py-1.5 text-left text-[11px]',
                       isActive
-                        ? 'border-white/30 bg-white/12 text-white'
-                        : 'border-white/12 bg-white/[0.03] text-white/70 hover:bg-white/[0.07] hover:text-white/90',
-                    ].join(' ')}
+                        ? classes.themeCardActive
+                        : classes.themeCard,
+                  ].join(' ')}
                     aria-pressed={isActive}
                   >
                     {assistantThemes[themeKey].themeName}
@@ -671,10 +688,10 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     type="button"
                     onClick={() => setThemePage(page)}
                     className={[
-                      'h-6 min-w-6 rounded-md px-1.5 text-[11px] transition-colors',
+                      'h-6 min-w-6 rounded-md px-1.5 text-[11px]',
                       isActive
-                        ? 'bg-white/15 text-white'
-                        : 'bg-white/[0.03] text-white/55 hover:bg-white/8 hover:text-white/85',
+                        ? classes.themeButtonActive
+                        : classes.themeButton,
                     ].join(' ')}
                     aria-label={`Theme page ${page}`}
                   >
@@ -687,12 +704,25 @@ const visibleLists = useMemo<Record<string, boolean>>(
 
           <div className="rounded-2xl px-3 py-3 min-h-[128px]">
             <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-xl border border-white/20 bg-white/8 flex items-center justify-center text-lg shrink-0">
+         <div
+            className="h-9 w-9 rounded-xl flex items-center justify-center text-lg shrink-0"
+            style={{
+              border: '1px solid var(--assistant-border-soft)',
+              background: 'var(--assistant-control-bg)',
+            }}
+>
                 💡
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-white/55">Hint</div>
-                <div className="mt-1 text-[12px] leading-5 text-white/80 transition-all">
+                <div
+                  className="text-[11px] uppercase tracking-[0.18em]"
+                  style={{ color: 'var(--assistant-text-muted)' }}
+                >Hint
+                </div>
+                <div
+                    className="mt-1 text-[12px] leading-5 transition-all"
+                    style={{ color: 'var(--assistant-text-soft)' }}
+                  >
                   {hintIndex === 0 && 'Use Daily view to get focused on today’s tasks.'}
                   {hintIndex === 1 && 'Use Organizer to plan your tasks based on your list.'}
                   {hintIndex === 2 && 'Use Timeline to check your week progress.'}
@@ -708,11 +738,12 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     key={i}
                     type="button"
                     onClick={() => setHintIndex(i)}
-                    className={[
+                   className={[
                       'h-1.5 rounded-full transition-all',
-                      i === hintIndex ? 'w-5 bg-white/65' : 'w-1.5 bg-white/20 hover:bg-white/35',
+                      i === hintIndex
+                        ? classes.hintDotActive
+                        : classes.hintDot,
                     ].join(' ')}
-                    aria-label={`Go to slide ${i + 1}`}
                   />
                 ))}
               </div>
@@ -720,15 +751,16 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 <button
                   type="button"
                   onClick={() => setHintIndex((prev) => (prev - 1 + 4) % 4)}
-                  className="h-7 w-7 rounded-full bg-white/10 text-white/60 hover:text-white/85 hover:bg-white/16"
+                  className={`${classes.navButton} h-7 w-7 rounded-full`}
                   aria-label="Previous slide"
                 >
                   ‹
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setHintIndex((prev) => (prev + 1) % 4)}
-                  className="h-7 w-7 rounded-full bg-white/10 text-white/60 hover:text-white/85 hover:bg-white/16"
+                  className={`${classes.navButton} h-7 w-7 rounded-full`}
                   aria-label="Next slide"
                 >
                   ›
@@ -751,26 +783,36 @@ const visibleLists = useMemo<Record<string, boolean>>(
             }}
             aria-label="Close"
           />
-          <div className="relative w-[92vw] max-w-md rounded-2xl border border-white/10 bg-black shadow-2xl">
-            <div className="px-4 py-3 border-b border-white/10">
-              <div className="text-sm font-semibold text-white/90">Estas por borrar una lista</div>
-              <p className="text-[12px] text-white/65 mt-2 leading-relaxed">
+            <div
+              className="relative w-[92vw] max-w-md rounded-2xl shadow-2xl"
+              style={{
+                border: '1px solid var(--assistant-border-soft)',
+                background: 'var(--assistant-panel-bg)',
+              }}>
+            <div
+              className="px-4 py-3"
+              style={{
+                borderBottom: '1px solid var(--assistant-border-soft)',
+              }}
+            >
+              <div className="text-sm font-semibold"   style={{ color: 'var(--assistant-text)' }}>Estas por borrar una lista</div>
+              <p className="text-[12px]  mt-2 leading-relaxed" style={{ color: 'var(--assistant-text-muted)' }}>
                 Estás por borrar una lista con todas sus tareas. ¿Seguro que quieres continuar?
               </p>
               {(() => {
                 const t = blocks.find(x => x.id === deleteListConfirmId)?.text?.trim();
                 if (!t) return null;
-                return <div className="text-[11px] text-white/40 mt-2 truncate" title={t}>Lista: {t}</div>;
+                return <div className="text-[11px]  mt-2 truncate" title={t} style={{ color: 'var(--assistant-text-faint)' }}>Lista: {t}</div>;
               })()}
             </div>
-            <div className="px-4 py-3 border-t border-white/10 flex items-center justify-end gap-2">
+            <div className="px-4 py-3  flex items-center justify-end gap-2"  style={{borderTop: '1px solid var(--assistant-border-soft)'}}>
               <button
                 type="button"
                 onClick={() => {
                   setDeleteListConfirmId(null);
                   armedDeleteListRef.current = null;
                 }}
-                className="text-[12px] px-3 py-2 rounded-md bg-white/10 text-white/70 hover:text-white/90 hover:bg-white/16 transition-colors"
+                className={`${classes.modalSecondaryButton} text-[12px] px-3 py-2 rounded-md`}
               >
                 Cancelar
               </button>

@@ -1,0 +1,118 @@
+.primaryText {
+  color: var(--assistant-text-strong);
+}
+
+.secondaryText {
+  color: var(--assistant-text-soft);
+}
+
+.mutedText {
+  color: var(--assistant-text-muted);
+}
+
+.faintText {
+  color: var(--assistant-text-faint);
+}
+
+.hoverText:hover {
+  color: var(--assistant-text-hover);
+}
+
+.panel {
+  background: var(--assistant-panel-bg);
+  border-color: var(--assistant-border-soft);
+}
+
+.header {
+  background: var(--assistant-header-bg);
+  border-color: var(--assistant-border-soft);
+}
+
+.activeTab {
+  background: var(--assistant-active-bg);
+  color: var(--assistant-active-text);
+}
+
+.inactiveTab {
+  color: var(--assistant-text-muted);
+}
+
+.inactiveTab:hover {
+  color: var(--assistant-text-hover);
+  background: var(--assistant-hover-bg);
+}
+.activeTab {
+  color: var(--assistant-accent);
+  background: var(--assistant-accent-bg);
+}
+
+.activeIcon {
+  color: var(--assistant-accent);
+}
+
+.divider {
+  background: var(--assistant-border-soft);
+}
+.themeTabActive {
+  background: var(--assistant-button-active-bg);
+  color: var(--assistant-button-text-active);
+}
+
+.themeTabInactive {
+  color: var(--assistant-button-text);
+}
+
+.themeTabInactive:hover {
+  background: var(--assistant-button-active-bg);
+  color: var(--assistant-button-text-hover);
+}
+.themeCard {
+  border: 1px solid var(--assistant-border-soft);
+  background: var(--assistant-panel-bg);
+  color: var(--assistant-text-muted);
+  transition: all .2s ease;
+}
+
+.themeCard:hover {
+  background: var(--assistant-hover-bg);
+  color: var(--assistant-text);
+}
+
+.themeCardActive {
+  border: 1px solid var(--assistant-accent);
+  background: var(--assistant-active-bg);
+  color: var(--assistant-accent);
+}
+.hintDot {
+  width: 0.375rem;
+  background: var(--assistant-border-soft);
+}
+
+.hintDot:hover {
+  background: var(--assistant-text-muted);
+}
+
+.hintDotActive {
+  width: 1.25rem;
+  background: var(--assistant-accent);
+}
+.navButton {
+  background: var(--assistant-control-bg);
+  color: var(--assistant-text-muted);
+  transition: all .2s ease;
+}
+
+.navButton:hover {
+  background: var(--assistant-hover-bg);
+  color: var(--assistant-text);
+}
+.modalSecondaryButton {
+  background: var(--assistant-control-bg);
+  color: var(--assistant-text-muted);
+  transition: all .2s ease;
+}
+
+.modalSecondaryButton:hover {
+  background: var(--assistant-hover-bg);
+  color: var(--assistant-text);
+}
