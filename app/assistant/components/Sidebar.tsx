@@ -485,14 +485,17 @@ const visibleLists = useMemo<Record<string, boolean>>(
   return (
     <>
       <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
-        <aside
-          className="relative z-[60] flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-[#52b352]/55 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]"
-          style={{
-            background: 'var(--assistant-tab-bg)',
-            backdropFilter: 'blur(16px) saturate(1.2)',
-            WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
-          }}
-        >
+      <aside
+        className="relative z-[60] flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl"
+        style={{
+        border: '1px solid color-mix(in srgb, var(--assistant-accent) 45%, transparent)',
+        background: 'var(--assistant-tab-bg)',
+        boxShadow: `
+            inset 0 1px 0 var(--assistant-border-soft),
+            var(--assistant-glow)
+          `,
+         }}
+            >
         {/* Scrollable content */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
           <>

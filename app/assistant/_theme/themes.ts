@@ -232,7 +232,9 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	'--assistant-button-text-hover': isLight
 	? 'rgba(0,0,0,.85)'
 	: 'rgba(255,255,255,.85)',
-	
+	'--assistant-highlight': isLight
+	? 'rgba(255,255,255,.6)'
+	: 'rgba(255,255,255,.06)',
 
 	'--assistant-button-text-active': theme.textColor,
 	'--assistant-tab-bg': theme.tone2,

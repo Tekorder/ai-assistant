@@ -1,6 +1,6 @@
 // app/components/Quick.tsx
 'use client';
-
+// Note we may want to rename this component in the future as 'quick' is a bit confusing 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { OnboardingModal } from './OnboardingModal';
 import MiniCalendar from './Minicalendar';
