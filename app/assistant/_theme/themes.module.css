@@ -66,6 +66,20 @@
   background: var(--assistant-button-active-bg);
   color: var(--assistant-button-text-hover);
 }
+.themeButton {
+  background: var(--assistant-control-bg);
+  color: var(--assistant-text-muted);
+}
+
+.themeButton:hover {
+  background: var(--assistant-hover-bg);
+  color: var(--assistant-text);
+}
+
+.themeButtonActive {
+  background: var(--assistant-active-bg);
+  color: var(--assistant-accent);
+}
 .themeCard {
   border: 1px solid var(--assistant-border-soft);
   background: var(--assistant-panel-bg);
