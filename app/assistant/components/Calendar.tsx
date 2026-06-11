@@ -64,8 +64,20 @@ function dayDiff(ymd: string): number {
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
 
-function pillColorForList(index: number): string {
-  /* Lime-first NRC palette; extra hues only to separate adjacent lists */
+function pillColorForList(index: number, isLight = false): string {
+  if (isLight) {
+    const palettes = [
+      'bg-sky-500/12 text-sky-700 border-sky-500/25',
+      'bg-violet-500/12 text-violet-700 border-violet-500/25',
+      'bg-rose-500/12 text-rose-700 border-rose-400/25',
+      'bg-cyan-500/12 text-cyan-700 border-cyan-400/25',
+      'bg-teal-500/12 text-teal-700 border-teal-500/25',
+      'bg-fuchsia-500/12 text-fuchsia-700 border-fuchsia-500/25',
+      'bg-indigo-500/12 text-indigo-700 border-indigo-500/25',
+      'bg-orange-500/12 text-orange-700 border-orange-400/25',
+    ];
+    return palettes[index % palettes.length];
+  }
   const palettes = [
     'bg-[#d5fc43]/15 text-[#d5fc43] border-[#d5fc43]/28',
     'bg-sky-500/15 text-sky-200 border-sky-400/25',
@@ -80,7 +92,20 @@ function pillColorForList(index: number): string {
 }
 
 /** Pills inside month grid cells — no lime (lime reserved for calendar chrome / today / nav) */
-function pillColorForCalendarCell(index: number): string {
+function pillColorForCalendarCell(index: number, isLight = false): string {
+  if (isLight) {
+    const palettes = [
+      'bg-sky-500/12 text-sky-700 border-sky-400/25',
+      'bg-violet-500/12 text-violet-700 border-violet-400/25',
+      'bg-rose-500/12 text-rose-700 border-rose-400/25',
+      'bg-cyan-500/12 text-cyan-700 border-cyan-400/25',
+      'bg-teal-500/12 text-teal-700 border-teal-400/25',
+      'bg-fuchsia-500/12 text-fuchsia-700 border-fuchsia-400/25',
+      'bg-indigo-500/12 text-indigo-700 border-indigo-400/25',
+      'bg-orange-500/15 text-orange-700 border-orange-400/25',
+    ];
+    return palettes[index % palettes.length];
+  }
   const palettes = [
     'bg-sky-500/15 text-sky-200 border-sky-400/25',
     'bg-violet-500/15 text-violet-200 border-violet-400/25',
@@ -119,12 +144,14 @@ function DaySidebar({
   onClose,
   onToggleDone,
   onReschedule,
+  isLight,
 }: {
   ymd: string;
   groups: DayGroup[];
   onClose: () => void;
   onToggleDone: (id: string) => void;
   onReschedule: (id: string, newDate: string) => void;
+  isLight: boolean;
 }) {
   const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const diff = dayDiff(ymd);
@@ -137,11 +164,11 @@ function DaySidebar({
     return `in ${diff}d`;
   })();
 
-  const diffClass = (() => {
-    if (diff < 0) return 'text-red-300';
-    if (diff === 0) return 'text-[#d5fc43]';
-    if (diff === 1) return 'text-emerald-300';
-    return 'text-sky-300';
+  const diffStyle = (() => {
+    if (diff < 0) return { color: 'var(--assistant-danger-text)' };
+    if (diff === 0) return { color: 'var(--assistant-tone-1)' };
+    if (diff === 1) return { color: 'var(--assistant-tone-3)' };
+    return { color: 'var(--assistant-text-soft)' };
   })();
 
   const allCards = groups.flatMap(g => g.cards);
@@ -160,13 +187,19 @@ function DaySidebar({
     <>
       <button
         type="button"
-        className="absolute inset-0 z-[200] bg-black/50"
+        className="absolute inset-0 z-[200]"
+        style={{ background: 'var(--assistant-overlay)' }}
         onClick={onClose}
         aria-label="Close"
       />
       <div
-        className="absolute top-0 right-0 z-[201] flex h-full w-full max-w-md flex-col border-l border-[#52b352]/15 bg-black shadow-[inset_1px_0_0_rgba(255,255,255,.05)]"
-        style={{ animation: 'calSidebarIn 0.28s cubic-bezier(.22,.9,.28,1)' }}
+        className="absolute top-0 right-0 z-[201] flex h-full w-full max-w-md flex-col"
+        style={{
+          background: 'var(--assistant-panel-bg)',
+          borderLeft: '1px solid color-mix(in srgb, var(--assistant-tone-1) 15%, transparent)',
+          boxShadow: 'inset 1px 0 0 var(--assistant-border-soft)',
+          animation: 'calSidebarIn 0.28s cubic-bezier(.22,.9,.28,1)',
+        }}
       >
         <style>{`
           @keyframes calSidebarIn {
@@ -176,33 +209,40 @@ function DaySidebar({
         `}</style>
 
         {/* Header */}
-        <div className="flex items-start justify-between px-5 py-4 border-b border-white/10 shrink-0">
+        <div
+          className="flex items-start justify-between px-5 py-4 shrink-0"
+          style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}
+        >
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[22px] font-bold text-white leading-none">
+              <span className="text-[22px] font-bold leading-none" style={{ color: 'var(--assistant-text)' }}>
                 {new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })}
               </span>
-              <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full bg-white/8 border border-white/10 ${diffClass}`}>
+              <span
+                className="text-[12px] font-semibold px-2 py-0.5 rounded-full"
+                style={{ ...diffStyle, background: 'var(--assistant-control-bg)', border: '1px solid var(--assistant-border-soft)' }}
+              >
                 {dayLabel}
               </span>
             </div>
-            <div className="text-[13px] text-white/45 mt-1">
+            <div className="text-[13px] mt-1" style={{ color: 'var(--assistant-text-muted)' }}>
               {new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <div className="h-1 rounded-full bg-white/10 flex-1 overflow-hidden">
+              <div className="h-1 rounded-full flex-1 overflow-hidden" style={{ background: 'var(--assistant-control-bg)' }}>
                 <div
                   className="h-full rounded-full bg-[#d5fc43]/85 transition-all duration-500 shadow-[0_0_12px_rgba(213,252,67,.25)]"
                   style={{ width: totalCount ? `${(doneCount / totalCount) * 100}%` : '0%' }}
                 />
               </div>
-              <span className="text-[11px] text-white/40 shrink-0">{doneCount}/{totalCount}</span>
+              <span className="text-[11px] shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>{doneCount}/{totalCount}</span>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-[#d5fc43] hover:bg-[#d5fc43]/10 transition-colors mt-1"
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:text-[#d5fc43] hover:bg-[#d5fc43]/10 transition-colors mt-1"
+            style={{ color: 'var(--assistant-text-faint)' }}
           >
             ✕
           </button>
@@ -211,30 +251,28 @@ function DaySidebar({
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
           {groups.length === 0 ? (
-            <div className="text-center py-12 text-white/30 text-[13px]">No tasks for this day.</div>
+            <div className="text-center py-12 text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>No tasks for this day.</div>
           ) : (
             groups.map((group, gi) => (
               <div key={group.listId} className="space-y-2">
                 {/* List label */}
                 <div className="flex items-center gap-2 px-1">
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${pillColorForList(gi)}`}>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${pillColorForList(gi, isLight)}`}>
                     {group.listTitle}
                   </span>
-                  <span className="text-[11px] text-white/30">{group.cards.length} task{group.cards.length !== 1 ? 's' : ''}</span>
+                  <span className="text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>{group.cards.length} task{group.cards.length !== 1 ? 's' : ''}</span>
                 </div>
 
                 {/* Cards */}
                 {group.cards.map(card => (
                   <div
                     key={card.id}
-                    className={[
-                      'rounded-xl border transition-all duration-200',
-                      card.archived
-                        ? 'bg-white/2 border-white/5 opacity-40'
-                        : card.checked
-                        ? 'bg-white/3 border-white/6 opacity-55'
-                        : 'bg-white/6 border-white/10 hover:bg-white/8',
-                    ].join(' ')}
+                    className="rounded-xl border transition-all duration-200"
+                    style={{
+                      background: 'var(--assistant-surface)',
+                      borderColor: 'var(--assistant-border-soft)',
+                      opacity: card.archived ? 0.4 : card.checked ? 0.6 : 1,
+                    }}
                   >
                     <div className="p-3">
                       {/* Top row */}
@@ -242,7 +280,10 @@ function DaySidebar({
                         <div className="group flex items-start gap-2 min-w-0 flex-1">
                           {/* Checkbox / archived indicator */}
                           {card.archived ? (
-                            <span className="mt-0.5 h-4 w-4 rounded border border-white/15 flex items-center justify-center shrink-0 text-white/30 text-[9px]">
+                            <span
+                              className="mt-0.5 h-4 w-4 rounded flex items-center justify-center shrink-0 text-[9px]"
+                              style={{ border: '1px solid var(--assistant-border-soft)', color: 'var(--assistant-text-faint)' }}
+                            >
                               ▣
                             </span>
                           ) : (
@@ -258,21 +299,18 @@ function DaySidebar({
                                   <span className="absolute h-1.5 w-1.5 rounded-full bg-[#d5fc43]" />
                                 </span>
                               ) : (
-                                <span className="h-3 w-3 rounded border border-white/25 group-hover:border-white/40 transition-colors" />
+                                <span className="h-3 w-3 rounded transition-colors" style={{ border: '1px solid var(--assistant-border-soft)' }} />
                               )}
                             </button>
                           )}
 
                           {/* Text */}
                           <span
-                            className={[
-                              'text-[13px] leading-snug',
-                              card.archived
-                                ? 'line-through text-white/25'
-                                : card.checked
-                                ? 'line-through text-white/35'
-                                : 'text-white/85',
-                            ].join(' ')}
+                            className="text-[13px] leading-snug"
+                            style={{
+                              color: card.archived || card.checked ? 'var(--assistant-text-muted)' : 'var(--assistant-text)',
+                              textDecoration: card.archived || card.checked ? 'line-through' : 'none',
+                            }}
                           >
                             <TaskFlagBadge source={{ flag: card.flag }} inline />
                             {card.text || '(no text)'}
@@ -300,7 +338,7 @@ function DaySidebar({
                           </div>
                         )}
                         {card.archived && (
-                          <span className="text-[9px] text-white/25 shrink-0">archived</span>
+                          <span className="text-[9px] shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>archived</span>
                         )}
                       </div>
                     </div>
@@ -317,7 +355,7 @@ function DaySidebar({
 
 /* ===================== Main Component ===================== */
 
-export default function CalendarView() {
+export default function CalendarView({ isLight = false }: { isLight?: boolean }) {
   const [blocks, setBlocks]             = useState<Block[]>([]);
   const [hydrated, setHydrated]         = useState(false);
   const [projectId, setProjectId]       = useState<string | null>(null);
@@ -494,7 +532,7 @@ export default function CalendarView() {
           return (
             <div
               key={g.listId}
-              className={`relative overflow-hidden rounded-md border px-1.5 pt-[3px] pb-[5px] ${pillColorForCalendarCell(idx)}`}
+              className={`relative overflow-hidden rounded-md border px-1.5 pt-[3px] pb-[5px] ${pillColorForCalendarCell(idx, isLight)}`}
               title={`${g.listTitle}: ${done}/${total}`}
             >
               {/* Label row */}
@@ -509,7 +547,7 @@ export default function CalendarView() {
               </div>
 
               {/* Progress track */}
-              <div className="h-[3px] w-full rounded-full bg-black/30 overflow-hidden">
+              <div className="h-[3px] w-full rounded-full overflow-hidden" style={{ background: 'var(--assistant-control-bg)' }}>
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${allDone ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.35)]' : fillColor}`}
                   style={{ width: `${pct}%`, opacity: allDone ? 0.95 : 0.8 }}
@@ -519,7 +557,7 @@ export default function CalendarView() {
           );
         })}
         {groups.length > 3 && (
-          <div className="text-[9px] text-white/35 pl-1">+{groups.length - 3} more</div>
+          <div className="text-[9px] pl-1" style={{ color: 'var(--assistant-text-faint)' }}>+{groups.length - 3} more</div>
         )}
       </div>
     );
@@ -535,34 +573,38 @@ export default function CalendarView() {
   if (!hydrated) {
     return (
       <div className="h-full w-full bg-transparent flex items-center justify-center">
-        <span className="text-[#d5fc43]/60 text-sm">Loading calendar…</span>
+        <span className="text-sm" style={{ color: 'var(--assistant-tone-1)' }}>Loading calendar…</span>
       </div>
     );
   }
 
   return (
-    <div className="relative h-full w-full overflow-y-auto bg-transparent text-white">
+    <div className="relative h-full w-full overflow-y-auto bg-transparent" style={{ color: 'var(--assistant-text)' }}>
       <div className="mx-auto max-w-6xl min-w-[770px] px-4 py-6 md:px-8 md:py-8">
 
         {/* ── Header / nav bar ── */}
-        <div className="mb-6 flex items-center justify-between rounded-2xl border border-[#52b352]/12 bg-transparent px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
+        <div
+          className="mb-6 flex items-center justify-between rounded-2xl border border-[#52b352]/12 bg-transparent px-4 py-3"
+          style={{ boxShadow: 'inset 0 1px 0 var(--assistant-border-soft)' }}
+        >
           <div>
-            <h1 className="text-[24px] md:text-[28px] font-bold text-white leading-none">
+            <h1 className="text-[24px] md:text-[28px] font-bold leading-none" style={{ color: 'var(--assistant-text)' }}>
               {MONTH_NAMES[viewMonth]}{' '}
-              <span className="text-[#52b352]/85">{viewYear}</span>
+              <span style={{ color: 'var(--assistant-tone-1)' }}>{viewYear}</span>
             </h1>
-            <p className="text-[12px] text-white/40 mt-1">{projectTitle}</p>
+            <p className="text-[12px] mt-1" style={{ color: 'var(--assistant-text-faint)' }}>{projectTitle}</p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={goToday}
-              className="text-[11px] px-3 py-1.5 rounded-xl border border-[#52b352]/40 text-[#52b352] transition-all hover:scale-105"
+              className="text-[11px] px-3 py-1.5 rounded-xl transition-all hover:scale-105"
               style={{
-                background:
-                  'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 20%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent) 100%)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.1), 0 2px 8px rgba(0,0,0,.25)',
+                color: 'var(--assistant-tone-1)',
+                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 40%, transparent)',
+                background: 'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1) 20%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 10%, transparent) 100%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.1), 0 2px 8px rgba(0,0,0,.15)',
               }}
             >
               Today
@@ -570,14 +612,16 @@ export default function CalendarView() {
             <button
               type="button"
               onClick={prevMonth}
-              className="h-8 w-8 flex items-center justify-center text-white/80 transition-colors hover:text-white"
+              className="h-8 w-8 flex items-center justify-center transition-colors"
+              style={{ color: 'var(--assistant-text-soft)' }}
             >
               ‹
             </button>
             <button
               type="button"
               onClick={nextMonth}
-              className="h-8 w-8 flex items-center justify-center text-white/80 transition-colors hover:text-white"
+              className="h-8 w-8 flex items-center justify-center transition-colors"
+              style={{ color: 'var(--assistant-text-soft)' }}
             >
               ›
             </button>
@@ -587,7 +631,7 @@ export default function CalendarView() {
         {/* ── Weekday headers ── */}
         <div className="grid grid-cols-7 mb-1">
           {WEEKDAYS_SHORT.map(wd => (
-            <div key={wd} className="text-center py-2 text-[11px] font-semibold uppercase tracking-wider text-white/75">
+            <div key={wd} className="text-center py-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--assistant-text-soft)' }}>
               <span className="hidden md:inline">{wd}</span>
               <span className="md:hidden">{wd[0]}</span>
             </div>
@@ -618,41 +662,48 @@ export default function CalendarView() {
                 ].join(' ')}
                 style={ymd ? {
                   background: isSelected
-                    ? 'linear-gradient(145deg, rgba(82,179,82,.2) 0%, rgba(82,179,82,.08) 100%)'
+                    ? `linear-gradient(145deg, color-mix(in srgb, var(--assistant-tone-1) 20%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 8%, transparent) 100%)`
                     : isOverdue
                     ? 'rgba(239,68,68,.06)'
                     : hasCards
-                    ? 'linear-gradient(145deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)'
-                    : 'rgba(88,88,88,.02)',
+                    ? 'var(--assistant-surface)'
+                    : 'transparent',
                   border: isSelected
-                    ? '1px solid rgba(82,179,82,.3)'
+                    ? `1px solid color-mix(in srgb, var(--assistant-tone-1) 30%, transparent)`
                     : isToday
-                    ? '1px solid rgba(82,179,82,.22)'
+                    ? `1px solid color-mix(in srgb, var(--assistant-tone-1) 22%, transparent)`
                     : isOverdue
                     ? '1px solid rgba(239,68,68,.15)'
-                    : '1px solid rgba(255,255,255,.05)',
+                    : '1px solid var(--assistant-border-soft)',
                   boxShadow: isSelected
-                    ? 'inset 0 1px 0 rgba(255,255,255,.1), 0 2px 12px rgba(82,179,82,.15)'
-                    : 'inset 0 1px 0 rgba(255,255,255,.04)',
+                    ? `inset 0 1px 0 rgba(255,255,255,.1), 0 2px 12px color-mix(in srgb, var(--assistant-tone-1) 15%, transparent)`
+                    : 'none',
                 } : {
-                  background: 'rgba(0,0,0,.25)',
-                  border: '1px solid rgba(255,255,255,.03)',
+                  background: 'var(--assistant-control-bg)',
+                  border: '1px solid var(--assistant-border-soft)',
                 }}
               >
                 {ymd && (
                   <>
                     {/* Day number + status badge */}
                     <div className="flex items-center gap-1 mb-1">
-                      <div className={[
-                        'relative inline-flex items-center justify-center w-7 h-7 rounded-full text-[13px] font-semibold leading-none transition-colors shrink-0',
-                        isToday
-                          ? 'bg-[#d5fc43]/18 text-[#d5fc43] border border-[#d5fc43]/40 shadow-[0_0_14px_rgba(213,252,67,.22)]'
-                          : isSelected
-                          ? 'bg-[#d5fc43]/14 text-white border border-[#d5fc43]/30'
-                          : isOverdue
-                          ? 'text-red-300/80'
-                          : 'text-white/60',
-                      ].join(' ')}>
+                      <div
+                        className="relative inline-flex items-center justify-center w-7 h-7 rounded-full text-[13px] font-semibold leading-none transition-colors shrink-0"
+                        style={isToday ? {
+                          background: `color-mix(in srgb, var(--assistant-tone-1) 18%, transparent)`,
+                          color: 'var(--assistant-tone-1)',
+                          border: `1px solid color-mix(in srgb, var(--assistant-tone-1) 40%, transparent)`,
+                          boxShadow: `0 0 14px color-mix(in srgb, var(--assistant-tone-1) 22%, transparent)`,
+                        } : isSelected ? {
+                          background: `color-mix(in srgb, var(--assistant-tone-1) 14%, transparent)`,
+                          color: 'var(--assistant-text)',
+                          border: `1px solid color-mix(in srgb, var(--assistant-tone-1) 30%, transparent)`,
+                        } : isOverdue ? {
+                          color: 'var(--assistant-danger-text)',
+                        } : {
+                          color: 'var(--assistant-text-muted)',
+                        }}
+                      >
                         {parseInt(dayNum)}
                       </div>
                       {(() => {
@@ -666,7 +717,7 @@ export default function CalendarView() {
                         ) : null;
                       })()}
                       {isOverdue && (
-                        <span className="text-[9px] font-semibold text-red-400/70 uppercase tracking-wide leading-none">
+                        <span className="text-[9px] font-semibold uppercase tracking-wide leading-none" style={{ color: 'var(--assistant-danger-text)' }}>
                           overdue
                         </span>
                       )}
@@ -701,37 +752,37 @@ export default function CalendarView() {
                 className="rounded-xl p-3 cursor-pointer transition-all duration-150"
                 style={{
                   background: isSelected
-                    ? 'linear-gradient(145deg, rgba(82,179,82,.2) 0%, rgba(82,179,82,.08) 100%)'
-                    : isOverdue
-                    ? 'rgba(239,68,68,.06)'
+                    ? `linear-gradient(145deg, color-mix(in srgb, var(--assistant-tone-1) 20%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 8%, transparent) 100%)`
+                    : isOverdue ? 'rgba(239,68,68,.06)'
                     : isToday
-                    ? 'linear-gradient(145deg, rgba(82,179,82,.14) 0%, rgba(82,179,82,.05) 100%)'
-                    : hasAnyTask
-                    ? 'linear-gradient(145deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)'
-                    : 'rgba(88,88,88,.02)',
+                    ? `linear-gradient(145deg, color-mix(in srgb, var(--assistant-tone-1) 14%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 5%, transparent) 100%)`
+                    : hasAnyTask ? 'var(--assistant-surface)'
+                    : 'transparent',
                   border: isSelected
-                    ? '1px solid rgba(82,179,82,.3)'
+                    ? `1px solid color-mix(in srgb, var(--assistant-tone-1) 30%, transparent)`
                     : isToday
-                    ? '1px solid rgba(82,179,82,.22)'
-                    : isOverdue
-                    ? '1px solid rgba(239,68,68,.15)'
-                    : '1px solid rgba(255,255,255,.06)',
+                    ? `1px solid color-mix(in srgb, var(--assistant-tone-1) 22%, transparent)`
+                    : isOverdue ? '1px solid rgba(239,68,68,.15)'
+                    : '1px solid var(--assistant-border-soft)',
                   boxShadow: isSelected
-                    ? 'inset 0 1px 0 rgba(255,255,255,.1), 0 2px 12px rgba(82,179,82,.15)'
-                    : 'inset 0 1px 0 rgba(255,255,255,.05)',
+                    ? `inset 0 1px 0 rgba(255,255,255,.1), 0 2px 12px color-mix(in srgb, var(--assistant-tone-1) 15%, transparent)`
+                    : 'none',
                 }}
               >
                 {/* Day header */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5">
-                    <span className={[
-                      'text-[18px] font-bold leading-none',
-                      isOverdue ? 'text-red-300/80' :
-                      isToday   ? 'text-[#d5fc43]' : 'text-white/85',
-                    ].join(' ')}>
+                    <span
+                      className="text-[18px] font-bold leading-none"
+                      style={{
+                        color: isOverdue ? 'var(--assistant-danger-text)'
+                          : isToday ? 'var(--assistant-tone-1)'
+                          : 'var(--assistant-text)',
+                      }}
+                    >
                       {parseInt(dayNum)}
                     </span>
-                    <span className="text-[10px] text-white/35 uppercase">{weekday}</span>
+                    <span className="text-[10px] uppercase" style={{ color: 'var(--assistant-text-faint)' }}>{weekday}</span>
                     {(() => {
                       const dayFlag = highestTaskFlag(
                         groups.flatMap(g => g.cards).filter(c => !c.checked).map(c => c.flag),
@@ -744,7 +795,7 @@ export default function CalendarView() {
                     })()}
                   </div>
                   {isOverdue && (
-                    <span className="text-[9px] font-semibold text-red-400/70 uppercase tracking-wide">overdue</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: 'var(--assistant-danger-text)' }}>overdue</span>
                   )}
                 </div>
 
@@ -761,14 +812,14 @@ export default function CalendarView() {
                       return (
                         <div
                           key={g.listId}
-                          className={`relative overflow-hidden rounded-md border px-1.5 pt-[3px] pb-[5px] ${pillColorForCalendarCell(colorIdx)}`}
+                          className={`relative overflow-hidden rounded-md border px-1.5 pt-[3px] pb-[5px] ${pillColorForCalendarCell(colorIdx, isLight)}`}
                           title={`${g.listTitle}: ${done}/${total}`}
                         >
                           <div className="flex items-center justify-between gap-1 leading-none mb-[4px]">
                             <span className="text-[9px] font-medium truncate">{g.listTitle.slice(0, 10)}</span>
                             <span className="text-[8px] opacity-60 shrink-0">{pillDone ? '✓' : `${done}/${total}`}</span>
                           </div>
-                          <div className="h-[3px] w-full rounded-full bg-black/30 overflow-hidden">
+                          <div className="h-[3px] w-full rounded-full overflow-hidden" style={{ background: 'var(--assistant-control-bg)' }}>
                             <div
                               className={`h-full rounded-full transition-all duration-500 ${pillDone ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.35)]' : fillColor}`}
                               style={{ width: `${pct}%`, opacity: pillDone ? 0.95 : 0.8 }}
@@ -778,11 +829,11 @@ export default function CalendarView() {
                       );
                     })}
                     {groups.length > 2 && (
-                      <div className="text-[9px] text-white/30">+{groups.length - 2}</div>
+                      <div className="text-[9px]" style={{ color: 'var(--assistant-text-faint)' }}>+{groups.length - 2}</div>
                     )}
                   </div>
                 ) : (
-                  <div className="text-[10px] text-white/20">—</div>
+                  <div className="text-[10px]" style={{ color: 'var(--assistant-text-faint)' }}>—</div>
                 )}
               </div>
             );
@@ -795,6 +846,7 @@ export default function CalendarView() {
         <DaySidebar
           ymd={selectedDay}
           groups={selectedGroups}
+          isLight={isLight}
           onClose={() => setSelectedDay(null)}
           onToggleDone={id => {
             handleToggleDone(id);

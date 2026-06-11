@@ -310,6 +310,7 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	    'linear-gradient(to bottom, rgba(255,255,255,.08) 0%, rgba(255,255,255,.02) 24%, rgba(0,0,0,.22) 100%)',
 	    'color-mix(in srgb, var(--assistant-bg) 80%, black)',
 	].join(', '),
+	'--assistant-danger-text': isLight ? '#be123c' : '#fca5a5',
 	'--assistant-panel-shadow': [
 	    '0 22px 60px rgba(0,0,0,.52)',
 	    '0 8px 24px rgba(0,0,0,.35)',

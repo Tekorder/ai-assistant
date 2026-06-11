@@ -327,9 +327,11 @@ export default function App() {
     setActiveView(v);
   }, []);
 
+  const isLight = theme.style === 'light';
+
   const renderView = () => {
     if (activeView === 'timeline') return <Timeline />;
-    if (activeView === 'calendar') return <CalendarView />;
+    if (activeView === 'calendar') return <CalendarView isLight={isLight} />;
     return <Quick onOpenPivot={requestOpenPivot} />;
   };
 
@@ -748,29 +750,33 @@ export default function App() {
         >
           <div className="pointer-events-auto mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <div className="min-w-0 flex flex-col gap-0.5">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: 'var(--assistant-text-faint)' }}>
                 Today
               </span>
-              <span className="text-[12px] text-white/70">
+              <span className="text-[12px]" style={{ color: 'var(--assistant-text-soft)' }}>
                 <span className="font-semibold tabular-nums" style={{ color: 'var(--assistant-tone-1)' }}>
                   {todayCompletedSummary.completed}
                 </span>
-                <span className="text-white/45"> / </span>
-                <span className="tabular-nums text-white/55">{todayCompletedSummary.total}</span>
-                <span className="text-white/40"> · completed</span>
+                <span style={{ color: 'var(--assistant-text-muted)' }}> / </span>
+                <span className="tabular-nums" style={{ color: 'var(--assistant-text-soft)' }}>{todayCompletedSummary.total}</span>
+                <span style={{ color: 'var(--assistant-text-faint)' }}> · completed</span>
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--assistant-text-faint)' }}>
                 Overdue
               </span>
               <span
-                className={[
-                  'min-w-[2rem] rounded-lg border px-2.5 py-1 text-center text-[13px] font-semibold tabular-nums',
-                  overdueCount > 0
-                    ? 'border-rose-500/35 bg-rose-500/10 text-rose-200'
-                    : 'border-white/10 bg-white/5 text-white/45',
-                ].join(' ')}
+                className="min-w-[2rem] rounded-lg border px-2.5 py-1 text-center text-[13px] font-semibold tabular-nums"
+                style={overdueCount > 0 ? {
+                  borderColor: 'rgba(244,63,94,.35)',
+                  background: 'rgba(244,63,94,.10)',
+                  color: theme.style === 'light' ? '#be123c' : '#fda4af',
+                } : {
+                  borderColor: 'var(--assistant-border-soft)',
+                  background: 'var(--assistant-surface)',
+                  color: 'var(--assistant-text-muted)',
+                }}
               >
                 {overdueCount}
               </span>
