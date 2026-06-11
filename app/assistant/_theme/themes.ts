@@ -13,7 +13,11 @@ export type AssistantThemeName =
     | 'aurora'
     | 'bloodmoon'
     | 'deepsea'
-    | 'cloud';
+    | 'cloud'
+    | 'sand'
+    | 'mint'
+    | 'rose'
+    | 'lavender';
 
 type AssistantTheme = {
     themeName: string;
@@ -157,6 +161,46 @@ export const assistantThemes: Record<AssistantThemeName, AssistantTheme> = {
 	textColor: '#1c2430',
 	glassBoost: '22%',
     },
+    sand: {
+	themeName: 'Sand',
+	style: 'light',
+	background: '#fdf8f0',
+	tone1: '#c47b2e',
+	tone2: '#f0e6d4',
+	tone3: '#d4a96a',
+	textColor: '#2d1f0a',
+	glassBoost: '20%',
+    },
+    mint: {
+	themeName: 'Mint',
+	style: 'light',
+	background: '#f3faf7',
+	tone1: '#2a9d6e',
+	tone2: '#d4ede3',
+	tone3: '#8bcfb2',
+	textColor: '#0d261e',
+	glassBoost: '20%',
+    },
+    rose: {
+	themeName: 'Rose',
+	style: 'light',
+	background: '#fdf5f7',
+	tone1: '#c94f72',
+	tone2: '#f7dde5',
+	tone3: '#e8a0b4',
+	textColor: '#2a0f18',
+	glassBoost: '18%',
+    },
+    lavender: {
+	themeName: 'Lavender',
+	style: 'light',
+	background: '#f8f6fd',
+	tone1: '#7c5cbf',
+	tone2: '#e8e0f7',
+	tone3: '#b89ee0',
+	textColor: '#1a1030',
+	glassBoost: '19%',
+    },
 };
 
 export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
@@ -177,7 +221,9 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	'--assistant-tone-3': theme.tone3,
 	'--assistant-text': theme.textColor,
 	'--assistant-text-strong': theme.textColor,
-
+'--assistant-glow':
+  '0 0 18px color-mix(in srgb, var(--assistant-accent) 35%, transparent), ' +
+  '0 0 40px color-mix(in srgb, var(--assistant-accent) 20%, transparent)',
 '--assistant-text-soft': isLight
   ? 'rgba(0,0,0,.65)'
   : 'rgba(255,255,255,.65)',
@@ -253,7 +299,12 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	'--assistant-surface-hover': isLight
 	? 'rgba(0,0,0,.05)'
 	: 'rgba(255,255,255,.10)',
-	'--assistant-glass-bg': [
+	'--assistant-glass-bg': isLight ? [
+	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 12%, transparent) 0%, transparent 42%)',
+	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 8%, transparent) 0%, transparent 55%)',
+	    'linear-gradient(to bottom, rgba(255,255,255,.60) 0%, rgba(255,255,255,.20) 100%)',
+	    'var(--assistant-bg)',
+	].join(', ') : [
 	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 16%, transparent) 0%, transparent 42%)',
 	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 12%, transparent) 0%, transparent 55%)',
 	    'linear-gradient(to bottom, rgba(255,255,255,.08) 0%, rgba(255,255,255,.02) 24%, rgba(0,0,0,.22) 100%)',

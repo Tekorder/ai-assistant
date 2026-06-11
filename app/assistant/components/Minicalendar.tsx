@@ -11,6 +11,7 @@ import {
   parseYMD,
   readSelectedProject,
 } from '@/lib/datacenter';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 /* ===================== Local types ===================== */
 
@@ -111,7 +112,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
     }
 
     if (b.indent !== 1) continue;
-    if (b.archived) continue; // 👈 ocultar archivados
+    if (b.archived) continue;
     if (!isValidDateYYYYMMDD(b.deadline)) continue;
 
     out.push({
@@ -121,7 +122,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
       checked:   Boolean(b.checked),
       deadline:  b.deadline!,
       isHidden:  b.isHidden === true,
-      archived:  b.archived // error aqui 
+      archived:  b.archived
     });
   }
 
@@ -172,16 +173,19 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
     return (
       <div className="mt-auto flex min-h-0 flex-col gap-0.5 pt-0.5">
         <div className="flex items-baseline justify-between gap-1 leading-none">
-          <span className="text-[9px] font-semibold text-white/65 tabular-nums">
+          <span className="text-[9px] font-semibold tabular-nums" style={{ color: 'var(--assistant-text-muted)' }}>
             {total} {total === 1 ? 'task' : 'tasks'}
           </span>
-          <span className={`text-[8px] tabular-nums shrink-0 ${allDone ? 'text-emerald-400/95' : 'text-white/35'}`}>
+          <span
+            className={`text-[8px] tabular-nums shrink-0 ${allDone ? 'text-emerald-400/95' : ''}`}
+            style={!allDone ? { color: 'var(--assistant-text-faint)' } : undefined}
+          >
             {allDone ? '✓' : `${done}/${total}`}
           </span>
         </div>
-        <div className="h-[3px] w-full shrink-0 overflow-hidden rounded-full bg-black/35">
+        <div className={`h-0.75 w-full shrink-0 overflow-hidden rounded-full ${classes.miniCalProgressBg}`}>
           <div
-            className={`h-full rounded-full transition-all duration-300 ${allDone ? 'bg-emerald-400/95' : 'bg-[#52b352]/85'}`}
+            className={`h-full rounded-full transition-all duration-300 ${allDone ? 'bg-emerald-400/95' : classes.miniCalProgressFill}`}
             style={{ width: `${pct}%`, minWidth: pct > 0 ? '4px' : undefined }}
           />
         </div>
@@ -192,25 +196,26 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
   if (!hydrated) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-transparent">
-        <span className="text-[#d5fc43]/60 text-sm">Loading calendar…</span>
+        <span className="text-sm" style={{ color: 'var(--assistant-accent)' }}>Loading calendar…</span>
       </div>
     );
   }
 
   if (compact) {
     return (
-      <div className="w-full text-white p-2">
+      <div className="w-full p-2" style={{ color: 'var(--assistant-text)' }}>
         <div className="flex items-center justify-between mb-2">
-          <button type="button" onClick={prevMonth} className="h-6 w-6 rounded-md bg-white/10 text-white/70 hover:bg-white/16">‹</button>
-          <div className="text-[12px] font-semibold text-white/85">
-            {MONTH_NAMES[viewMonth]} <span className="text-[#52b352]/85">{viewYear}</span>
+          <button type="button" onClick={prevMonth} className={`h-6 w-6 rounded-md text-sm ${classes.miniCalNavBtn}`}>‹</button>
+          <div className="text-[12px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>
+            {MONTH_NAMES[viewMonth]}{' '}
+            <span style={{ color: 'var(--assistant-accent)' }}>{viewYear}</span>
           </div>
-          <button type="button" onClick={nextMonth} className="h-6 w-6 rounded-md bg-white/10 text-white/70 hover:bg-white/16">›</button>
+          <button type="button" onClick={nextMonth} className={`h-6 w-6 rounded-md text-sm ${classes.miniCalNavBtn}`}>›</button>
         </div>
 
         <div className="grid grid-cols-7 gap-1 mb-1">
           {WEEKDAYS_SHORT.map(wd => (
-            <div key={wd} className="text-center text-[9px] text-white/35">{wd[0]}</div>
+            <div key={wd} className="text-center text-[9px]" style={{ color: 'var(--assistant-text-faint)' }}>{wd[0]}</div>
           ))}
         </div>
 
@@ -229,14 +234,14 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                 onClick={() => onPickDay?.(ymd)}
                 className={[
                   'h-7 rounded-md text-[11px] transition-colors',
-                  isToday ? 'bg-[#52b352]/22 text-[#52b352]' : 'text-white/75 hover:bg-white/10',
+                  isToday ? classes.miniCalDayToday : classes.miniCalDayNormal,
                 ].join(' ')}
                 title={ymd}
               >
                 <span className="inline-flex items-center gap-1">
                   {Number(day)}
                   {(hasPending || hasDone) ? (
-                    <span className={['h-1.5 w-1.5 rounded-full', hasPending ? 'bg-rose-300/90' : 'bg-emerald-300/90'].join(' ')} />
+                    <span className={['h-1.5 w-1.5 rounded-full', hasPending ? 'bg-rose-400/80' : 'bg-emerald-400/80'].join(' ')} />
                   ) : null}
                 </span>
               </button>
@@ -248,50 +253,39 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
   }
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-transparent text-white">
+    <div className="h-full w-full overflow-y-auto bg-transparent" style={{ color: 'var(--assistant-text)' }}>
       <div className="w-full max-w-[min(100%,1000px)] mx-auto px-2 sm:px-3 py-2 md:py-3">
 
-        {/* ── Header / nav bar (compact) ── */}
-        <div className="mb-3 flex items-center justify-between rounded-xl border border-[#52b352]/12 bg-transparent px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] md:px-3 md:py-2.5">
+        {/* ── Header / nav bar ── */}
+        <div className="mb-3 flex items-center justify-between rounded-xl px-2.5 py-2 md:px-3 md:py-2.5"
+          style={{ border: '1px solid color-mix(in srgb, var(--assistant-accent) 12%, transparent)', background: 'transparent', boxShadow: 'inset 0 1px 0 var(--assistant-highlight)' }}>
           <div className="min-w-0">
-            <h1 className="text-[15px] md:text-[17px] font-bold text-white leading-tight truncate">
+            <h1 className="text-[15px] md:text-[17px] font-bold leading-tight truncate" style={{ color: 'var(--assistant-text)' }}>
               {MONTH_NAMES[viewMonth]}{' '}
-              <span className="text-[#52b352]/85">{viewYear}</span>
+              <span style={{ color: 'var(--assistant-accent)' }}>{viewYear}</span>
             </h1>
-            <p className="text-[10px] text-white/35 mt-0.5 truncate">{projectTitle}</p>
+            <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--assistant-text-faint)' }}>{projectTitle}</p>
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
               onClick={goToday}
-              className="text-[10px] px-2 py-1 rounded-lg text-[#52b352] transition-all hover:scale-[1.02]"
-              style={{
-                background: 'linear-gradient(135deg, rgba(82,179,82,.2) 0%, rgba(82,179,82,.1) 100%)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.1), 0 2px 8px rgba(0,0,0,.25)',
-              }}
+              className={`text-[10px] px-2 py-1 rounded-lg transition-all hover:scale-[1.02] ${classes.miniCalTodayBtn}`}
             >
               Today
             </button>
             <button
               type="button"
               onClick={prevMonth}
-              className="h-7 w-7 rounded-full text-[15px] leading-none text-black transition-all hover:scale-105 flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(145deg, #72d472 0%, #52b352 55%, #2e8b2e 100%)',
-                boxShadow: '0 2px 10px rgba(82,179,82,.3), inset 0 1px 0 rgba(255,255,255,.3)',
-              }}
+              className={`h-7 w-7 rounded-full text-[15px] leading-none flex items-center justify-center ${classes.miniCalArrowBtn}`}
             >
               ‹
             </button>
             <button
               type="button"
               onClick={nextMonth}
-              className="h-7 w-7 rounded-full text-[15px] leading-none text-black transition-all hover:scale-105 flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(145deg, #72d472 0%, #52b352 55%, #2e8b2e 100%)',
-                boxShadow: '0 2px 10px rgba(82,179,82,.3), inset 0 1px 0 rgba(255,255,255,.3)',
-              }}
+              className={`h-7 w-7 rounded-full text-[15px] leading-none flex items-center justify-center ${classes.miniCalArrowBtn}`}
             >
               ›
             </button>
@@ -301,7 +295,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
         {/* ── Weekday headers ── */}
         <div className="grid grid-cols-7 mb-0.5">
           {WEEKDAYS_SHORT.map(wd => (
-            <div key={wd} className="text-center text-[9px] font-semibold text-[#d5fc43]/50 py-1 uppercase tracking-wide">
+            <div key={wd} className="text-center text-[9px] font-semibold py-1 uppercase tracking-wide" style={{ color: 'var(--assistant-text-faint)' }}>
               <span className="hidden md:inline">{wd.slice(0, 3)}</span>
               <span className="md:hidden">{wd[0]}</span>
             </div>
@@ -310,8 +304,8 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
 
         {/* ── Desktop: 7-col grid ── */}
         <div
-          className="hidden md:grid grid-cols-7 grid-auto-rows-[minmax(72px,auto)] gap-0.5 overflow-hidden rounded-xl border border-[#52b352]/10 bg-transparent p-0.5"
-          style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,.05)' }}
+          className="hidden md:grid grid-cols-7 grid-auto-rows-[minmax(72px,auto)] gap-0.5 overflow-hidden rounded-xl p-0.5"
+          style={{ border: '1px solid color-mix(in srgb, var(--assistant-accent) 10%, transparent)', background: 'transparent', boxShadow: 'inset 0 1px 0 var(--assistant-highlight)' }}
         >
           {grid.map((ymd, idx) => {
             const isToday    = ymd === today;
@@ -329,36 +323,31 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                 onClick={() => { if (ymd && onPickDay) onPickDay(ymd); }}
                 onKeyDown={e => { if (ymd && onPickDay && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onPickDay(ymd); } }}
                 className={[
-                  'relative flex min-h-[72px] flex-col overflow-hidden rounded-lg p-1.5 transition-all duration-150',
+                  'relative flex min-h-18 flex-col overflow-hidden rounded-lg p-1.5 transition-all duration-150',
                   ymd && onPickDay ? 'cursor-pointer' : '',
+                  ymd
+                    ? isToday ? classes.miniCalCellToday : classes.miniCalCellDefault
+                    : classes.miniCalCellEmpty,
                 ].join(' ')}
                 style={ymd ? {
                   background: isOverdue
                     ? 'rgba(239,68,68,.06)'
                     : hasCards
-                    ? 'linear-gradient(145deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)'
-                    : 'rgba(88,88,88,.02)',
-                  border: isToday
-                    ? '1px solid rgba(82,179,82,.22)'
-                    : isOverdue
-                    ? '1px solid rgba(239,68,68,.15)'
-                    : '1px solid rgba(255,255,255,.05)',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.04)',
-                } : {
-                  background: 'rgba(0,0,0,.25)',
-                  border: '1px solid rgba(255,255,255,.03)',
-                }}
+                    ? 'var(--assistant-surface)'
+                    : 'transparent',
+                  ...(isOverdue ? { borderColor: 'rgba(239,68,68,.25)' } : {}),
+                } : {}}
               >
                 {ymd && (
                   <>
                     <div className="mb-0.5 flex shrink-0 items-center gap-0.5">
                       <div className={[
-                        'inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full text-[11px] font-semibold leading-none',
+                        'inline-flex h-5 min-w-5 items-center justify-center rounded-full text-[11px] font-semibold leading-none',
                         isToday
-                          ? 'bg-[#d5fc43]/22 text-[#d5fc43] shadow-[0_0_10px_rgba(213,252,67,.18)]'
+                          ? classes.miniCalDayNumToday
                           : isOverdue
-                          ? 'text-red-300/85'
-                          : 'text-white/55',
+                          ? 'text-red-400/85'
+                          : classes.miniCalDayNumDefault,
                       ].join(' ')}>
                         {parseInt(dayNum)}
                       </div>
@@ -376,7 +365,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
           })}
         </div>
 
-        {/* ── Mobile: 2-col grid (compact) ── */}
+        {/* ── Mobile: 2-col grid ── */}
         <div className="md:hidden grid grid-cols-2 gap-1.5">
           {grid.filter(Boolean).map((ymd) => {
             if (!ymd) return null;
@@ -395,40 +384,40 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                 tabIndex={onPickDay ? 0 : undefined}
                 onClick={() => { if (onPickDay) onPickDay(ymd); }}
                 onKeyDown={e => { if (onPickDay && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onPickDay(ymd); } }}
-                className={['flex min-h-[88px] flex-col overflow-hidden rounded-lg p-2 transition-all duration-150', onPickDay ? 'cursor-pointer' : ''].join(' ')}
+                className={[
+                  'flex min-h-22 flex-col overflow-hidden rounded-lg p-2 transition-all duration-150',
+                  onPickDay ? 'cursor-pointer' : '',
+                  isToday ? classes.miniCalCellToday : classes.miniCalCellDefault,
+                ].join(' ')}
                 style={{
                   background: isOverdue
                     ? 'rgba(239,68,68,.06)'
                     : isToday
-                    ? 'linear-gradient(145deg, rgba(82,179,82,.12) 0%, rgba(82,179,82,.04) 100%)'
+                    ? 'color-mix(in srgb, var(--assistant-accent) 8%, transparent)'
                     : hasAnyTask
-                    ? 'linear-gradient(145deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)'
-                    : 'rgba(88,88,88,.02)',
-                  border: isToday
-                    ? '1px solid rgba(82,179,82,.22)'
-                    : isOverdue
-                    ? '1px solid rgba(239,68,68,.15)'
-                    : '1px solid rgba(255,255,255,.06)',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.05)',
+                    ? 'var(--assistant-surface)'
+                    : 'transparent',
+                  ...(isOverdue ? { borderColor: 'rgba(239,68,68,.25)' } : {}),
                 }}
               >
                 <div className="mb-1 flex shrink-0 items-center justify-between gap-1">
                   <div className="flex items-center gap-1">
                     <span className={[
                       'text-[15px] font-bold leading-none',
-                      isOverdue ? 'text-red-300/85' :
-                      isToday   ? 'text-[#d5fc43]' : 'text-white/80',
-                    ].join(' ')}>
+                      isOverdue ? 'text-red-400/85' : '',
+                    ].join(' ')}
+                      style={!isOverdue ? { color: isToday ? 'var(--assistant-accent)' : 'var(--assistant-text-soft)' } : undefined}
+                    >
                       {parseInt(dayNum)}
                     </span>
-                    <span className="text-[9px] uppercase text-white/35">{weekday}</span>
+                    <span className="text-[9px] uppercase" style={{ color: 'var(--assistant-text-faint)' }}>{weekday}</span>
                   </div>
                   {isOverdue && (
                     <span className="text-[8px] font-semibold uppercase text-red-400/75">!</span>
                   )}
                 </div>
                 {hasAnyTask ? renderDaySummary(ymd) : (
-                  <div className="text-[9px] text-white/20">—</div>
+                  <div className="text-[9px]" style={{ color: 'var(--assistant-text-faint)' }}>—</div>
                 )}
               </div>
             );

@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { type TaskFlagColor } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 type ActivityTask = {
   id: string;
@@ -113,29 +114,21 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
 
   const panelBody = (
     <div
-      className="flex h-full w-full flex-col overflow-hidden text-white"
+      className={`flex h-full w-full flex-col overflow-hidden ${classes.panelGlass}`}
       style={{
+        color: 'var(--assistant-text)',
         animation: isClosing
           ? 'activityPanelOut 0.24s cubic-bezier(0.4, 0, 1, 1) both'
           : 'activityPanelIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both',
-        background:
-          variant === 'overlay'
-            ? 'rgba(8,8,8,0.42)'
-            : 'rgba(8,8,8,0.42)',
-        backdropFilter: 'blur(16px) saturate(1.2)',
-        WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
-        borderLeft:
-          variant === 'overlay'
-            ? '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 50%, transparent)'
-            : undefined,
-        border:
-          variant === 'dock'
-            ? '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 50%, transparent)'
-            : undefined,
-        boxShadow:
-          variant === 'overlay'
-            ? '-2px 0 18px rgba(0,0,0,.18), inset 1px 0 0 rgba(255,255,255,.05)'
-            : 'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
+        borderLeft: variant === 'overlay'
+          ? '1px solid color-mix(in srgb, var(--assistant-accent) 15%, transparent)'
+          : undefined,
+        border: variant === 'dock'
+          ? '1px solid color-mix(in srgb, var(--assistant-accent) 15%, transparent)'
+          : undefined,
+        boxShadow: variant === 'overlay'
+          ? `-2px 0 18px color-mix(in srgb, black var(--assistant-glass-mid), transparent), inset 1px 0 0 color-mix(in srgb, white 5%, transparent)`
+          : `inset 0 1px 0 color-mix(in srgb, white 6%, transparent), 0 6px 16px color-mix(in srgb, black var(--assistant-glass-mid), transparent)`,
       }}
     >
       <style>{`
@@ -150,34 +143,37 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
         }
       `}</style>
 
-      <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3 shrink-0">
-        <h2 className="text-[15px] font-semibold text-white/90">Activity Log</h2>
+      <div className="flex items-center justify-between px-4 py-3 shrink-0"
+        style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+        <h2 className="text-[15px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Activity Log</h2>
         <button
           type="button"
           onClick={requestClose}
-          className="h-8 w-8 rounded-lg text-white/50 hover:text-white hover:bg-white/12 transition-colors"
+          className={`h-8 w-8 rounded-lg ${classes.panelBtn}`}
           aria-label="Close"
         >
           ✕
         </button>
       </div>
 
-      <div className="px-4 py-3 border-b border-white/[0.06] shrink-0">
+      <div className="px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <div className="flex items-center justify-between">
           <button
             type="button"
             onClick={() => canGoOlder && setMonthIndex(i => i + 1)}
             disabled={!canGoOlder}
-            className="text-[14px] px-2 py-1 rounded-md bg-white/10 text-white/70 disabled:opacity-30 hover:bg-white/16"
+            className={`text-[14px] px-2 py-1 rounded-md ${classes.panelBtn}`}
           >
             &lt;
           </button>
-          <div className="text-[13px] font-semibold text-white/85">{current ? current.label : 'No activity'}</div>
+          <div className="text-[13px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>
+            {current ? current.label : 'No activity'}
+          </div>
           <button
             type="button"
             onClick={() => canGoNewer && setMonthIndex(i => i - 1)}
             disabled={!canGoNewer}
-            className="text-[14px] px-2 py-1 rounded-md bg-white/10 text-white/70 disabled:opacity-30 hover:bg-white/16"
+            className={`text-[14px] px-2 py-1 rounded-md ${classes.panelBtn}`}
           >
             &gt;
           </button>
@@ -188,23 +184,29 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search completed tasks..."
-            className="w-full bg-black/20 border border-white/10 rounded-md text-white/85 text-[12px] px-3 py-2 outline-none hover:bg-black/25 focus:border-white/20"
+            className={`w-full rounded-md text-[12px] px-3 py-2 ${classes.panelInput}`}
           />
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {!current ? (
-          <div className="text-[12px] text-white/45">No completed tasks yet.</div>
+          <div className="text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>No completed tasks yet.</div>
         ) : (
           <div className="space-y-2">
             {current.items.map(item => (
-              <div key={item.id} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                <div className="text-[13px] text-white/85">
+              <div key={item.id} className="rounded-xl px-3 py-2"
+                style={{
+                  border: '1px solid var(--assistant-border-soft)',
+                  background: 'var(--assistant-surface)',
+                }}>
+                <div className="text-[13px]" style={{ color: 'var(--assistant-text-soft)' }}>
                   <TaskFlagBadge source={{ flag: item.flag }} inline />
                   {item.text || '(untitled task)'}
                 </div>
-                <div className="mt-1 text-[11px] text-white/45">{dateLabel(item.date)}</div>
+                <div className="mt-1 text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>
+                  {dateLabel(item.date)}
+                </div>
               </div>
             ))}
           </div>

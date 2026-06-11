@@ -60,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, on
     'bloodmoon',
     'deepsea',
   ];
-  const lightThemes: AssistantThemeName[] = ['cloud'];
+  const lightThemes: AssistantThemeName[] = ['cloud', 'sand', 'mint', 'rose', 'lavender'];
   const [themeTab, setThemeTab] = useState<'dark' | 'light'>('dark');
   const [themePage, setThemePage] = useState(1);
   const THEMES_PER_PAGE = 4;
@@ -489,7 +489,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
         className="relative z-[60] flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl"
         style={{
         border: '1px solid color-mix(in srgb, var(--assistant-accent) 45%, transparent)',
-        background: 'var(--assistant-tab-bg)',
+        background: 'transparent',
         boxShadow: `
             inset 0 1px 0 var(--assistant-border-soft),
             var(--assistant-glow)
@@ -538,11 +538,15 @@ const visibleLists = useMemo<Record<string, boolean>>(
                           style={{ paddingLeft: 2 }}
                         >
                           <div
-                            className="w-3 shrink-0  select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                            className="w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
                             style={{ color: 'var(--assistant-text-faint)' }}
                             title="Drag"
                           >
-                            ⋮⋮
+                            <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
+                              <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+                              <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
+                              <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
+                            </svg>
                           </div>
                           <label className="relative h-4 w-4 shrink-0 flex items-center justify-center cursor-pointer">
                             <input

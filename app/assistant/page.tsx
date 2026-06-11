@@ -92,7 +92,7 @@ export default function App() {
       sidebarCloseTimerRef.current = null;
       setSidebarOpen(false);
       setSidebarClosing(false);
-    }, 220);
+    }, 200);
   }, [sidebarClosing, sidebarOpen]);
 
   const toggleSidebar = useCallback(() => {
@@ -333,6 +333,10 @@ export default function App() {
     return <Quick onOpenPivot={requestOpenPivot} />;
   };
 
+  const sidebarVisualOpen = sidebarOpen && !sidebarClosing;
+  // Quick.tsx growth is keyed off sidebarOpen (which flips at the close timeout),
+  // not sidebarVisualOpen — so on close the area holds while the content fades,
+  // then collapses + Quick stretches back together once the timeout fires.
   const mainPanelSolo =
     !sidebarOpen &&
     !habitsOpen &&
@@ -340,7 +344,6 @@ export default function App() {
     !activityOpen &&
     !listsOpen &&
     pivotInstances.length === 0;
-  const sidebarVisualOpen = sidebarOpen && !sidebarClosing;
   const mainPanelWidth = mainPanelSolo ? '90vw' : '70vw';
 
   // Lists panel: starts as wide as the other side panels (PANEL_WIDTH),
@@ -441,7 +444,9 @@ export default function App() {
               width: sidebarVisualOpen ? MIN_SIDEBAR : 0,
               opacity: sidebarVisualOpen ? 1 : 0,
               transform: sidebarVisualOpen ? 'translateX(0)' : 'translateX(-10px)',
-              transition: 'width 460ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 460ms cubic-bezier(0.22, 1, 0.36, 1)',
+              transition: sidebarVisualOpen
+                ? 'width 420ms cubic-bezier(0.22, 1, 0.36, 1) 0ms, opacity 300ms ease 200ms, transform 400ms cubic-bezier(0.22, 1, 0.36, 1) 200ms'
+                : 'width 420ms cubic-bezier(0.22, 1, 0.36, 1) 200ms, opacity 180ms ease 0ms, transform 220ms cubic-bezier(0.22, 1, 0.36, 1) 0ms',
             }}
           >
             <div
@@ -476,6 +481,7 @@ export default function App() {
               minWidth: mainPanelWidth,
               marginLeft: mainPanelSolo ? 'auto' : undefined,
               marginRight: mainPanelSolo ? 'auto' : undefined,
+              transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             <div
@@ -485,6 +491,7 @@ export default function App() {
                 border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 50%, transparent)',
                 boxShadow:
                   'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
+                transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             >
               {renderView()}
@@ -497,6 +504,8 @@ export default function App() {
               width: habitsOpen && isDesktop === true ? PANEL_WIDTH : 0,
               opacity: habitsOpen && isDesktop === true ? 1 : 0,
               transform: habitsOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
+              transition:
+                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             <div
@@ -518,6 +527,8 @@ export default function App() {
               width: remindersOpen && isDesktop === true ? PANEL_WIDTH : 0,
               opacity: remindersOpen && isDesktop === true ? 1 : 0,
               transform: remindersOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
+              transition:
+                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             <div
@@ -539,6 +550,8 @@ export default function App() {
               width: activityOpen && isDesktop === true ? PANEL_WIDTH : 0,
               opacity: activityOpen && isDesktop === true ? 1 : 0,
               transform: activityOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
+              transition:
+                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             <div
@@ -567,7 +580,7 @@ export default function App() {
               transform:
                 listsOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
               transition:
-                'width 460ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 460ms cubic-bezier(0.22, 1, 0.36, 1)',
+                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             <div
