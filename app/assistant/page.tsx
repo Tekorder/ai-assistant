@@ -462,8 +462,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={requestCloseSidebar}
-                className="absolute right-5 top-4 z-[120] flex h-8 w-8 items-center justify-center rounded-md text-white transition-colors hover:text-white"
-                style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)' }}
+                className="absolute right-5 top-4 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)', color: 'var(--assistant-text-muted)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
                 aria-label="Close sidebar"
                 title="Close sidebar"
               >
