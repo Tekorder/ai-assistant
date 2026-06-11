@@ -13,23 +13,41 @@ export const ReminderItem: React.FC<ReminderItemProps> = ({ reminder }) => {
   };
 
   return (
-    <div className="flex items-center py-2 px-3 rounded-lg hover:bg-gray-700 cursor-pointer">
+    <div
+      className="flex items-center py-2 px-3 rounded-lg cursor-pointer transition-colors"
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--assistant-hover-bg)')}
+      onMouseLeave={e => (e.currentTarget.style.background = '')}
+    >
       <input
         type="checkbox"
-        className="form-checkbox h-5 w-5 text-blue-500 rounded-full border-gray-600 bg-gray-700 focus:ring-blue-500 mr-3"
+        className="form-checkbox h-5 w-5 rounded-full mr-3"
+        style={{
+          accentColor: 'var(--assistant-tone-1)',
+          borderColor: 'var(--assistant-border-soft)',
+          background: 'var(--assistant-control-bg)',
+        }}
         checked={reminder.isCompleted}
         onChange={handleCheckboxChange}
       />
-      <span className={`flex-1 text-white text-lg ${reminder.isCompleted ? 'line-through text-gray-500' : ''}`}>
+      <span
+        className={`flex-1 text-lg ${reminder.isCompleted ? 'line-through' : ''}`}
+        style={{ color: reminder.isCompleted ? 'var(--assistant-text-muted)' : 'var(--assistant-text)' }}
+      >
         {reminder.text}
       </span>
       {reminder.isFlagged && (
-        <FlagIcon className="h-5 w-5 text-orange-500 ml-2" />
+        <span className="ml-2" style={{ color: 'var(--assistant-tone-1)' }}>
+          <FlagIcon className="h-5 w-5" />
+        </span>
       )}
-      <button className="ml-2 text-gray-400 hover:text-white">
+      <button
+        className="ml-2"
+        style={{ color: 'var(--assistant-text-muted)' }}
+        onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+      >
         <InfoIcon className="h-5 w-5" />
       </button>
     </div>
   );
 };
-

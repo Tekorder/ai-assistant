@@ -99,8 +99,9 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
     <div className="relative flex h-full w-full flex-col" style={{ background: 'var(--assistant-bg, #050505)' }}>
       {pendingTask && !showReminders && (
         <div
-          className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between border-b px-4 py-2 text-sm text-white shadow-lg"
+          className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between border-b px-4 py-2 text-sm shadow-lg"
           style={{
+            color: 'var(--assistant-text)',
             borderColor: 'color-mix(in srgb, var(--assistant-tone-1, #52b352) 30%, transparent)',
             background: 'color-mix(in srgb, var(--assistant-tone-1, #52b352) 25%, transparent)',
           }}
@@ -113,7 +114,10 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
           </div>
           <button
             onClick={() => setPendingTask(null)}
-            className="text-white hover:text-gray-200 font-bold text-lg"
+            className="font-bold text-lg"
+            style={{ color: 'var(--assistant-text-soft)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-soft)')}
             title="Cancelar"
           >
             ✕
@@ -125,8 +129,8 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
         <div className="relative flex-1">
           <button
             onClick={onCloseReminders}
-            className="absolute top-4 right-4 z-10 rounded-md px-4 py-2 text-white transition"
-            style={{ background: 'var(--assistant-tone-1, #52b352)' }}
+            className="absolute top-4 right-4 z-10 rounded-md px-4 py-2 transition"
+            style={{ background: 'var(--assistant-tone-1, #52b352)', color: 'var(--assistant-bg-style)' }}
           >
             back
           </button>

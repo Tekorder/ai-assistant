@@ -4,6 +4,7 @@ import React, { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 const TWOFA_SESSION_KEY = 'youtask_2fa';
 
@@ -90,15 +91,33 @@ export default function Menu({ open, onClose }: MenuProps) {
     <>
       <button
         type="button"
-        className="fixed inset-0 z-[300] bg-black/55"
+        className="fixed inset-0 z-[300]"
+        style={{ background: 'var(--assistant-overlay)' }}
         onClick={onClose}
         aria-label="Close menu"
       />
 
-      <aside className="fixed left-0 top-0 z-[301] flex h-full w-[86%] max-w-[360px] flex-col border-r border-[#52b352]/15 bg-black text-white shadow-2xl">
-        <div className="relative flex items-center justify-center border-b border-white/10 px-4 py-5">
+      <aside
+        className="fixed left-0 top-0 z-[301] flex h-full w-[86%] max-w-[360px] flex-col shadow-2xl"
+        style={{
+          background: 'var(--assistant-bg)',
+          color: 'var(--assistant-text)',
+          borderRight: '1px solid color-mix(in srgb, var(--assistant-accent) 20%, transparent)',
+        }}
+      >
+        <div
+          className="relative flex items-center justify-center px-4 py-5"
+          style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}
+        >
           <div className="flex flex-col items-center gap-2">
-            <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-[#52b352]/30 bg-[#52b352]/10 shadow-[0_0_36px_rgba(82,179,82,.25)]">
+            <div
+              className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full"
+              style={{
+                border: '1px solid color-mix(in srgb, var(--assistant-accent) 30%, transparent)',
+                background: 'color-mix(in srgb, var(--assistant-accent) 10%, transparent)',
+                boxShadow: '0 0 36px color-mix(in srgb, var(--assistant-accent) 25%, transparent)',
+              }}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo.png" alt="" className="h-24 w-24 object-contain" />
             </div>
@@ -106,7 +125,7 @@ export default function Menu({ open, onClose }: MenuProps) {
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-md text-white/65 transition-colors hover:bg-white/10 hover:text-white"
+            className={`absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-md transition-colors ${classes.panelBtn}`}
             aria-label="Close menu"
             title="Close menu"
           >
@@ -120,9 +139,17 @@ export default function Menu({ open, onClose }: MenuProps) {
               <button
                 key={item.label}
                 type="button"
-                className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-left text-[13px] text-white/80 transition-colors hover:bg-white/[0.06]"
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] transition-colors ${classes.panelBtn}`}
+                style={{ border: '1px solid var(--assistant-border-soft)' }}
               >
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/65">
+                <span
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg"
+                  style={{
+                    border: '1px solid var(--assistant-border-soft)',
+                    background: 'var(--assistant-control-bg)',
+                    color: 'var(--assistant-text-muted)',
+                  }}
+                >
                   {item.icon}
                 </span>
                 <span>{item.label}</span>
@@ -131,11 +158,11 @@ export default function Menu({ open, onClose }: MenuProps) {
           </div>
         </div>
 
-        <div className="border-t border-white/10 px-3 py-3">
+        <div className="px-3 py-3" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full rounded-xl border border-rose-400/35 bg-rose-500/12 px-3 py-2.5 text-left text-[13px] font-medium text-rose-200 transition-colors hover:bg-rose-500/20"
+            className={`w-full rounded-xl px-3 py-2.5 text-left text-[13px] font-medium transition-colors ${classes.panelBtnDanger}`}
           >
             Logout
           </button>

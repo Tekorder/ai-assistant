@@ -185,6 +185,7 @@
 /* ── Shared panel classes (Activity, Habits, Lists, Reminders) ── */
 
 .panelGlass {
+  background-color: var(--assistant-panel-bg);
   background: var(--assistant-glass-bg);
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
@@ -204,7 +205,7 @@
 
 .panelBtnDanger {
   background: color-mix(in srgb, #ef4444 14%, transparent);
-  color: #fca5a5;
+  color: var(--assistant-danger-text);
   transition: background .15s;
 }
 .panelBtnDanger:hover { background: color-mix(in srgb, #ef4444 24%, transparent); }
@@ -248,7 +249,7 @@
   transition: color .15s, background .15s;
 }
 .panelItemDelete:hover {
-  color: #fca5a5;
+  color: var(--assistant-danger-text);
   background: color-mix(in srgb, #ef4444 15%, transparent);
 }
 
@@ -437,12 +438,12 @@
 }
 
 .quickDatePillToday {
-  background: color-mix(in srgb, var(--assistant-accent) 22%, transparent);
-  color: var(--assistant-accent);
+  background: rgba(59,130,246,.24);
+  color: color-mix(in srgb, #3b82f6 80%, var(--assistant-text));
 }
 
 .quickDatePillToday:hover {
-  background: color-mix(in srgb, var(--assistant-accent) 30%, transparent);
+  background: rgba(59,130,246,.34);
 }
 
 .quickDatePillEmpty {
@@ -456,39 +457,39 @@
 }
 
 .quickDatePillChecked {
-  background: rgba(52,211,153,.22);
-  color: #d1fae5;
+  background: rgba(52,211,153,.28);
+  color: color-mix(in srgb, #22c55e 70%, var(--assistant-text));
 }
 
 .quickDatePillChecked:hover {
-  background: rgba(52,211,153,.30);
+  background: rgba(52,211,153,.38);
 }
 
 .quickDatePillOverdue {
-  background: rgba(239,68,68,.20);
-  color: #fecaca;
+  background: rgba(239,68,68,.26);
+  color: var(--assistant-danger-text);
 }
 
 .quickDatePillOverdue:hover {
-  background: rgba(239,68,68,.28);
+  background: rgba(239,68,68,.36);
 }
 
 .quickDatePillTomorrow {
-  background: rgba(52,211,153,.18);
-  color: #d1fae5;
+  background: rgba(59,130,246,.22);
+  color: color-mix(in srgb, #3b82f6 80%, var(--assistant-text));
 }
 
 .quickDatePillTomorrow:hover {
-  background: rgba(52,211,153,.26);
+  background: rgba(59,130,246,.32);
 }
 
 .quickDatePillFuture {
-  background: rgba(14,165,233,.16);
-  color: rgba(186,230,253,.80);
+  background: rgba(59,130,246,.20);
+  color: color-mix(in srgb, #3b82f6 80%, var(--assistant-text));
 }
 
 .quickDatePillFuture:hover {
-  background: rgba(14,165,233,.24);
+  background: rgba(59,130,246,.30);
 }
 
 .quickDatePillInput {

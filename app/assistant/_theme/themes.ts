@@ -302,8 +302,8 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	'--assistant-glass-bg': isLight ? [
 	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 12%, transparent) 0%, transparent 42%)',
 	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 8%, transparent) 0%, transparent 55%)',
-	    'linear-gradient(to bottom, rgba(255,255,255,.60) 0%, rgba(255,255,255,.20) 100%)',
-	    'var(--assistant-bg)',
+	    'linear-gradient(to bottom, rgba(255,255,255,.80) 0%, rgba(255,255,255,.60) 100%)',
+	    'color-mix(in srgb, var(--assistant-bg) 95%, white)',
 	].join(', ') : [
 	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 16%, transparent) 0%, transparent 42%)',
 	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 12%, transparent) 0%, transparent 55%)',

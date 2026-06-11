@@ -480,7 +480,7 @@ export default function TopNavBar({
         </div>
 
         {/* Divider before bell */}
-        <div className="w-px h-5 bg-white/10 mx-1 shrink-0" />
+        <div className="w-px h-5 mx-1 shrink-0" style={{ background: 'var(--assistant-border-soft)' }} />
 
         {/* ── Bell ── */}
         {hydrated && (
@@ -493,18 +493,24 @@ export default function TopNavBar({
                 : hasPending ? `${pendingCount} reminder${pendingCount > 1 ? 's' : ''} pending`
                 : 'All reminders done today'
               }
-              className="relative h-8 w-8 flex items-center justify-center rounded-lg text-white/45 hover:text-[#d5fc43] hover:bg-[#d5fc43]/12 transition-colors shrink-0"
+              className="relative h-8 w-8 flex items-center justify-center rounded-lg transition-colors shrink-0"
+              style={{ color: 'var(--assistant-text-muted)' }}
+              onMouseEnter={e => {
+                e.currentTarget.style.color = 'var(--assistant-accent)';
+                e.currentTarget.style.background = 'color-mix(in srgb, var(--assistant-accent) 12%, transparent)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.color = 'var(--assistant-text-muted)';
+                e.currentTarget.style.background = '';
+              }}
             >
-              <span
-                className={hasPending ? 'bell-ring' : ''}
-                style={{ fontSize: 16, lineHeight: 1 }}
-              >
+              <span className={hasPending ? 'bell-ring' : ''} style={{ fontSize: 16, lineHeight: 1 }}>
                 🔔
               </span>
               {hasPending && (
                 <span
-                  className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-[3px] flex items-center justify-center rounded-full bg-red-500 text-white ring-2 ring-gray-900"
-                  style={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}
+                  className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-[3px] flex items-center justify-center rounded-full bg-red-500 text-white"
+                  style={{ fontSize: 10, fontWeight: 700, lineHeight: 1, boxShadow: '0 0 0 2px var(--assistant-panel-bg)' }}
                 >
                   {pendingCount}
                 </span>
@@ -513,15 +519,24 @@ export default function TopNavBar({
 
             {/* Dropdown */}
             {dropOpen && (
-              <div className="drop-in absolute right-0 top-10 w-72 rounded-xl border border-white/10 bg-black shadow-2xl overflow-hidden z-[200] isolate">
-                <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8">
-                  <span className="text-[12px] font-semibold text-white/70 tracking-wide">
-                    Today s reminders
+              <div
+                className="drop-in absolute right-0 top-10 w-72 rounded-xl shadow-2xl overflow-hidden z-[200] isolate"
+                style={{ background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
+              >
+                <div
+                  className="flex items-center justify-between px-4 py-2.5 border-b"
+                  style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
+                >
+                  <span className="text-[12px] font-semibold tracking-wide" style={{ color: 'var(--assistant-text-soft)' }}>
+                    Today&apos;s reminders
                   </span>
                   {hasPending && (
                     <button
                       onClick={dismissAll}
-                      className="text-[11px] text-white/40 hover:text-[#d5fc43] transition-colors"
+                      className="text-[11px] transition-colors"
+                      style={{ color: 'var(--assistant-text-faint)' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-accent)')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-faint)')}
                     >
                       Dismiss all
                     </button>
@@ -530,7 +545,7 @@ export default function TopNavBar({
 
                 <div className="max-h-64 overflow-y-auto">
                   {todayReminders.length === 0 ? (
-                    <div className="px-4 py-5 text-[12px] text-white/35 text-center">
+                    <div className="px-4 py-5 text-[12px] text-center" style={{ color: 'var(--assistant-text-faint)' }}>
                       No reminders for today
                     </div>
                   ) : (
@@ -539,17 +554,18 @@ export default function TopNavBar({
                       return (
                         <div
                           key={r.id}
-                          className="flex items-center gap-3 px-4 py-3 border-b border-white/5 last:border-0 group"
+                          className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 group"
+                          style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
                         >
                           <span
                             className="shrink-0 w-2 h-2 rounded-full mt-0.5"
-                            style={{ background: isDone ? 'rgba(52,211,153,.5)' : '#f87171' }}
+                            style={{ background: isDone ? 'rgba(52,211,153,.6)' : '#f87171' }}
                           />
                           <div className="flex-1 min-w-0">
                             <div
                               className="text-[13px] font-medium leading-snug truncate"
                               style={{
-                                color: isDone ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.85)',
+                                color: isDone ? 'var(--assistant-text-faint)' : 'var(--assistant-text)',
                                 textDecoration: isDone ? 'line-through' : 'none',
                               }}
                             >
@@ -557,7 +573,7 @@ export default function TopNavBar({
                               {r.title}
                             </div>
                             {(r.time || r.daily || r.weekly) && (
-                              <div className="text-[11px] text-white/30 mt-0.5">
+                              <div className="text-[11px] mt-0.5" style={{ color: 'var(--assistant-text-faint)' }}>
                                 {r.time && <span>{r.time}</span>}
                                 {r.daily  && <span className="ml-1">· daily</span>}
                                 {r.weekly && <span className="ml-1">· weekly</span>}
@@ -567,12 +583,21 @@ export default function TopNavBar({
                           {!isDone ? (
                             <button
                               onClick={() => dismissOne(r.id)}
-                              className="shrink-0 opacity-0 group-hover:opacity-100 text-[11px] px-2 py-1 rounded-md bg-white/10 text-white/40 hover:text-[#d5fc43] hover:bg-[#d5fc43]/15 transition-all"
+                              className="shrink-0 opacity-0 group-hover:opacity-100 text-[11px] px-2 py-1 rounded-md transition-all"
+                              style={{ background: 'var(--assistant-control-bg)', color: 'var(--assistant-text-muted)' }}
+                              onMouseEnter={e => {
+                                e.currentTarget.style.color = 'var(--assistant-accent)';
+                                e.currentTarget.style.background = 'color-mix(in srgb, var(--assistant-accent) 15%, transparent)';
+                              }}
+                              onMouseLeave={e => {
+                                e.currentTarget.style.color = 'var(--assistant-text-muted)';
+                                e.currentTarget.style.background = 'var(--assistant-control-bg)';
+                              }}
                             >
                               ✓
                             </button>
                           ) : (
-                            <span className="shrink-0 text-[11px] text-[#d5fc43]/80">✓</span>
+                            <span className="shrink-0 text-[11px]" style={{ color: 'var(--assistant-tone-1)' }}>✓</span>
                           )}
                         </div>
                       );
@@ -581,7 +606,10 @@ export default function TopNavBar({
                 </div>
 
                 {!hasPending && todayReminders.length > 0 && (
-                  <div className="px-4 py-2.5 border-t border-white/8 text-center text-[11px] text-[#d5fc43]/80">
+                  <div
+                    className="px-4 py-2.5 border-t text-center text-[11px]"
+                    style={{ borderTopColor: 'var(--assistant-border-soft)', color: 'var(--assistant-tone-1)' }}
+                  >
                     All done for today 🎉
                   </div>
                 )}
