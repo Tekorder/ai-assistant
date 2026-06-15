@@ -70,6 +70,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, on
     (themePage - 1) * THEMES_PER_PAGE,
     themePage * THEMES_PER_PAGE,
   );
+  // Switch tab AND reset to page 1 in the same render. Doing the reset here instead
+  // of in a post-paint effect avoids a one-frame flash where the previous page index
+  // is out of range for the new tab's shorter list (e.g. dark p3 → light, which has
+  // only 2 pages → an empty grid would paint before the effect corrected it).
+  const selectThemeTab = (tab: 'dark' | 'light') => {
+    setThemeTab(tab);
+    setThemePage(1);
+  };
   const buildAllCollapsedFromBlocks = (listBlocks: Block[]): Record<string, boolean> => {
     const next: Record<string, boolean> = {};
     for (const b of listBlocks) {
@@ -88,10 +96,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, on
   const [deleteListConfirmId, setDeleteListConfirmId] = useState<string | null>(null);
   const [editingDateTaskId] = useState<string | null>(null);
   const [editingListTitleId, setEditingListTitleId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setThemePage(1);
-  }, [themeTab]);
 
   /* ── Refs ── */
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -634,7 +638,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
               >
               <button
                 type="button"
-                onClick={() => setThemeTab('dark')}
+                onClick={() => selectThemeTab('dark')}
                 className={[
                   'flex-1 rounded-md px-2 py-0.5 md:py-1 text-[11px] transition-colors',
                   themeTab === 'dark'
@@ -646,7 +650,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
               </button>
               <button
                 type="button"
-                onClick={() => setThemeTab('light')}
+                onClick={() => selectThemeTab('light')}
                 className={[
                   'flex-1 rounded-md px-2 py-0.5 md:py-1 text-[11px] transition-colors',
                   themeTab === 'light'
