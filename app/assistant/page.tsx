@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { RemindersProvider } from './_context/RemindersContext';
 import { Sidebar } from './components/Sidebar';
 import ChatBox from './components/Chatbox';
@@ -61,6 +62,37 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(ASSISTANT_THEME_LS_KEY, selectedTheme);
   }, [selectedTheme]);
+
+  // Switching theme swaps the --assistant-* variables. CSS `transition`s can't
+  // interpolate the gradient backgrounds, and the per-element color/background
+  // transitions fire at staggered durations — so some elements lag behind others.
+  // Use the View Transitions API to cross-fade the whole page old→new in one
+  // synchronized animation. While the new state is captured, freeze the ad-hoc
+  // per-element transitions so the live DOM snaps cleanly to the new theme.
+  // Falls back to an instant (still synced) swap when unsupported or reduced-motion.
+  const handleSelectTheme = useCallback((next: AssistantThemeName) => {
+    const root = document.documentElement;
+    const doc = document as Document & {
+      startViewTransition?: (cb: () => void) => { finished: Promise<void> };
+    };
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (!doc.startViewTransition || reduceMotion) {
+      root.classList.add('theme-switching');
+      flushSync(() => setSelectedTheme(next));
+      void root.offsetWidth;
+      root.classList.remove('theme-switching');
+      return;
+    }
+
+    root.classList.add('theme-switching');
+    const transition = doc.startViewTransition(() => {
+      flushSync(() => setSelectedTheme(next));
+    });
+    transition.finished.finally(() => {
+      root.classList.remove('theme-switching');
+    });
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
@@ -413,6 +445,7 @@ export default function App() {
               onClick={requestCloseSidebar}
               aria-label="Close sidebar"
             />
+<<<<<<< Updated upstream
           )}
 
           <div
@@ -427,6 +460,36 @@ export default function App() {
                 selectedTheme={selectedTheme}
                 onSelectTheme={setSelectedTheme}
               />
+=======
+            <div
+              className={`md:hidden fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+              style={{
+                color: 'var(--assistant-text)',
+                animation: sidebarClosing
+                  ? 'sidebarMobileOut 0.18s cubic-bezier(0.4, 0, 1, 1) both'
+                  : 'sidebarMobileIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both',
+              }}
+            >
+              <button
+                type="button"
+                onClick={requestCloseSidebar}
+                className="absolute right-3 top-4 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)', color: 'var(--assistant-text-muted)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                aria-label="Close sidebar"
+                title="Close sidebar"
+              >
+                ✕
+              </button>
+              <div className="h-full overflow-hidden">
+                <Sidebar
+                  onOpenPivot={requestOpenPivot}
+                  selectedTheme={selectedTheme}
+                  onSelectTheme={handleSelectTheme}
+                />
+              </div>
+>>>>>>> Stashed changes
             </div>
           </div>
         </div>
@@ -474,7 +537,7 @@ export default function App() {
               <Sidebar
                 onOpenPivot={requestOpenPivot}
                 selectedTheme={selectedTheme}
-                onSelectTheme={setSelectedTheme}
+                onSelectTheme={handleSelectTheme}
               />
             </div>
           </div>

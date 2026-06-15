@@ -23,6 +23,27 @@
 }
 
 
+/* While the theme is swapping, freeze ad-hoc per-element transitions so the live
+   DOM snaps cleanly to the new theme (the View Transition handles the cross-fade). */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+/* Theme cross-fade: animate the whole-page old→new snapshots in sync. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 300ms;
+  animation-timing-function: ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
 .font-montserrat {
   font-family: 'Montserrat', sans-serif;
 }
