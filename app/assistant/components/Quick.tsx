@@ -1143,6 +1143,23 @@ const handleKey = (
   };
 
   /* ── Render ── */
+  // Until localStorage hydration completes, `projects` is empty → `isBrandNewEmpty`
+  // is true → the "Start here" onboarding card would render for one frame on every
+  // mount. Because switching tabs remounts this component, that produced a visible
+  // flash when coming from Timeline/Calendar. Match those views: hold a neutral
+  // placeholder (same container, no layout shift) until hydrated.
+  if (!hydrated) {
+    return (
+      <div
+        className="h-full w-full min-h-0 flex items-center justify-center overflow-hidden bg-transparent"
+        style={{ color: 'var(--assistant-text)' }}
+        aria-busy="true"
+      >
+        <div className="text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>Loading…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full w-full min-h-0 flex flex-col overflow-hidden bg-transparent" style={{ color: 'var(--assistant-text)' }}>
       <ConfettiRain show={showConfetti} />
