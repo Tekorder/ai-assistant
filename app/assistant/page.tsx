@@ -31,7 +31,6 @@ import {
   readChecklistsLS,
   getTaskFlag,
 } from '@/lib/datacenter';
-import classes from '@/app/assistant/_theme/themes.module.css';
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
@@ -440,44 +439,59 @@ export default function App() {
           <div className="h-full overflow-hidden">{renderView()}</div>
 
           {(sidebarOpen || sidebarClosing) && (
-            <>
-              <button
-                className="absolute inset-0 transition-opacity duration-200"
-                style={{ background: 'var(--assistant-overlay)', opacity: sidebarVisualOpen ? 1 : 0 }}
-                onClick={requestCloseSidebar}
-                aria-label="Close sidebar"
-              />
-              <div
-                className={`md:hidden fixed left-3 top-3 z-201 flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
-                style={{
-                  color: 'var(--assistant-text)',
-                  animation: sidebarClosing
-                    ? 'sidebarMobileOut 0.18s cubic-bezier(0.4, 0, 1, 1) both'
-                    : 'sidebarMobileIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={requestCloseSidebar}
-                  className="absolute right-3 top-4 z-120 flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-                  style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)', color: 'var(--assistant-text-muted)' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
-                  aria-label="Close sidebar"
-                  title="Close sidebar"
-                >
-                  ✕
-                </button>
-                <div className="h-full overflow-hidden">
-                  <Sidebar
-                    onOpenPivot={requestOpenPivot}
-                    selectedTheme={selectedTheme}
-                    onSelectTheme={handleSelectTheme}
-                  />
-                </div>
-              </div>
-            </>
+            <button
+              className="absolute inset-0 transition-opacity duration-200"
+              style={{ background: 'var(--assistant-overlay)', opacity: sidebarVisualOpen ? 1 : 0 }}
+              onClick={requestCloseSidebar}
+              aria-label="Close sidebar"
+            />
+<<<<<<< Updated upstream
           )}
+
+          <div
+            className={[
+              'absolute left-0 top-0 h-full w-[86%] max-w-[360px] transform shadow-2xl transition-all duration-[460ms]',
+              sidebarVisualOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0',
+            ].join(' ')}
+          >
+            <div className="h-full overflow-hidden">
+              <Sidebar
+                onOpenPivot={requestOpenPivot}
+                selectedTheme={selectedTheme}
+                onSelectTheme={setSelectedTheme}
+              />
+=======
+            <div
+              className={`md:hidden fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+              style={{
+                color: 'var(--assistant-text)',
+                animation: sidebarClosing
+                  ? 'sidebarMobileOut 0.18s cubic-bezier(0.4, 0, 1, 1) both'
+                  : 'sidebarMobileIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both',
+              }}
+            >
+              <button
+                type="button"
+                onClick={requestCloseSidebar}
+                className="absolute right-3 top-4 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)', color: 'var(--assistant-text-muted)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                aria-label="Close sidebar"
+                title="Close sidebar"
+              >
+                ✕
+              </button>
+              <div className="h-full overflow-hidden">
+                <Sidebar
+                  onOpenPivot={requestOpenPivot}
+                  selectedTheme={selectedTheme}
+                  onSelectTheme={handleSelectTheme}
+                />
+              </div>
+>>>>>>> Stashed changes
+            </div>
+          </div>
         </div>
 
         <div
@@ -735,7 +749,7 @@ export default function App() {
             />
             <div
               className={[
-                'fixed z-[9999]',
+                'fixed z-[9999] var(--assistant-text)',
                 'right-5 bottom-24',
                 'w-[500px] max-w-[90vw]',
                 'h-[600px]',
@@ -746,7 +760,6 @@ export default function App() {
                 background: 'var(--assistant-glass-bg)',
                 border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 50%, transparent)',
                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
-                color: 'var(--assistant-text)',
               }}
             >
               <div
