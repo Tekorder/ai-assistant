@@ -200,6 +200,14 @@
   color: var(--assistant-text-muted);
   transition: background .15s, color .15s;
 }
+.menuItem {
+  background: transparent;
+}
+@media (min-width: 768px) {
+  .menuItem {
+    background: var(--assistant-control-bg);
+  }
+}
 .panelBtn:hover { background: var(--assistant-hover-bg); color: var(--assistant-text); }
 .panelBtn:disabled { opacity: .3; }
 

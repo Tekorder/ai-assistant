@@ -117,15 +117,6 @@ const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.Rea
   },
 ];
 
-const SIDEBAR_TAB = {
-  label: 'Lists',
-  mobileLabel: 'Lists',
-  icon: (
-    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 8.5l3 3 6-7" />
-    </svg>
-  ),
-};
 
 const PANEL_NAV: { id: 'habits' | 'reminders'; label: string; mobileLabel: string; icon: React.ReactNode }[] = [
   {
@@ -390,7 +381,7 @@ export default function TopNavBar({
         {/* Divider */}
        <div className={`hidden md:block w-px h-5 mx-1 shrink-0 ${classes.divider}`} />
 
-        {/* Nav tabs */}
+        {/* Nav tabs — desktop only on mobile, moved to bottom bar */}
         <nav className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none">
           {/* Main views */}
           {NAV_ITEMS.map(item => {
@@ -406,7 +397,7 @@ export default function TopNavBar({
                 type="button"
                 onClick={() => handleSetActiveView(item.id)}
                 className={[
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap shrink-0',
+                  'flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap flex-1 md:flex-none md:shrink-0',
                   isActive
                     ? classes.activeTab
                     : classes.inactiveTab,
@@ -414,15 +405,12 @@ export default function TopNavBar({
                 aria-current={isActive ? 'page' : undefined}
               >
                 <span className={isActive ? classes.activeIcon : ''}>{item.icon}</span>
-                <span>{item.label}</span>
+                <span className="hidden md:inline">{item.label}</span>
               </button>
             );
           })}
 
         </nav>
-
-        {/* Spacer on mobile */}
-        <div className="flex-1 md:hidden" />
 
         <div className="hidden md:flex items-center gap-0.5 shrink-0">
           {PANEL_NAV.map(item => {
@@ -478,6 +466,9 @@ export default function TopNavBar({
             <span>{LISTS_TAB.label}</span>
           </button>
         </div>
+
+        {/* Mobile spacer — pushes bell to the right when nav is hidden */}
+        <div className="flex-1 md:hidden" />
 
         {/* Divider before bell */}
         <div className="w-px h-5 mx-1 shrink-0" style={{ background: 'var(--assistant-border-soft)' }} />
@@ -620,22 +611,11 @@ export default function TopNavBar({
 
       </header>
 
-      {/* ── Bottom tab bar — mobile only ── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex bg-black border-t border-white/10 overflow-x-auto">
-        <button
-          type="button"
-          onClick={onToggleSidebar}
-          className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
-            sidebarOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
-          }`}
-        >
-          <span className="text-base leading-none">{SIDEBAR_TAB.icon}</span>
-          <span className="text-[9px] font-medium">{SIDEBAR_TAB.mobileLabel}</span>
-          {sidebarOpen && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
-          )}
-        </button>
-
+      {/* ── Bottom tab bar — mobile only: view tabs ── */}
+      <div
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex border-t"
+        style={{ background: 'var(--assistant-bg)', borderColor: 'var(--assistant-border-soft)' }}
+      >
         {NAV_ITEMS.map(item => {
           const isActive =
             item.id === 'timeline'
@@ -649,65 +629,17 @@ export default function TopNavBar({
               type="button"
               onClick={() => handleSetActiveView(item.id)}
               className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
-                isActive ? 'text-white' : 'text-white/40 hover:text-white/70'
+                isActive ? classes.activeTab : classes.inactiveTab
               }`}
             >
               <span className="text-base leading-none">{item.icon}</span>
               <span className="text-[9px] font-medium">{item.mobileLabel}</span>
               {isActive && (
-                <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
+                <span className="absolute bottom-0 w-8 h-0.5 rounded-full" style={{ background: 'var(--assistant-accent)' }} />
               )}
             </button>
           );
         })}
-        {PANEL_NAV.map(item => {
-          const isOpen = item.id === 'habits' ? habitsOpen : remindersOpen;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={item.id === 'habits' ? onToggleHabits : onToggleReminders}
-              className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
-                isOpen ? classes.activeTab : classes.inactiveTab
-              }`}
-            >
-              <span className="text-base leading-none">{item.icon}</span>
-              <span className="text-[9px] font-medium">{item.mobileLabel}</span>
-              {isOpen && (
-                <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
-              )}
-            </button>
-          );
-        })}
-
-        <button
-          type="button"
-          onClick={onToggleActivity}
-          className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
-            activityOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
-          }`}
-        >
-          <span className="text-base leading-none">{ACTIVITY_TAB.icon}</span>
-          <span className="text-[9px] font-medium">{ACTIVITY_TAB.mobileLabel}</span>
-          {activityOpen && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
-          )}
-        </button>
-
-
-        <button
-          type="button"
-          onClick={onToggleLists}
-          className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
-            listsOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
-          }`}
-        >
-          <span className="text-base leading-none">{LISTS_TAB.icon}</span>
-          <span className="text-[9px] font-medium">{LISTS_TAB.mobileLabel}</span>
-          {listsOpen && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
-          )}
-        </button>
       </div>
 
     </>

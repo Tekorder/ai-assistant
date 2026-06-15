@@ -759,6 +759,58 @@ input[type="checkbox"]:checked::before {
   border-color: rgba(213, 252, 67, .22);
 }
 
+/* ===== Timeline — mobile responsive ===== */
+@media (max-width: 767px) {
+  .youtask-timeline-root {
+    overflow: visible;
+    height: auto;
+  }
+  .youtask-timeline-top {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .youtask-timeline-title {
+    font-size: 14px;
+  }
+  .youtask-timeline-sub {
+    font-size: 11px;
+    margin-left: 6px;
+  }
+  .youtask-timeline-actions {
+    margin-right: 0;
+    width: 100%;
+  }
+  .youtask-timeline-toggle {
+    font-size: 11px;
+    padding: 6px 10px;
+    width: 100%;
+    text-align: center;
+  }
+  .youtask-timeline-board {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: visible;
+    height: auto;
+    padding: 10px 12px;
+    gap: 10px;
+    padding-bottom: 80px;
+  }
+  .yt-col {
+    width: 100%;
+    min-width: unset;
+    height: auto;
+  }
+  .yt-col-body {
+    overflow-y: visible;
+    height: auto;
+    max-height: none;
+  }
+  .yt-card:hover {
+    transform: none;
+  }
+}
+
 /* ===== Onboarding ===== */
 
 .ob-wrap * { box-sizing: border-box; }

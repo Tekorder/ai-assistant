@@ -891,7 +891,7 @@ const handleKey = (
           onFocus={() => setEditingTaskId(b.id)}
           onBlur={() => setEditingTaskId(prev => (prev === b.id ? null : prev))}
           className={[
-            'bg-transparent outline-none text-sm resize-none overflow-hidden w-full min-w-0 transition-opacity duration-150',
+            'bg-transparent outline-none p-0 text-[13px] md:text-sm resize-none overflow-hidden w-full min-w-0 transition-opacity duration-150',
             isEditing ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none absolute inset-0',
           ].join(' ')}
           style={{
@@ -904,7 +904,7 @@ const handleKey = (
 
         {!isEditing ? (
           <div
-            className="text-sm whitespace-pre-wrap break-words leading-[1.45] min-h-[1.45em]"
+            className="text-[13px] md:text-sm whitespace-pre-wrap break-words leading-[1.45] min-h-[1.45em]"
             style={{
               color: b.checked ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)',
               textDecoration: b.checked ? 'line-through' : 'none',
@@ -1032,7 +1032,7 @@ const handleKey = (
                     </button>
                   </>
                 ) : null}
-                <div className={['min-w-0 flex-1', isTask ? 'flex items-start gap-[6px]' : 'flex flex-wrap items-center gap-[2px]'].join(' ')}>
+                <div className={['min-w-0 flex-1', isTask ? 'flex items-center gap-[6px]' : 'flex flex-wrap items-center gap-[2px]'].join(' ')}>
                   {isTask ? (
                     renderTaskTextWithWordHover(b)
                   ) : isUncList ? (
@@ -1042,7 +1042,7 @@ const handleKey = (
                       placeholder="List…"
                       onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
                       onKeyDown={e => handleKey(e, b)}
-                      className="flex-none cursor-pointer bg-transparent text-sm font-semibold outline-none transition-opacity duration-150"
+                      className="flex-none cursor-pointer bg-transparent text-[13px] md:text-sm font-semibold outline-none transition-opacity duration-150"
                       style={{ width: `${inputWidthPx(b.text)}px`, maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
                     />
                   ) : editingListTitleId === b.id ? (
@@ -1053,14 +1053,14 @@ const handleKey = (
                       onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
                       onKeyDown={e => handleKey(e, b)}
                       onBlur={() => setEditingListTitleId(null)}
-                      className="flex-none bg-transparent text-sm font-semibold outline-none"
+                      className="flex-none bg-transparent text-[13px] md:text-sm font-semibold outline-none"
                       style={{ width: `${inputWidthPx(b.text)}px`, maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
                     />
                   ) : (
                     <span
                       role="button"
                       tabIndex={0}
-                      className="quick-word-clickable flex-none truncate text-sm font-semibold"
+                      className="quick-word-clickable flex-none truncate text-[13px] md:text-sm font-semibold"
                       style={{ maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1118,7 +1118,7 @@ const handleKey = (
                   <button
                     type="button"
                     onClick={() => handleAddTaskUnderList(b.id)}
-                    className={`ml-auto shrink-0 text-[18px] w-7 h-7 flex items-center justify-center rounded-full transition-all hover:scale-105 hover:shadow-lg ${classes.quickAddTaskBtn}`}
+                    className={`ml-auto shrink-0 text-[15px] md:text-[18px] w-7 h-7 flex items-center justify-center rounded-full transition-all hover:scale-105 hover:shadow-lg ${classes.quickAddTaskBtn}`}
                   >
                     +
                   </button>
@@ -1188,22 +1188,22 @@ const handleKey = (
       )}
 
       <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-4 py-6 md:px-8 md:py-8">
+        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 pt-2 pb-0 md:px-8 md:py-8">
           <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
             <div className={`min-h-0 min-w-0 flex-1 flex flex-col rounded-2xl overflow-hidden ${classes.quickCard}`}>
-              <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+              <div className="min-h-0 flex-1 overflow-y-auto pb-16 md:pb-0 [scrollbar-gutter:stable]">
 
               {/* Date pagination header — sticky within main column scroll */}
               <div className="sticky top-0 z-30">
-                <div className={`flex items-center justify-between gap-3 px-4 py-3 ${classes.quickHeaderBar}`}>
+                <div className={`flex items-center justify-between gap-1 px-3 py-2.5 md:gap-3 md:px-4 md:py-3 ${classes.quickHeaderBar}`}>
 
                   {/* Left: navigation */}
-                  <div className="flex items-center gap-1 sm:gap-2 min-w-[120px] sm:min-w-[140px] shrink-0">
+                  <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={navigatePrev}
                       disabled={navDisabled}
-                      className={`grid place-items-center size-8 shrink-0 text-[28px] leading-none transition-colors ${classes.quickNavArrow}`}
+                      className={`grid place-items-center size-8 shrink-0 text-[22px] md:text-[28px] leading-none transition-colors ${classes.quickNavArrow}`}
                     >
                       ‹
                     </button>
@@ -1212,7 +1212,7 @@ const handleKey = (
                       type="button"
                       onClick={navigateNext}
                       disabled={navDisabled}
-                      className={`grid place-items-center size-8 shrink-0 text-[28px] leading-none transition-colors ${classes.quickNavArrow}`}
+                      className={`grid place-items-center size-8 shrink-0 text-[22px] md:text-[28px] leading-none transition-colors ${classes.quickNavArrow}`}
                     >
                       ›
                     </button>
@@ -1221,7 +1221,7 @@ const handleKey = (
 
                   {/* Center: title */}
                   <div className="flex-1 text-center">
-                    <div className="text-[18px] font-semibold tracking-tight" style={{ color: 'var(--assistant-text)' }}>
+                    <div className="text-[15px] md:text-[18px] font-semibold tracking-tight" style={{ color: 'var(--assistant-text)' }}>
                       {dateMode === 'today' && (
                         <>
                           {labelForYMD(focusDay)}{" "}
@@ -1256,7 +1256,7 @@ const handleKey = (
                   </div>
 
                   {/* Right: New List */}
-                  <div className="flex items-center justify-end gap-2 min-w-[120px]">
+                  <div className="flex items-center justify-end gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={openNewListModal}

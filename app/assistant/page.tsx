@@ -15,6 +15,7 @@ import RemindersPanel from './components/RemindersPanel';
 import ActivityLogPanel from './components/ActivityLogPanel';
 import ChecklistsPanel from './components/ChecklistsPanel';
 import { assistantThemes, getAssistantThemeVars, type AssistantThemeName } from './_theme/themes';
+import classes from './_theme/themes.module.css';
 import { PivotPanel, buildPrunedPivotTree, buildListPivotTree, type PivotTreeRow } from './components/Pivot';
 import {
   UNC_TITLE,
@@ -31,7 +32,7 @@ import {
   readChecklistsLS,
   getTaskFlag,
 } from '@/lib/datacenter';
-import classes from '@/app/assistant/_theme/themes.module.css';
+
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
@@ -434,51 +435,72 @@ export default function App() {
           onToggleReminders={toggleReminders}
           onToggleActivity={toggleActivity}
           onToggleLists={toggleLists}
+
         />
 
         <div className="relative flex-1 overflow-hidden md:hidden">
-          <div className="h-full overflow-hidden">{renderView()}</div>
-
-          {(sidebarOpen || sidebarClosing) && (
-            <>
-              <button
-                className="absolute inset-0 transition-opacity duration-200"
-                style={{ background: 'var(--assistant-overlay)', opacity: sidebarVisualOpen ? 1 : 0 }}
-                onClick={requestCloseSidebar}
-                aria-label="Close sidebar"
-              />
-              <div
-                className={`md:hidden fixed left-3 top-3 z-201 flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
-                style={{
-                  color: 'var(--assistant-text)',
-                  animation: sidebarClosing
-                    ? 'sidebarMobileOut 0.18s cubic-bezier(0.4, 0, 1, 1) both'
-                    : 'sidebarMobileIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={requestCloseSidebar}
-                  className="absolute right-3 top-4 z-120 flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-                  style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)', color: 'var(--assistant-text-muted)' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
-                  aria-label="Close sidebar"
-                  title="Close sidebar"
-                >
-                  ✕
-                </button>
-                <div className="h-full overflow-hidden">
-                  <Sidebar
-                    onOpenPivot={requestOpenPivot}
-                    selectedTheme={selectedTheme}
-                    onSelectTheme={handleSelectTheme}
-                  />
-                </div>
-              </div>
-            </>
-          )}
+          <div className="h-full overflow-y-auto">{renderView()}</div>
         </div>
+
+        {/* Mobile sidebar — fixed overlay above bottom nav */}
+        {(sidebarOpen || sidebarClosing) && (
+          <>
+            <style>{`
+              @keyframes sidebarMobileOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+              @keyframes sidebarMobileOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+              @keyframes sidebarMobileIn {
+                from { transform: translateX(-34px); opacity: 0; filter: blur(1px); }
+                60% { transform: translateX(3px); opacity: .92; filter: blur(0); }
+                to { transform: translateX(0); opacity: 1; }
+              }
+              @keyframes sidebarMobileOut {
+                from { transform: translateX(0); opacity: 1; filter: blur(0); }
+                to { transform: translateX(-20px); opacity: 0; filter: blur(1px); }
+              }
+            `}</style>
+            <button
+              type="button"
+              className="md:hidden fixed inset-0 z-[200]"
+              onClick={requestCloseSidebar}
+              aria-label="Close sidebar"
+              style={{
+                background: 'var(--assistant-overlay)',
+                animation: sidebarClosing
+                  ? 'sidebarMobileOverlayOut 0.18s ease-out both'
+                  : 'sidebarMobileOverlayIn 0.22s ease-out both',
+              }}
+            />
+            <div
+              className={`md:hidden fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+              style={{
+                color: 'var(--assistant-text)',
+                animation: sidebarClosing
+                  ? 'sidebarMobileOut 0.18s cubic-bezier(0.4, 0, 1, 1) both'
+                  : 'sidebarMobileIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both',
+              }}
+            >
+              <button
+                type="button"
+                onClick={requestCloseSidebar}
+                className="absolute right-3 top-4 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)', color: 'var(--assistant-text-muted)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                aria-label="Close sidebar"
+                title="Close sidebar"
+              >
+                ✕
+              </button>
+              <div className="h-full overflow-hidden">
+                <Sidebar
+                  onOpenPivot={requestOpenPivot}
+                  selectedTheme={selectedTheme}
+                  onSelectTheme={handleSelectTheme}
+                />
+              </div>
+            </div>
+          </>
+        )}
 
         <div
           ref={deckScrollRef}
@@ -722,7 +744,20 @@ export default function App() {
           </>
         )}
 
-        <Menu open={menuOpen} onClose={() => setMenuOpen(false)} />
+        <Menu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          onToggleHabits={toggleHabits}
+          onToggleReminders={toggleReminders}
+          onToggleActivity={toggleActivity}
+          onToggleLists={toggleLists}
+          onToggleChat={() => (chatOpen ? closeChatOverlay() : openChatOverlay())}
+          habitsOpen={habitsOpen}
+          remindersOpen={remindersOpen}
+          activityOpen={activityOpen}
+          listsOpen={listsOpen}
+          chatOpen={chatOpen}
+        />
 
         {chatOpen && (
           <>
@@ -733,25 +768,20 @@ export default function App() {
               onClick={closeChatOverlay}
               aria-label="Close AI overlay"
             />
+            {/* Mobile: full-screen overlay. Desktop: floating widget bottom-right */}
             <div
               className={[
-                'fixed z-[9999]',
-                'right-5 bottom-24',
-                'w-[500px] max-w-[90vw]',
-                'h-[600px]',
-                'rounded-2xl',
-                'flex flex-col overflow-hidden',
+                `fixed z-[9999] flex flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`,
+                // mobile: full panel
+                'left-3 top-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)]',
+                // desktop: floating bubble
+                'md:left-auto md:top-auto md:right-5 md:bottom-24 md:h-150 md:w-125 md:max-w-[90vw]',
               ].join(' ')}
-              style={{
-                background: 'var(--assistant-glass-bg)',
-                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 50%, transparent)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
-                color: 'var(--assistant-text)',
-              }}
+              style={{ color: 'var(--assistant-text)' }}
             >
               <div
                 className="flex shrink-0 items-center justify-between border-b px-4 py-3"
-                style={{ borderColor: 'var(--assistant-border-soft)', background: 'var(--assistant-bg)' }}
+                style={{ borderColor: 'var(--assistant-border-soft)', background: 'var(--assistant-panel-bg)' }}
               >
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
@@ -769,22 +799,22 @@ export default function App() {
                   </span>
                   <span
                     className="text-[11px] font-semibold uppercase tracking-[0.16em]"
-                    style={{ color: 'color-mix(in srgb, var(--assistant-tone-1) 90%, transparent)' }}
+                    style={{ color: 'var(--assistant-accent)' }}
                   >
                     Assistant
                   </span>
-                  <span className="text-sm font-semibold text-white/90">AI chat</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>AI chat</span>
                 </div>
                 <button
                   type="button"
                   onClick={closeChatOverlay}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
                   aria-label="Close"
                 >
                   ✕
                 </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden" style={{ background: 'var(--assistant-bg)' }}>
+              <div className="min-h-0 flex-1 overflow-hidden">
                 <ChatBox showReminders={false} onCloseReminders={() => {}} />
               </div>
             </div>
@@ -839,7 +869,7 @@ export default function App() {
         <button
           type="button"
           onClick={() => (chatOpen ? closeChatOverlay() : openChatOverlay())}
-          className="fixed bottom-20 right-5 z-[9999] flex h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-2xl backdrop-blur-md transition-all duration-200 hover:bg-white/15 active:scale-95 md:bottom-5"
+          className="hidden md:flex fixed md:bottom-5 right-5 z-[9999] h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-2xl backdrop-blur-md transition-all duration-200 hover:bg-white/15 active:scale-95"
           aria-label={chatOpen ? 'Close AI chat' : 'Open AI chat'}
           title={chatOpen ? 'Close chat' : 'AI Assistant'}
         >

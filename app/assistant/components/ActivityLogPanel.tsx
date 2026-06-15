@@ -112,37 +112,12 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
   const canGoOlder = monthIndex < months.length - 1;
   const canGoNewer = monthIndex > 0;
 
-  const panelBody = (
-    <div
-      className={`flex h-full w-full flex-col overflow-hidden ${classes.panelGlass}`}
-      style={{
-        color: 'var(--assistant-text)',
-        animation: isClosing
-          ? 'activityPanelOut 0.24s cubic-bezier(0.4, 0, 1, 1) both'
-          : 'activityPanelIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both',
-        borderLeft: variant === 'overlay'
-          ? '1px solid color-mix(in srgb, var(--assistant-accent) 15%, transparent)'
-          : undefined,
-        border: variant === 'dock'
-          ? '1px solid color-mix(in srgb, var(--assistant-accent) 15%, transparent)'
-          : undefined,
-        boxShadow: variant === 'overlay'
-          ? `-2px 0 18px color-mix(in srgb, black var(--assistant-glass-mid), transparent), inset 1px 0 0 color-mix(in srgb, white 5%, transparent)`
-          : `inset 0 1px 0 color-mix(in srgb, white 6%, transparent), 0 6px 16px color-mix(in srgb, black var(--assistant-glass-mid), transparent)`,
-      }}
-    >
-      <style>{`
-        @keyframes activityPanelIn {
-          from { transform: translateX(-34px); opacity: 0; filter: blur(1px); }
-          60% { transform: translateX(3px); opacity: .92; filter: blur(0); }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes activityPanelOut {
-          from { transform: translateX(0); opacity: 1; filter: blur(0); }
-          to { transform: translateX(14px); opacity: 0; filter: blur(1px); }
-        }
-      `}</style>
+  const panelAnim = isClosing
+    ? 'activityPanelOut 0.22s cubic-bezier(0.4, 0, 1, 1) both'
+    : 'activityPanelIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both';
 
+  const body = (
+    <>
       <div className="flex items-center justify-between px-4 py-3 shrink-0"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <h2 className="text-[15px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Activity Log</h2>
@@ -212,32 +187,52 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 
   if (variant === 'dock') {
-    return panelBody;
+    return (
+      <div
+        className={`flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+        style={{ color: 'var(--assistant-text)', animation: panelAnim }}
+      >
+        {body}
+      </div>
+    );
   }
 
   return (
     <>
+      <style>{`
+        @keyframes activityPanelIn {
+          from { transform: translateX(-34px); opacity: 0; filter: blur(1px); }
+          60% { transform: translateX(3px); opacity: .92; filter: blur(0); }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes activityPanelOut {
+          from { transform: translateX(0); opacity: 1; filter: blur(0); }
+          to { transform: translateX(14px); opacity: 0; filter: blur(1px); }
+        }
+        @keyframes activityOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes activityOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+      `}</style>
       <button
         type="button"
-        className="fixed inset-0 z-[200] bg-black/55"
+        className="fixed inset-0 z-200"
         onClick={requestClose}
         aria-label="Close activity log"
         style={{
+          background: 'var(--assistant-overlay)',
           animation: isClosing
             ? 'activityOverlayOut 0.2s ease-out both'
             : 'activityOverlayIn 0.22s ease-out both',
         }}
       />
-      <div className="fixed top-0 right-0 h-full z-[201] w-full max-w-md overflow-hidden">
-        <style>{`
-          @keyframes activityOverlayIn { from { opacity: 0; } to { opacity: 1; } }
-          @keyframes activityOverlayOut { from { opacity: 1; } to { opacity: 0; } }
-        `}</style>
-        {panelBody}
+      <div
+        className={`fixed right-3 top-3 z-201 flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] max-w-md flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+        style={{ color: 'var(--assistant-text)', animation: panelAnim }}
+      >
+        {body}
       </div>
     </>
   );

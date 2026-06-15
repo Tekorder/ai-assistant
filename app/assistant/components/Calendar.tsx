@@ -17,6 +17,7 @@ import {
   type TaskFlagColor,
 } from '@/lib/datacenter';
 import { TaskFlagBadge, TaskFlagIcon } from './TaskFlag';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 /* ===================== Local types ===================== */
 
@@ -185,28 +186,42 @@ function DaySidebar({
 
   return (
     <>
+      <style>{`
+        @keyframes calSidebarIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to   { transform: translateX(0);    opacity: 1; }
+        }
+        @keyframes calPanelIn {
+          from { transform: translateX(-28px); opacity: 0; filter: blur(1px); }
+          60%  { transform: translateX(3px); opacity: .92; filter: blur(0); }
+          to   { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes calOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+      `}</style>
       <button
         type="button"
-        className="absolute inset-0 z-[200]"
-        style={{ background: 'var(--assistant-overlay)' }}
+        className="fixed md:absolute inset-0 z-200"
+        style={{
+          background: 'var(--assistant-overlay)',
+          animation: 'calOverlayIn 0.22s ease-out both',
+        }}
         onClick={onClose}
         aria-label="Close"
       />
+      {/* Mobile: full-screen overlay panel. Desktop: slide-in from right within calendar. */}
       <div
-        className="absolute top-0 right-0 z-[201] flex h-full w-full max-w-md flex-col"
+        className={[
+          'z-201 flex flex-col overflow-hidden',
+          // mobile
+          `fixed left-3 top-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] rounded-2xl ${classes.panelGlass}`,
+          // desktop
+          'md:absolute md:left-auto md:top-0 md:right-0 md:h-full md:w-full md:max-w-md md:rounded-none',
+        ].join(' ')}
         style={{
-          background: 'var(--assistant-panel-bg)',
-          borderLeft: '1px solid color-mix(in srgb, var(--assistant-tone-1) 15%, transparent)',
-          boxShadow: 'inset 1px 0 0 var(--assistant-border-soft)',
-          animation: 'calSidebarIn 0.28s cubic-bezier(.22,.9,.28,1)',
+          color: 'var(--assistant-text)',
+          animation: 'calPanelIn 0.32s cubic-bezier(.22,.9,.28,1) both',
         }}
       >
-        <style>{`
-          @keyframes calSidebarIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to   { transform: translateX(0);    opacity: 1; }
-          }
-        `}</style>
 
         {/* Header */}
         <div
@@ -241,8 +256,7 @@ function DaySidebar({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:text-[#d5fc43] hover:bg-[#d5fc43]/10 transition-colors mt-1"
-            style={{ color: 'var(--assistant-text-faint)' }}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors mt-1 ${classes.panelBtn}`}
           >
             ✕
           </button>
@@ -580,12 +594,12 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
 
   return (
     <div className="relative h-full w-full overflow-y-auto bg-transparent" style={{ color: 'var(--assistant-text)' }}>
-      <div className="mx-auto max-w-6xl min-w-[770px] px-4 py-6 md:px-8 md:py-8">
+      <div className="mx-auto max-w-6xl px-3 pt-3 pb-20 md:px-8 md:py-8">
 
         {/* ── Header / nav bar ── */}
         <div
-          className="mb-6 flex items-center justify-between rounded-2xl border border-[#52b352]/12 bg-transparent px-4 py-3"
-          style={{ boxShadow: 'inset 0 1px 0 var(--assistant-border-soft)' }}
+          className="mb-4 flex items-center justify-between rounded-2xl px-3 py-2.5 md:px-4 md:py-3"
+          style={{ border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 12%, transparent)', boxShadow: 'inset 0 1px 0 var(--assistant-border-soft)' }}
         >
           <div>
             <h1 className="text-[24px] md:text-[28px] font-bold leading-none" style={{ color: 'var(--assistant-text)' }}>
@@ -666,8 +680,8 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
                     : isOverdue
                     ? 'rgba(239,68,68,.06)'
                     : hasCards
-                    ? 'var(--assistant-surface)'
-                    : 'transparent',
+                    ? 'color-mix(in srgb, var(--assistant-accent) 12%, var(--assistant-control-bg))'
+                    : 'var(--assistant-control-bg)',
                   border: isSelected
                     ? `1px solid color-mix(in srgb, var(--assistant-tone-1) 30%, transparent)`
                     : isToday
@@ -756,8 +770,9 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
                     : isOverdue ? 'rgba(239,68,68,.06)'
                     : isToday
                     ? `linear-gradient(145deg, color-mix(in srgb, var(--assistant-tone-1) 14%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 5%, transparent) 100%)`
-                    : hasAnyTask ? 'var(--assistant-surface)'
-                    : 'transparent',
+                    : hasAnyTask
+                    ? 'color-mix(in srgb, var(--assistant-accent) 12%, var(--assistant-control-bg))'
+                    : 'var(--assistant-control-bg)',
                   border: isSelected
                     ? `1px solid color-mix(in srgb, var(--assistant-tone-1) 30%, transparent)`
                     : isToday

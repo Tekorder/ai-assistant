@@ -486,24 +486,16 @@ const visibleLists = useMemo<Record<string, boolean>>(
     <>
       <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
       <aside
-        className="relative z-[60] flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl"
-        style={{
-        border: '1px solid color-mix(in srgb, var(--assistant-accent) 45%, transparent)',
-        background: 'transparent',
-        boxShadow: `
-            inset 0 1px 0 var(--assistant-border-soft),
-            var(--assistant-glow)
-          `,
-         }}
-            >
+        className={`relative z-60 flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+      >
         {/* Scrollable content */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 md:px-4 md:pb-4 [scrollbar-gutter:stable]">
           <>
-              <div className="flex items-center justify-start mt-2 mb-4 gap-2">
+              <div className="flex items-center justify-start mt-1.5 mb-2.5 md:mt-2 md:mb-4 gap-2">
                 <button
                   type="button"
                   onClick={handleAddNewList}
-                  className={`${classes.sidebarButton} my-1 text-[11px] px-2 py-1 rounded-md`}
+                  className={`${classes.panelBtn} my-1 text-[11px] px-2 py-1 rounded-md`}
                   title="Add a new list"
                 >
                   + New List
@@ -520,13 +512,13 @@ const visibleLists = useMemo<Record<string, boolean>>(
                       </div>
                     );
                   }
-                  return listBlocks.map((b, idx) => {
+                  return listBlocks.map((b) => {
                     const isVisible = visibleLists[b.id] !== false;
                     return (
                       <React.Fragment key={b.id}>
                         <div
                           draggable
-                          onDragStart={e => onDragStartRow(e, b.id, idx)}
+                          onDragStart={e => onDragStartRow(e, b.id, blocks.findIndex(block => block.id === b.id))}
                           onDragOver={e => onDragOverRow(e, b.id)}
                           onDrop={e => onDropRow(e, b.id)}
                           onDragEnd={onDragEndRow}
@@ -585,7 +577,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                               onKeyDown={e => handleKey(e, b)}
                               onBlur={() => setEditingListTitleId(null)}
                               className={[
-                                'w-full cursor-text bg-transparent text-sm font-semibold outline-none transition-opacity duration-150',
+                                'w-full cursor-text bg-transparent text-[13px] md:text-sm font-semibold outline-none transition-opacity duration-150',
                               ].join(' ')}
                                 style={{color: 'var(--assistant-text)'}}
                             />
@@ -593,7 +585,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                             <button
                               type="button"
                               data-youtask-block={b.id}
-                              className="w-full truncate text-left text-sm font-semibold underline underline-offset-[3px] outline-none transition-colors"
+                              className="w-full truncate text-left text-[13px] md:text-sm font-semibold underline underline-offset-[3px] outline-none transition-colors"
                                 style={{color: 'var(--assistant-text)',textDecorationColor: 'color-mix(in srgb, var(--assistant-accent) 65%, transparent)',}}
                               onClick={() => openPivotForList(b)}
                               onDoubleClick={(e) => {
@@ -621,12 +613,12 @@ const visibleLists = useMemo<Record<string, boolean>>(
 
         {/* Fixed footer */}
           <div
-            className="shrink-0 space-y-3 bg-transparent px-4 py-3"
+            className="shrink-0 space-y-2 md:space-y-3 bg-transparent px-3 py-2 md:px-4 md:py-3"
             style={{
               borderTop: '1px solid var(--assistant-border-soft)',
             }}
           >
-          <div className="rounded-2xl px-3 py-3"
+          <div className="rounded-2xl px-2.5 py-2 md:px-3 md:py-3"
             style={{
                   border: '1px solid var(--assistant-border-soft)',
                   background: 'var(--assistant-panel-bg)',
@@ -644,7 +636,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 type="button"
                 onClick={() => setThemeTab('dark')}
                 className={[
-                  'flex-1 rounded-md px-2 py-1 text-[11px] transition-colors',
+                  'flex-1 rounded-md px-2 py-0.5 md:py-1 text-[11px] transition-colors',
                   themeTab === 'dark'
                     ? classes.themeTabActive
                     : classes.themeTabInactive,
@@ -656,7 +648,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 type="button"
                 onClick={() => setThemeTab('light')}
                 className={[
-                  'flex-1 rounded-md px-2 py-1 text-[11px] transition-colors',
+                  'flex-1 rounded-md px-2 py-0.5 md:py-1 text-[11px] transition-colors',
                   themeTab === 'light'
                     ? classes.themeTabActive
                     : classes.themeTabInactive,
@@ -674,7 +666,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     type="button"
                     onClick={() => onSelectTheme(themeKey)}
                     className={[
-                      'rounded-lg px-2 py-1.5 text-left text-[11px]',
+                      'rounded-lg px-2 py-1 md:py-1.5 text-left text-[11px]',
                       isActive
                         ? classes.themeCardActive
                         : classes.themeCard,
@@ -685,11 +677,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                   </button>
                 );
               })}
-              {themeTab === 'light' && pagedThemes.length === 0 ? (
-                <div className="col-span-2 rounded-lg border border-white/10 bg-white/[0.02] px-2 py-2 text-[11px] text-white/45">
-                  Light themes coming soon.
-                </div>
-              ) : null}
+              
             </div>
             <div className="mt-2 flex items-center justify-center gap-1.5">
               {Array.from({ length: totalThemePages }).map((_, i) => {
@@ -715,10 +703,10 @@ const visibleLists = useMemo<Record<string, boolean>>(
             </div>
           </div>
 
-          <div className="rounded-2xl px-3 py-3 min-h-[128px]">
-            <div className="flex items-start gap-3">
+          <div className="rounded-2xl px-2.5 py-2 md:px-3 md:py-3">
+            <div className="flex items-start gap-2 md:gap-3">
          <div
-            className="h-9 w-9 rounded-xl flex items-center justify-center text-lg shrink-0"
+            className="h-7 w-7 md:h-9 md:w-9 rounded-xl flex items-center justify-center text-base md:text-lg shrink-0"
             style={{
               border: '1px solid var(--assistant-border-soft)',
               background: 'var(--assistant-control-bg)',
@@ -733,7 +721,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 >Hint
                 </div>
                 <div
-                    className="mt-1 text-[12px] leading-5 transition-all"
+                    className="mt-1 text-[11px] md:text-[12px] leading-[1.4] md:leading-5 transition-all"
                     style={{ color: 'var(--assistant-text-soft)' }}
                   >
                   {hintIndex === 0 && 'Use Daily view to get focused on today’s tasks.'}
@@ -744,7 +732,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
               </div>
             </div>
 
-            <div className="mt-3 flex items-center justify-between">
+            <div className="mt-2 md:mt-3 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 {[0, 1, 2, 3].map((i) => (
                   <button
@@ -764,7 +752,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 <button
                   type="button"
                   onClick={() => setHintIndex((prev) => (prev - 1 + 4) % 4)}
-                  className={`${classes.navButton} h-7 w-7 rounded-full`}
+                  className={`${classes.navButton} h-6 w-6 md:h-7 md:w-7 rounded-full`}
                   aria-label="Previous slide"
                 >
                   ‹
@@ -773,7 +761,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 <button
                   type="button"
                   onClick={() => setHintIndex((prev) => (prev + 1) % 4)}
-                  className={`${classes.navButton} h-7 w-7 rounded-full`}
+                  className={`${classes.navButton} h-6 w-6 md:h-7 md:w-7 rounded-full`}
                   aria-label="Next slide"
                 >
                   ›
