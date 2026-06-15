@@ -178,7 +178,7 @@ export default function Menu({
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="" className="h-24 w-24 object-contain" />
+              <img src="/logo-dark.png" alt="" className="h-24 w-24 object-contain" />
             </div>
           </div>
           <button

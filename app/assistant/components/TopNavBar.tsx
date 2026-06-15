@@ -355,7 +355,7 @@ export default function TopNavBar({
           title="Open menu"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="" className="h-9 w-auto object-contain" />
+          <img src="/logo-dark.png" alt="" className="h-9 w-auto object-contain" />
         </button>
 
         {/* Sidebar toggle */}
