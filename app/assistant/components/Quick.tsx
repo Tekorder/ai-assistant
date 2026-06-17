@@ -277,6 +277,16 @@ export default function Quick(props: QuickProps = {}) {
   const [sortBy, setSortBy] = useState<SortBy>('dueDate');
 
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerClosing, setDrawerClosing] = useState(false);
+  const drawerCloseTimerRef = useRef<number | null>(null);
+  const closeDrawer = () => {
+    if (!drawerOpen || drawerClosing) return;
+    setDrawerClosing(true);
+    drawerCloseTimerRef.current = window.setTimeout(() => {
+      setDrawerOpen(false);
+      setDrawerClosing(false);
+    }, 220);
+  };
   const [editingDateTaskId, setEditingDateTaskId] = useState<string | null>(null);
 
   const inputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
@@ -343,6 +353,7 @@ export default function Quick(props: QuickProps = {}) {
       if (pulseTimerRef.current)    window.clearTimeout(pulseTimerRef.current);
       if (confettiTimerRef.current) window.clearTimeout(confettiTimerRef.current);
       if (toastTimerRef.current)    window.clearTimeout(toastTimerRef.current);
+      if (drawerCloseTimerRef.current) window.clearTimeout(drawerCloseTimerRef.current);
     };
   }, []);
 
@@ -1139,7 +1150,7 @@ const handleKey = (
   const handleMiniCalendarPickDay = (ymd: string) => {
     setDateMode('today');
     setFocusDay(ymd);
-    setDrawerOpen(false);
+    closeDrawer();
   };
 
   /* ── Render ── */
@@ -1168,18 +1179,55 @@ const handleKey = (
         .quick-word-clickable { cursor: pointer; }
       `}</style>
 
-      {/* Mobile drawer */}
-      {drawerOpen && (
-        <div className="md:hidden fixed inset-0 z-40 flex justify-end">
-          <button type="button" className="absolute inset-0 bg-black/60" onClick={() => setDrawerOpen(false)} aria-label="Close filters" />
-          <div className={`relative w-72 max-w-[85vw] h-full flex flex-col shadow-2xl overflow-hidden ${classes.quickDrawer}`}
-            style={{ animation: 'drawerSlideIn 0.25s cubic-bezier(.22,.9,.28,1)' }}>
-            <style>{`@keyframes drawerSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
-            <div className={`flex shrink-0 items-center justify-between px-4 py-3 ${classes.quickDrawerHeader}`}>
-              <span className="text-[13px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Pivot Search</span>
-              <button type="button" onClick={() => setDrawerOpen(false)} className={`flex h-7 w-7 items-center justify-center rounded-md ${classes.quickDrawerCloseBtn}`}>✕</button>
+      {/* Mobile bottom sheet */}
+      {(drawerOpen || drawerClosing) && (
+        <div className="md:hidden fixed inset-0 z-40">
+          <style>{`
+            @keyframes quickSheetOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes quickSheetOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+            @keyframes quickSheetIn {
+              from { transform: translateY(100%); opacity: 0; }
+              60% { transform: translateY(-4px); opacity: 1; }
+              to { transform: translateY(0); opacity: 1; }
+            }
+            @keyframes quickSheetOut {
+              from { transform: translateY(0); opacity: 1; }
+              to { transform: translateY(100%); opacity: 0; }
+            }
+          `}</style>
+          <button
+            type="button"
+            className="absolute inset-0"
+            style={{
+              background: 'var(--assistant-overlay)',
+              animation: drawerClosing
+                ? 'quickSheetOverlayOut 0.22s ease-out both'
+                : 'quickSheetOverlayIn 0.22s ease-out both',
+            }}
+            onClick={closeDrawer}
+            aria-label="Close filters"
+          />
+          <div
+            className={`absolute inset-x-0 bottom-0 flex max-h-[80vh] flex-col overflow-hidden rounded-t-2xl shadow-2xl ${classes.quickDrawer}`}
+            style={{
+              animation: drawerClosing
+                ? 'quickSheetOut 0.22s cubic-bezier(0.4, 0, 1, 1) both'
+                : 'quickSheetIn 0.36s cubic-bezier(0.22, 1, 0.36, 1) both',
+            }}
+          >
+            {/* Drag handle */}
+            <div className="flex shrink-0 justify-center pt-3 pb-1">
+              <div className="h-1 w-10 rounded-full" style={{ background: 'var(--assistant-border-soft)' }} />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
+            <div className={`flex shrink-0 items-center justify-between px-4 py-2 ${classes.quickDrawerHeader}`}>
+              <span className="text-[13px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Filters &amp; Search</span>
+              <button type="button" onClick={closeDrawer} className={`flex h-7 w-7 items-center justify-center rounded-md ${classes.quickDrawerCloseBtn}`}>✕</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3">
+              <QuickProgressBlock progress={progress} className="mb-3" />
+              <div className="mb-3 overflow-hidden rounded-2xl" style={{ border: '1px solid var(--assistant-border-soft)' }}>
+                <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact />
+              </div>
               <input
                 type="text"
                 value={pivotSearch}
@@ -1188,16 +1236,12 @@ const handleKey = (
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     openPivotFromSearch(pivotSearch);
-                    setDrawerOpen(false);
+                    closeDrawer();
                   }
                 }}
                 placeholder="Search keyword"
                 className={`mb-3 w-full rounded-xl px-3 py-2 text-[12px] ${classes.quickSearchInput}`}
               />
-              <QuickProgressBlock progress={progress} className="mb-3" />
-              <div className="mb-3 overflow-hidden rounded-2xl" style={{ border: '1px solid var(--assistant-border-soft)' }}>
-                <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact />
-              </div>
               <ActionsPanel {...actionsPanelProps} />
             </div>
           </div>

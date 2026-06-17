@@ -29,8 +29,8 @@
 }
 
 .activeTab {
-  background: var(--assistant-active-bg);
-  color: var(--assistant-active-text);
+  color: var(--assistant-accent);
+  background: color-mix(in srgb, var(--assistant-accent) 22%, var(--assistant-panel-bg));
 }
 
 .inactiveTab {
@@ -40,10 +40,6 @@
 .inactiveTab:hover {
   color: var(--assistant-text-hover);
   background: var(--assistant-hover-bg);
-}
-.activeTab {
-  color: var(--assistant-accent);
-  background: var(--assistant-accent-bg);
 }
 
 .activeIcon {
@@ -590,7 +586,7 @@
 
 .quickDrawer {
   background: var(--assistant-panel-bg);
-  border-left: 1px solid var(--assistant-border-soft);
+  border-top: 1px solid var(--assistant-border-soft);
 }
 
 .quickDrawerHeader {

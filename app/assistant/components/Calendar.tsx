@@ -488,6 +488,7 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
   const goToday = () => {
     setViewYear(new Date().getFullYear());
     setViewMonth(new Date().getMonth());
+    setSelectedDay(today);
   };
 
   /* ── Actions ── */
@@ -642,12 +643,11 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
           </div>
         </div>
 
-        {/* ── Weekday headers ── */}
-        <div className="grid grid-cols-7 mb-1">
+        {/* ── Weekday headers — desktop only; mobile pills already show the day abbreviation ── */}
+        <div className="hidden md:grid grid-cols-7 mb-1">
           {WEEKDAYS_SHORT.map(wd => (
             <div key={wd} className="text-center py-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--assistant-text-soft)' }}>
-              <span className="hidden md:inline">{wd}</span>
-              <span className="md:hidden">{wd[0]}</span>
+              {wd}
             </div>
           ))}
         </div>
