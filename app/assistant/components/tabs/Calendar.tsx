@@ -16,7 +16,7 @@ import {
   highestTaskFlag,
   type TaskFlagColor,
 } from '@/lib/datacenter';
-import { TaskFlagBadge, TaskFlagIcon } from './TaskFlag';
+import { TaskFlagBadge, TaskFlagIcon } from '../TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 /* ===================== Local types ===================== */
