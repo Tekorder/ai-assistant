@@ -45,6 +45,7 @@ import {
   // Filter / view helpers
   buildHiddenMap,
   buildListVisibilityHiddenMap,
+  sortBlocksByOrder,
 } from '@/lib/datacenter';
 import { TaskFlagButton } from './TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
@@ -317,7 +318,7 @@ export default function Quick(props: QuickProps = {}) {
       }
     });
   }, [editingDateTaskId]);
-  const dragRef   = useRef<{ id: string; fromIndex: number } | null>(null);
+  const dragRef   = useRef<{ id: string } | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const lastWrittenRef      = useRef<string>('');
@@ -388,7 +389,7 @@ export default function Quick(props: QuickProps = {}) {
       const next    = prev.map(p => ({ ...p }));
       const old     = next[safeIdx].blocks ?? moveUncToTop(ensureUncExists([]));
       let newBlocks = typeof nextFn === 'function' ? nextFn(old) : nextFn;
-      newBlocks     = moveUncToTop(ensureUncExists(newBlocks));
+      newBlocks     = sortBlocksByOrder(moveUncToTop(ensureUncExists(newBlocks)));
       next[safeIdx] = { ...next[safeIdx], blocks: newBlocks };
       return next;
     });
@@ -766,8 +767,8 @@ const handleKey = (
 };
 
   /* ── Drag & drop ── */
-  const onDragStartRow = (e: React.DragEvent, id: string, index: number) => {
-    dragRef.current = { id, fromIndex: index };
+  const onDragStartRow = (e: React.DragEvent, id: string) => {
+    dragRef.current = { id };
     setDragOverId(id);
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', id); } catch {}
@@ -779,16 +780,47 @@ const handleKey = (
   };
   const onDropRow = (e: React.DragEvent, overId: string) => {
     e.preventDefault();
-    const drag = dragRef.current; if (!drag) return;
-    const toIndex = blocks.findIndex(b => b.id === overId);
-    if (toIndex < 0) return;
-    setCurrentBlocks(prev => {
-      const next = prev.slice();
-      const [item] = next.splice(drag.fromIndex, 1);
-      next.splice(toIndex, 0, item);
-      return next;
-    });
+    const drag = dragRef.current;
     dragRef.current = null; setDragOverId(null);
+    if (!drag || drag.id === overId) return;
+
+    setCurrentBlocks(prev => {
+      const dragged = prev.find(b => b.id === drag.id);
+      const target  = prev.find(b => b.id === overId);
+      if (!dragged || !target) return prev;
+
+      // List-header drag: reorder among root blocks
+      if (dragged.indent === 0) {
+        const roots = prev
+          .filter(b => b.indent === 0 && b.id !== drag.id)
+          .sort((a, b) => a.order - b.order);
+        const insertIdx = roots.findIndex(b => b.id === overId);
+        roots.splice(insertIdx < 0 ? roots.length : insertIdx + 1, 0, dragged);
+        return prev.map(b => {
+          const i = roots.findIndex(r => r.id === b.id);
+          return i >= 0 ? { ...b, order: i } : b;
+        });
+      }
+
+      // Task drag: determine new parent from drop target
+      const newParentId = target.indent === 0 ? target.id : target.parentId;
+
+      // All siblings in the new parent (excluding dragged)
+      const siblings = prev
+        .filter(b => b.parentId === newParentId && b.id !== drag.id && b.indent > 0)
+        .sort((a, b) => a.order - b.order);
+
+      // Insert after the target (or first if dropped on list header)
+      const insertAfter = target.indent === 0 ? -Infinity : target.order;
+      const insertIdx = siblings.filter(b => b.order <= insertAfter).length;
+      siblings.splice(insertIdx, 0, dragged);
+
+      return prev.map(b => {
+        const i = siblings.findIndex(s => s.id === b.id);
+        if (i < 0) return b;
+        return { ...b, order: i, parentId: newParentId };
+      });
+    });
   };
   const onDragEndRow = () => { dragRef.current = null; setDragOverId(null); };
 
@@ -947,194 +979,202 @@ const handleKey = (
 
   /* ── Render helpers ── */
   const renderNormalList = () => {
-    const { uncIndex, start: uncStart, end: uncEnd } = findUncRange(blocks);
+    // Group by parentId, sort each group by order
+    const listBlocks: Block[] = [];
+    const tasksByParent = new Map<string | null, Block[]>();
+    for (const b of blocks) {
+      if (b.indent === 0) {
+        listBlocks.push(b);
+      } else {
+        const key = b.parentId ?? null;
+        if (!tasksByParent.has(key)) tasksByParent.set(key, []);
+        tasksByParent.get(key)!.push(b);
+      }
+    }
+    listBlocks.sort((a, b) => a.order - b.order);
+    for (const tasks of tasksByParent.values()) tasks.sort((a, b) => a.order - b.order);
+    const dragDots = (
+      <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
+        <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+        <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
+        <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
+      </svg>
+    );
+    const editIcon = (
+      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
+      </svg>
+    );
+
     return (
       <div className="space-y-1 quick-rows">
-        {blocks.map((b, idx) => {
-          if (uncIndex >= 0 && idx === uncIndex) return null;
-          if (hiddenMap[b.id] || hiddenByListMap[b.id]) return null;
-          if (!showCompleted && b.indent > 0 && b.checked === true) return null;
-          const isList    = b.indent === 0;
-          const isTask    = b.indent > 0;
-          const inUncTasks = uncIndex >= 0 && idx >= uncStart && idx < uncEnd && b.indent > 0;
-          const isDraggingOver = dragOverId === b.id && dragRef.current?.id !== b.id;
-          const isDraggingMe   = dragRef.current?.id === b.id;
-          const isUncList = isList && isUncTitleBlock(b);
+        {listBlocks.map(listBlock => {
+          if (hiddenByListMap[listBlock.id]) return null;
+          const isUncList = isUncTitleBlock(listBlock);
+          const tasks = tasksByParent.get(listBlock.id) ?? [];
+          const lDragOver = dragOverId === listBlock.id && dragRef.current?.id !== listBlock.id;
+          const lDragMe   = dragRef.current?.id === listBlock.id;
+
           return (
-            <React.Fragment key={b.id}>
-              <div draggable onDragStart={e => onDragStartRow(e, b.id, idx)} onDragOver={e => onDragOverRow(e, b.id)} onDrop={e => onDropRow(e, b.id)} onDragEnd={onDragEndRow}
-                className={['group flex items-center px-0.5 py-1 rounded-md', isTask ? 'gap-1' : 'gap-2', isDraggingOver ? classes.dragOver : '', isDraggingMe ? 'opacity-60' : ''].join(' ')}
-                style={{ paddingLeft: isList ? 2 : inUncTasks ? 6 : 8 + b.indent * 16 }}>
-                <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
-                  <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
-                    <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-                    <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
-                    <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
-                  </svg>
-                </div>
-                {isList ? (
-                  <button type="button" onClick={() => toggleList(b.id)} className={`w-3 shrink-0 transition-colors ${classes.quickCollapseBtn}`} title={collapsed[b.id] ? 'Expand' : 'Collapse'}>
-                    {collapsed[b.id] ? '▸' : '▾'}
+            <React.Fragment key={listBlock.id}>
+              {/* ── List header (hidden for Uncategorized) ── */}
+              {!isUncList && (
+                <div
+                  draggable
+                  onDragStart={e => onDragStartRow(e, listBlock.id)}
+                  onDragOver={e => onDragOverRow(e, listBlock.id)}
+                  onDrop={e => onDropRow(e, listBlock.id)}
+                  onDragEnd={onDragEndRow}
+                  className={['group flex items-center px-0.5 py-1 rounded-md gap-2', lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : ''].join(' ')}
+                  style={{ paddingLeft: 2 }}>
+                  <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
+                    {dragDots}
+                  </div>
+                  <button type="button" onClick={() => toggleList(listBlock.id)} className={`w-3 shrink-0 transition-colors ${classes.quickCollapseBtn}`} title={collapsed[listBlock.id] ? 'Expand' : 'Collapse'}>
+                    {collapsed[listBlock.id] ? '▸' : '▾'}
                   </button>
-                ) : <div className="w-3 shrink-0" />}
-                {isList && !isUncList && editingListTitleId !== b.id ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingListTitleId(b.id);
-                      requestAnimationFrame(() => {
-                        const el = inputRefs.current[b.id];
-                        if (!el) return;
-                        el.focus();
-                        const len = el.value.length;
-                        el.setSelectionRange(len, len);
-                      });
-                    }}
-                    aria-label="Edit list title"
-                    title="Edit list title"
-                    className={`shrink-0 h-4 w-4 flex items-center justify-center text-[11px] opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-all duration-150 ${classes.quickEditBtn}`}
-                  >
-                    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
-                    </svg>
-                  </button>
-                ) : null}
-                {isTask ? (
-                  <>
+                  {editingListTitleId !== listBlock.id ? (
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setEditingTaskId(b.id);
-                        focusBlock(b.id, true);
+                        setEditingListTitleId(listBlock.id);
+                        requestAnimationFrame(() => {
+                          const el = inputRefs.current[listBlock.id];
+                          if (!el) return;
+                          el.focus();
+                          const len = el.value.length;
+                          el.setSelectionRange(len, len);
+                        });
                       }}
-                      aria-label="Edit task"
-                      title="Edit task"
+                      aria-label="Edit list title"
+                      title="Edit list title"
                       className={`shrink-0 h-4 w-4 flex items-center justify-center text-[11px] opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-all duration-150 ${classes.quickEditBtn}`}
                     >
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
-                      </svg>
+                      {editIcon}
                     </button>
-                    <TaskFlagButton
-                      source={b}
-                      onChange={(next) => handleUpdateBlock(b.id, { flag: next, priority: undefined })}
-                    />
-                    <button type="button" onClick={() => handleUpdateBlock(b.id, { checked: !b.checked })}
-                      className="relative h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
-                      title="Complete">
-                      {pulseId === b.id ? (
-                        <>
-                          <span className={`absolute -inset-2 rounded-full border animate-ping ${classes.quickPulseRing1}`} />
-                          <span className={`absolute -inset-3 rounded-full border animate-ping [animation-delay:90ms] ${classes.quickPulseRing2}`} />
-                          <span className={`absolute -inset-4 rounded-full border animate-ping [animation-delay:160ms] ${classes.quickPulseRing3}`} />
-                          <span className={`absolute -inset-2 rounded-full blur-sm ${classes.quickPulseGlow}`} />
-                        </>
-                      ) : null}
-                      {b.checked ? (
-                        <span className="relative flex h-3 w-3 items-center justify-center">
-                          <span className={`absolute h-2.5 w-2.5 rounded-full blur-[2px] ${classes.quickCheckboxGlow}`} />
-                          <span className={`absolute h-1.5 w-1.5 rounded-full ${classes.quickCheckboxFill}`} />
-                        </span>
-                      ) : (
-                        <span className={`h-3 w-3 rounded ${classes.quickCheckbox}`} />
-                      )}
-                    </button>
-                  </>
-                ) : null}
-                <div className={['min-w-0 flex-1', isTask ? 'flex items-center gap-[6px]' : 'flex flex-wrap items-center gap-[2px]'].join(' ')}>
-                  {isTask ? (
-                    renderTaskTextWithWordHover(b)
-                  ) : isUncList ? (
-                    <input
-                      ref={el => void (inputRefs.current[b.id] = el)}
-                      value={b.text}
-                      placeholder="List…"
-                      onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
-                      onKeyDown={e => handleKey(e, b)}
-                      className="flex-none cursor-pointer bg-transparent text-[13px] md:text-sm font-semibold outline-none transition-opacity duration-150"
-                      style={{ width: `${inputWidthPx(b.text)}px`, maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
-                    />
-                  ) : editingListTitleId === b.id ? (
-                    <input
-                      ref={el => void (inputRefs.current[b.id] = el)}
-                      value={b.text}
-                      placeholder="List…"
-                      onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
-                      onKeyDown={e => handleKey(e, b)}
-                      onBlur={() => setEditingListTitleId(null)}
-                      className="flex-none bg-transparent text-[13px] md:text-sm font-semibold outline-none"
-                      style={{ width: `${inputWidthPx(b.text)}px`, maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
-                    />
-                  ) : (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      className="quick-word-clickable flex-none truncate text-[13px] md:text-sm font-semibold"
-                      style={{ maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openPivotForList(b);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          openPivotForList(b);
-                        }
-                      }}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        setEditingListTitleId(b.id);
-                        requestAnimationFrame(() => inputRefs.current[b.id]?.focus());
-                      }}
-                    >
-                      {(b.text || '').trim() ? b.text : 'List…'}
-                    </span>
-                  )}
-                  {isTask ? (
-                    <>
-                      {editingDateTaskId === b.id ? (
-                        <input
-                          ref={el => void (inlineDateRefs.current[b.id] = el)}
-                          autoFocus
-                          type="date"
-                          lang="en-US"
-                          className={`shrink-0 mt-[2px] text-[11px] px-1.5 py-0.5 rounded-full outline-none ${classes.quickDatePillInput}`}
-                          value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''}
-                          onChange={e => {
-                            const v = e.target.value;
-                            handleUpdateBlock(b.id, { deadline: v ? v : undefined });
-                            setEditingDateTaskId(null);
-                          }}
-                          onBlur={() => setEditingDateTaskId(null)}
-                          onKeyDown={e => {
-                            if (e.key === 'Escape' || e.key === 'Enter') setEditingDateTaskId(null);
-                          }}
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          className={`shrink-0 mt-[2px] text-[11px] px-1.5 py-0.5 rounded-full transition-colors ${quickPillClass(b.deadline, b.checked)}`}
-                          title="Set date"
-                          onClick={() => setEditingDateTaskId(b.id)}
-                        >
-                          {formatPill(b.deadline) || '📅'}
-                        </button>
-                      )}
-                    </>
                   ) : null}
-                </div>
-                {isList && !isUncList ? (
+                  <div className="min-w-0 flex-1 flex flex-wrap items-center gap-0.5">
+                    {editingListTitleId === listBlock.id ? (
+                      <input
+                        ref={el => void (inputRefs.current[listBlock.id] = el)}
+                        value={listBlock.text}
+                        placeholder="List…"
+                        onChange={e => handleUpdateBlock(listBlock.id, { text: e.target.value })}
+                        onKeyDown={e => handleKey(e, listBlock)}
+                        onBlur={() => setEditingListTitleId(null)}
+                        className="flex-none bg-transparent text-[13px] md:text-sm font-semibold outline-none"
+                        style={{ width: `${inputWidthPx(listBlock.text)}px`, maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
+                      />
+                    ) : (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="quick-word-clickable flex-none truncate text-[13px] md:text-sm font-semibold"
+                        style={{ maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
+                        onClick={(e) => { e.stopPropagation(); openPivotForList(listBlock); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPivotForList(listBlock); } }}
+                        onDoubleClick={(e) => { e.stopPropagation(); setEditingListTitleId(listBlock.id); requestAnimationFrame(() => inputRefs.current[listBlock.id]?.focus()); }}
+                      >
+                        {(listBlock.text || '').trim() ? listBlock.text : 'List…'}
+                      </span>
+                    )}
+                  </div>
                   <button
                     type="button"
-                    onClick={() => handleAddTaskUnderList(b.id)}
+                    onClick={() => handleAddTaskUnderList(listBlock.id)}
                     className={`ml-auto shrink-0 text-[15px] md:text-[18px] w-7 h-7 flex items-center justify-center rounded-full transition-all hover:scale-105 hover:shadow-lg ${classes.quickAddTaskBtn}`}
                   >
                     +
                   </button>
-                ) : null}
-              </div>
+                </div>
+              )}
+              {/* ── Tasks belonging to this list ── */}
+              {tasks.map(task => {
+                if (hiddenMap[task.id] || hiddenByListMap[task.id]) return null;
+                if (!showCompleted && task.checked === true) return null;
+                const tDragOver = dragOverId === task.id && dragRef.current?.id !== task.id;
+                const tDragMe   = dragRef.current?.id === task.id;
+                return (
+                  <React.Fragment key={task.id}>
+                    <div
+                      draggable
+                      onDragStart={e => onDragStartRow(e, task.id)}
+                      onDragOver={e => onDragOverRow(e, task.id)}
+                      onDrop={e => onDropRow(e, task.id)}
+                      onDragEnd={onDragEndRow}
+                      className={['group flex items-center px-0.5 py-1 rounded-md gap-1', tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : ''].join(' ')}
+                      style={{ paddingLeft: isUncList ? 6 : 8 + task.indent * 16 }}>
+                      <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
+                        {dragDots}
+                      </div>
+                      <div className="w-3 shrink-0" />
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setEditingTaskId(task.id); focusBlock(task.id, true); }}
+                        aria-label="Edit task"
+                        title="Edit task"
+                        className={`shrink-0 h-4 w-4 flex items-center justify-center text-[11px] opacity-0 group-hover:opacity-70 hover:opacity-100! transition-all duration-150 ${classes.quickEditBtn}`}
+                      >
+                        {editIcon}
+                      </button>
+                      <TaskFlagButton
+                        source={task}
+                        onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
+                      />
+                      <button type="button" onClick={() => handleUpdateBlock(task.id, { checked: !task.checked })}
+                        className="relative h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
+                        title="Complete">
+                        {pulseId === task.id ? (
+                          <>
+                            <span className={`absolute -inset-2 rounded-full border animate-ping ${classes.quickPulseRing1}`} />
+                            <span className={`absolute -inset-3 rounded-full border animate-ping [animation-delay:90ms] ${classes.quickPulseRing2}`} />
+                            <span className={`absolute -inset-4 rounded-full border animate-ping [animation-delay:160ms] ${classes.quickPulseRing3}`} />
+                            <span className={`absolute -inset-2 rounded-full blur-sm ${classes.quickPulseGlow}`} />
+                          </>
+                        ) : null}
+                        {task.checked ? (
+                          <span className="relative flex h-3 w-3 items-center justify-center">
+                            <span className={`absolute h-2.5 w-2.5 rounded-full blur-[2px] ${classes.quickCheckboxGlow}`} />
+                            <span className={`absolute h-1.5 w-1.5 rounded-full ${classes.quickCheckboxFill}`} />
+                          </span>
+                        ) : (
+                          <span className={`h-3 w-3 rounded ${classes.quickCheckbox}`} />
+                        )}
+                      </button>
+                      <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                        {renderTaskTextWithWordHover(task)}
+                        {editingDateTaskId === task.id ? (
+                          <input
+                            ref={el => void (inlineDateRefs.current[task.id] = el)}
+                            autoFocus
+                            type="date"
+                            lang="en-US"
+                            className={`shrink-0 mt-0.5 text-[11px] px-1.5 py-0.5 rounded-full outline-none ${classes.quickDatePillInput}`}
+                            value={isValidDateYYYYMMDD(task.deadline) ? task.deadline : ''}
+                            onChange={e => {
+                              const v = e.target.value;
+                              handleUpdateBlock(task.id, { deadline: v ? v : undefined });
+                              setEditingDateTaskId(null);
+                            }}
+                            onBlur={() => setEditingDateTaskId(null)}
+                            onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setEditingDateTaskId(null); }}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className={`shrink-0 mt-0.5 text-[11px] px-1.5 py-0.5 rounded-full transition-colors ${quickPillClass(task.deadline, task.checked)}`}
+                            title="Set date"
+                            onClick={() => setEditingDateTaskId(task.id)}
+                          >
+                            {formatPill(task.deadline) || '📅'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
             </React.Fragment>
           );
         })}

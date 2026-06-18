@@ -27,6 +27,7 @@ import {
   removeBlock as removeBlockArr,
   removeTitleSendChildrenToUnc,
   addNewList as addNewListArr,
+  sortBlocksByOrder,
   // Projects persistence
   readProjectsLS,
   writeProjectsLS,
@@ -140,7 +141,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
       const next = prev.map(p => ({ ...p }));
       const old = next[safeIdx].blocks ?? moveUncToTop(ensureUncExists([]));
       let newBlocks = typeof nextFn === 'function' ? nextFn(old) : nextFn;
-      newBlocks = moveUncToTop(ensureUncExists(newBlocks));
+      newBlocks = sortBlocksByOrder(moveUncToTop(ensureUncExists(newBlocks)));
       next[safeIdx] = { ...next[safeIdx], blocks: newBlocks };
       return next;
     });
@@ -402,6 +403,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
         id: uid(),
         text: '',
         indent: nextIndent,
+        parentId: nextIndent === 0 ? null : (b.indent === 0 ? b.id : b.parentId),
+        order: b.order + 1,
         checked: nextIndent > 0 ? false : undefined,
         deadline: nextIndent > 0 ? todayYMD() : undefined,
         isHidden: undefined,

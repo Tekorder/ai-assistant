@@ -21,6 +21,8 @@ export type Block = {
   id: string;
   text: string;
   indent: number;
+  parentId: string | null;
+  order: number;
   checked?: boolean;
   deadline?: string;
   createdAt?: string;
@@ -300,7 +302,7 @@ export function findUncRange(blocks: Block[]): { uncIndex: number; start: number
 
 export function ensureUncExists(blocks: Block[]): Block[] {
   if (findUncRange(blocks).uncIndex >= 0) return blocks;
-  return [...blocks, { id: uid(), text: UNC_TITLE, indent: 0 }];
+  return [...blocks, { id: uid(), text: UNC_TITLE, indent: 0, parentId: null, order: -1 }];
 }
 
 export function moveUncToTop(blocks: Block[]): Block[] {
@@ -308,6 +310,39 @@ export function moveUncToTop(blocks: Block[]): Block[] {
   const { uncIndex, end } = findUncRange(b);
   if (uncIndex < 0 || uncIndex === 0) return b;
   return [...b.slice(uncIndex, end), ...b.slice(0, uncIndex), ...b.slice(end)];
+}
+
+/* ===================== Order utilities ===================== */
+
+/** Next order value to append a block to the end of a parent group. */
+function nextOrderInParent(blocks: Block[], parentId: string | null): number {
+  const siblings = blocks.filter(b =>
+    b.parentId === parentId && (parentId === null ? b.indent === 0 : b.indent > 0)
+  );
+  return siblings.length === 0 ? 0 : Math.max(...siblings.map(b => b.order)) + 1;
+}
+
+export function sortBlocksByOrder(blocks: Block[]): Block[] {
+  const roots = blocks.filter(b => b.indent === 0).sort((a, b) => a.order - b.order);
+  const byParent = new Map<string, Block[]>();
+  for (const b of blocks) {
+    if (b.indent > 0) {
+      const key = b.parentId ?? '';
+      if (!byParent.has(key)) byParent.set(key, []);
+      byParent.get(key)!.push(b);
+    }
+  }
+  for (const tasks of byParent.values()) tasks.sort((a, b) => a.order - b.order);
+  const rootIds = new Set(roots.map(r => r.id));
+  const result: Block[] = [];
+  for (const root of roots) {
+    result.push(root);
+    result.push(...(byParent.get(root.id) ?? []));
+  }
+  for (const b of blocks) {
+    if (b.indent > 0 && (!b.parentId || !rootIds.has(b.parentId))) result.push(b);
+  }
+  return result;
 }
 
 /* ===================== Factories ===================== */
@@ -319,13 +354,15 @@ export function makeTaskBlock(
   return {
     text: '',
     indent: 1,
+    parentId: null,
+    order: 0,
     checked: false,
     deadline: isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD(),
     createdAt: todayYMD(),
     isHidden: undefined,
     archived: undefined,
     ...overrides,
-  };
+  } as Block;
 }
 
 export function makePersonalProject(
@@ -356,11 +393,15 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
     const id     = typeof x?.id === 'string' ? x.id : uid();
     const text   = typeof x?.text === 'string' ? x.text : '';
     const indent = Number.isFinite(x?.indent) ? Number(x.indent) : 0;
-    const b: Block = { id, text, indent: Math.max(0, indent) };
+    const rawOrder = (x as Record<string, unknown>)?.order;
+    const order = Number.isFinite(rawOrder) ? Number(rawOrder) : NaN;
+    const b: Block = { id, text, indent: Math.max(0, indent), parentId: null, order };
 
     if (b.indent > 0) {
       b.checked = Boolean(x?.checked);
       if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline as string;
+    } else {
+      
     }
 
     b.createdAt = isValidDateYYYYMMDD(x?.createdAt) ? (x.createdAt as string) : today;
@@ -374,6 +415,25 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
     }
     return b;
   }).filter(Boolean) as Block[];
+
+  const parentStack: Record<number, string> = {};
+  for (const b of out) {
+    b.parentId = b.indent === 0 ? null : (parentStack[b.indent - 1] ?? null);
+    parentStack[b.indent] = b.id;
+    for (const key of Object.keys(parentStack)) {
+      if (Number(key) > b.indent) delete parentStack[Number(key)];
+    }
+  }
+
+  // Assign order from array position within each parent group (only for legacy blocks missing it)
+  const orderCounters: Record<string, number> = {};
+  for (const b of out) {
+    const key = b.parentId ?? '__root__';
+    if (!Number.isFinite(b.order)) {
+      b.order = orderCounters[key] ?? 0;
+    }
+    orderCounters[key] = Math.max(orderCounters[key] ?? 0, b.order) + 1;
+  }
 
   return moveUncToTop(ensureUncExists(out));
 }
@@ -393,6 +453,8 @@ export function readProjectsLS(): ProjectsPayload | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoragePayload;
 
+
+    // Project struct in json
     const loadedProjects: Project[] = Array.isArray(parsed?.projects)
       ? (parsed.projects as RawProject[]).map((p: RawProject) => ({
           project_id: typeof p?.project_id === 'string' ? p.project_id : pid(),
@@ -690,45 +752,34 @@ export function addTaskUnderList(
       ? opts.focusDay!
       : todayYMD();
 
-  const newTask = makeTaskBlock(
-    {
-      id: newTaskId,
-      deadline: defaultDeadline,
-      text: (opts.text || '').trim(),
-    },
-    opts.focusDay,
-  );
-
   const validListIndex =
     typeof listId === 'string' && listId.trim()
       ? base.findIndex(b => b.id === listId && b.indent === 0)
       : -1;
 
   if (validListIndex >= 0) {
+    const parentListId = base[validListIndex].id;
+    const newTask = makeTaskBlock(
+      { id: newTaskId, parentId: parentListId, order: nextOrderInParent(base, parentListId), deadline: defaultDeadline, text: (opts.text || '').trim() },
+      opts.focusDay,
+    );
     let end = validListIndex + 1;
     while (end < base.length && base[end].indent !== 0) end++;
-
     const next = base.slice();
     next.splice(end, 0, newTask);
-
-    return {
-      blocks: next,
-      newTaskId,
-      targetListId: base[validListIndex].id,
-    };
+    return { blocks: next, newTaskId, targetListId: parentListId };
   }
 
   const { end: uncEnd, uncIndex } = findUncRange(base);
   const insertAt = uncEnd >= 0 ? uncEnd : base.length;
-
+  const parentListId = uncIndex >= 0 ? base[uncIndex].id : null;
+  const newTask = makeTaskBlock(
+    { id: newTaskId, parentId: parentListId, order: nextOrderInParent(base, parentListId), deadline: defaultDeadline, text: (opts.text || '').trim() },
+    opts.focusDay,
+  );
   const next = base.slice();
   next.splice(insertAt, 0, newTask);
-
-  return {
-    blocks: next,
-    newTaskId,
-    targetListId: uncIndex >= 0 ? base[uncIndex].id : null,
-  };
+  return { blocks: next, newTaskId, targetListId: parentListId };
 }
 
 export function createList(
@@ -753,9 +804,10 @@ export function createList(
   const { end: uncEnd } = findUncRange(base);
   const insertAt = Math.max(uncEnd, base.length);
 
+  const listOrder = nextOrderInParent(base, null);
   const next = base.slice();
-  next.splice(insertAt, 0, { id: newListId, text: name, indent: 0, createdAt: todayYMD() });
-  next.splice(insertAt + 1, 0, makeTaskBlock({ id: newTaskId }, opts.focusDay));
+  next.splice(insertAt, 0, { id: newListId, text: name, indent: 0, parentId: null, order: listOrder, createdAt: todayYMD() });
+  next.splice(insertAt + 1, 0, makeTaskBlock({ id: newTaskId, parentId: newListId, order: 0 }, opts.focusDay));
 
   return { blocks: next, newListId, newTaskId, existed: false };
 }
@@ -770,9 +822,10 @@ export function createBlankList(
   const base = moveUncToTop(ensureUncExists(blocks));
   const { end: uncEnd } = findUncRange(base);
   const insertAt = Math.max(uncEnd, base.length);
+  const listOrder = nextOrderInParent(base, null);
   const next = base.slice();
-  next.splice(insertAt, 0, { id: newListId, text: '', indent: 0, createdAt: todayYMD() });
-  next.splice(insertAt + 1, 0, makeTaskBlock({ id: newTaskId }, opts.focusDay));
+  next.splice(insertAt, 0, { id: newListId, text: '', indent: 0, parentId: null, order: listOrder, createdAt: todayYMD() });
+  next.splice(insertAt + 1, 0, makeTaskBlock({ id: newTaskId, parentId: newListId, order: 0 }, opts.focusDay));
   return { blocks: next, newListId, newTaskId };
 }
 
@@ -822,7 +875,7 @@ export function addNewList(blocks: Block[]): { blocks: Block[]; newListId: strin
   const { end: uncEnd } = findUncRange(base);
   const insertAt = Math.max(uncEnd, base.length);
   const next = base.slice();
-  next.splice(insertAt, 0, { id: newListId, text: 'New List', indent: 0, createdAt: todayYMD() });
+  next.splice(insertAt, 0, { id: newListId, text: 'New List', indent: 0, parentId: null, order: nextOrderInParent(base, null), createdAt: todayYMD() });
   return { blocks: next, newListId };
 }
 
