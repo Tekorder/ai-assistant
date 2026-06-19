@@ -397,14 +397,6 @@ export default function LoginPage() {
     avatarUrl?: string | null;
     firebaseUid?: string;
   }) {
-    // TEMP: Prisma/DB sync disabled — use email as the user identifier everywhere
-    localStorage.setItem('prisma_user_id', payload.email);
-    localStorage.setItem('prisma_user_email', payload.email);
-    localStorage.setItem('firebase_uid', payload.firebaseUid ?? payload.email);
-    if (payload.name) localStorage.setItem('prisma_user_name', payload.name);
-    if (payload.avatarUrl) localStorage.setItem('prisma_user_avatar', payload.avatarUrl);
-
-    /* TODO: re-enable once Prisma connection is stable
     const res = await fetch('/api/auth/upsert-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -416,11 +408,11 @@ export default function LoginPage() {
     }
     localStorage.setItem('prisma_user_id', json.user.id);
     localStorage.setItem('prisma_user_email', json.user.email ?? payload.email);
+    localStorage.setItem('firebase_uid', payload.firebaseUid ?? payload.email);
     if (json.user.name) localStorage.setItem('prisma_user_name', json.user.name);
     if (json.user.avatarUrl) localStorage.setItem('prisma_user_avatar', json.user.avatarUrl);
-    */
 
-    return { id: payload.email, email: payload.email, name: payload.name ?? null, username: null, avatarUrl: payload.avatarUrl ?? null, timezone: 'UTC', selectedProjectLocalId: null };
+    return json.user;
   }
 
   async function createAndSend2FA(targetEmail: string) {

@@ -31,6 +31,7 @@ import {
   LS_KEY_CHECKLISTS,
   readChecklistsLS,
   getTaskFlag,
+  loadFromDatabase,
 } from '@/lib/datacenter';
 
 
@@ -56,6 +57,7 @@ export default function App() {
   const PANEL_WIDTH = 320;
 
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+  useEffect(() => { void loadFromDatabase(); }, []);
   useEffect(() => {
     const stored = window.localStorage.getItem(ASSISTANT_THEME_LS_KEY);
     if (!stored) return;

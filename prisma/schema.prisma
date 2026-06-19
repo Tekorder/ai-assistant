@@ -4,59 +4,53 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
-
-// ─────────────────────────────────────────────────────────────
-// USER
-// ─────────────────────────────────────────────────────────────
 
 model User {
-  id        String  @id @default(cuid())
-  email     String  @unique
-  firebaseUid String? @unique
-  name      String?
-  username  String? @unique
-  avatarUrl String?
-  timezone  String  @default("America/Tegucigalpa")
-
+  id                     String     @id @default(cuid())
+  email                  String     @unique
+  firebaseUid            String?    @unique
+  name                   String?
+  username               String?    @unique
+  avatarUrl              String?
+  timezone               String     @default("America/Tegucigalpa")
   selectedProjectLocalId String?
-
-  projects  Project[]
-  habits    Habit[]
-  reminders Reminder[]
-  habitMeta HabitMeta?
-
-  rowCreatedAt DateTime @default(now())
-  rowUpdatedAt DateTime @updatedAt
+  projects               Project[]
+  habits                 Habit[]
+  reminders              Reminder[]
+  habitMeta              HabitMeta?
+  rowCreatedAt           DateTime   @default(now())
+  rowUpdatedAt           DateTime   @updatedAt
 }
 
+<<<<<<< Updated upstream
 // ─────────────────────────────────────────────────────────────
 // PROJECT
 // localId maps to project_id from the frontend JSON payload
 // collapsed and quickCollapsed mirror the frontend object shape
 // ─────────────────────────────────────────────────────────────
 
+=======
+>>>>>>> Stashed changes
 model Project {
-  id         String  @id @default(cuid())
-  userId     String
-  localId    String
-  title      String
-  isArchived Boolean @default(false)
-
-  collapsed      Json @default("{}")
-  quickCollapsed Json @default("{}")
-
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  blocks Block[]
-
-  rowCreatedAt DateTime @default(now())
-  rowUpdatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  userId         String
+  localId        String
+  title          String
+  isArchived     Boolean  @default(false)
+  collapsed      Json     @default("{}")
+  quickCollapsed Json     @default("{}")
+  visibleLists   Json     @default("{}")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blocks         Block[]
+  rowCreatedAt   DateTime @default(now())
+  rowUpdatedAt   DateTime @updatedAt
 
   @@unique([userId, localId])
   @@index([userId])
 }
 
+<<<<<<< Updated upstream
 // ─────────────────────────────────────────────────────────────
 // BLOCK
 // localId       = frontend block id (mirrors Block.id in app state)
@@ -91,29 +85,43 @@ model Block {
 
   @@unique([projectId, localId])
   @@index([projectId, parentLocalId, order]) // primary fetch: children sorted by order
+=======
+model Block {
+  id            String   @id @default(cuid())
+  projectId     String
+  localId       String
+  parentLocalId String?
+  text          String   @default("")
+  indent        Int      @default(0)
+  order         Int      @default(0)
+  checked       Boolean?
+  deadline      String?
+  createdAt     String?
+  isHidden      Boolean  @default(false)
+  archived      Boolean  @default(false)
+  flag          String?
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rowCreatedAt  DateTime @default(now())
+  rowUpdatedAt  DateTime @updatedAt
+
+  @@unique([projectId, localId])
+  @@index([projectId, parentLocalId, order])
+>>>>>>> Stashed changes
   @@index([projectId])
   @@index([deadline])
   @@index([archived])
 }
 
-// ─────────────────────────────────────────────────────────────
-// HABIT
-// personal — no se comparte
-// ─────────────────────────────────────────────────────────────
-
 model Habit {
-  id      String @id @default(cuid())
-  userId  String
-  localId String
-
-  text      String  @default("")
-  checked   Boolean @default(false)
-  weekly    Boolean @default(false)
-  position  Int     @default(0)
-  createdAt String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id           String   @id @default(cuid())
+  userId       String
+  localId      String
+  text         String   @default("")
+  checked      Boolean  @default(false)
+  weekly       Boolean  @default(false)
+  position     Int      @default(0)
+  createdAt    String?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   rowCreatedAt DateTime @default(now())
   rowUpdatedAt DateTime @updatedAt
 
@@ -121,43 +129,28 @@ model Habit {
   @@index([userId, position])
 }
 
-// ─────────────────────────────────────────────────────────────
-// HABIT META
-// uno por usuario
-// ─────────────────────────────────────────────────────────────
-
 model HabitMeta {
-  id     String @id @default(cuid())
-  userId String @unique
-
+  id                 String   @id @default(cuid())
+  userId             String   @unique
   lastDailyResetYMD  String?
   lastWeeklyResetYMD String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  rowCreatedAt DateTime @default(now())
-  rowUpdatedAt DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rowCreatedAt       DateTime @default(now())
+  rowUpdatedAt       DateTime @updatedAt
 }
 
-// ─────────────────────────────────────────────────────────────
-// REMINDER
-// personal — no se comparte
-// ─────────────────────────────────────────────────────────────
-
 model Reminder {
-  id      String @id @default(cuid())
-  userId  String
-  localId String
-
-  title     String  @default("")
-  date      String
-  time      String
-  daily     Boolean @default(false)
-  position  Int     @default(0)
-  createdAt String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id           String   @id @default(cuid())
+  userId       String
+  localId      String
+  title        String   @default("")
+  date         String
+  time         String
+  daily        Boolean  @default(false)
+  position     Int      @default(0)
+  flag         String?
+  createdAt    String?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   rowCreatedAt DateTime @default(now())
   rowUpdatedAt DateTime @updatedAt
 
