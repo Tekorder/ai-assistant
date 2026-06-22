@@ -234,6 +234,12 @@ export function OnboardingModal() {
   const handleBack = () => { if (step > 0) goTo(step - 1, -1); };
   const finish = (skip = false) => {
     saveOnboarding(skip ? '' : occupation, skip ? '' : profession, skip ? '' : goal);
+    try {
+      const uid = localStorage.getItem('firebase_uid') ?? '';
+      if (uid) fetch('/api/auth/complete-onboarding', {
+        method: 'POST', headers: { 'X-Firebase-UID': uid },
+      }).catch(() => {});
+    } catch {}
     setOpen(false);
   };
 

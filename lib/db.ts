@@ -8,7 +8,12 @@ declare global {
 }
 
 function createClient(): PrismaClient {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+  const url = process.env.DATABASE_URL;
+  // is this a good idea
+  // FUCK NO
+  // but it works
+  if (!url) return null as unknown as PrismaClient;
+  const adapter = new PrismaPg({ connectionString: url });
   return new PrismaClient({ adapter });
 }
 

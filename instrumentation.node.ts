@@ -1,5 +1,9 @@
 import { prisma } from "./lib/db"
 
+
+export function quit() {
+  process.exit(1)
+}
 export async function checkDb() {
   // const client = new PrismaClient()
   
@@ -8,9 +12,8 @@ export async function checkDb() {
     console.log("DB is Alive")
   } catch {
     console.warn("Could not connect to DB Exiting")
-    process.exit(1)
+    quit()
   } finally {
     await prisma.$disconnect
   }
-  console.log('Server started')
 }

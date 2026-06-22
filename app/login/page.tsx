@@ -391,12 +391,28 @@ export default function LoginPage() {
     sessionStorage.removeItem(TWOFA_KEY);
   }
 
+  function clearPreviousUserData(incomingUid: string) {
+    try {
+      const storedUid = localStorage.getItem('firebase_uid');
+      if (!storedUid || storedUid === incomingUid) return;
+      const userKeys = [
+        'firebase_uid', 'prisma_user_id', 'prisma_user_email',
+        'prisma_user_name', 'prisma_user_avatar',
+        'youtask_projects_v1', 'youtask_blocks_v1',
+        'youtask_habits_v1', 'youtask_reminders_v1', 'youtask_checklists_v1',
+        'youtask_occupation', 'youtask_profession', 'youtask_goal',
+      ];
+      userKeys.forEach(k => localStorage.removeItem(k));
+    } catch { /* ignore */ }
+  }
+
   async function upsertPrismaUser(payload: {
     email: string;
     name?: string | null;
     avatarUrl?: string | null;
     firebaseUid?: string;
   }) {
+    if (payload.firebaseUid) clearPreviousUserData(payload.firebaseUid);
     const res = await fetch('/api/auth/upsert-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -500,9 +516,21 @@ export default function LoginPage() {
         return;
       }
 
+      // 2FA temporarily disabled (Brevo not working) — restore these 3 lines to re-enable:
+      // setPstate('exploding');
+      // await createAndSend2FA(firebaseEmail);
+      // setShow2FA(true);
       setPstate('exploding');
-      await createAndSend2FA(firebaseEmail);
-      setShow2FA(true);
+      await upsertPrismaUser({
+        email: firebaseEmail,
+        name: firebaseName,
+        avatarUrl: firebaseAvatar,
+        firebaseUid,
+      });
+      setTrustedBrowser(firebaseEmail);
+      sessionStorage.setItem('twofa_ok', '1');
+      localStorage.setItem('firebase_uid', firebaseUid);
+      router.replace('/assistant');
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
       if (

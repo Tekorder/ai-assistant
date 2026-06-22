@@ -15,6 +15,7 @@ model User {
   avatarUrl              String?
   timezone               String     @default("America/Tegucigalpa")
   selectedProjectLocalId String?
+  onboarded              Boolean    @default(false)
   projects               Project[]
   habits                 Habit[]
   reminders              Reminder[]
@@ -23,15 +24,6 @@ model User {
   rowUpdatedAt           DateTime   @updatedAt
 }
 
-<<<<<<< Updated upstream
-// ─────────────────────────────────────────────────────────────
-// PROJECT
-// localId maps to project_id from the frontend JSON payload
-// collapsed and quickCollapsed mirror the frontend object shape
-// ─────────────────────────────────────────────────────────────
-
-=======
->>>>>>> Stashed changes
 model Project {
   id             String   @id @default(cuid())
   userId         String
@@ -50,42 +42,6 @@ model Project {
   @@index([userId])
 }
 
-<<<<<<< Updated upstream
-// ─────────────────────────────────────────────────────────────
-// BLOCK
-// localId       = frontend block id (mirrors Block.id in app state)
-// parentLocalId = localId of the parent block (null → root list header)
-// order         = sort position within the parent group (replaces position)
-// createdAt     = semantic date from the frontend (YYYY-MM-DD)
-// rowCreatedAt / rowUpdatedAt = real DB timestamps
-// ─────────────────────────────────────────────────────────────
-
-model Block {
-  id        String @id @default(cuid())
-  projectId String
-  localId   String
-
-  text          String  @default("")
-  indent        Int     @default(0)
-  parentLocalId String?          // null = list header (root block)
-  order         Int     @default(0) // sort position within parent group
-
-  checked   Boolean?
-  deadline  String?
-  createdAt String?
-  isHidden  Boolean  @default(false)
-  archived  Boolean  @default(false)
-  flag      String?               // 'blue' | 'yellow' | 'red' | null
-  priority  Boolean  @default(false) // @deprecated — use flag
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  rowCreatedAt DateTime @default(now())
-  rowUpdatedAt DateTime @updatedAt
-
-  @@unique([projectId, localId])
-  @@index([projectId, parentLocalId, order]) // primary fetch: children sorted by order
-=======
 model Block {
   id            String   @id @default(cuid())
   projectId     String
@@ -100,13 +56,13 @@ model Block {
   isHidden      Boolean  @default(false)
   archived      Boolean  @default(false)
   flag          String?
+  priority      Boolean  @default(false)
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   rowCreatedAt  DateTime @default(now())
   rowUpdatedAt  DateTime @updatedAt
 
   @@unique([projectId, localId])
   @@index([projectId, parentLocalId, order])
->>>>>>> Stashed changes
   @@index([projectId])
   @@index([deadline])
   @@index([archived])

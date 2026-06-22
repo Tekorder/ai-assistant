@@ -8,6 +8,7 @@ function getUid(req: NextRequest) {
 }
 
 async function resolveUser(req: NextRequest) {
+  if (!process.env.DATABASE_URL) return null;
   const uid = getUid(req);
   if (!uid) return null;
   return prisma.user.findUnique({ where: { firebaseUid: uid } });
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json({
+    onboarded: user.onboarded,
     projects: projects.map(p => ({
       project_id: p.localId,
       title: p.title,
@@ -120,16 +122,24 @@ export async function POST(req: NextRequest) {
 
       if (blocks.length === 0) return;
 
+      // Derive parentLocalId from the flat array order + indent level.
+      // The parent of a block at indent N is the most recent preceding block at indent N-1.
+      const parentStack: Record<number, string> = {};
+
       const toCreate = blocks
         .map(b => {
           const bLocalId = typeof b.id === 'string' ? b.id : '';
           if (!bLocalId) return null;
+          const indent = Number(b.indent ?? 0);
+          const parentLocalId = indent > 0 ? (parentStack[indent - 1] ?? null) : null;
+          parentStack[indent] = bLocalId;
+          for (const key in parentStack) { if (Number(key) > indent) delete parentStack[key]; }
           return {
             projectId:     project.id,
             localId:       bLocalId,
-            parentLocalId: typeof b.parentId === 'string' ? b.parentId : null,
+            parentLocalId,
             text:          String(b.text ?? ''),
-            indent:        Number(b.indent ?? 0),
+            indent,
             order:         Number(b.order ?? 0),
             checked:       typeof b.checked === 'boolean' ? b.checked : null,
             deadline:      typeof b.deadline === 'string' ? b.deadline : null,

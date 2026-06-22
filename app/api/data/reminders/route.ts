@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
 async function resolveUser(req: NextRequest) {
+  if (!process.env.DATABASE_URL) return null;
   const uid = req.headers.get('X-Firebase-UID') ?? '';
   if (!uid) return null;
   return prisma.user.findUnique({ where: { firebaseUid: uid } });

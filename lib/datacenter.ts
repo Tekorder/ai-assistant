@@ -385,6 +385,7 @@ function getFirebaseUid(): string {
 }
 
 function dbPost(path: string, body: unknown): void {
+  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return;
   const uid = getFirebaseUid();
   if (!uid) return;
   fetch(path, {
@@ -424,6 +425,7 @@ function dbSyncReminders(): void {
  * If the DB has no data for this user, pushes any existing localStorage data up instead.
  */
 export async function loadFromDatabase(): Promise<void> {
+  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return;
   const uid = getFirebaseUid();
   if (!uid) return;
   const headers = { 'X-Firebase-UID': uid };
@@ -436,7 +438,10 @@ export async function loadFromDatabase(): Promise<void> {
     ]);
 
     if (projectsRes?.ok) {
-      const data = await projectsRes.json() as { projects?: unknown[] };
+      const data = await projectsRes.json() as { projects?: unknown[]; onboarded?: boolean };
+      if (data.onboarded) {
+        try { localStorage.setItem('youtask_occupation', 'skipped'); } catch {}
+      }
       if (Array.isArray(data.projects) && data.projects.length > 0) {
         localStorage.setItem(LS_KEY_V2, JSON.stringify(data));
         window.dispatchEvent(new Event('youtask_projects_updated'));
