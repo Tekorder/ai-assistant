@@ -21,7 +21,7 @@ import {
   getTaskFlag,
   type TaskFlagColor,
 } from '@/lib/datacenter';
-import { TaskFlagBadge } from './TaskFlag';
+import { TaskFlagBadge } from '../TaskFlag';
 
 /* ===================== Local UI types (no van a datacenter) ===================== */
 

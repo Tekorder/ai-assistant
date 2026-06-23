@@ -2,8 +2,8 @@
 'use client';
 // Note we may want to rename this component in the future as 'quick' is a bit confusing
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { OnboardingModal } from './OnboardingModal';
-import MiniCalendar from './Minicalendar';
+import { OnboardingModal } from '../OnboardingModal';
+import MiniCalendar from '../Minicalendar';
 //also hi
 import {
   // Types
@@ -47,7 +47,8 @@ import {
   buildListVisibilityHiddenMap,
   sortBlocksByOrder,
 } from '@/lib/datacenter';
-import { TaskFlagButton } from './TaskFlag';
+import { TaskFlagButton } from '../TaskFlag';
+import { downloadTasksExcel } from '@/lib/exportExcel';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 /** First incomplete task under this list with empty text (for Enter → focus instead of duplicating). */
@@ -288,6 +289,8 @@ export default function Quick(props: QuickProps = {}) {
       setDrawerClosing(false);
     }, 220);
   };
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
+  const quickMenuRef = useRef<HTMLDivElement | null>(null);
   const [editingDateTaskId, setEditingDateTaskId] = useState<string | null>(null);
 
   const inputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
@@ -303,6 +306,23 @@ export default function Quick(props: QuickProps = {}) {
       if (el instanceof HTMLTextAreaElement) resizeTextarea(el);
     });
   });
+
+  // Close the header "⋮" menu on outside-click or Escape.
+  useEffect(() => {
+    if (!quickMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (quickMenuRef.current && !quickMenuRef.current.contains(e.target as Node)) {
+        setQuickMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setQuickMenuOpen(false); };
+    window.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onPointerDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [quickMenuOpen]);
   useEffect(() => {
     if (!editingDateTaskId) return;
     const input = inlineDateRefs.current[editingDateTaskId];
@@ -1366,6 +1386,46 @@ const handleKey = (
                       <span className="text-[15px] leading-none">+</span>
                       <span>New List</span>
                     </button>
+
+                    {/* Kebab menu (⋮) — export, etc. */}
+                    <div className="relative" ref={quickMenuRef}>
+                      <button
+                        type="button"
+                        onClick={() => setQuickMenuOpen(o => !o)}
+                        className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${classes.quickMenuBtn}`}
+                        aria-haspopup="menu"
+                        aria-expanded={quickMenuOpen}
+                        aria-label="More options"
+                        title="More options"
+                      >
+                        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                          <circle cx="8" cy="3" r="1.4" />
+                          <circle cx="8" cy="8" r="1.4" />
+                          <circle cx="8" cy="13" r="1.4" />
+                        </svg>
+                      </button>
+
+                      {quickMenuOpen && (
+                        <div
+                          role="menu"
+                          className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl shadow-2xl"
+                          style={{ background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => { downloadTasksExcel(blocks, currentProject?.title); setQuickMenuOpen(false); }}
+                            className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[12px] ${classes.quickMenuItem}`}
+                          >
+                            <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 2v7m0 0L5.5 6.5M8 9l2.5-2.5" />
+                              <path strokeLinecap="round" d="M2.75 11.5v1A1.75 1.75 0 0 0 4.5 14.25h7a1.75 1.75 0 0 0 1.75-1.75v-1" />
+                            </svg>
+                            <span>Download Excel</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Mobile settings */}
                     <button

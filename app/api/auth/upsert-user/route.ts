@@ -11,6 +11,7 @@ type Body = {
 };
 
 export async function POST(req: Request) {
+  if (!process.env.DATABASE_URL) return NextResponse.json({ ok: true, user: null });
   try {
     const body = (await req.json()) as Body;
 

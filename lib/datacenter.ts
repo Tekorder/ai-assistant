@@ -438,6 +438,101 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
   return moveUncToTop(ensureUncExists(out));
 }
 
+/* ===================== Database sync (background, fire-and-forget) ===================== */
+
+function getFirebaseUid(): string {
+  try { return localStorage.getItem('firebase_uid') ?? ''; } catch { return ''; }
+}
+
+function dbPost(path: string, body: unknown): void {
+  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return;
+  const uid = getFirebaseUid();
+  if (!uid) return;
+  fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Firebase-UID': uid },
+    body: JSON.stringify(body),
+  }).catch(() => {});
+}
+
+function dbSyncProjects(): void {
+  try {
+    const raw = localStorage.getItem(LS_KEY_V2);
+    if (!raw) return;
+    dbPost('/api/data/projects', JSON.parse(raw));
+  } catch {}
+}
+
+function dbSyncHabits(): void {
+  try {
+    const raw = localStorage.getItem(LS_KEY_HABITS);
+    if (!raw) return;
+    dbPost('/api/data/habits', JSON.parse(raw));
+  } catch {}
+}
+
+function dbSyncReminders(): void {
+  try {
+    const raw = localStorage.getItem(LS_KEY_REMINDERS);
+    if (!raw) return;
+    dbPost('/api/data/reminders', JSON.parse(raw));
+  } catch {}
+}
+
+/**
+ * Fetch all user data from the database and hydrate localStorage.
+ * Call once at app startup after the user is authenticated.
+ * If the DB has no data for this user, pushes any existing localStorage data up instead.
+ */
+export async function loadFromDatabase(): Promise<void> {
+  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return;
+  const uid = getFirebaseUid();
+  if (!uid) return;
+  const headers = { 'X-Firebase-UID': uid };
+
+  try {
+    const [projectsRes, habitsRes, remindersRes] = await Promise.all([
+      fetch('/api/data/projects', { headers }).catch(() => null),
+      fetch('/api/data/habits',   { headers }).catch(() => null),
+      fetch('/api/data/reminders', { headers }).catch(() => null),
+    ]);
+
+    if (projectsRes?.ok) {
+      const data = await projectsRes.json() as { projects?: unknown[]; onboarded?: boolean };
+      if (data.onboarded) {
+        try { localStorage.setItem('youtask_occupation', 'skipped'); } catch {}
+      }
+      if (Array.isArray(data.projects) && data.projects.length > 0) {
+        localStorage.setItem(LS_KEY_V2, JSON.stringify(data));
+        window.dispatchEvent(new Event('youtask_projects_updated'));
+        window.dispatchEvent(new Event('youtask_blocks_updated'));
+      } else {
+        dbSyncProjects(); // DB empty — push local data up
+      }
+    }
+
+    if (habitsRes?.ok) {
+      const data = await habitsRes.json() as { habits?: unknown[] };
+      if (Array.isArray(data.habits) && data.habits.length > 0) {
+        localStorage.setItem(LS_KEY_HABITS, JSON.stringify(data));
+        window.dispatchEvent(new Event('youtask_habits_updated'));
+      } else {
+        dbSyncHabits();
+      }
+    }
+
+    if (remindersRes?.ok) {
+      const data = await remindersRes.json() as { reminders?: unknown[] };
+      if (Array.isArray(data.reminders) && data.reminders.length > 0) {
+        localStorage.setItem(LS_KEY_REMINDERS, JSON.stringify(data));
+        window.dispatchEvent(new Event('youtask_reminders_updated'));
+      } else {
+        dbSyncReminders();
+      }
+    }
+  } catch {}
+}
+
 /* ===================== Persistence (localStorage) ===================== */
 
 
@@ -500,6 +595,7 @@ export function writeProjectsLS(payload: ProjectsPayload): void {
     localStorage.setItem(LS_KEY_V2, JSON.stringify(payload));
     window.dispatchEvent(new Event('youtask_projects_updated'));
     window.dispatchEvent(new Event('youtask_blocks_updated'));
+    dbSyncProjects();
   } catch {}
 }
 
@@ -931,6 +1027,7 @@ export function writeHabitsLS(payload: HabitsPayload): void {
   try {
     localStorage.setItem(LS_KEY_HABITS, JSON.stringify(payload));
     window.dispatchEvent(new Event('youtask_habits_updated'));
+    dbSyncHabits();
   } catch {}
 }
 
@@ -1067,6 +1164,7 @@ export function writeRemindersLS(payload: RemindersPayload): void {
   try {
     localStorage.setItem(LS_KEY_REMINDERS, JSON.stringify(payload));
     window.dispatchEvent(new Event('youtask_reminders_updated'));
+    dbSyncReminders();
   } catch {}
 }
 
@@ -1216,6 +1314,7 @@ export function writeSelectedProjectBlocks(
     localStorage.setItem(LS_KEY_V2, JSON.stringify({ ...parsed, projects: nextProjects }));
     window.dispatchEvent(new Event('youtask_projects_updated'));
     window.dispatchEvent(new Event('youtask_blocks_updated'));
+    dbSyncProjects();
   } catch {}
 }
 
@@ -1264,6 +1363,7 @@ export function writeSelectedProject(
     localStorage.setItem(LS_KEY_V2, JSON.stringify({ ...parsed, projects: nextProjects }));
     window.dispatchEvent(new Event('youtask_projects_updated'));
     window.dispatchEvent(new Event('youtask_blocks_updated'));
+    dbSyncProjects();
   } catch {}
 }
 

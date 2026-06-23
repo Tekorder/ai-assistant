@@ -5,9 +5,9 @@ import { flushSync } from 'react-dom';
 import { RemindersProvider } from './_context/RemindersContext';
 import { Sidebar } from './components/Sidebar';
 import ChatBox from './components/Chatbox';
-import Timeline from './components/Timeline';
-import Quick from './components/Quick';
-import CalendarView from './components/Calendar';
+import Timeline from './components/tabs/Timeline';
+import Quick from './components/tabs/Quick';
+import CalendarView from './components/tabs/Calendar';
 import TopNavBar from './components/TopNavBar';
 import Menu from './components/Menu';
 import HabitsPanel from './components/HabitsPanel';
@@ -31,6 +31,7 @@ import {
   LS_KEY_CHECKLISTS,
   readChecklistsLS,
   getTaskFlag,
+  loadFromDatabase,
 } from '@/lib/datacenter';
 
 
@@ -56,6 +57,7 @@ export default function App() {
   const PANEL_WIDTH = 320;
 
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+  useEffect(() => { void loadFromDatabase(); }, []);
   useEffect(() => {
     const stored = window.localStorage.getItem(ASSISTANT_THEME_LS_KEY);
     if (!stored) return;

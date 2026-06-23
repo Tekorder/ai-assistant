@@ -347,6 +347,25 @@
   color: var(--assistant-text);
 }
 
+.quickMenuBtn {
+  color: var(--assistant-text-muted);
+}
+
+.quickMenuBtn:hover {
+  background: var(--assistant-hover-bg);
+  color: var(--assistant-text);
+}
+
+.quickMenuItem {
+  color: var(--assistant-text-soft);
+  transition: background .15s, color .15s;
+}
+
+.quickMenuItem:hover {
+  background: var(--assistant-hover-bg);
+  color: var(--assistant-text);
+}
+
 .quickCollapseBtn {
   color: var(--assistant-text-faint);
   transition: color .15s;
