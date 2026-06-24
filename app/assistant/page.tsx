@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { RemindersProvider } from './_context/RemindersContext';
 import { Sidebar } from './components/Sidebar';
 import ChatBox from './components/Chatbox';
-import Timeline from './components/Timeline';
-import Quick from './components/Quick';
-import CalendarView from './components/Calendar';
+import Timeline from './components/tabs/Timeline';
+import Quick from './components/tabs/Quick';
+import CalendarView from './components/tabs/Calendar';
 import TopNavBar from './components/TopNavBar';
 import Menu from './components/Menu';
 import HabitsPanel from './components/HabitsPanel';
@@ -14,6 +15,7 @@ import RemindersPanel from './components/RemindersPanel';
 import ActivityLogPanel from './components/ActivityLogPanel';
 import ChecklistsPanel from './components/ChecklistsPanel';
 import { assistantThemes, getAssistantThemeVars, type AssistantThemeName } from './_theme/themes';
+import classes from './_theme/themes.module.css';
 import { PivotPanel, buildPrunedPivotTree, buildListPivotTree, type PivotTreeRow } from './components/Pivot';
 import {
   UNC_TITLE,
@@ -29,7 +31,9 @@ import {
   LS_KEY_CHECKLISTS,
   readChecklistsLS,
   getTaskFlag,
+  loadFromDatabase,
 } from '@/lib/datacenter';
+
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
@@ -53,6 +57,7 @@ export default function App() {
   const PANEL_WIDTH = 320;
 
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+  useEffect(() => { void loadFromDatabase(); }, []);
   useEffect(() => {
     const stored = window.localStorage.getItem(ASSISTANT_THEME_LS_KEY);
     if (!stored) return;
@@ -61,6 +66,37 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(ASSISTANT_THEME_LS_KEY, selectedTheme);
   }, [selectedTheme]);
+
+  // Switching theme swaps the --assistant-* variables. CSS `transition`s can't
+  // interpolate the gradient backgrounds, and the per-element color/background
+  // transitions fire at staggered durations — so some elements lag behind others.
+  // Use the View Transitions API to cross-fade the whole page old→new in one
+  // synchronized animation. While the new state is captured, freeze the ad-hoc
+  // per-element transitions so the live DOM snaps cleanly to the new theme.
+  // Falls back to an instant (still synced) swap when unsupported or reduced-motion.
+  const handleSelectTheme = useCallback((next: AssistantThemeName) => {
+    const root = document.documentElement;
+    const doc = document as Document & {
+      startViewTransition?: (cb: () => void) => { finished: Promise<void> };
+    };
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (!doc.startViewTransition || reduceMotion) {
+      root.classList.add('theme-switching');
+      flushSync(() => setSelectedTheme(next));
+      void root.offsetWidth;
+      root.classList.remove('theme-switching');
+      return;
+    }
+
+    root.classList.add('theme-switching');
+    const transition = doc.startViewTransition(() => {
+      flushSync(() => setSelectedTheme(next));
+    });
+    transition.finished.finally(() => {
+      root.classList.remove('theme-switching');
+    });
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
@@ -92,7 +128,7 @@ export default function App() {
       sidebarCloseTimerRef.current = null;
       setSidebarOpen(false);
       setSidebarClosing(false);
-    }, 220);
+    }, 200);
   }, [sidebarClosing, sidebarOpen]);
 
   const toggleSidebar = useCallback(() => {
@@ -327,12 +363,18 @@ export default function App() {
     setActiveView(v);
   }, []);
 
+  const isLight = theme.style === 'light';
+
   const renderView = () => {
     if (activeView === 'timeline') return <Timeline />;
-    if (activeView === 'calendar') return <CalendarView />;
+    if (activeView === 'calendar') return <CalendarView isLight={isLight} />;
     return <Quick onOpenPivot={requestOpenPivot} />;
   };
 
+  const sidebarVisualOpen = sidebarOpen && !sidebarClosing;
+  // Quick.tsx growth is keyed off sidebarOpen (which flips at the close timeout),
+  // not sidebarVisualOpen — so on close the area holds while the content fades,
+  // then collapses + Quick stretches back together once the timeout fires.
   const mainPanelSolo =
     !sidebarOpen &&
     !habitsOpen &&
@@ -340,7 +382,6 @@ export default function App() {
     !activityOpen &&
     !listsOpen &&
     pivotInstances.length === 0;
-  const sidebarVisualOpen = sidebarOpen && !sidebarClosing;
   const mainPanelWidth = mainPanelSolo ? '90vw' : '70vw';
 
   // Lists panel: starts as wide as the other side panels (PANEL_WIDTH),
@@ -396,35 +437,72 @@ export default function App() {
           onToggleReminders={toggleReminders}
           onToggleActivity={toggleActivity}
           onToggleLists={toggleLists}
+
         />
 
         <div className="relative flex-1 overflow-hidden md:hidden">
-          <div className="h-full overflow-hidden">{renderView()}</div>
+          <div className="h-full overflow-y-auto">{renderView()}</div>
+        </div>
 
-          {(sidebarOpen || sidebarClosing) && (
+        {/* Mobile sidebar — fixed overlay above bottom nav */}
+        {(sidebarOpen || sidebarClosing) && (
+          <>
+            <style>{`
+              @keyframes sidebarMobileOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+              @keyframes sidebarMobileOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+              @keyframes sidebarMobileIn {
+                from { transform: translateX(-34px); opacity: 0; filter: blur(1px); }
+                60% { transform: translateX(3px); opacity: .92; filter: blur(0); }
+                to { transform: translateX(0); opacity: 1; }
+              }
+              @keyframes sidebarMobileOut {
+                from { transform: translateX(0); opacity: 1; filter: blur(0); }
+                to { transform: translateX(-20px); opacity: 0; filter: blur(1px); }
+              }
+            `}</style>
             <button
-              className="absolute inset-0 transition-opacity duration-200"
-              style={{ background: 'var(--assistant-overlay)', opacity: sidebarVisualOpen ? 1 : 0 }}
+              type="button"
+              className="md:hidden fixed inset-0 z-[200]"
               onClick={requestCloseSidebar}
               aria-label="Close sidebar"
+              style={{
+                background: 'var(--assistant-overlay)',
+                animation: sidebarClosing
+                  ? 'sidebarMobileOverlayOut 0.18s ease-out both'
+                  : 'sidebarMobileOverlayIn 0.22s ease-out both',
+              }}
             />
-          )}
-
-          <div
-            className={[
-              'absolute left-0 top-0 h-full w-[86%] max-w-[360px] transform shadow-2xl transition-all duration-[460ms]',
-              sidebarVisualOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0',
-            ].join(' ')}
-          >
-            <div className="h-full overflow-hidden">
-              <Sidebar
-                onOpenPivot={requestOpenPivot}
-                selectedTheme={selectedTheme}
-                onSelectTheme={setSelectedTheme}
-              />
+            <div
+              className={`md:hidden fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+              style={{
+                color: 'var(--assistant-text)',
+                animation: sidebarClosing
+                  ? 'sidebarMobileOut 0.18s cubic-bezier(0.4, 0, 1, 1) both'
+                  : 'sidebarMobileIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both',
+              }}
+            >
+              <button
+                type="button"
+                onClick={requestCloseSidebar}
+                className="absolute right-3 top-4 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)', color: 'var(--assistant-text-muted)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                aria-label="Close sidebar"
+                title="Close sidebar"
+              >
+                ✕
+              </button>
+              <div className="h-full overflow-hidden">
+                <Sidebar
+                  onOpenPivot={requestOpenPivot}
+                  selectedTheme={selectedTheme}
+                  onSelectTheme={handleSelectTheme}
+                />
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
 
         <div
           ref={deckScrollRef}
@@ -441,7 +519,9 @@ export default function App() {
               width: sidebarVisualOpen ? MIN_SIDEBAR : 0,
               opacity: sidebarVisualOpen ? 1 : 0,
               transform: sidebarVisualOpen ? 'translateX(0)' : 'translateX(-10px)',
-              transition: 'width 460ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 460ms cubic-bezier(0.22, 1, 0.36, 1)',
+              transition: sidebarVisualOpen
+                ? 'width 420ms cubic-bezier(0.22, 1, 0.36, 1) 0ms, opacity 300ms ease 200ms, transform 400ms cubic-bezier(0.22, 1, 0.36, 1) 200ms'
+                : 'width 420ms cubic-bezier(0.22, 1, 0.36, 1) 200ms, opacity 180ms ease 0ms, transform 220ms cubic-bezier(0.22, 1, 0.36, 1) 0ms',
             }}
           >
             <div
@@ -455,8 +535,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={requestCloseSidebar}
-                className="absolute right-5 top-4 z-[120] flex h-8 w-8 items-center justify-center rounded-md text-white transition-colors hover:text-white"
-                style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)' }}
+                className="absolute right-5 top-4 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)', color: 'var(--assistant-text-muted)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
                 aria-label="Close sidebar"
                 title="Close sidebar"
               >
@@ -465,7 +547,7 @@ export default function App() {
               <Sidebar
                 onOpenPivot={requestOpenPivot}
                 selectedTheme={selectedTheme}
-                onSelectTheme={setSelectedTheme}
+                onSelectTheme={handleSelectTheme}
               />
             </div>
           </div>
@@ -476,6 +558,7 @@ export default function App() {
               minWidth: mainPanelWidth,
               marginLeft: mainPanelSolo ? 'auto' : undefined,
               marginRight: mainPanelSolo ? 'auto' : undefined,
+              transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             <div
@@ -485,6 +568,7 @@ export default function App() {
                 border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 50%, transparent)',
                 boxShadow:
                   'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
+                transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             >
               {renderView()}
@@ -497,6 +581,8 @@ export default function App() {
               width: habitsOpen && isDesktop === true ? PANEL_WIDTH : 0,
               opacity: habitsOpen && isDesktop === true ? 1 : 0,
               transform: habitsOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
+              transition:
+                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             <div
@@ -518,6 +604,8 @@ export default function App() {
               width: remindersOpen && isDesktop === true ? PANEL_WIDTH : 0,
               opacity: remindersOpen && isDesktop === true ? 1 : 0,
               transform: remindersOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
+              transition:
+                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             <div
@@ -539,6 +627,8 @@ export default function App() {
               width: activityOpen && isDesktop === true ? PANEL_WIDTH : 0,
               opacity: activityOpen && isDesktop === true ? 1 : 0,
               transform: activityOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
+              transition:
+                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             <div
@@ -567,7 +657,7 @@ export default function App() {
               transform:
                 listsOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
               transition:
-                'width 460ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 460ms cubic-bezier(0.22, 1, 0.36, 1)',
+                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
             <div
@@ -656,7 +746,20 @@ export default function App() {
           </>
         )}
 
-        <Menu open={menuOpen} onClose={() => setMenuOpen(false)} />
+        <Menu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          onToggleHabits={toggleHabits}
+          onToggleReminders={toggleReminders}
+          onToggleActivity={toggleActivity}
+          onToggleLists={toggleLists}
+          onToggleChat={() => (chatOpen ? closeChatOverlay() : openChatOverlay())}
+          habitsOpen={habitsOpen}
+          remindersOpen={remindersOpen}
+          activityOpen={activityOpen}
+          listsOpen={listsOpen}
+          chatOpen={chatOpen}
+        />
 
         {chatOpen && (
           <>
@@ -667,24 +770,20 @@ export default function App() {
               onClick={closeChatOverlay}
               aria-label="Close AI overlay"
             />
+            {/* Mobile: full-screen overlay. Desktop: floating widget bottom-right */}
             <div
               className={[
-                'fixed z-[9999] text-white',
-                'right-5 bottom-24',
-                'w-[500px] max-w-[90vw]',
-                'h-[600px]',
-                'rounded-2xl',
-                'flex flex-col overflow-hidden',
+                `fixed z-[9999] flex flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`,
+                // mobile: full panel
+                'left-3 top-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)]',
+                // desktop: floating bubble
+                'md:left-auto md:top-auto md:right-5 md:bottom-24 md:h-150 md:w-125 md:max-w-[90vw]',
               ].join(' ')}
-              style={{
-                background: 'var(--assistant-glass-bg)',
-                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 50%, transparent)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
-              }}
+              style={{ color: 'var(--assistant-text)' }}
             >
               <div
                 className="flex shrink-0 items-center justify-between border-b px-4 py-3"
-                style={{ borderColor: 'var(--assistant-border-soft)', background: 'var(--assistant-bg)' }}
+                style={{ borderColor: 'var(--assistant-border-soft)', background: 'var(--assistant-panel-bg)' }}
               >
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
@@ -702,22 +801,22 @@ export default function App() {
                   </span>
                   <span
                     className="text-[11px] font-semibold uppercase tracking-[0.16em]"
-                    style={{ color: 'color-mix(in srgb, var(--assistant-tone-1) 90%, transparent)' }}
+                    style={{ color: 'var(--assistant-accent)' }}
                   >
                     Assistant
                   </span>
-                  <span className="text-sm font-semibold text-white/90">AI chat</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>AI chat</span>
                 </div>
                 <button
                   type="button"
                   onClick={closeChatOverlay}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
                   aria-label="Close"
                 >
                   ✕
                 </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden" style={{ background: 'var(--assistant-bg)' }}>
+              <div className="min-h-0 flex-1 overflow-hidden">
                 <ChatBox showReminders={false} onCloseReminders={() => {}} />
               </div>
             </div>
@@ -735,29 +834,33 @@ export default function App() {
         >
           <div className="pointer-events-auto mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <div className="min-w-0 flex flex-col gap-0.5">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: 'var(--assistant-text-faint)' }}>
                 Today
               </span>
-              <span className="text-[12px] text-white/70">
+              <span className="text-[12px]" style={{ color: 'var(--assistant-text-soft)' }}>
                 <span className="font-semibold tabular-nums" style={{ color: 'var(--assistant-tone-1)' }}>
                   {todayCompletedSummary.completed}
                 </span>
-                <span className="text-white/45"> / </span>
-                <span className="tabular-nums text-white/55">{todayCompletedSummary.total}</span>
-                <span className="text-white/40"> · completed</span>
+                <span style={{ color: 'var(--assistant-text-muted)' }}> / </span>
+                <span className="tabular-nums" style={{ color: 'var(--assistant-text-soft)' }}>{todayCompletedSummary.total}</span>
+                <span style={{ color: 'var(--assistant-text-faint)' }}> · completed</span>
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--assistant-text-faint)' }}>
                 Overdue
               </span>
               <span
-                className={[
-                  'min-w-[2rem] rounded-lg border px-2.5 py-1 text-center text-[13px] font-semibold tabular-nums',
-                  overdueCount > 0
-                    ? 'border-rose-500/35 bg-rose-500/10 text-rose-200'
-                    : 'border-white/10 bg-white/5 text-white/45',
-                ].join(' ')}
+                className="min-w-[2rem] rounded-lg border px-2.5 py-1 text-center text-[13px] font-semibold tabular-nums"
+                style={overdueCount > 0 ? {
+                  borderColor: 'rgba(244,63,94,.35)',
+                  background: 'rgba(244,63,94,.10)',
+                  color: theme.style === 'light' ? '#be123c' : '#fda4af',
+                } : {
+                  borderColor: 'var(--assistant-border-soft)',
+                  background: 'var(--assistant-surface)',
+                  color: 'var(--assistant-text-muted)',
+                }}
               >
                 {overdueCount}
               </span>
@@ -768,7 +871,7 @@ export default function App() {
         <button
           type="button"
           onClick={() => (chatOpen ? closeChatOverlay() : openChatOverlay())}
-          className="fixed bottom-20 right-5 z-[9999] flex h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-2xl backdrop-blur-md transition-all duration-200 hover:bg-white/15 active:scale-95 md:bottom-5"
+          className="hidden md:flex fixed md:bottom-5 right-5 z-[9999] h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-2xl backdrop-blur-md transition-all duration-200 hover:bg-white/15 active:scale-95"
           aria-label={chatOpen ? 'Close AI chat' : 'Open AI chat'}
           title={chatOpen ? 'Close chat' : 'AI Assistant'}
         >

@@ -27,11 +27,13 @@ import {
   removeBlock as removeBlockArr,
   removeTitleSendChildrenToUnc,
   addNewList as addNewListArr,
+  sortBlocksByOrder,
   // Projects persistence
   readProjectsLS,
   writeProjectsLS,
 } from '@/lib/datacenter';
 import { assistantThemes, type AssistantThemeName } from '../_theme/themes';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 type SidebarProps = {
   onOpenPivot?: (detail: {
@@ -59,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, on
     'bloodmoon',
     'deepsea',
   ];
-  const lightThemes: AssistantThemeName[] = [];
+  const lightThemes: AssistantThemeName[] = ['cloud', 'sand', 'mint', 'rose', 'lavender'];
   const [themeTab, setThemeTab] = useState<'dark' | 'light'>('dark');
   const [themePage, setThemePage] = useState(1);
   const THEMES_PER_PAGE = 4;
@@ -69,6 +71,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, on
     (themePage - 1) * THEMES_PER_PAGE,
     themePage * THEMES_PER_PAGE,
   );
+  // Switch tab AND reset to page 1 in the same render. Doing the reset here instead
+  // of in a post-paint effect avoids a one-frame flash where the previous page index
+  // is out of range for the new tab's shorter list (e.g. dark p3 → light, which has
+  // only 2 pages → an empty grid would paint before the effect corrected it).
+  const selectThemeTab = (tab: 'dark' | 'light') => {
+    setThemeTab(tab);
+    setThemePage(1);
+  };
   const buildAllCollapsedFromBlocks = (listBlocks: Block[]): Record<string, boolean> => {
     const next: Record<string, boolean> = {};
     for (const b of listBlocks) {
@@ -87,10 +97,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, on
   const [deleteListConfirmId, setDeleteListConfirmId] = useState<string | null>(null);
   const [editingDateTaskId] = useState<string | null>(null);
   const [editingListTitleId, setEditingListTitleId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setThemePage(1);
-  }, [themeTab]);
 
   /* ── Refs ── */
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -135,7 +141,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
       const next = prev.map(p => ({ ...p }));
       const old = next[safeIdx].blocks ?? moveUncToTop(ensureUncExists([]));
       let newBlocks = typeof nextFn === 'function' ? nextFn(old) : nextFn;
-      newBlocks = moveUncToTop(ensureUncExists(newBlocks));
+      newBlocks = sortBlocksByOrder(moveUncToTop(ensureUncExists(newBlocks)));
       next[safeIdx] = { ...next[safeIdx], blocks: newBlocks };
       return next;
     });
@@ -397,6 +403,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
         id: uid(),
         text: '',
         indent: nextIndent,
+        parentId: nextIndent === 0 ? null : (b.indent === 0 ? b.id : b.parentId),
+        order: b.order + 1,
         checked: nextIndent > 0 ? false : undefined,
         deadline: nextIndent > 0 ? todayYMD() : undefined,
         isHidden: undefined,
@@ -484,22 +492,17 @@ const visibleLists = useMemo<Record<string, boolean>>(
   return (
     <>
       <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
-        <aside
-          className="relative z-[60] flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-[#52b352]/55 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]"
-          style={{
-            background: 'rgba(8,8,8,0.42)',
-            backdropFilter: 'blur(16px) saturate(1.2)',
-            WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
-          }}
-        >
+      <aside
+        className={`relative z-60 flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+      >
         {/* Scrollable content */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 md:px-4 md:pb-4 [scrollbar-gutter:stable]">
           <>
-              <div className="flex items-center justify-start mt-2 mb-4 gap-2">
+              <div className="flex items-center justify-start mt-1.5 mb-2.5 md:mt-2 md:mb-4 gap-2">
                 <button
                   type="button"
                   onClick={handleAddNewList}
-                  className="my-1 text-[11px] px-2 py-1 rounded-md bg-white/10 text-white/60 hover:text-white/80 hover:bg-white/16 transition-colors"
+                  className={`${classes.panelBtn} my-1 text-[11px] px-2 py-1 rounded-md`}
                   title="Add a new list"
                 >
                   + New List
@@ -511,33 +514,38 @@ const visibleLists = useMemo<Record<string, boolean>>(
                   const listBlocks = blocks.filter(b => b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true);
                   if (!listBlocks.length) {
                     return (
-                      <div className="text-[12px] text-white/40 px-1 py-2">
+                      <div className="text-[12px] px-1 py-2" style={{ color: 'var(--assistant-text-faint)' }}>
                         No lists yet.
                       </div>
                     );
                   }
-                  return listBlocks.map((b, idx) => {
+                  return listBlocks.map((b) => {
                     const isVisible = visibleLists[b.id] !== false;
                     return (
                       <React.Fragment key={b.id}>
                         <div
                           draggable
-                          onDragStart={e => onDragStartRow(e, b.id, idx)}
+                          onDragStart={e => onDragStartRow(e, b.id, blocks.findIndex(block => block.id === b.id))}
                           onDragOver={e => onDragOverRow(e, b.id)}
                           onDrop={e => onDropRow(e, b.id)}
                           onDragEnd={onDragEndRow}
                           className={[
                             'group flex items-center gap-1 px-0.5 py-1 rounded-md',
-                            dragOverId === b.id && dragRef.current?.id !== b.id ? 'bg-white/7 outline outline-1 outline-white/10' : '',
+                            dragOverId === b.id && dragRef.current?.id !== b.id ? classes.dragOver : '',
                             dragRef.current?.id === b.id ? 'opacity-60' : '',
                           ].join(' ')}
                           style={{ paddingLeft: 2 }}
                         >
                           <div
-                            className="w-3 shrink-0 text-white/20 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                            className="w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                            style={{ color: 'var(--assistant-text-faint)' }}
                             title="Drag"
                           >
-                            ⋮⋮
+                            <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
+                              <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+                              <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
+                              <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
+                            </svg>
                           </div>
                           <label className="relative h-4 w-4 shrink-0 flex items-center justify-center cursor-pointer">
                             <input
@@ -547,19 +555,21 @@ const visibleLists = useMemo<Record<string, boolean>>(
                               className="sr-only"
                             />
                             <span
-                              className={[
-                                'h-3 w-3 rounded-full border transition-all duration-200',
-                                isVisible ? '' : 'border-white/30 bg-transparent',
-                              ].join(' ')}
+                              className="h-3 w-3 rounded-full border transition-all duration-200"
                               style={
                                 isVisible
                                   ? {
-                                      borderColor: 'var(--assistant-tone-1, #52b352)',
-                                      background: 'var(--assistant-tone-1, #52b352)',
+                                      borderColor: 'var(--assistant-accent)',
+                                      background: 'var(--assistant-accent)',
                                       boxShadow:
-                                        '0 0 0 1px color-mix(in srgb, var(--assistant-tone-1, #52b352) 82%, transparent), 0 0 18px color-mix(in srgb, var(--assistant-tone-1, #52b352) 95%, transparent), 0 0 28px color-mix(in srgb, var(--assistant-tone-1, #52b352) 65%, transparent)',
+                                        '0 0 0 1px color-mix(in srgb, var(--assistant-accent) 82%, transparent), ' +
+                                        '0 0 18px color-mix(in srgb, var(--assistant-accent) 95%, transparent), ' +
+                                        '0 0 28px color-mix(in srgb, var(--assistant-accent) 65%, transparent)',
                                     }
-                                  : undefined
+                                  : {
+                                      borderColor: 'var(--assistant-border-soft)',
+                                      background: 'transparent',
+                                    }
                               }
                             />
                           </label>
@@ -574,14 +584,16 @@ const visibleLists = useMemo<Record<string, boolean>>(
                               onKeyDown={e => handleKey(e, b)}
                               onBlur={() => setEditingListTitleId(null)}
                               className={[
-                                'w-full cursor-text bg-transparent text-sm font-semibold text-white outline-none transition-opacity duration-150',
+                                'w-full cursor-text bg-transparent text-[13px] md:text-sm font-semibold outline-none transition-opacity duration-150',
                               ].join(' ')}
+                                style={{color: 'var(--assistant-text)'}}
                             />
                           ) : (
                             <button
                               type="button"
                               data-youtask-block={b.id}
-                              className="w-full truncate text-left text-sm font-semibold text-white underline decoration-[#d5fc43]/65 underline-offset-[3px] outline-none transition-colors hover:text-white"
+                              className="w-full truncate text-left text-[13px] md:text-sm font-semibold underline underline-offset-[3px] outline-none transition-colors"
+                                style={{color: 'var(--assistant-text)',textDecorationColor: 'color-mix(in srgb, var(--assistant-accent) 65%, transparent)',}}
                               onClick={() => openPivotForList(b)}
                               onDoubleClick={(e) => {
                                 e.stopPropagation();
@@ -593,7 +605,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
                             </button>
                           )}
 
-                          <div className="text-[10px] uppercase tracking-[0.14em] text-white/35 pr-1">
+                          <div className="text-[10px] uppercase tracking-[0.14em] pr-1"
+                            style={{color: 'var(--assistant-text-faint)',}}>
                             {isVisible ? 'On' : 'Off'}
                           </div>
                         </div>
@@ -606,30 +619,46 @@ const visibleLists = useMemo<Record<string, boolean>>(
         </div>
 
         {/* Fixed footer */}
-        <div className="shrink-0 space-y-3 border-t border-white/10 bg-transparent px-4 py-3">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Themes</div>
-            <div className="mt-2 flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1">
+          <div
+            className="shrink-0 space-y-2 md:space-y-3 bg-transparent px-3 py-2 md:px-4 md:py-3"
+            style={{
+              borderTop: '1px solid var(--assistant-border-soft)',
+            }}
+          >
+          <div className="rounded-2xl px-2.5 py-2 md:px-3 md:py-3"
+            style={{
+                  border: '1px solid var(--assistant-border-soft)',
+                  background: 'var(--assistant-panel-bg)',
+                }}>
+            <div className="text-[10px] uppercase tracking-[0.18em]"
+            style={{ color: 'var(--assistant-text-muted)'}}>Themes</div>
+              <div
+                className="mt-2 flex items-center gap-1 rounded-lg p-1"
+                style={{
+                  border: '1px solid var(--assistant-border-soft)',
+                  background: 'var(--assistant-panel-bg)',
+                }}
+              >
               <button
                 type="button"
-                onClick={() => setThemeTab('dark')}
+                onClick={() => selectThemeTab('dark')}
                 className={[
-                  'flex-1 rounded-md px-2 py-1 text-[11px] transition-colors',
+                  'flex-1 rounded-md px-2 py-0.5 md:py-1 text-[11px] transition-colors',
                   themeTab === 'dark'
-                    ? 'bg-white/12 text-white'
-                    : 'text-white/60 hover:bg-white/6 hover:text-white/85',
+                    ? classes.themeTabActive
+                    : classes.themeTabInactive,
                 ].join(' ')}
               >
                 Dark
               </button>
               <button
                 type="button"
-                onClick={() => setThemeTab('light')}
+                onClick={() => selectThemeTab('light')}
                 className={[
-                  'flex-1 rounded-md px-2 py-1 text-[11px] transition-colors',
+                  'flex-1 rounded-md px-2 py-0.5 md:py-1 text-[11px] transition-colors',
                   themeTab === 'light'
-                    ? 'bg-white/12 text-white'
-                    : 'text-white/60 hover:bg-white/6 hover:text-white/85',
+                    ? classes.themeTabActive
+                    : classes.themeTabInactive,
                 ].join(' ')}
               >
                 Light
@@ -644,22 +673,18 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     type="button"
                     onClick={() => onSelectTheme(themeKey)}
                     className={[
-                      'rounded-lg border px-2 py-1.5 text-left text-[11px] transition-colors',
+                      'rounded-lg px-2 py-1 md:py-1.5 text-left text-[11px]',
                       isActive
-                        ? 'border-white/30 bg-white/12 text-white'
-                        : 'border-white/12 bg-white/[0.03] text-white/70 hover:bg-white/[0.07] hover:text-white/90',
-                    ].join(' ')}
+                        ? classes.themeCardActive
+                        : classes.themeCard,
+                  ].join(' ')}
                     aria-pressed={isActive}
                   >
                     {assistantThemes[themeKey].themeName}
                   </button>
                 );
               })}
-              {themeTab === 'light' && pagedThemes.length === 0 ? (
-                <div className="col-span-2 rounded-lg border border-white/10 bg-white/[0.02] px-2 py-2 text-[11px] text-white/45">
-                  Light themes coming soon.
-                </div>
-              ) : null}
+              
             </div>
             <div className="mt-2 flex items-center justify-center gap-1.5">
               {Array.from({ length: totalThemePages }).map((_, i) => {
@@ -671,10 +696,10 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     type="button"
                     onClick={() => setThemePage(page)}
                     className={[
-                      'h-6 min-w-6 rounded-md px-1.5 text-[11px] transition-colors',
+                      'h-6 min-w-6 rounded-md px-1.5 text-[11px]',
                       isActive
-                        ? 'bg-white/15 text-white'
-                        : 'bg-white/[0.03] text-white/55 hover:bg-white/8 hover:text-white/85',
+                        ? classes.themeButtonActive
+                        : classes.themeButton,
                     ].join(' ')}
                     aria-label={`Theme page ${page}`}
                   >
@@ -685,14 +710,27 @@ const visibleLists = useMemo<Record<string, boolean>>(
             </div>
           </div>
 
-          <div className="rounded-2xl px-3 py-3 min-h-[128px]">
-            <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-xl border border-white/20 bg-white/8 flex items-center justify-center text-lg shrink-0">
+          <div className="rounded-2xl px-2.5 py-2 md:px-3 md:py-3">
+            <div className="flex items-start gap-2 md:gap-3">
+         <div
+            className="h-7 w-7 md:h-9 md:w-9 rounded-xl flex items-center justify-center text-base md:text-lg shrink-0"
+            style={{
+              border: '1px solid var(--assistant-border-soft)',
+              background: 'var(--assistant-control-bg)',
+            }}
+>
                 💡
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-white/55">Hint</div>
-                <div className="mt-1 text-[12px] leading-5 text-white/80 transition-all">
+                <div
+                  className="text-[11px] uppercase tracking-[0.18em]"
+                  style={{ color: 'var(--assistant-text-muted)' }}
+                >Hint
+                </div>
+                <div
+                    className="mt-1 text-[11px] md:text-[12px] leading-[1.4] md:leading-5 transition-all"
+                    style={{ color: 'var(--assistant-text-soft)' }}
+                  >
                   {hintIndex === 0 && 'Use Daily view to get focused on today’s tasks.'}
                   {hintIndex === 1 && 'Use Organizer to plan your tasks based on your list.'}
                   {hintIndex === 2 && 'Use Timeline to check your week progress.'}
@@ -701,18 +739,19 @@ const visibleLists = useMemo<Record<string, boolean>>(
               </div>
             </div>
 
-            <div className="mt-3 flex items-center justify-between">
+            <div className="mt-2 md:mt-3 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 {[0, 1, 2, 3].map((i) => (
                   <button
                     key={i}
                     type="button"
                     onClick={() => setHintIndex(i)}
-                    className={[
+                   className={[
                       'h-1.5 rounded-full transition-all',
-                      i === hintIndex ? 'w-5 bg-white/65' : 'w-1.5 bg-white/20 hover:bg-white/35',
+                      i === hintIndex
+                        ? classes.hintDotActive
+                        : classes.hintDot,
                     ].join(' ')}
-                    aria-label={`Go to slide ${i + 1}`}
                   />
                 ))}
               </div>
@@ -720,15 +759,16 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 <button
                   type="button"
                   onClick={() => setHintIndex((prev) => (prev - 1 + 4) % 4)}
-                  className="h-7 w-7 rounded-full bg-white/10 text-white/60 hover:text-white/85 hover:bg-white/16"
+                  className={`${classes.navButton} h-6 w-6 md:h-7 md:w-7 rounded-full`}
                   aria-label="Previous slide"
                 >
                   ‹
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setHintIndex((prev) => (prev + 1) % 4)}
-                  className="h-7 w-7 rounded-full bg-white/10 text-white/60 hover:text-white/85 hover:bg-white/16"
+                  className={`${classes.navButton} h-6 w-6 md:h-7 md:w-7 rounded-full`}
                   aria-label="Next slide"
                 >
                   ›
@@ -751,26 +791,36 @@ const visibleLists = useMemo<Record<string, boolean>>(
             }}
             aria-label="Close"
           />
-          <div className="relative w-[92vw] max-w-md rounded-2xl border border-white/10 bg-black shadow-2xl">
-            <div className="px-4 py-3 border-b border-white/10">
-              <div className="text-sm font-semibold text-white/90">Estas por borrar una lista</div>
-              <p className="text-[12px] text-white/65 mt-2 leading-relaxed">
+            <div
+              className="relative w-[92vw] max-w-md rounded-2xl shadow-2xl"
+              style={{
+                border: '1px solid var(--assistant-border-soft)',
+                background: 'var(--assistant-panel-bg)',
+              }}>
+            <div
+              className="px-4 py-3"
+              style={{
+                borderBottom: '1px solid var(--assistant-border-soft)',
+              }}
+            >
+              <div className="text-sm font-semibold"   style={{ color: 'var(--assistant-text)' }}>Estas por borrar una lista</div>
+              <p className="text-[12px]  mt-2 leading-relaxed" style={{ color: 'var(--assistant-text-muted)' }}>
                 Estás por borrar una lista con todas sus tareas. ¿Seguro que quieres continuar?
               </p>
               {(() => {
                 const t = blocks.find(x => x.id === deleteListConfirmId)?.text?.trim();
                 if (!t) return null;
-                return <div className="text-[11px] text-white/40 mt-2 truncate" title={t}>Lista: {t}</div>;
+                return <div className="text-[11px]  mt-2 truncate" title={t} style={{ color: 'var(--assistant-text-faint)' }}>Lista: {t}</div>;
               })()}
             </div>
-            <div className="px-4 py-3 border-t border-white/10 flex items-center justify-end gap-2">
+            <div className="px-4 py-3  flex items-center justify-end gap-2"  style={{borderTop: '1px solid var(--assistant-border-soft)'}}>
               <button
                 type="button"
                 onClick={() => {
                   setDeleteListConfirmId(null);
                   armedDeleteListRef.current = null;
                 }}
-                className="text-[12px] px-3 py-2 rounded-md bg-white/10 text-white/70 hover:text-white/90 hover:bg-white/16 transition-colors"
+                className={`${classes.modalSecondaryButton} text-[12px] px-3 py-2 rounded-md`}
               >
                 Cancelar
               </button>

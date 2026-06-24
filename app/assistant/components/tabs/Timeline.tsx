@@ -21,7 +21,7 @@ import {
   getTaskFlag,
   type TaskFlagColor,
 } from '@/lib/datacenter';
-import { TaskFlagBadge } from './TaskFlag';
+import { TaskFlagBadge } from '../TaskFlag';
 
 /* ===================== Local UI types (no van a datacenter) ===================== */
 
@@ -524,7 +524,7 @@ export default function Timeline() {
                                     />
                                   </span>
                                 ) : (
-                                  <span className="h-3 w-3 rounded border border-white/30" />
+                                  <span className="h-3 w-3 rounded" style={{ border: '1px solid var(--assistant-border-soft)' }} />
                                 )}
                               </button>
 

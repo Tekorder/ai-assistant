@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack --hostname 0.0.0.0",
     "build": "prisma generate && next build",
+    "build:turbo": "prisma generate && next build --turbopack",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate"
@@ -12,11 +13,14 @@
   "dependencies": {
     "@azure/identity": "^4.12.0",
     "@getbrevo/brevo": "^3.0.1",
-    "@prisma/client": "^5.22.0",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "compromise": "^14.14.5",
+    "dotenv": "^17.4.2",
     "firebase": "^12.10.0",
     "next": "15.5.9",
     "openai": "^5.20.2",
+    "pg": "^8.22.0",
     "playfab-sdk": "^2.174.250526",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -25,11 +29,12 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
-    "prisma": "^5.22.0",
+    "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

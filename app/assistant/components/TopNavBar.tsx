@@ -5,6 +5,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { readProjectsLS, writeProjectsLS, cleanupEmptyTasks, type TaskFlagColor } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 
@@ -116,15 +117,6 @@ const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.Rea
   },
 ];
 
-const SIDEBAR_TAB = {
-  label: 'Lists',
-  mobileLabel: 'Lists',
-  icon: (
-    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 8.5l3 3 6-7" />
-    </svg>
-  ),
-};
 
 const PANEL_NAV: { id: 'habits' | 'reminders'; label: string; mobileLabel: string; icon: React.ReactNode }[] = [
   {
@@ -352,7 +344,7 @@ export default function TopNavBar({
       `}</style>
 
       {/* ── Top bar ── */}
-      <header className="shrink-0 h-12 bg-black border-b border-white/8 flex items-center px-3 md:px-4 gap-2 z-50">
+      <header className={`shrink-0 h-12 ${classes.header}  flex items-center px-3 md:px-4 gap-2 z-50`}>
 
         {/* Logo */}
         <button
@@ -363,7 +355,7 @@ export default function TopNavBar({
           title="Open menu"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="" className="h-9 w-auto object-contain" />
+          <img src="/logo-dark.png" alt="" className="h-9 w-auto object-contain" />
         </button>
 
         {/* Sidebar toggle */}
@@ -373,8 +365,8 @@ export default function TopNavBar({
           className={[
             'h-8 w-8 rounded-lg flex items-center justify-center transition-colors shrink-0',
             sidebarOpen
-              ? 'bg-[#d5fc43]/16 text-[#d5fc43]/70'
-              : 'text-white/40 hover:text-white/85 hover:bg-white/10',
+              ? classes.activeTab
+              : classes.inactiveTab,
           ].join(' ')}
           aria-label="Toggle lists sidebar"
           title="Toggle lists sidebar"
@@ -387,9 +379,9 @@ export default function TopNavBar({
       
 
         {/* Divider */}
-        <div className="hidden md:block w-px h-5 bg-white/10 mx-1 shrink-0" />
+       <div className={`hidden md:block w-px h-5 mx-1 shrink-0 ${classes.divider}`} />
 
-        {/* Nav tabs */}
+        {/* Nav tabs — desktop only on mobile, moved to bottom bar */}
         <nav className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none">
           {/* Main views */}
           {NAV_ITEMS.map(item => {
@@ -405,23 +397,20 @@ export default function TopNavBar({
                 type="button"
                 onClick={() => handleSetActiveView(item.id)}
                 className={[
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap shrink-0',
+                  'flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap flex-1 md:flex-none md:shrink-0',
                   isActive
-                    ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
-                    : 'text-white/45 hover:text-white/80 hover:bg-white/8',
+                    ? classes.activeTab
+                    : classes.inactiveTab,
                 ].join(' ')}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <span className={isActive ? 'text-[#d5fc43]' : 'text-white/45'}>{item.icon}</span>
-                <span>{item.label}</span>
+                <span className={isActive ? classes.activeIcon : ''}>{item.icon}</span>
+                <span className="hidden md:inline">{item.label}</span>
               </button>
             );
           })}
 
         </nav>
-
-        {/* Spacer on mobile */}
-        <div className="flex-1 md:hidden" />
 
         <div className="hidden md:flex items-center gap-0.5 shrink-0">
           {PANEL_NAV.map(item => {
@@ -434,12 +423,12 @@ export default function TopNavBar({
                 className={[
                   'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap shrink-0',
                   isOpen
-                    ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
-                    : 'text-white/45 hover:text-white/80 hover:bg-white/8',
+                    ? classes.activeTab
+                    : classes.inactiveTab,
                 ].join(' ')}
                 aria-expanded={isOpen}
               >
-                <span className={isOpen ? 'text-[#d5fc43]' : 'text-white/45'}>{item.icon}</span>
+                <span className={isOpen ? classes.activeIcon : ''}>{item.icon}</span>
                 <span>{item.label}</span>
               </button>
             );
@@ -451,13 +440,13 @@ export default function TopNavBar({
             className={[
               'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium whitespace-nowrap shrink-0 transition-all duration-150',
               activityOpen
-                ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
-                : 'text-white/45 hover:text-white/80 hover:bg-white/8',
+                    ? classes.activeTab
+                    : classes.inactiveTab,
             ].join(' ')}
             aria-expanded={activityOpen}
             title="Toggle activity log"
           >
-            <span className={activityOpen ? 'text-[#d5fc43]' : 'text-white/45'}>{ACTIVITY_TAB.icon}</span>
+            <span className={activityOpen ? classes.activeIcon : ''}>{ACTIVITY_TAB.icon}</span>
             <span>{ACTIVITY_TAB.label}</span>
           </button>
 
@@ -467,19 +456,22 @@ export default function TopNavBar({
             className={[
               'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium whitespace-nowrap shrink-0 transition-all duration-150',
               listsOpen
-                ? 'bg-[#d5fc43]/22 text-[#d5fc43]'
-                : 'text-white/45 hover:text-white/80 hover:bg-white/8',
+                    ? classes.activeTab
+                    : classes.inactiveTab,
             ].join(' ')}
             aria-expanded={listsOpen}
             title="Toggle lists"
           >
-            <span className={listsOpen ? 'text-[#d5fc43]' : 'text-white/45'}>{LISTS_TAB.icon}</span>
+            <span className={listsOpen ? classes.activeIcon : ''}>{LISTS_TAB.icon}</span>
             <span>{LISTS_TAB.label}</span>
           </button>
         </div>
 
+        {/* Mobile spacer — pushes bell to the right when nav is hidden */}
+        <div className="flex-1 md:hidden" />
+
         {/* Divider before bell */}
-        <div className="w-px h-5 bg-white/10 mx-1 shrink-0" />
+        <div className="w-px h-5 mx-1 shrink-0" style={{ background: 'var(--assistant-border-soft)' }} />
 
         {/* ── Bell ── */}
         {hydrated && (
@@ -492,18 +484,24 @@ export default function TopNavBar({
                 : hasPending ? `${pendingCount} reminder${pendingCount > 1 ? 's' : ''} pending`
                 : 'All reminders done today'
               }
-              className="relative h-8 w-8 flex items-center justify-center rounded-lg text-white/45 hover:text-[#d5fc43] hover:bg-[#d5fc43]/12 transition-colors shrink-0"
+              className="relative h-8 w-8 flex items-center justify-center rounded-lg transition-colors shrink-0"
+              style={{ color: 'var(--assistant-text-muted)' }}
+              onMouseEnter={e => {
+                e.currentTarget.style.color = 'var(--assistant-accent)';
+                e.currentTarget.style.background = 'color-mix(in srgb, var(--assistant-accent) 12%, transparent)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.color = 'var(--assistant-text-muted)';
+                e.currentTarget.style.background = '';
+              }}
             >
-              <span
-                className={hasPending ? 'bell-ring' : ''}
-                style={{ fontSize: 16, lineHeight: 1 }}
-              >
+              <span className={hasPending ? 'bell-ring' : ''} style={{ fontSize: 16, lineHeight: 1 }}>
                 🔔
               </span>
               {hasPending && (
                 <span
-                  className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-[3px] flex items-center justify-center rounded-full bg-red-500 text-white ring-2 ring-gray-900"
-                  style={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}
+                  className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-[3px] flex items-center justify-center rounded-full bg-red-500 text-white"
+                  style={{ fontSize: 10, fontWeight: 700, lineHeight: 1, boxShadow: '0 0 0 2px var(--assistant-panel-bg)' }}
                 >
                   {pendingCount}
                 </span>
@@ -512,15 +510,24 @@ export default function TopNavBar({
 
             {/* Dropdown */}
             {dropOpen && (
-              <div className="drop-in absolute right-0 top-10 w-72 rounded-xl border border-white/10 bg-black shadow-2xl overflow-hidden z-[200] isolate">
-                <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8">
-                  <span className="text-[12px] font-semibold text-white/70 tracking-wide">
-                    Today s reminders
+              <div
+                className="drop-in absolute right-0 top-10 w-72 rounded-xl shadow-2xl overflow-hidden z-[200] isolate"
+                style={{ background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
+              >
+                <div
+                  className="flex items-center justify-between px-4 py-2.5 border-b"
+                  style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
+                >
+                  <span className="text-[12px] font-semibold tracking-wide" style={{ color: 'var(--assistant-text-soft)' }}>
+                    Today&apos;s reminders
                   </span>
                   {hasPending && (
                     <button
                       onClick={dismissAll}
-                      className="text-[11px] text-white/40 hover:text-[#d5fc43] transition-colors"
+                      className="text-[11px] transition-colors"
+                      style={{ color: 'var(--assistant-text-faint)' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-accent)')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-faint)')}
                     >
                       Dismiss all
                     </button>
@@ -529,7 +536,7 @@ export default function TopNavBar({
 
                 <div className="max-h-64 overflow-y-auto">
                   {todayReminders.length === 0 ? (
-                    <div className="px-4 py-5 text-[12px] text-white/35 text-center">
+                    <div className="px-4 py-5 text-[12px] text-center" style={{ color: 'var(--assistant-text-faint)' }}>
                       No reminders for today
                     </div>
                   ) : (
@@ -538,17 +545,18 @@ export default function TopNavBar({
                       return (
                         <div
                           key={r.id}
-                          className="flex items-center gap-3 px-4 py-3 border-b border-white/5 last:border-0 group"
+                          className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 group"
+                          style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
                         >
                           <span
                             className="shrink-0 w-2 h-2 rounded-full mt-0.5"
-                            style={{ background: isDone ? 'rgba(52,211,153,.5)' : '#f87171' }}
+                            style={{ background: isDone ? 'rgba(52,211,153,.6)' : '#f87171' }}
                           />
                           <div className="flex-1 min-w-0">
                             <div
                               className="text-[13px] font-medium leading-snug truncate"
                               style={{
-                                color: isDone ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.85)',
+                                color: isDone ? 'var(--assistant-text-faint)' : 'var(--assistant-text)',
                                 textDecoration: isDone ? 'line-through' : 'none',
                               }}
                             >
@@ -556,7 +564,7 @@ export default function TopNavBar({
                               {r.title}
                             </div>
                             {(r.time || r.daily || r.weekly) && (
-                              <div className="text-[11px] text-white/30 mt-0.5">
+                              <div className="text-[11px] mt-0.5" style={{ color: 'var(--assistant-text-faint)' }}>
                                 {r.time && <span>{r.time}</span>}
                                 {r.daily  && <span className="ml-1">· daily</span>}
                                 {r.weekly && <span className="ml-1">· weekly</span>}
@@ -566,12 +574,21 @@ export default function TopNavBar({
                           {!isDone ? (
                             <button
                               onClick={() => dismissOne(r.id)}
-                              className="shrink-0 opacity-0 group-hover:opacity-100 text-[11px] px-2 py-1 rounded-md bg-white/10 text-white/40 hover:text-[#d5fc43] hover:bg-[#d5fc43]/15 transition-all"
+                              className="shrink-0 opacity-0 group-hover:opacity-100 text-[11px] px-2 py-1 rounded-md transition-all"
+                              style={{ background: 'var(--assistant-control-bg)', color: 'var(--assistant-text-muted)' }}
+                              onMouseEnter={e => {
+                                e.currentTarget.style.color = 'var(--assistant-accent)';
+                                e.currentTarget.style.background = 'color-mix(in srgb, var(--assistant-accent) 15%, transparent)';
+                              }}
+                              onMouseLeave={e => {
+                                e.currentTarget.style.color = 'var(--assistant-text-muted)';
+                                e.currentTarget.style.background = 'var(--assistant-control-bg)';
+                              }}
                             >
                               ✓
                             </button>
                           ) : (
-                            <span className="shrink-0 text-[11px] text-[#d5fc43]/80">✓</span>
+                            <span className="shrink-0 text-[11px]" style={{ color: 'var(--assistant-tone-1)' }}>✓</span>
                           )}
                         </div>
                       );
@@ -580,7 +597,10 @@ export default function TopNavBar({
                 </div>
 
                 {!hasPending && todayReminders.length > 0 && (
-                  <div className="px-4 py-2.5 border-t border-white/8 text-center text-[11px] text-[#d5fc43]/80">
+                  <div
+                    className="px-4 py-2.5 border-t text-center text-[11px]"
+                    style={{ borderTopColor: 'var(--assistant-border-soft)', color: 'var(--assistant-tone-1)' }}
+                  >
                     All done for today 🎉
                   </div>
                 )}
@@ -591,22 +611,11 @@ export default function TopNavBar({
 
       </header>
 
-      {/* ── Bottom tab bar — mobile only ── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex bg-black border-t border-white/10 overflow-x-auto">
-        <button
-          type="button"
-          onClick={onToggleSidebar}
-          className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
-            sidebarOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
-          }`}
-        >
-          <span className="text-base leading-none">{SIDEBAR_TAB.icon}</span>
-          <span className="text-[9px] font-medium">{SIDEBAR_TAB.mobileLabel}</span>
-          {sidebarOpen && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
-          )}
-        </button>
-
+      {/* ── Bottom tab bar — mobile only: view tabs ── */}
+      <div
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex border-t"
+        style={{ background: 'var(--assistant-bg)', borderColor: 'var(--assistant-border-soft)' }}
+      >
         {NAV_ITEMS.map(item => {
           const isActive =
             item.id === 'timeline'
@@ -620,64 +629,17 @@ export default function TopNavBar({
               type="button"
               onClick={() => handleSetActiveView(item.id)}
               className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
-                isActive ? 'text-white' : 'text-white/40 hover:text-white/70'
+                isActive ? classes.activeTab : classes.inactiveTab
               }`}
             >
               <span className="text-base leading-none">{item.icon}</span>
               <span className="text-[9px] font-medium">{item.mobileLabel}</span>
               {isActive && (
-                <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
+                <span className="absolute bottom-0 w-8 h-0.5 rounded-full" style={{ background: 'var(--assistant-accent)' }} />
               )}
             </button>
           );
         })}
-        {PANEL_NAV.map(item => {
-          const isOpen = item.id === 'habits' ? habitsOpen : remindersOpen;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={item.id === 'habits' ? onToggleHabits : onToggleReminders}
-              className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
-                isOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
-              }`}
-            >
-              <span className="text-base leading-none">{item.icon}</span>
-              <span className="text-[9px] font-medium">{item.mobileLabel}</span>
-              {isOpen && (
-                <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
-              )}
-            </button>
-          );
-        })}
-
-        <button
-          type="button"
-          onClick={onToggleActivity}
-          className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
-            activityOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
-          }`}
-        >
-          <span className="text-base leading-none">{ACTIVITY_TAB.icon}</span>
-          <span className="text-[9px] font-medium">{ACTIVITY_TAB.mobileLabel}</span>
-          {activityOpen && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={onToggleLists}
-          className={`relative min-w-[56px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all ${
-            listsOpen ? 'text-[#d5fc43]' : 'text-white/40 hover:text-white/70'
-          }`}
-        >
-          <span className="text-base leading-none">{LISTS_TAB.icon}</span>
-          <span className="text-[9px] font-medium">{LISTS_TAB.mobileLabel}</span>
-          {listsOpen && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-[#d5fc43] rounded-full" />
-          )}
-        </button>
       </div>
 
     </>

@@ -17,6 +17,7 @@ import {
   updateReminder as updateReminderArr,
 } from '@/lib/datacenter';
 import { TaskFlagButton } from './TaskFlag';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 function formatDateUS(date?: string) {
   if (!date || !isValidDateYYYYMMDD(date)) return '—';
@@ -49,14 +50,6 @@ type Props = {
   open: boolean;
   onClose: () => void;
   variant?: 'overlay' | 'dock';
-};
-
-const panelGlass: React.CSSProperties = {
-  background: 'rgba(8,8,8,0.42)',
-  backdropFilter: 'blur(16px) saturate(1.2)',
-  WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
-  border: '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 50%, transparent)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
 };
 
 export default function RemindersPanel({ open, onClose, variant = 'overlay' }: Props) {
@@ -183,9 +176,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
     dragRef.current = { id, fromIndex: index };
     setDragOverId(id);
     e.dataTransfer.effectAllowed = 'move';
-    try {
-      e.dataTransfer.setData('text/plain', id);
-    } catch {}
+    try { e.dataTransfer.setData('text/plain', id); } catch {}
   };
 
   const onDragOverRow = (e: React.DragEvent, overId: string) => {
@@ -212,150 +203,145 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
 
   if (!shouldRender) return null;
 
+  const panelAnim = isClosing
+    ? 'remindersPanelOut 0.24s cubic-bezier(0.4, 0, 1, 1) both'
+    : 'remindersPanelIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both';
+
   const body = (
     <>
-        <style>{`
-          @keyframes remindersPanelIn {
-            from { transform: translateX(-34px); opacity: 0; filter: blur(1px); }
-            60% { transform: translateX(3px); opacity: .92; filter: blur(0); }
-            to { transform: translateX(0); opacity: 1; }
-          }
-          @keyframes remindersPanelOut {
-            from { transform: translateX(0); opacity: 1; filter: blur(0); }
-            to { transform: translateX(14px); opacity: 0; filter: blur(1px); }
-          }
-        `}</style>
+      <style>{`
+        @keyframes remindersPanelIn {
+          from { transform: translateX(-34px); opacity: 0; filter: blur(1px); }
+          60% { transform: translateX(3px); opacity: .92; filter: blur(0); }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes remindersPanelOut {
+          from { transform: translateX(0); opacity: 1; filter: blur(0); }
+          to { transform: translateX(14px); opacity: 0; filter: blur(1px); }
+        }
+      `}</style>
 
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] shrink-0">
-          <h2 className="text-[15px] font-semibold text-white/90">Reminders</h2>
-          <button
-            type="button"
-            onClick={requestClose}
-            className="h-8 w-8 rounded-lg text-white/50 hover:text-white hover:bg-white/12 transition-colors"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
+      <div className="flex items-center justify-between px-4 py-3 shrink-0"
+        style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+        <h2 className="text-[15px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Reminders</h2>
+        <button type="button" onClick={requestClose}
+          className={`h-8 w-8 rounded-lg ${classes.panelBtn}`} aria-label="Close">
+          ✕
+        </button>
+      </div>
 
-        <div className="px-4 py-3 border-b border-white/[0.06] shrink-0 flex items-center justify-between">
-          <span className="text-[10px] text-white/35">US format: MM/DD/YYYY · h:mm AM/PM</span>
-          <button
-            type="button"
-            onClick={handleAddReminder}
-            className="h-8 w-8 shrink-0 rounded-md bg-white/10 text-white/80 hover:text-white hover:bg-white/16 transition-all"
-            title="New reminder"
-          >
-            +
-          </button>
-        </div>
+      <div className="px-4 py-3 shrink-0 flex items-center justify-between"
+        style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+        <span className="text-[10px]" style={{ color: 'var(--assistant-text-faint)' }}>
+          US format: MM/DD/YYYY · h:mm AM/PM
+        </span>
+        <button type="button" onClick={handleAddReminder}
+          className={`h-8 w-8 shrink-0 rounded-md ${classes.panelBtn}`} title="New reminder">
+          +
+        </button>
+      </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3">
-          <div className="space-y-1">
-            {reminders.map((r, idx) => {
-              const isDraggingOver = dragOverId === r.id && dragRef.current?.id !== r.id;
-              const isDraggingMe = dragRef.current?.id === r.id;
-              return (
-                <div
-                  key={r.id}
-                  draggable
-                  onDragStart={e => onDragStartRow(e, r.id, idx)}
-                  onDragOver={e => onDragOverRow(e, r.id)}
-                  onDrop={e => onDropRow(e, r.id)}
-                  onDragEnd={onDragEndRow}
-                  className={[
-                    'group flex flex-col gap-1 px-0.5 py-1 rounded-md',
-                    isDraggingOver ? 'bg-white/7 outline outline-1 outline-white/10' : '',
-                    isDraggingMe ? 'opacity-60' : '',
-                    newId === r.id ? 'wadu-line-in' : '',
-                  ].join(' ')}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="w-3 shrink-0 text-white/20 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" title="Drag">
-                      ⋮⋮
-                    </div>
-
-                    <TaskFlagButton
-                      source={r}
-                      onChange={(next) => handleUpdateReminder(r.id, { flag: next, priority: undefined })}
-                    />
-
-                    <input
-                      ref={el => void (reminderTitleRefs.current[r.id] = el)}
-                      value={r.title}
-                      placeholder="Reminder…"
-                      onChange={e => handleUpdateReminder(r.id, { title: e.target.value })}
-                      onKeyDown={e => handleReminderKey(e, r)}
-                      className="min-w-[120px] flex-1 bg-transparent outline-none text-sm cursor-pointer text-white/80"
-                    />
-
-                    <input
-                      type="date"
-                      value={isValidDateYYYYMMDD(r.date) ? r.date : todayYMD()}
-                      onChange={e => {
-                        const v = e.target.value;
-                        handleUpdateReminder(r.id, { date: isValidDateYYYYMMDD(v) ? v : todayYMD() });
-                      }}
-                      className="shrink-0 text-[11px] px-2 py-1 rounded-md border outline-none bg-black/20 border-white/10 text-white/75 hover:bg-black/25 focus:border-white/20"
-                    />
-
-                    <input
-                      type="time"
-                      value={isValidTimeHHMM(r.time) ? r.time : '11:00'}
-                      onChange={e => {
-                        const v = e.target.value;
-                        handleUpdateReminder(r.id, { time: isValidTimeHHMM(v) ? v : '11:00' });
-                      }}
-                      className="shrink-0 text-[11px] px-2 py-1 rounded-md border outline-none bg-black/20 border-white/10 text-white/75 hover:bg-black/25 focus:border-white/20"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateReminder(r.id, { daily: !r.daily })}
-                      className={[
-                        'shrink-0 text-[11px] px-2 py-1 rounded-full transition-colors',
-                        r.daily
-                          ? 'bg-[#52b352]/20 text-[#52b352]'
-                          : 'bg-white/8 text-white/40 hover:text-white/60 hover:bg-white/12',
-                      ].join(' ')}
-                    >
-                      {r.daily ? 'Daily' : 'Once'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveReminder(r.id)}
-                      className="h-7 w-7 rounded-full bg-white/10 text-white/60 hover:text-white/85 hover:bg-white/16 transition-all opacity-0 group-hover:opacity-100"
-                      title="Delete"
-                    >
-                      ×
-                    </button>
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        <div className="space-y-1">
+          {reminders.map((r, idx) => {
+            const isDraggingOver = dragOverId === r.id && dragRef.current?.id !== r.id;
+            const isDraggingMe = dragRef.current?.id === r.id;
+            return (
+              <div
+                key={r.id}
+                draggable
+                onDragStart={e => onDragStartRow(e, r.id, idx)}
+                onDragOver={e => onDragOverRow(e, r.id)}
+                onDrop={e => onDropRow(e, r.id)}
+                onDragEnd={onDragEndRow}
+                className={[
+                  'group flex flex-col gap-1 px-0.5 py-1 rounded-md',
+                  isDraggingOver ? classes.dragOver : '',
+                  isDraggingMe ? 'opacity-60' : '',
+                  newId === r.id ? 'wadu-line-in' : '',
+                ].join(' ')}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
+                    <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
+                      <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+                      <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
+                      <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
+                    </svg>
                   </div>
 
-                  <div className="pl-5 text-[10px] text-white/35">
-                    {formatReminderDateTimeUS(
-                      isValidDateYYYYMMDD(r.date) ? r.date : todayYMD(),
-                      isValidTimeHHMM(r.time) ? r.time : '11:00',
-                    )}
-                  </div>
+                  <TaskFlagButton
+                    source={r}
+                    onChange={(next) => handleUpdateReminder(r.id, { flag: next, priority: undefined })}
+                  />
+
+                  <input
+                    ref={el => void (reminderTitleRefs.current[r.id] = el)}
+                    value={r.title}
+                    placeholder="Reminder…"
+                    onChange={e => handleUpdateReminder(r.id, { title: e.target.value })}
+                    onKeyDown={e => handleReminderKey(e, r)}
+                    className="min-w-30 flex-1 bg-transparent outline-none text-sm cursor-pointer"
+                    style={{ color: 'var(--assistant-text-soft)' }}
+                  />
+
+                  <input
+                    type="date"
+                    value={isValidDateYYYYMMDD(r.date) ? r.date : todayYMD()}
+                    onChange={e => {
+                      const v = e.target.value;
+                      handleUpdateReminder(r.id, { date: isValidDateYYYYMMDD(v) ? v : todayYMD() });
+                    }}
+                    className={`shrink-0 text-[11px] px-2 py-1 rounded-md ${classes.panelInput}`}
+                  />
+
+                  <input
+                    type="time"
+                    value={isValidTimeHHMM(r.time) ? r.time : '11:00'}
+                    onChange={e => {
+                      const v = e.target.value;
+                      handleUpdateReminder(r.id, { time: isValidTimeHHMM(v) ? v : '11:00' });
+                    }}
+                    className={`shrink-0 text-[11px] px-2 py-1 rounded-md ${classes.panelInput}`}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateReminder(r.id, { daily: !r.daily })}
+                    className={`shrink-0 text-[11px] px-2 py-1 rounded-full ${r.daily ? classes.panelAccentBadge : classes.panelNeutralBadge}`}
+                  >
+                    {r.daily ? 'Daily' : 'Once'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveReminder(r.id)}
+                    className={`h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 ${classes.panelBtn}`}
+                    title="Delete"
+                  >
+                    ×
+                  </button>
                 </div>
-              );
-            })}
-          </div>
+
+                <div className="pl-5 text-[10px]" style={{ color: 'var(--assistant-text-faint)' }}>
+                  {formatReminderDateTimeUS(
+                    isValidDateYYYYMMDD(r.date) ? r.date : todayYMD(),
+                    isValidTimeHHMM(r.time) ? r.time : '11:00',
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
+      </div>
     </>
   );
 
   if (variant === 'dock') {
     return (
       <div
-        className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl text-white"
-        style={{
-          ...panelGlass,
-          animation: isClosing
-            ? 'remindersPanelOut 0.24s cubic-bezier(0.4, 0, 1, 1) both'
-            : 'remindersPanelIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both',
-        }}
+        className={`flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+        style={{ color: 'var(--assistant-text)', animation: panelAnim }}
       >
         {body}
       </div>
@@ -364,25 +350,13 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
 
   return (
     <>
-      <button
-        type="button"
-        className="fixed inset-0 z-[200] bg-black/50"
-        onClick={requestClose}
+      <button type="button" className="fixed inset-0 z-200" onClick={requestClose}
         aria-label="Close reminders"
-        style={{
-          animation: isClosing
-            ? 'remindersOverlayOut 0.2s ease-out both'
-            : 'remindersOverlayIn 0.22s ease-out both',
-        }}
+        style={{ background: 'var(--assistant-overlay)', animation: isClosing ? 'remindersOverlayOut 0.2s ease-out both' : 'remindersOverlayIn 0.22s ease-out both' }}
       />
       <div
-        className="fixed right-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] max-w-md flex-col overflow-hidden rounded-2xl text-white"
-        style={{
-          animation: isClosing
-            ? 'remindersPanelOut 0.24s cubic-bezier(0.4, 0, 1, 1) both'
-            : 'remindersPanelIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both',
-          ...panelGlass,
-        }}
+        className={`fixed right-3 top-3 z-201 flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] max-w-md flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+        style={{ color: 'var(--assistant-text)', animation: panelAnim }}
       >
         <style>{`
           @keyframes remindersOverlayIn { from { opacity: 0; } to { opacity: 1; } }

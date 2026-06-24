@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getTaskFlag, type TaskFlagColor } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 export type PivotTreeRow = {
   key: string;
@@ -180,13 +181,6 @@ export function buildListPivotTree<T extends { id: string; text: string; indent:
   return rows;
 }
 
-const dockShell: React.CSSProperties = {
-  background: 'rgba(8,8,8,0.42)',
-  backdropFilter: 'blur(16px) saturate(1.2)',
-  WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
-  border: '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 50%, transparent)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
-};
 
 export type PivotPanelProps = {
   open: boolean;
@@ -238,14 +232,16 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
               onGoTo(r.blockId);
             }
           }}
-          className="group flex w-full box-border cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-white/5"
-          title="Go to task"
+          className="group flex w-full box-border cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors"
           style={{ paddingLeft: leftPad }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'color-mix(in srgb, var(--assistant-text) 5%, transparent)')}
+          onMouseLeave={e => (e.currentTarget.style.background = '')}
+          title="Go to task"
         >
           <div className="relative flex w-6 shrink-0 items-center">
-            <div className="absolute bottom-0 left-3 top-0 w-px bg-white/12" />
-            <div className="absolute left-3 top-1/2 h-px w-3 bg-white/12" />
-            <div className="absolute left-[18px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-white/25" />
+            <div className="absolute bottom-0 left-3 top-0 w-px" style={{ background: 'var(--assistant-border-soft)' }} />
+            <div className="absolute left-3 top-1/2 h-px w-3" style={{ background: 'var(--assistant-border-soft)' }} />
+            <div className="absolute left-[18px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full" style={{ background: 'color-mix(in srgb, var(--assistant-text) 25%, transparent)' }} />
           </div>
 
           {isTitle ? (
@@ -260,8 +256,9 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
               className={[
                 'flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border',
                 onToggleTask ? 'cursor-pointer' : 'cursor-default',
-                r.checked ? 'border-emerald-400/70 bg-emerald-500/15' : 'border-white/25',
+                r.checked ? 'border-emerald-400/70 bg-emerald-500/15' : '',
               ].join(' ')}
+              style={r.checked ? undefined : { borderColor: 'var(--assistant-border-soft)' }}
               title={r.checked ? 'Completed' : 'Not completed'}
             >
               {r.checked ? <span className="text-xs text-emerald-300">✓</span> : null}
@@ -276,11 +273,20 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
             <div
               className={[
                 'text-[13px] whitespace-normal break-words',
-                isTitle ? 'font-semibold text-white/75' : '',
-                !isTitle && r.checked ? 'text-white/40 line-through' : '',
-                !isTitle && !r.checked ? 'text-white/90' : '',
-                r.isMatch ? 'underline decoration-[#d5fc43]/65 underline-offset-4' : '',
+                isTitle ? 'font-semibold' : '',
+                !isTitle && r.checked ? 'line-through' : '',
+                r.isMatch ? 'underline underline-offset-4' : '',
               ].join(' ')}
+              style={{
+                color: isTitle
+                  ? 'var(--assistant-text)'
+                  : r.checked
+                  ? 'var(--assistant-text-faint)'
+                  : 'var(--assistant-text-soft)',
+                textDecorationColor: r.isMatch
+                  ? 'color-mix(in srgb, var(--assistant-accent) 65%, transparent)'
+                  : undefined,
+              }}
             >
               {r.text || '—'}
             </div>
@@ -303,15 +309,15 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
 
   return (
     <>
-      <div className="flex shrink-0 items-center justify-between border-b border-white/[0.08] px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-[#d5fc43]/75">Pivot</div>
-          <h2 className="text-[15px] font-semibold leading-tight text-white/90">&ldquo;{word}&rdquo;</h2>
+          <div className="text-[10px] uppercase tracking-[0.18em]" style={{ color: 'var(--assistant-accent)' }}>Pivot</div>
+          <h2 className="text-[15px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }}>&ldquo;{word}&rdquo;</h2>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="h-8 w-8 rounded-lg text-white/50 transition-colors hover:bg-white/12 hover:text-white"
+          className={`h-8 w-8 rounded-lg ${classes.panelBtn}`}
           aria-label="Close pivot"
           title="Close pivot"
         >
@@ -319,8 +325,8 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
         </button>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] px-4 py-2">
-        <div className="min-w-0 text-[11px] text-white/35">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-4 py-2" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+        <div className="min-w-0 text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>
           {pivotKind === 'list'
             ? 'List pivot: all tasks under this list. Click a row to jump.'
             : 'Click a word in Daily (Tasks) to add a Pivot. Click a row to jump.'}
@@ -331,7 +337,7 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
         {hasRows ? (
           <div className="space-y-1">{renderRows}</div>
         ) : (
-          <div className="px-2 py-2 text-[12px] text-white/40">
+          <div className="px-2 py-2 text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
             {pivotKind === 'list'
               ? rows.length > 0 && !showCompleted
                 ? 'No unchecked tasks in this list.'
@@ -346,11 +352,11 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
       </div>
 
       {hasHiddenCompleted ? (
-        <div className="flex shrink-0 border-t border-white/[0.06] px-4 py-2">
+        <div className="flex shrink-0 px-4 py-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
           <button
             type="button"
             onClick={() => setShowCompleted((v) => !v)}
-            className="w-full rounded-lg border border-white/12 bg-white/5 px-2.5 py-2 text-[11px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            className={`w-full px-2.5 py-2 text-[11px] font-medium rounded-lg ${classes.panelBtn}`}
           >
             {showCompleted ? 'Hide completed' : 'Show completed'}
           </button>
@@ -429,9 +435,9 @@ export function PivotPanel({
         role="dialog"
         aria-modal="true"
         aria-label={word ? `Pivot: ${word}` : 'Pivot'}
-        className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl text-white"
+        className={`flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
         style={{
-          ...dockShell,
+          color: 'var(--assistant-text)',
           animation: isClosing
             ? 'pivotFadeOut 0.24s cubic-bezier(0.4, 0, 1, 1) both'
             : 'pivotFadeInLeft 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both',
@@ -455,12 +461,26 @@ export function PivotPanel({
 
   return (
     <>
+      <style>{`
+        @keyframes pivotFadeInLeft {
+          from { transform: translateX(-34px); opacity: 0; filter: blur(1px); }
+          60% { transform: translateX(3px); opacity: .92; filter: blur(0); }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes pivotFadeOut {
+          from { transform: translateX(0); opacity: 1; filter: blur(0); }
+          to { transform: translateX(14px); opacity: 0; filter: blur(1px); }
+        }
+        @keyframes pivotOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pivotOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+      `}</style>
       <button
         type="button"
-        className="fixed inset-0 z-[200] bg-black/35"
+        className="fixed inset-0 z-[200]"
         onClick={requestClose}
         aria-label="Close pivot"
         style={{
+          background: 'var(--assistant-overlay)',
           animation: isClosing
             ? 'pivotOverlayOut 0.2s ease-out both'
             : 'pivotOverlayIn 0.22s ease-out both',
@@ -470,35 +490,14 @@ export function PivotPanel({
         role="dialog"
         aria-modal="true"
         aria-label={word ? `Pivot: ${word}` : 'Pivot'}
-        className="fixed right-0 top-0 z-[201] flex h-full w-full max-w-md flex-col overflow-hidden text-white"
+        className={`fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
         style={{
+          color: 'var(--assistant-text)',
           animation: isClosing
             ? 'pivotFadeOut 0.24s cubic-bezier(0.4, 0, 1, 1) both'
             : 'pivotFadeInLeft 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both',
-          background: 'transparent',
-          borderLeft: '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 50%, transparent)',
-          boxShadow: '-2px 0 18px rgba(0,0,0,.18), inset 1px 0 0 rgba(255,255,255,.05)',
         }}
       >
-        <style>{`
-          @keyframes pivotFadeInLeft {
-            from { transform: translateX(-34px); opacity: 0; filter: blur(1px); }
-            60% { transform: translateX(3px); opacity: .92; filter: blur(0); }
-            to { transform: translateX(0); opacity: 1; }
-          }
-          @keyframes pivotFadeOut {
-            from { transform: translateX(0); opacity: 1; filter: blur(0); }
-            to { transform: translateX(14px); opacity: 0; filter: blur(1px); }
-          }
-          @keyframes pivotOverlayIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-          @keyframes pivotOverlayOut {
-            from { opacity: 1; }
-            to { opacity: 0; }
-          }
-        `}</style>
         {body}
       </div>
     </>

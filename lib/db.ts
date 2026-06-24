@@ -1,14 +1,23 @@
-import "server-only";
-import { PrismaClient } from "@prisma/client";
+import 'server-only';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-const globalForPrisma = globalThis as unknown as {
-  prisma?: PrismaClient;
-};
+declare global {
+  // eslint-disable-next-line no-var
+  var __prisma: PrismaClient | undefined;
+}
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: ["error", "warn"],
-  });
+function createClient(): PrismaClient {
+  const url = process.env.DATABASE_URL;
+  // is this a good idea
+  // FUCK NO
+  // but it works
+  if (!url) return null as unknown as PrismaClient;
+  const adapter = new PrismaPg({ connectionString: url });
+  return new PrismaClient({ adapter });
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export const prisma: PrismaClient =
+  globalThis.__prisma ?? createClient();
+
+if (process.env.NODE_ENV !== 'production') globalThis.__prisma = prisma;

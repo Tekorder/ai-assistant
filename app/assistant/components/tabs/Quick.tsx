@@ -1,10 +1,10 @@
 // app/components/Quick.tsx
 'use client';
-
+// Note we may want to rename this component in the future as 'quick' is a bit confusing
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { OnboardingModal } from './OnboardingModal';
-import MiniCalendar from './Minicalendar';
-
+import { OnboardingModal } from '../OnboardingModal';
+import MiniCalendar from '../Minicalendar';
+//also hi
 import {
   // Types
   type Block,
@@ -35,7 +35,7 @@ import {
   createBlankList,
   // UI helpers
   formatPill,
-  pillClass,
+  dayDiffFromToday,
   labelForYMD,
   getWeekRangeLabel,
   getMonthRangeLabel,
@@ -45,8 +45,11 @@ import {
   // Filter / view helpers
   buildHiddenMap,
   buildListVisibilityHiddenMap,
+  sortBlocksByOrder,
 } from '@/lib/datacenter';
-import { TaskFlagButton } from './TaskFlag';
+import { TaskFlagButton } from '../TaskFlag';
+import { downloadTasksExcel } from '@/lib/exportExcel';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 /** First incomplete task under this list with empty text (for Enter → focus instead of duplicating). */
 function findFirstEmptyTaskUnderList(blocks: Block[], listId: string): string | null {
@@ -96,17 +99,17 @@ function GamificationToast({ show, message }: { show: boolean; message: string }
       <style>{`
         @keyframes gamiToastIn{0%{opacity:0;transform:translate(-50%,18px) scale(0.96);filter:blur(6px)}60%{opacity:1;transform:translate(-50%,-2px) scale(1.02);filter:blur(0)}100%{opacity:1;transform:translate(-50%,0px) scale(1);filter:blur(0)}}
         @keyframes gamiShine{0%{transform:translateX(-160%) skewX(-20deg);opacity:0}10%{opacity:.10}25%{opacity:.22}40%{opacity:.10}100%{transform:translateX(260%) skewX(-20deg);opacity:0}}
-        @keyframes gamiPulseGlow{0%,100%{box-shadow:0 10px 30px rgba(82,179,82,.14),inset 0 1px 0 rgba(255,255,255,.06)}50%{box-shadow:0 12px 38px rgba(82,179,82,.22),inset 0 1px 0 rgba(255,255,255,.09)}}
+        @keyframes gamiPulseGlow{0%,100%{box-shadow:0 10px 30px color-mix(in srgb,var(--assistant-accent) 14%,transparent),inset 0 1px 0 rgba(255,255,255,.06)}50%{box-shadow:0 12px 38px color-mix(in srgb,var(--assistant-accent) 22%,transparent),inset 0 1px 0 rgba(255,255,255,.09)}}
       `}</style>
       <div className="pointer-events-none fixed left-1/2 bottom-32 md:bottom-16 z-[10020]">
-        <div className="relative overflow-hidden min-w-[320px] md:min-w-[420px] max-w-[90vw] rounded-3xl border border-[#52b352]/25 bg-black/90 backdrop-blur-xl px-6 py-5 md:px-8 md:py-6 text-center"
+        <div className={`relative overflow-hidden min-w-[320px] md:min-w-[420px] max-w-[90vw] rounded-3xl backdrop-blur-xl px-6 py-5 md:px-8 md:py-6 text-center ${classes.quickToast}`}
           style={{ transform:'translateX(-50%)', animation:'gamiToastIn .35s cubic-bezier(.22,.9,.28,1), gamiPulseGlow 1.6s ease-in-out infinite' }}>
           <span className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-white/10 blur-md" style={{ animation:'gamiShine 2.8s ease-in-out infinite' }} />
           <div className="mb-2 flex items-center justify-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#52b352] shadow-[0_0_14px_rgba(82,179,82,.9)]" />
-            <span className="text-[11px] md:text-[12px] font-semibold uppercase tracking-[0.24em] text-[#52b352]/90">Progress</span>
+            <span className={`h-2.5 w-2.5 rounded-full ${classes.quickToastAccentDot}`} />
+            <span className={`text-[11px] md:text-[12px] font-semibold uppercase tracking-[0.24em] ${classes.quickToastLabel}`}>Progress</span>
           </div>
-          <div className="text-[16px] md:text-[20px] font-semibold text-white/95 leading-tight">{message}</div>
+          <div className="text-[16px] md:text-[20px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }}>{message}</div>
         </div>
       </div>
     </>
@@ -121,33 +124,28 @@ function QuickProgressBlock({
   className?: string;
 }) {
   return (
-    <div
-      className={[
-        'rounded-2xl border border-white/10 bg-white/5 p-3',
-        className,
-      ].filter(Boolean).join(' ')}
-    >
+    <div className={`rounded-2xl p-3 ${classes.quickProgressBlock} ${className}`}>
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#52b352]/85">
+        <div className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${classes.quickProgressLabel}`}>
           Progress
         </div>
-        <div className="text-[11px] text-white/45">
+        <div className={`text-[11px] ${classes.quickProgressCount}`}>
           {progress.done}/{progress.total}
         </div>
       </div>
 
       <div className="mt-2 flex items-end gap-2">
-        <div className="text-[28px] leading-none font-extrabold italic text-[#52b352] tabular-nums tracking-[-0.06em] drop-shadow-[0_0_18px_rgba(82,179,82,.22)]">
+        <div className={`text-[28px] leading-none font-extrabold italic tabular-nums tracking-[-0.06em] ${classes.quickProgressRemaining}`}>
           {progress.remaining}
         </div>
-        <div className="pb-[2px] text-[12px] text-white/55">
+        <div className={`pb-[2px] text-[12px] ${classes.quickProgressSoft}`}>
           task{progress.remaining === 1 ? '' : 's'} to finish
         </div>
       </div>
 
-      <div className="mt-3 h-2 w-full rounded-full bg-white/10 overflow-hidden">
+      <div className={`mt-3 h-2 w-full rounded-full overflow-hidden ${classes.quickProgressBar}`}>
         <div
-          className="h-full rounded-full bg-[#52b352]"
+          className={`h-full rounded-full ${classes.quickProgressFill}`}
           style={{ width: `${Math.max(0, Math.min(100, Math.round(progress.pct * 100)))}%` }}
         />
       </div>
@@ -167,18 +165,9 @@ function ActionsPanel({
   const filterBtn = (mode: DateMode, label: string, icon: React.ReactNode) => (
     <button type="button" key={mode} onClick={() => setDateMode(mode)}
       className={['w-full text-left text-[12px] px-3 py-2 rounded-xl transition-all',
-        dateMode === mode ? 'text-white' : 'text-white/70 hover:text-white/90'].join(' ')}
-      style={dateMode === mode ? {
-        background:
-          'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 22%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent) 100%)',
-        boxShadow:
-          'inset 0 1px 0 color-mix(in srgb, var(--assistant-tone-1, #52b352) 12%, transparent), 0 2px 8px rgba(0,0,0,.25)',
-      } : {
-        background: 'linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.2)',
-      }}>
+        dateMode === mode ? classes.quickFilterActive : classes.quickFilterInactive].join(' ')}>
       <span className="inline-flex items-center gap-2">
-        <span className="text-white/45">{icon}</span>
+        <span className={classes.faintText}>{icon}</span>
         <span>{label}</span>
       </span>
     </button>
@@ -187,29 +176,20 @@ function ActionsPanel({
   return (
     <div className="p-2 space-y-2">
       <div className="px-1 py-1">
-        <div className="text-[11px] text-white/50 mb-1.5 px-2">View By</div>
+        <div className={`text-[11px] mb-1.5 px-2 ${classes.mutedText}`}>View By</div>
         <div className="space-y-1">
           {([['dueDate', 'Due Date'], ['createdAt', 'Created Date']] as const).map(([value, label]) => (
             <button key={value} type="button" onClick={() => setSortBy(value)}
               className={['w-full text-left text-[12px] px-3 py-2 rounded-xl transition-all',
-                sortBy === value ? 'text-white' : 'text-white/70 hover:text-white/90'].join(' ')}
-              style={sortBy === value ? {
-                background:
-                  'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 22%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent) 100%)',
-                boxShadow:
-                  'inset 0 1px 0 color-mix(in srgb, var(--assistant-tone-1, #52b352) 12%, transparent), 0 2px 8px rgba(0,0,0,.25)',
-              } : {
-                background: 'linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.2)',
-              }}>
+                sortBy === value ? classes.quickFilterActive : classes.quickFilterInactive].join(' ')}>
               {label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="h-px bg-white/10 my-1" />
-      <div className="px-3 py-1"><div className="text-[11px] text-white/50">Filters</div></div>
+      <div className="h-px my-1" style={{ background: 'var(--assistant-border-soft)' }} />
+      <div className="px-3 py-1"><div className={`text-[11px] ${classes.mutedText}`}>Filters</div></div>
 
       {filterBtn(
         'today',
@@ -246,22 +226,13 @@ function ActionsPanel({
         </svg>,
       )}
 
-      <div className="h-px bg-white/10 my-1" />
+      <div className="h-px my-1" style={{ background: 'var(--assistant-border-soft)' }} />
 
       <button type="button" onClick={() => setShowCompleted(s => !s)}
         className={['w-full text-left text-[12px] px-3 py-2 rounded-xl transition-all',
-          showCompleted ? 'text-white' : 'text-white/70 hover:text-white/90'].join(' ')}
-        style={showCompleted ? {
-          background:
-            'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 22%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent) 100%)',
-          boxShadow:
-            'inset 0 1px 0 color-mix(in srgb, var(--assistant-tone-1, #52b352) 12%, transparent), 0 2px 8px rgba(0,0,0,.25)',
-        } : {
-          background: 'linear-gradient(135deg, rgba(255,255,255,.06) 0%, rgba(255,255,255,.02) 100%)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.2)',
-        }}>
+          showCompleted ? classes.quickFilterActive : classes.quickFilterInactive].join(' ')}>
         <span className="inline-flex items-center gap-2">
-          <span className="text-white/45">
+          <span className={classes.faintText}>
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
               {showCompleted ? (
                 <>
@@ -308,6 +279,18 @@ export default function Quick(props: QuickProps = {}) {
   const [sortBy, setSortBy] = useState<SortBy>('dueDate');
 
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerClosing, setDrawerClosing] = useState(false);
+  const drawerCloseTimerRef = useRef<number | null>(null);
+  const closeDrawer = () => {
+    if (!drawerOpen || drawerClosing) return;
+    setDrawerClosing(true);
+    drawerCloseTimerRef.current = window.setTimeout(() => {
+      setDrawerOpen(false);
+      setDrawerClosing(false);
+    }, 220);
+  };
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
+  const quickMenuRef = useRef<HTMLDivElement | null>(null);
   const [editingDateTaskId, setEditingDateTaskId] = useState<string | null>(null);
 
   const inputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
@@ -323,6 +306,23 @@ export default function Quick(props: QuickProps = {}) {
       if (el instanceof HTMLTextAreaElement) resizeTextarea(el);
     });
   });
+
+  // Close the header "⋮" menu on outside-click or Escape.
+  useEffect(() => {
+    if (!quickMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (quickMenuRef.current && !quickMenuRef.current.contains(e.target as Node)) {
+        setQuickMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setQuickMenuOpen(false); };
+    window.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onPointerDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [quickMenuOpen]);
   useEffect(() => {
     if (!editingDateTaskId) return;
     const input = inlineDateRefs.current[editingDateTaskId];
@@ -338,7 +338,7 @@ export default function Quick(props: QuickProps = {}) {
       }
     });
   }, [editingDateTaskId]);
-  const dragRef   = useRef<{ id: string; fromIndex: number } | null>(null);
+  const dragRef   = useRef<{ id: string } | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const lastWrittenRef      = useRef<string>('');
@@ -355,13 +355,14 @@ export default function Quick(props: QuickProps = {}) {
   const [toastMsg, setToastMsg]   = useState('');
   const toastTimerRef = useRef<number | null>(null);
 
-  const pillClassNike = (deadline?: string, checked?: boolean) => {
-    // `pillClass` viene de datacenter y usa amber para "today".
-    // En Quick lo re-skinneamos a NRC/Nike green (#52b352).
-    return pillClass(deadline, checked)
-      .replaceAll('bg-amber-500/20', 'bg-[#52b352]/22')
-      .replaceAll('text-amber-200', 'text-[#52b352]')
-      .replaceAll('hover:bg-amber-500/28', 'hover:bg-[#52b352]/30');
+  const quickPillClass = (deadline?: string, checked?: boolean): string => {
+    if (checked) return classes.quickDatePillChecked;
+    const diff = dayDiffFromToday(deadline);
+    if (diff === null) return classes.quickDatePillEmpty;
+    if (diff < 0) return classes.quickDatePillOverdue;
+    if (diff === 0) return classes.quickDatePillToday;
+    if (diff === 1) return classes.quickDatePillTomorrow;
+    return classes.quickDatePillFuture;
   };
 
   useEffect(() => {
@@ -373,6 +374,7 @@ export default function Quick(props: QuickProps = {}) {
       if (pulseTimerRef.current)    window.clearTimeout(pulseTimerRef.current);
       if (confettiTimerRef.current) window.clearTimeout(confettiTimerRef.current);
       if (toastTimerRef.current)    window.clearTimeout(toastTimerRef.current);
+      if (drawerCloseTimerRef.current) window.clearTimeout(drawerCloseTimerRef.current);
     };
   }, []);
 
@@ -407,7 +409,7 @@ export default function Quick(props: QuickProps = {}) {
       const next    = prev.map(p => ({ ...p }));
       const old     = next[safeIdx].blocks ?? moveUncToTop(ensureUncExists([]));
       let newBlocks = typeof nextFn === 'function' ? nextFn(old) : nextFn;
-      newBlocks     = moveUncToTop(ensureUncExists(newBlocks));
+      newBlocks     = sortBlocksByOrder(moveUncToTop(ensureUncExists(newBlocks)));
       next[safeIdx] = { ...next[safeIdx], blocks: newBlocks };
       return next;
     });
@@ -547,7 +549,7 @@ export default function Quick(props: QuickProps = {}) {
   /* ── Memoized view data (via datacenter helpers) ── */
   const hiddenMap = useMemo(
     () => buildHiddenMap(blocks, { collapsed, showHidden: false, dateMode, focusDay, sortBy }),
-   
+
     [blocks, collapsed, dateMode, focusDay, sortBy],
   );
   const hiddenByListMap = useMemo(
@@ -785,8 +787,8 @@ const handleKey = (
 };
 
   /* ── Drag & drop ── */
-  const onDragStartRow = (e: React.DragEvent, id: string, index: number) => {
-    dragRef.current = { id, fromIndex: index };
+  const onDragStartRow = (e: React.DragEvent, id: string) => {
+    dragRef.current = { id };
     setDragOverId(id);
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', id); } catch {}
@@ -798,16 +800,47 @@ const handleKey = (
   };
   const onDropRow = (e: React.DragEvent, overId: string) => {
     e.preventDefault();
-    const drag = dragRef.current; if (!drag) return;
-    const toIndex = blocks.findIndex(b => b.id === overId);
-    if (toIndex < 0) return;
-    setCurrentBlocks(prev => {
-      const next = prev.slice();
-      const [item] = next.splice(drag.fromIndex, 1);
-      next.splice(toIndex, 0, item);
-      return next;
-    });
+    const drag = dragRef.current;
     dragRef.current = null; setDragOverId(null);
+    if (!drag || drag.id === overId) return;
+
+    setCurrentBlocks(prev => {
+      const dragged = prev.find(b => b.id === drag.id);
+      const target  = prev.find(b => b.id === overId);
+      if (!dragged || !target) return prev;
+
+      // List-header drag: reorder among root blocks
+      if (dragged.indent === 0) {
+        const roots = prev
+          .filter(b => b.indent === 0 && b.id !== drag.id)
+          .sort((a, b) => a.order - b.order);
+        const insertIdx = roots.findIndex(b => b.id === overId);
+        roots.splice(insertIdx < 0 ? roots.length : insertIdx + 1, 0, dragged);
+        return prev.map(b => {
+          const i = roots.findIndex(r => r.id === b.id);
+          return i >= 0 ? { ...b, order: i } : b;
+        });
+      }
+
+      // Task drag: determine new parent from drop target
+      const newParentId = target.indent === 0 ? target.id : target.parentId;
+
+      // All siblings in the new parent (excluding dragged)
+      const siblings = prev
+        .filter(b => b.parentId === newParentId && b.id !== drag.id && b.indent > 0)
+        .sort((a, b) => a.order - b.order);
+
+      // Insert after the target (or first if dropped on list header)
+      const insertAfter = target.indent === 0 ? -Infinity : target.order;
+      const insertIdx = siblings.filter(b => b.order <= insertAfter).length;
+      siblings.splice(insertIdx, 0, dragged);
+
+      return prev.map(b => {
+        const i = siblings.findIndex(s => s.id === b.id);
+        if (i < 0) return b;
+        return { ...b, order: i, parentId: newParentId };
+      });
+    });
   };
   const onDragEndRow = () => { dragRef.current = null; setDragOverId(null); };
 
@@ -921,17 +954,28 @@ const handleKey = (
           onFocus={() => setEditingTaskId(b.id)}
           onBlur={() => setEditingTaskId(prev => (prev === b.id ? null : prev))}
           className={[
-            'bg-transparent outline-none text-sm resize-none overflow-hidden w-full min-w-0 transition-opacity duration-150',
+            'bg-transparent outline-none p-0 text-[13px] md:text-sm resize-none overflow-hidden w-full min-w-0 transition-opacity duration-150',
             isEditing ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none absolute inset-0',
-            b.checked ? 'text-white/40 line-through' : 'text-white/80',
           ].join(' ')}
-          style={{ lineHeight: '1.45', minHeight: '1.45em' }}
+          style={{
+            lineHeight: '1.45',
+            minHeight: '1.45em',
+            color: b.checked ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)',
+            textDecoration: b.checked ? 'line-through' : 'none',
+          }}
         />
 
         {!isEditing ? (
           <div
-            className={['text-sm whitespace-pre-wrap break-words leading-[1.45] min-h-[1.45em]', b.checked ? 'text-white/40 line-through' : 'text-white/80'].join(' ')}
-            onDoubleClick={() => focusBlock(b.id, true)}
+            className="cursor-text text-[13px] md:text-sm whitespace-pre-wrap break-words leading-[1.45] min-h-[1.45em]"
+            style={{
+              color: b.checked ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)',
+              textDecoration: b.checked ? 'line-through' : 'none',
+            }}
+            onClick={() => {
+              setEditingTaskId(b.id);
+              focusBlock(b.id, true);
+            }}
           >
             {tokens.map((token, idx) => {
               if (/^\s+$/.test(token)) return <React.Fragment key={`${b.id}-ws-${idx}`}>{token}</React.Fragment>;
@@ -941,10 +985,17 @@ const handleKey = (
                   key={`${b.id}-tk-${idx}`}
                   className={
                     clickable
-                      ? 'cursor-pointer hover:underline decoration-[var(--assistant-tone-1,#52b352)] underline-offset-[3px]'
-                      : 'cursor-default'
+                      ? 'hover:underline decoration-[var(--assistant-accent)] underline-offset-[3px]'
+                      : ''
                   }
-                  onClick={clickable ? () => openPivotForWord(b.id, token) : undefined}
+                  onDoubleClick={
+                    clickable
+                      ? (e) => {
+                          e.stopPropagation();
+                          openPivotForWord(b.id, token);
+                        }
+                      : undefined
+                  }
                 >
                   {token}
                 </span>
@@ -958,187 +1009,202 @@ const handleKey = (
 
   /* ── Render helpers ── */
   const renderNormalList = () => {
-    const { uncIndex, start: uncStart, end: uncEnd } = findUncRange(blocks);
+    // Group by parentId, sort each group by order
+    const listBlocks: Block[] = [];
+    const tasksByParent = new Map<string | null, Block[]>();
+    for (const b of blocks) {
+      if (b.indent === 0) {
+        listBlocks.push(b);
+      } else {
+        const key = b.parentId ?? null;
+        if (!tasksByParent.has(key)) tasksByParent.set(key, []);
+        tasksByParent.get(key)!.push(b);
+      }
+    }
+    listBlocks.sort((a, b) => a.order - b.order);
+    for (const tasks of tasksByParent.values()) tasks.sort((a, b) => a.order - b.order);
+    const dragDots = (
+      <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
+        <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+        <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
+        <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
+      </svg>
+    );
+    const editIcon = (
+      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
+      </svg>
+    );
+
     return (
       <div className="space-y-1 quick-rows">
-        {blocks.map((b, idx) => {
-          if (uncIndex >= 0 && idx === uncIndex) return null;
-          if (hiddenMap[b.id] || hiddenByListMap[b.id]) return null;
-          if (!showCompleted && b.indent > 0 && b.checked === true) return null;
-          const isList    = b.indent === 0;
-          const isTask    = b.indent > 0;
-          const inUncTasks = uncIndex >= 0 && idx >= uncStart && idx < uncEnd && b.indent > 0;
-          const isDraggingOver = dragOverId === b.id && dragRef.current?.id !== b.id;
-          const isDraggingMe   = dragRef.current?.id === b.id;
-          const isUncList = isList && isUncTitleBlock(b);
+        {listBlocks.map(listBlock => {
+          if (hiddenByListMap[listBlock.id]) return null;
+          const isUncList = isUncTitleBlock(listBlock);
+          const tasks = tasksByParent.get(listBlock.id) ?? [];
+          const lDragOver = dragOverId === listBlock.id && dragRef.current?.id !== listBlock.id;
+          const lDragMe   = dragRef.current?.id === listBlock.id;
+
           return (
-            <React.Fragment key={b.id}>
-              <div draggable onDragStart={e => onDragStartRow(e, b.id, idx)} onDragOver={e => onDragOverRow(e, b.id)} onDrop={e => onDropRow(e, b.id)} onDragEnd={onDragEndRow}
-                className={['group flex items-center px-0.5 py-1 rounded-md', isTask ? 'gap-1' : 'gap-2', isDraggingOver ? 'bg-white/7 outline outline-1 outline-white/10' : '', isDraggingMe ? 'opacity-60' : ''].join(' ')}
-                style={{ paddingLeft: isList ? 2 : inUncTasks ? 6 : 8 + b.indent * 16 }}>
-                <div className="w-3 shrink-0 text-white/20 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" title="Drag">⋮⋮</div>
-                {isList ? (
-                  <button type="button" onClick={() => toggleList(b.id)} className="w-3 shrink-0 text-white/35 hover:text-white/60 transition-colors" title={collapsed[b.id] ? 'Expand' : 'Collapse'}>
-                    {collapsed[b.id] ? '▸' : '▾'}
+            <React.Fragment key={listBlock.id}>
+              {/* ── List header (hidden for Uncategorized) ── */}
+              {!isUncList && (
+                <div
+                  draggable
+                  onDragStart={e => onDragStartRow(e, listBlock.id)}
+                  onDragOver={e => onDragOverRow(e, listBlock.id)}
+                  onDrop={e => onDropRow(e, listBlock.id)}
+                  onDragEnd={onDragEndRow}
+                  className={['group flex items-center px-0.5 py-1 gap-2', lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : ''].join(' ')}
+                  style={{ paddingLeft: 2 }}>
+                  <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
+                    {dragDots}
+                  </div>
+                  <button type="button" onClick={() => toggleList(listBlock.id)} className={`w-3 shrink-0 transition-colors ${classes.quickCollapseBtn}`} title={collapsed[listBlock.id] ? 'Expand' : 'Collapse'}>
+                    {collapsed[listBlock.id] ? '▸' : '▾'}
                   </button>
-                ) : <div className="w-3 shrink-0" />}
-                {isList && !isUncList && editingListTitleId !== b.id ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingListTitleId(b.id);
-                      requestAnimationFrame(() => {
-                        const el = inputRefs.current[b.id];
-                        if (!el) return;
-                        el.focus();
-                        const len = el.value.length;
-                        el.setSelectionRange(len, len);
-                      });
-                    }}
-                    aria-label="Edit list title"
-                    title="Edit list title"
-                    className="shrink-0 h-4 w-4 flex items-center justify-center text-[11px] text-white/35 opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-white/80 transition-all duration-150"
-                  >
-                    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
-                    </svg>
-                  </button>
-                ) : null}
-                {isTask ? (
-                  <>
+                  {editingListTitleId !== listBlock.id ? (
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setEditingTaskId(b.id);
-                        focusBlock(b.id, true);
+                        setEditingListTitleId(listBlock.id);
+                        requestAnimationFrame(() => {
+                          const el = inputRefs.current[listBlock.id];
+                          if (!el) return;
+                          el.focus();
+                          const len = el.value.length;
+                          el.setSelectionRange(len, len);
+                        });
                       }}
-                      aria-label="Edit task"
-                      title="Edit task"
-                      className="shrink-0 h-4 w-4 flex items-center justify-center text-[11px] text-white/35 opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-white/80 transition-all duration-150"
+                      aria-label="Edit list title"
+                      title="Edit list title"
+                      className={`shrink-0 h-4 w-4 flex items-center justify-center text-[11px] opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-all duration-150 ${classes.quickEditBtn}`}
                     >
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
-                      </svg>
+                      {editIcon}
                     </button>
-                    <TaskFlagButton
-                      source={b}
-                      onChange={(next) => handleUpdateBlock(b.id, { flag: next, priority: undefined })}
-                    />
-                    <button type="button" onClick={() => handleUpdateBlock(b.id, { checked: !b.checked })}
-                      className="relative h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
-                      title="Complete">
-                      {pulseId === b.id ? (<><span className="absolute -inset-2 rounded-full border border-[#52b352]/35 animate-ping" /><span className="absolute -inset-3 rounded-full border border-[#52b352]/24 animate-ping [animation-delay:90ms]" /><span className="absolute -inset-4 rounded-full border border-[#52b352]/14 animate-ping [animation-delay:160ms]" /><span className="absolute -inset-2 rounded-full bg-[#52b352]/10 blur-sm" /></>) : null}
-                      {b.checked ? (
-                        <span className="relative flex h-3 w-3 items-center justify-center">
-                          <span className="absolute h-2.5 w-2.5 rounded-full bg-[#52b352]/85 blur-[2px]" />
-                          <span className="absolute h-1.5 w-1.5 rounded-full bg-[#52b352]" />
-                        </span>
-                      ) : (
-                        <span className="h-3 w-3 rounded border border-white/25 group-hover:border-white/40 transition-colors" />
-                      )}
-                    </button>
-                  </>
-                ) : null}
-                <div className={['min-w-0 flex-1', isTask ? 'flex items-start gap-[6px]' : 'flex flex-wrap items-center gap-[2px]'].join(' ')}>
-                  {isTask ? (
-                    renderTaskTextWithWordHover(b)
-                  ) : isUncList ? (
-                    <input
-                      ref={el => void (inputRefs.current[b.id] = el)}
-                      value={b.text}
-                      placeholder="List…"
-                      onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
-                      onKeyDown={e => handleKey(e, b)}
-                      className="flex-none cursor-pointer bg-transparent text-sm font-semibold text-white outline-none transition-opacity duration-150"
-                      style={{ width: `${inputWidthPx(b.text)}px`, maxWidth: 'calc(100% - 48px)' }}
-                    />
-                  ) : editingListTitleId === b.id ? (
-                    <input
-                      ref={el => void (inputRefs.current[b.id] = el)}
-                      value={b.text}
-                      placeholder="List…"
-                      onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
-                      onKeyDown={e => handleKey(e, b)}
-                      onBlur={() => setEditingListTitleId(null)}
-                      className="flex-none bg-transparent text-sm font-semibold text-white outline-none"
-                      style={{ width: `${inputWidthPx(b.text)}px`, maxWidth: 'calc(100% - 48px)' }}
-                    />
-                  ) : (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      className="quick-word-clickable flex-none truncate text-sm font-semibold text-white"
-                      style={{ maxWidth: 'calc(100% - 48px)' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openPivotForList(b);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          openPivotForList(b);
-                        }
-                      }}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        setEditingListTitleId(b.id);
-                        requestAnimationFrame(() => inputRefs.current[b.id]?.focus());
-                      }}
-                    >
-                      {(b.text || '').trim() ? b.text : 'List…'}
-                    </span>
-                  )}
-                  {isTask ? (
-                    <>
-                      {editingDateTaskId === b.id ? (
-                        <input
-                          ref={el => void (inlineDateRefs.current[b.id] = el)}
-                          autoFocus
-                          type="date"
-                          lang="en-US"
-                          className="shrink-0 mt-[2px] text-[11px] px-1.5 py-0.5 rounded-full bg-[#52b352]/16 border border-[#52b352]/35 text-[#52b352] outline-none"
-                          value={isValidDateYYYYMMDD(b.deadline) ? b.deadline : ''}
-                          onChange={e => {
-                            const v = e.target.value;
-                            handleUpdateBlock(b.id, { deadline: v ? v : undefined });
-                            setEditingDateTaskId(null);
-                          }}
-                          onBlur={() => setEditingDateTaskId(null)}
-                          onKeyDown={e => {
-                            if (e.key === 'Escape' || e.key === 'Enter') setEditingDateTaskId(null);
-                          }}
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          className={['shrink-0 mt-[2px] text-[11px] px-1.5 py-0.5 rounded-full transition-colors', pillClassNike(b.deadline, b.checked)].join(' ')}
-                          title="Set date"
-                          onClick={() => setEditingDateTaskId(b.id)}
-                        >
-                          {formatPill(b.deadline) || '📅'}
-                        </button>
-                      )}
-                    </>
                   ) : null}
-                </div>
-                {isList && !isUncList ? (
+                  <div className="min-w-0 flex-1 flex flex-wrap items-center gap-0.5">
+                    {editingListTitleId === listBlock.id ? (
+                      <input
+                        ref={el => void (inputRefs.current[listBlock.id] = el)}
+                        value={listBlock.text}
+                        placeholder="List…"
+                        onChange={e => handleUpdateBlock(listBlock.id, { text: e.target.value })}
+                        onKeyDown={e => handleKey(e, listBlock)}
+                        onBlur={() => setEditingListTitleId(null)}
+                        className="flex-none bg-transparent text-[13px] md:text-sm font-semibold outline-none"
+                        style={{ width: `${inputWidthPx(listBlock.text)}px`, maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
+                      />
+                    ) : (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="quick-word-clickable flex-none truncate text-[13px] md:text-sm font-semibold"
+                        style={{ maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
+                        onClick={(e) => { e.stopPropagation(); openPivotForList(listBlock); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPivotForList(listBlock); } }}
+                        onDoubleClick={(e) => { e.stopPropagation(); setEditingListTitleId(listBlock.id); requestAnimationFrame(() => inputRefs.current[listBlock.id]?.focus()); }}
+                      >
+                        {(listBlock.text || '').trim() ? listBlock.text : 'List…'}
+                      </span>
+                    )}
+                  </div>
                   <button
                     type="button"
-                    onClick={() => handleAddTaskUnderList(b.id)}
-                    className="ml-auto shrink-0 text-[18px] w-7 h-7 flex items-center justify-center rounded-full text-white transition-all hover:scale-105 hover:shadow-lg"
-                    style={{
-                      background:
-                        'linear-gradient(145deg, color-mix(in srgb, var(--assistant-tone-3, #0f5f94) 85%, black) 0%, color-mix(in srgb, var(--assistant-tone-3, #0f5f94) 92%, black) 55%, color-mix(in srgb, var(--assistant-tone-3, #0f5f94) 72%, var(--assistant-tone-1, #0c263d)) 100%)',
-                      boxShadow:
-                        '0 2px 10px color-mix(in srgb, var(--assistant-tone-3, #0f5f94) 45%, transparent), inset 0 1px 0 rgba(255,255,255,.18)',
-                    }}
+                    onClick={() => handleAddTaskUnderList(listBlock.id)}
+                    className={`ml-auto shrink-0 text-[15px] md:text-[18px] w-7 h-7 flex items-center justify-center rounded-full transition-all hover:scale-105 hover:shadow-lg ${classes.quickAddTaskBtn}`}
                   >
                     +
                   </button>
-                ) : null}
-              </div>
+                </div>
+              )}
+              {/* ── Tasks belonging to this list ── */}
+              {tasks.map(task => {
+                if (hiddenMap[task.id] || hiddenByListMap[task.id]) return null;
+                if (!showCompleted && task.checked === true) return null;
+                const tDragOver = dragOverId === task.id && dragRef.current?.id !== task.id;
+                const tDragMe   = dragRef.current?.id === task.id;
+                return (
+                  <React.Fragment key={task.id}>
+                    <div
+                      draggable
+                      onDragStart={e => onDragStartRow(e, task.id)}
+                      onDragOver={e => onDragOverRow(e, task.id)}
+                      onDrop={e => onDropRow(e, task.id)}
+                      onDragEnd={onDragEndRow}
+                      className={['group flex items-center px-0.5 py-1 gap-1', tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : ''].join(' ')}
+                      style={{ paddingLeft: isUncList ? 6 : 8 + task.indent * 16 }}>
+                      <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
+                        {dragDots}
+                      </div>
+                      <div className="w-3 shrink-0" />
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setEditingTaskId(task.id); focusBlock(task.id, true); }}
+                        aria-label="Edit task"
+                        title="Edit task"
+                        className={`shrink-0 h-4 w-4 flex items-center justify-center text-[11px] opacity-0 group-hover:opacity-70 hover:opacity-100! transition-all duration-150 ${classes.quickEditBtn}`}
+                      >
+                        {editIcon}
+                      </button>
+                      <TaskFlagButton
+                        source={task}
+                        onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
+                      />
+                      <button type="button" onClick={() => handleUpdateBlock(task.id, { checked: !task.checked })}
+                        className="relative h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
+                        title="Complete">
+                        {pulseId === task.id ? (
+                          <>
+                            <span className={`absolute -inset-2 rounded-full border animate-ping ${classes.quickPulseRing1}`} />
+                            <span className={`absolute -inset-3 rounded-full border animate-ping [animation-delay:90ms] ${classes.quickPulseRing2}`} />
+                            <span className={`absolute -inset-4 rounded-full border animate-ping [animation-delay:160ms] ${classes.quickPulseRing3}`} />
+                            <span className={`absolute -inset-2 rounded-full blur-sm ${classes.quickPulseGlow}`} />
+                          </>
+                        ) : null}
+                        {task.checked ? (
+                          <span className="relative flex h-3 w-3 items-center justify-center">
+                            <span className={`absolute h-2.5 w-2.5 rounded-full blur-[2px] ${classes.quickCheckboxGlow}`} />
+                            <span className={`absolute h-1.5 w-1.5 rounded-full ${classes.quickCheckboxFill}`} />
+                          </span>
+                        ) : (
+                          <span className={`h-3 w-3 rounded ${classes.quickCheckbox}`} />
+                        )}
+                      </button>
+                      <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                        {renderTaskTextWithWordHover(task)}
+                        {editingDateTaskId === task.id ? (
+                          <input
+                            ref={el => void (inlineDateRefs.current[task.id] = el)}
+                            autoFocus
+                            type="date"
+                            lang="en-US"
+                            className={`shrink-0 mt-0.5 text-[11px] px-1.5 py-0.5 rounded-full outline-none ${classes.quickDatePillInput}`}
+                            value={isValidDateYYYYMMDD(task.deadline) ? task.deadline : ''}
+                            onChange={e => {
+                              const v = e.target.value;
+                              handleUpdateBlock(task.id, { deadline: v ? v : undefined });
+                              setEditingDateTaskId(null);
+                            }}
+                            onBlur={() => setEditingDateTaskId(null)}
+                            onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setEditingDateTaskId(null); }}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className={`shrink-0 mt-0.5 text-[11px] px-1.5 py-0.5 rounded-full transition-colors ${quickPillClass(task.deadline, task.checked)}`}
+                            title="Set date"
+                            onClick={() => setEditingDateTaskId(task.id)}
+                          >
+                            {formatPill(task.deadline) || '📅'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
             </React.Fragment>
           );
         })}
@@ -1154,30 +1220,84 @@ const handleKey = (
   const handleMiniCalendarPickDay = (ymd: string) => {
     setDateMode('today');
     setFocusDay(ymd);
-    setDrawerOpen(false);
+    closeDrawer();
   };
 
   /* ── Render ── */
+  // Until localStorage hydration completes, `projects` is empty → `isBrandNewEmpty`
+  // is true → the "Start here" onboarding card would render for one frame on every
+  // mount. Because switching tabs remounts this component, that produced a visible
+  // flash when coming from Timeline/Calendar. Match those views: hold a neutral
+  // placeholder (same container, no layout shift) until hydrated.
+  if (!hydrated) {
+    return (
+      <div
+        className="h-full w-full min-h-0 flex items-center justify-center overflow-hidden bg-transparent"
+        style={{ color: 'var(--assistant-text)' }}
+        aria-busy="true"
+      >
+        <div className="text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>Loading…</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full w-full min-h-0 flex flex-col overflow-hidden bg-transparent text-white">
+    <div className="h-full w-full min-h-0 flex flex-col overflow-hidden bg-transparent" style={{ color: 'var(--assistant-text)' }}>
       <ConfettiRain show={showConfetti} />
       <GamificationToast show={toastShow} message={toastMsg} />
       <style>{`
         .quick-word-clickable { cursor: pointer; }
       `}</style>
 
-      {/* Mobile drawer */}
-      {drawerOpen && (
-        <div className="md:hidden fixed inset-0 z-40 flex justify-end">
-          <button type="button" className="absolute inset-0 bg-black/60" onClick={() => setDrawerOpen(false)} aria-label="Close filters" />
-          <div className="relative w-72 max-w-[85vw] h-full bg-black border-l border-white/10 flex flex-col shadow-2xl overflow-hidden"
-            style={{ animation: 'drawerSlideIn 0.25s cubic-bezier(.22,.9,.28,1)' }}>
-            <style>{`@keyframes drawerSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
-            <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
-              <span className="text-[13px] font-semibold text-white/80">Pivot Search</span>
-              <button type="button" onClick={() => setDrawerOpen(false)} className="flex h-7 w-7 items-center justify-center rounded-md text-white/50 transition-colors hover:bg-white/10 hover:text-white">✕</button>
+      {/* Mobile bottom sheet */}
+      {(drawerOpen || drawerClosing) && (
+        <div className="md:hidden fixed inset-0 z-40">
+          <style>{`
+            @keyframes quickSheetOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes quickSheetOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+            @keyframes quickSheetIn {
+              from { transform: translateY(100%); opacity: 0; }
+              60% { transform: translateY(-4px); opacity: 1; }
+              to { transform: translateY(0); opacity: 1; }
+            }
+            @keyframes quickSheetOut {
+              from { transform: translateY(0); opacity: 1; }
+              to { transform: translateY(100%); opacity: 0; }
+            }
+          `}</style>
+          <button
+            type="button"
+            className="absolute inset-0"
+            style={{
+              background: 'var(--assistant-overlay)',
+              animation: drawerClosing
+                ? 'quickSheetOverlayOut 0.22s ease-out both'
+                : 'quickSheetOverlayIn 0.22s ease-out both',
+            }}
+            onClick={closeDrawer}
+            aria-label="Close filters"
+          />
+          <div
+            className={`absolute inset-x-0 bottom-0 flex max-h-[80vh] flex-col overflow-hidden rounded-t-2xl shadow-2xl ${classes.quickDrawer}`}
+            style={{
+              animation: drawerClosing
+                ? 'quickSheetOut 0.22s cubic-bezier(0.4, 0, 1, 1) both'
+                : 'quickSheetIn 0.36s cubic-bezier(0.22, 1, 0.36, 1) both',
+            }}
+          >
+            {/* Drag handle */}
+            <div className="flex shrink-0 justify-center pt-3 pb-1">
+              <div className="h-1 w-10 rounded-full" style={{ background: 'var(--assistant-border-soft)' }} />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
+            <div className={`flex shrink-0 items-center justify-between px-4 py-2 ${classes.quickDrawerHeader}`}>
+              <span className="text-[13px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Filters &amp; Search</span>
+              <button type="button" onClick={closeDrawer} className={`flex h-7 w-7 items-center justify-center rounded-md ${classes.quickDrawerCloseBtn}`}>✕</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3">
+              <QuickProgressBlock progress={progress} className="mb-3" />
+              <div className="mb-3 overflow-hidden rounded-2xl" style={{ border: '1px solid var(--assistant-border-soft)' }}>
+                <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact />
+              </div>
               <input
                 type="text"
                 value={pivotSearch}
@@ -1186,16 +1306,12 @@ const handleKey = (
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     openPivotFromSearch(pivotSearch);
-                    setDrawerOpen(false);
+                    closeDrawer();
                   }
                 }}
                 placeholder="Search keyword"
-                className="mb-3 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[12px] text-white/85 outline-none hover:bg-black/25 focus:border-[#52b352]/45"
+                className={`mb-3 w-full rounded-xl px-3 py-2 text-[12px] ${classes.quickSearchInput}`}
               />
-              <QuickProgressBlock progress={progress} className="mb-3" />
-              <div className="mb-3 overflow-hidden rounded-2xl border border-white/10">
-                <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact />
-              </div>
               <ActionsPanel {...actionsPanelProps} />
             </div>
           </div>
@@ -1203,36 +1319,22 @@ const handleKey = (
       )}
 
       <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-4 py-6 md:px-8 md:py-8">
+        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 pt-2 pb-0 md:px-8 md:py-8">
           <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+            <div className={`min-h-0 min-w-0 flex-1 flex flex-col rounded-2xl overflow-hidden ${classes.quickCard}`}>
+              <div className="min-h-0 flex-1 overflow-y-auto pb-16 md:pb-0 [scrollbar-gutter:stable]">
 
               {/* Date pagination header — sticky within main column scroll */}
-              <div className="sticky top-0 z-30 mb-5">
-                <div className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3"
-                  style={{
-                    background: [
-                      'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 6%, transparent) 0%, transparent 45%)',
-                      'linear-gradient(to bottom, rgba(255,255,255,.07) 0%, transparent 30%)',
-                      'rgba(10,10,10,0.65)',
-                    ].join(', '),
-                    backdropFilter: 'blur(18px) saturate(1.3)',
-                    WebkitBackdropFilter: 'blur(18px) saturate(1.3)',
-                    border: '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 9%, transparent)',
-                    boxShadow: [
-                      '0 0 0 1px rgba(255,255,255,.04)',
-                      'inset 0 1px 0 rgba(255,255,255,.10)',
-                      '0 4px 24px rgba(0,0,0,.4)',
-                    ].join(', '),
-                  }}>
+              <div className="sticky top-0 z-30">
+                <div className={`flex items-center justify-between gap-1 px-3 py-2.5 md:gap-3 md:px-4 md:py-3 ${classes.quickHeaderBar}`}>
 
                   {/* Left: navigation */}
-                  <div className="flex items-center gap-1 sm:gap-2 min-w-[120px] sm:min-w-[140px] shrink-0">
+                  <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={navigatePrev}
                       disabled={navDisabled}
-                      className="grid place-items-center size-8 shrink-0 text-[28px] leading-none text-[#52b352] hover:text-white transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className={`grid place-items-center size-8 shrink-0 text-[22px] md:text-[28px] leading-none transition-colors ${classes.quickNavArrow}`}
                     >
                       ‹
                     </button>
@@ -1241,7 +1343,7 @@ const handleKey = (
                       type="button"
                       onClick={navigateNext}
                       disabled={navDisabled}
-                      className="grid place-items-center size-8 shrink-0 text-[28px] leading-none text-[#52b352] hover:text-white transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className={`grid place-items-center size-8 shrink-0 text-[22px] md:text-[28px] leading-none transition-colors ${classes.quickNavArrow}`}
                     >
                       ›
                     </button>
@@ -1250,11 +1352,11 @@ const handleKey = (
 
                   {/* Center: title */}
                   <div className="flex-1 text-center">
-                    <div className="text-[18px] font-semibold tracking-tight text-white">
+                    <div className="text-[15px] md:text-[18px] font-semibold tracking-tight" style={{ color: 'var(--assistant-text)' }}>
                       {dateMode === 'today' && (
                         <>
                           {labelForYMD(focusDay)}{" "}
-                          <span className="text-white/40 font-medium">
+                          <span style={{ color: 'var(--assistant-text-faint)', fontWeight: 500 }}>
                             ({formatPill(focusDay)})
                           </span>
                         </>
@@ -1263,7 +1365,7 @@ const handleKey = (
                       {dateMode === 'week' && (
                         <>
                           Week{" "}
-                          <span className="text-white/40 font-medium">
+                          <span style={{ color: 'var(--assistant-text-faint)', fontWeight: 500 }}>
                             {getWeekRangeLabel(focusDay)}
                           </span>
                         </>
@@ -1272,40 +1374,74 @@ const handleKey = (
                       {dateMode === 'month' && (
                         <>
                           Month{" "}
-                          <span className="text-white/40 font-medium">
+                          <span style={{ color: 'var(--assistant-text-faint)', fontWeight: 500 }}>
                             {getMonthRangeLabel(focusDay)}
                           </span>
                         </>
                       )}
 
                       {dateMode === 'all' && (
-                        <span className="text-white/75">All dated tasks</span>
+                        <span style={{ color: 'var(--assistant-text-soft)' }}>All dated tasks</span>
                       )}
                     </div>
                   </div>
 
                   {/* Right: New List */}
-                  <div className="flex items-center justify-end gap-2 min-w-[120px]">
+                  <div className="flex items-center justify-end gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={openNewListModal}
-                      className="hidden md:flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-xl text-white/95 transition-all hover:scale-105"
-                      style={{
-                        background:
-                          'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 22%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent) 100%)',
-                        boxShadow:
-                          'inset 0 1px 0 color-mix(in srgb, var(--assistant-tone-1, #52b352) 12%, transparent), 0 2px 8px rgba(0,0,0,.25)',
-                      }}
+                      className={`hidden md:flex items-center gap-1 text-[12px] px-3 py-1.5 rounded-xl transition-all hover:scale-105 ${classes.quickNewListBtn}`}
                     >
                       <span className="text-[15px] leading-none">+</span>
                       <span>New List</span>
                     </button>
 
+                    {/* Kebab menu (⋮) — export, etc. */}
+                    <div className="relative" ref={quickMenuRef}>
+                      <button
+                        type="button"
+                        onClick={() => setQuickMenuOpen(o => !o)}
+                        className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${classes.quickMenuBtn}`}
+                        aria-haspopup="menu"
+                        aria-expanded={quickMenuOpen}
+                        aria-label="More options"
+                        title="More options"
+                      >
+                        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                          <circle cx="8" cy="3" r="1.4" />
+                          <circle cx="8" cy="8" r="1.4" />
+                          <circle cx="8" cy="13" r="1.4" />
+                        </svg>
+                      </button>
+
+                      {quickMenuOpen && (
+                        <div
+                          role="menu"
+                          className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl shadow-2xl"
+                          style={{ background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => { downloadTasksExcel(blocks, currentProject?.title); setQuickMenuOpen(false); }}
+                            className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[12px] ${classes.quickMenuItem}`}
+                          >
+                            <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 2v7m0 0L5.5 6.5M8 9l2.5-2.5" />
+                              <path strokeLinecap="round" d="M2.75 11.5v1A1.75 1.75 0 0 0 4.5 14.25h7a1.75 1.75 0 0 0 1.75-1.75v-1" />
+                            </svg>
+                            <span>Download Excel</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Mobile settings */}
                     <button
                       type="button"
                       onClick={() => setDrawerOpen(true)}
-                      className="md:hidden flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-[12px] font-medium text-white/70 transition hover:bg-white/16 hover:text-white"
+                      className={`md:hidden flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition ${classes.quickMobileSettings}`}
                     >
                       <span>⚙</span>
                       <span className="capitalize">{dateMode}</span>
@@ -1314,22 +1450,24 @@ const handleKey = (
                 </div>
               </div>
 
-            
 
-              {isBrandNewEmpty ? (
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-5" >
-                  <div className="text-sm font-semibold text-white/90">Start here</div>
-                  <div className="text-[12px] text-white/50 mt-1">Create your first list and then add tasks under it.</div>
-                 <button
+
+              <div className="px-3 pt-3">
+                {isBrandNewEmpty ? (
+                  <div className={`rounded-2xl p-5 ${classes.quickEmptyState}`}>
+                    <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Start here</div>
+                    <div className="text-[12px] mt-1" style={{ color: 'var(--assistant-text-muted)' }}>Create your first list and then add tasks under it.</div>
+                    <button
                       type="button"
                       onClick={openNewListModal}
-                      className="mt-4 max-w-[260px] w-full text-left text-[13px] px-4 py-3 rounded-2xl bg-[#52b352]/22 text-[#52b352] hover:bg-[#52b352]/30 transition-colors wobble-loop"
+                      className={`mt-4 max-w-[260px] w-full text-left text-[13px] px-4 py-3 rounded-2xl transition-colors wobble-loop ${classes.quickCtaBtn}`}
                     >
                       + New List
                     </button>
-                  <div className="text-[11px] text-white/35 mt-3">Hint: after you create a list, you&apos;ll always see an <span className="text-white/55">+ task</span> button right below it.</div>
-                </div>
-              ) : renderNormalList()}
+                    <div className="text-[11px] mt-3" style={{ color: 'var(--assistant-text-faint)' }}>Hint: after you create a list, you&apos;ll always see an <span style={{ color: 'var(--assistant-text-muted)' }}>+ task</span> button right below it.</div>
+                  </div>
+                ) : renderNormalList()}
+              </div>
 
               {/* In-flow spacer: fixed footer (z-[45]) does not reserve layout space */}
               <div
@@ -1339,37 +1477,15 @@ const handleKey = (
                   height: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
                 }}
               />
+              </div>
             </div>
 
             {/* Desktop sidebar — outside main scroll: stays fixed while lists scroll */}
             <div className="hidden max-h-[77vh] min-h-0 w-[270px] shrink-0 flex-col md:flex">
-              <div
-                className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl"
-                style={{
-                  /* Layered glass: frosted dark base + lime tint + top shine */
-                  background: [
-                    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1, #52b352) 7%, transparent) 0%, transparent 40%)',
-                    'linear-gradient(to bottom, rgba(255,255,255,.06) 0%, transparent 18%)',
-                    'rgba(8,8,8,0.62)',
-                  ].join(', '),
-                  backdropFilter: 'blur(24px) saturate(1.4)',
-                  WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
-                  border: '1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent)',
-                  boxShadow: [
-                    /* outer glow */
-                    '0 0 0 1px rgba(255,255,255,.05)',
-                    '0 8px 40px rgba(0,0,0,.55)',
-                    '0 2px 80px color-mix(in srgb, var(--assistant-tone-1, #52b352) 4%, transparent)',
-                    /* top-edge glass sheen */
-                    'inset 0 1px 0 rgba(255,255,255,.11)',
-                    /* left-edge micro highlight */
-                    'inset 1px 0 0 rgba(255,255,255,.05)',
-                  ].join(', '),
-                }}
-              >
+              <div className={`flex max-h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl ${classes.quickSidePanel}`}>
                 <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] px-3 py-3">
                   <QuickProgressBlock progress={progress} className="mb-3" />
-                  <div className="mb-3 overflow-hidden rounded-2xl border border-white/10">
+                  <div className="mb-3 overflow-hidden rounded-2xl" style={{ border: '1px solid var(--assistant-border-soft)' }}>
                     <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact />
                   </div>
                   <input
@@ -1383,7 +1499,7 @@ const handleKey = (
                       }
                     }}
                     placeholder="Search keyword"
-                    className="mb-3 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[12px] text-white/85 outline-none hover:bg-black/25 focus:border-[#52b352]/45"
+                    className={`mb-3 w-full rounded-xl px-3 py-2 text-[12px] ${classes.quickSearchInput}`}
                   />
                   <ActionsPanel {...actionsPanelProps} />
                 </div>
@@ -1398,38 +1514,38 @@ const handleKey = (
         {listModalOpen ? (
           <div className="fixed inset-0 z-[999] flex items-center justify-center">
             <button type="button" className="absolute inset-0 bg-black/60" onClick={() => setListModalOpen(false)} aria-label="Close" />
-            <div className="relative w-[92vw] max-w-md rounded-2xl border border-white/10 bg-black shadow-2xl">
-              <div className="px-4 py-3 border-b border-white/10">
-                <div className="text-sm font-semibold text-white/90">Select or create List</div>
-                <div className="text-[11px] text-white/45 mt-0.5">Pick an existing list to add a task under it, or type a new one.</div>
+            <div className={`relative w-[92vw] max-w-md rounded-2xl shadow-2xl ${classes.quickModal}`}>
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+                <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Select or create List</div>
+                <div className="text-[11px] mt-0.5" style={{ color: 'var(--assistant-text-muted)' }}>Pick an existing list to add a task under it, or type a new one.</div>
               </div>
               <div className="px-4 py-3">
                 <div className="mb-3">
-                  <div className="text-[11px] text-white/50 mb-1">Create new</div>
+                  <div className="text-[11px] mb-1" style={{ color: 'var(--assistant-text-muted)' }}>Create new</div>
                   <input value={listNewText} onChange={e => setListNewText(e.target.value)} placeholder="Type a new list name…"
-                    className="w-full bg-black/20 border border-white/10 rounded-md text-white/85 text-[12px] px-3 py-2 outline-none hover:bg-black/25 focus:border-white/20"
+                    className={`w-full rounded-md text-[12px] px-3 py-2 ${classes.quickSearchInput}`}
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmListModal(); } if (e.key === 'Escape') setListModalOpen(false); }} />
-                  <div className="text-[11px] text-white/35 mt-1">If that list already exists, it will not create a duplicate — it just adds a task under it.</div>
+                  <div className="text-[11px] mt-1" style={{ color: 'var(--assistant-text-faint)' }}>If that list already exists, it will not create a duplicate — it just adds a task under it.</div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-white/50 mb-1">Or select existing</div>
-                  <div className="max-h-56 overflow-auto rounded-xl border border-white/10 bg-white/5">
+                  <div className="text-[11px] mb-1" style={{ color: 'var(--assistant-text-muted)' }}>Or select existing</div>
+                  <div className="max-h-56 overflow-auto rounded-xl" style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-surface)' }}>
                     {listTitles.length ? (
                       <div className="p-2 space-y-1">
                         {listTitles.map(t => (
-                          <label key={t.id} className="flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer hover:bg-white/5 transition-colors">
+                          <label key={t.id} className={`flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors ${classes.quickModalListItem}`}>
                             <input type="radio" name="listPick" value={t.id} checked={listPickId === t.id} onChange={e => setListPickId(e.target.value)} onClick={e => { const v = (e.currentTarget as HTMLInputElement).value; if (v) setListPickId(v); }} />
-                            <span className="text-[12px] text-white/85">{t.text}</span>
+                            <span className="text-[12px]" style={{ color: 'var(--assistant-text-soft)' }}>{t.text}</span>
                           </label>
                         ))}
                       </div>
-                    ) : <div className="p-3 text-[12px] text-white/45">No lists yet.</div>}
+                    ) : <div className="p-3 text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>No lists yet.</div>}
                   </div>
                 </div>
               </div>
-              <div className="px-4 py-3 border-t border-white/10 flex items-center justify-end gap-2">
-                <button type="button" onClick={() => setListModalOpen(false)} className="text-[12px] px-3 py-2 rounded-md bg-white/10 text-white/70 hover:text-white/90 hover:bg-white/16 transition-colors">Cancel</button>
-                <button type="button" onClick={confirmListModal} className="text-[12px] px-3 py-2 rounded-md bg-[#52b352]/22 text-[#52b352] hover:bg-[#52b352]/30 transition-colors">Select</button>
+              <div className="px-4 py-3 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+                <button type="button" onClick={() => setListModalOpen(false)} className={`text-[12px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}>Cancel</button>
+                <button type="button" onClick={confirmListModal} className={`text-[12px] px-3 py-2 rounded-md ${classes.quickModalPrimary}`}>Select</button>
               </div>
             </div>
           </div>
@@ -1443,10 +1559,10 @@ const handleKey = (
               onClick={() => { setDeleteListConfirmId(null); armedDeleteListRef.current = null; }}
               aria-label="Close"
             />
-            <div className="relative w-[92vw] max-w-md rounded-2xl border border-white/10 bg-black shadow-2xl">
-              <div className="px-4 py-3 border-b border-white/10">
-                <div className="text-sm font-semibold text-white/90">Delete list?</div>
-                <p className="text-[12px] text-white/65 mt-2 leading-relaxed">
+            <div className={`relative w-[92vw] max-w-md rounded-2xl shadow-2xl ${classes.quickModal}`}>
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+                <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Delete list?</div>
+                <p className="text-[12px] mt-2 leading-relaxed" style={{ color: 'var(--assistant-text-soft)' }}>
                   Are you sure you want to delete this list and all its child tasks?
                 </p>
                 <p className="text-[11px] text-rose-200/90 mt-2">
@@ -1455,14 +1571,14 @@ const handleKey = (
                 {(() => {
                   const t = blocks.find(x => x.id === deleteListConfirmId)?.text?.trim();
                   if (!t) return null;
-                  return <div className="text-[11px] text-white/40 mt-2 truncate" title={t}>List: {t}</div>;
+                  return <div className="text-[11px] mt-2 truncate" title={t} style={{ color: 'var(--assistant-text-faint)' }}>List: {t}</div>;
                 })()}
               </div>
-              <div className="px-4 py-3 border-t border-white/10 flex items-center justify-end gap-2">
+              <div className="px-4 py-3 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
                 <button
                   type="button"
                   onClick={() => { setDeleteListConfirmId(null); armedDeleteListRef.current = null; }}
-                  className="text-[12px] px-3 py-2 rounded-md bg-white/10 text-white/70 hover:text-white/90 hover:bg-white/16 transition-colors"
+                  className={`text-[12px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}
                 >
                   Cancel
                 </button>
