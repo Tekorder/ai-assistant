@@ -1,6 +1,6 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const mode = process.env.NEXT_PUBLIC_DATABASE_MODE;
+    const mode = (process.env.NEXT_PUBLIC_DATABASE_MODE || 'local').replace(/^["']|["']$/g, '');
     if (mode === 'local') {
       console.log('Local mode — skipping database connection');
     } else if (mode === 'dev') {

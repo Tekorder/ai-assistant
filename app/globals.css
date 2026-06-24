@@ -913,42 +913,29 @@ input[type="checkbox"]:checked::before {
   97% { transform: translateX(3px); }
 }
 
-/* ── Quick.tsx striped glass rows ── */
+/* ── Quick.tsx notebook ruled rows ── */
+.quick-rows > div {
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--assistant-text) 10%, transparent);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .quick-rows > div:nth-child(even) {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--assistant-tone-1, #52b352) 7%, transparent) 0%,
-    rgba(255,255,255,.04) 50%,
-    color-mix(in srgb, var(--assistant-tone-1, #52b352) 3%, transparent) 100%
-  );
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--assistant-tone-1, #52b352) 10%, transparent);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.07),
-    0 1px 6px rgba(0,0,0,.18);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--assistant-text) 2.5%, transparent);
 }
 
 .quick-rows > div:nth-child(odd) {
-  background: rgba(255,255,255,.012);
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,.025);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: transparent;
 }
 
 .quick-rows > div:nth-child(even):hover,
 .quick-rows > div:nth-child(odd):hover {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--assistant-tone-1, #52b352) 12%, transparent) 0%,
-    rgba(255,255,255,.06) 100%
-  );
-  border-color: color-mix(in srgb, var(--assistant-tone-1, #52b352) 18%, transparent);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.09),
-    0 2px 10px rgba(0,0,0,.22);
+  background: color-mix(in srgb, var(--assistant-accent) 6%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--assistant-accent) 18%, transparent);
+  box-shadow: none;
 }
 
 .wobble-loop {

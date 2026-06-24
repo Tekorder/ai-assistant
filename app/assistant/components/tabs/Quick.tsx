@@ -967,12 +967,15 @@ const handleKey = (
 
         {!isEditing ? (
           <div
-            className="text-[13px] md:text-sm whitespace-pre-wrap break-words leading-[1.45] min-h-[1.45em]"
+            className="cursor-text text-[13px] md:text-sm whitespace-pre-wrap break-words leading-[1.45] min-h-[1.45em]"
             style={{
               color: b.checked ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)',
               textDecoration: b.checked ? 'line-through' : 'none',
             }}
-            onDoubleClick={() => focusBlock(b.id, true)}
+            onClick={() => {
+              setEditingTaskId(b.id);
+              focusBlock(b.id, true);
+            }}
           >
             {tokens.map((token, idx) => {
               if (/^\s+$/.test(token)) return <React.Fragment key={`${b.id}-ws-${idx}`}>{token}</React.Fragment>;
@@ -982,10 +985,17 @@ const handleKey = (
                   key={`${b.id}-tk-${idx}`}
                   className={
                     clickable
-                      ? 'cursor-pointer hover:underline decoration-[var(--assistant-accent)] underline-offset-[3px]'
-                      : 'cursor-default'
+                      ? 'hover:underline decoration-[var(--assistant-accent)] underline-offset-[3px]'
+                      : ''
                   }
-                  onClick={clickable ? () => openPivotForWord(b.id, token) : undefined}
+                  onDoubleClick={
+                    clickable
+                      ? (e) => {
+                          e.stopPropagation();
+                          openPivotForWord(b.id, token);
+                        }
+                      : undefined
+                  }
                 >
                   {token}
                 </span>
@@ -1045,7 +1055,7 @@ const handleKey = (
                   onDragOver={e => onDragOverRow(e, listBlock.id)}
                   onDrop={e => onDropRow(e, listBlock.id)}
                   onDragEnd={onDragEndRow}
-                  className={['group flex items-center px-0.5 py-1 rounded-md gap-2', lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : ''].join(' ')}
+                  className={['group flex items-center px-0.5 py-1 gap-2', lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : ''].join(' ')}
                   style={{ paddingLeft: 2 }}>
                   <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
                     {dragDots}
@@ -1123,7 +1133,7 @@ const handleKey = (
                       onDragOver={e => onDragOverRow(e, task.id)}
                       onDrop={e => onDropRow(e, task.id)}
                       onDragEnd={onDragEndRow}
-                      className={['group flex items-center px-0.5 py-1 rounded-md gap-1', tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : ''].join(' ')}
+                      className={['group flex items-center px-0.5 py-1 gap-1', tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : ''].join(' ')}
                       style={{ paddingLeft: isUncList ? 6 : 8 + task.indent * 16 }}>
                       <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
                         {dragDots}
