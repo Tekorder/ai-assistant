@@ -1,6 +1,6 @@
 import { brevoTx } from "./brevo";
 
-export type BrevoTemplate = "test" | "welcome" | "twofa";
+export type BrevoTemplate = "test" | "welcome" | "twofa" | "reset";
 
 interface BrevoData {
   // Welcome
@@ -12,6 +12,9 @@ interface BrevoData {
   expiresMinutes?: number;  // 5
   ip?: string;
   device?: string;
+
+  // Reset
+  resetLink?: string;
 }
 
 export async function sendEmailBrevo(
@@ -300,6 +303,76 @@ export async function sendEmailBrevo(
               This code is for your eyes only. Youtask will never ask you to share it with anyone.
             </p>
 
+          </div>
+        </div>
+      `;
+      break;
+    }
+
+    // ---------------------------
+    // PASSWORD RESET
+    // ---------------------------
+    case "reset": {
+      const resetLink = String(data?.resetLink || "").trim();
+      if (!resetLink) throw new Error("reset requiere data.resetLink");
+
+      subject = "Reset your Youtask password";
+      htmlContent = `
+        <div style="background:#0b1220; padding:40px 10px;">
+          <div style="
+            max-width:520px;
+            margin:auto;
+            background:#0f172a;
+            border-radius:16px;
+            padding:40px;
+            box-shadow:0 0 40px rgba(213,252,67,0.15);
+            color:#ffffff;
+            font-family:Arial, sans-serif;
+            border:1px solid rgba(255,255,255,0.06);
+          ">
+            <h1 style="
+              margin:0 0 6px 0;
+              text-align:center;
+              font-size:28px;
+              background:linear-gradient(90deg,#d5fc43,#a3e635);
+              -webkit-background-clip:text;
+              -webkit-text-fill-color:transparent;
+            ">Youtask</h1>
+            <p style="text-align:center;color:#94a3b8;margin:0 0 30px 0;font-size:14px;">
+              Organize · Execute · Move forward
+            </p>
+
+            <hr style="border:none;height:1px;background:#1e293b;margin:0 0 28px 0"/>
+
+            <h2 style="color:#f5f5f5;margin:0 0 12px 0;font-size:20px;">
+              Reset your password
+            </h2>
+            <p style="color:#94a3b8;font-size:15px;line-height:1.6;margin:0 0 28px 0;">
+              We received a request to reset the password for your Youtask account.
+              Click the button below to choose a new password.
+              This link expires in <strong style="color:#f5f5f5;">1 hour</strong>.
+            </p>
+
+            <div style="text-align:center;margin-bottom:28px;">
+              <a href="${resetLink}"
+                style="
+                  background:#d5fc43;
+                  color:#0a0a0a;
+                  padding:14px 34px;
+                  border-radius:12px;
+                  text-decoration:none;
+                  font-weight:bold;
+                  font-size:15px;
+                  display:inline-block;
+                ">
+                Reset password
+              </a>
+            </div>
+
+            <p style="color:#64748b;font-size:13px;line-height:1.6;margin:0;">
+              If you didn&apos;t request a password reset, you can safely ignore this email.
+              Your password will not be changed.
+            </p>
           </div>
         </div>
       `;

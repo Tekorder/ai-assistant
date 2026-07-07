@@ -447,7 +447,7 @@ function getFirebaseUid(): string {
 function dbPost(path: string, body: unknown): void {
   if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return;
   const uid = getFirebaseUid();
-  if (!uid) return;
+  if (!uid || uid === 'testuser') return;
   fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Firebase-UID': uid },
@@ -488,6 +488,7 @@ export async function loadFromDatabase(): Promise<void> {
   if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return;
   const uid = getFirebaseUid();
   if (!uid) return;
+  if (uid === 'testuser') return;
   const headers = { 'X-Firebase-UID': uid };
 
   try {
@@ -753,9 +754,21 @@ export function buildListSections(blocks: Block[]): ListSection[] {
 export function insertBlockAfter(blocks: Block[], afterId: string, newBlock: Block): Block[] {
   const i = blocks.findIndex(b => b.id === afterId);
   if (i < 0) return blocks;
-  const next = blocks.slice();
-  next.splice(i + 1, 0, newBlock);
-  return next;
+  const after = blocks[i];
+  // Inherit parentId from the block being inserted after so sortBlocksByOrder
+  // doesn't treat the new block as an orphan and append it to the end.
+  const toInsert: Block = { ...newBlock, parentId: newBlock.parentId ?? after.parentId };
+  const next = [...blocks.slice(0, i + 1), toInsert, ...blocks.slice(i + 1)];
+  // Renumber orders within each parent group to match array position so
+  // sortBlocksByOrder preserves the insertion order rather than moving the
+  // new block (order: 0) to the top.
+  const counters: Record<string, number> = {};
+  return next.map(b => {
+    const key = b.parentId ?? '__root__';
+    const order = counters[key] ?? 0;
+    counters[key] = order + 1;
+    return order === b.order ? b : { ...b, order };
+  });
 }
 
 export function removeBlock(blocks: Block[], id: string): Block[] {
@@ -1896,4 +1909,82 @@ export function moveChecklistItem(
   return lists.map(l =>
     l.id === listId ? { ...l, items: arrayMove(l.items, fromIndex, toIndex) } : l,
   );
+}
+
+/* ===================== Backup — export / import ===================== */
+
+export type BackupData = {
+  version: number;
+  exportedAt: string;
+  projects: ProjectsPayload;
+  habits: HabitsPayload;
+  reminders: RemindersPayload;
+  checklists: ChecklistsPayload;
+};
+
+export type ImportMode = 'override' | 'merge';
+
+export function exportAllData(): BackupData {
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    projects: readProjectsLS() ?? { projects: [makePersonalProject()] },
+    habits: readHabitsLS(),
+    reminders: readRemindersLS(),
+    checklists: readChecklistsLS(),
+  };
+}
+
+export function importAllData(raw: unknown, mode: ImportMode): void {
+  const data = (raw ?? {}) as Partial<BackupData>;
+
+  if (Array.isArray(data.projects?.projects)) {
+    if (mode === 'override') {
+      writeProjectsLS({
+        projects: data.projects!.projects,
+        selectedProjectId: data.projects!.selectedProjectId,
+      });
+    } else {
+      const current = readProjectsLS() ?? { projects: [makePersonalProject()] };
+      const incoming = data.projects!.projects.map(p => ({ ...p, project_id: pid() }));
+      writeProjectsLS({
+        projects: [...current.projects, ...incoming],
+        selectedProjectId: current.selectedProjectId,
+      });
+    }
+  }
+
+  if (Array.isArray(data.habits?.habits)) {
+    if (mode === 'override') {
+      writeHabitsLS(data.habits!);
+    } else {
+      const current = readHabitsLS();
+      const incoming = data.habits!.habits.map(h => ({ ...h, id: uid() }));
+      writeHabitsLS({ ...current, habits: [...current.habits, ...incoming] });
+    }
+  }
+
+  if (Array.isArray(data.reminders?.reminders)) {
+    if (mode === 'override') {
+      writeRemindersLS(data.reminders!);
+    } else {
+      const current = readRemindersLS();
+      const incoming = data.reminders!.reminders.map(r => ({ ...r, id: uid() }));
+      writeRemindersLS({ reminders: [...current.reminders, ...incoming] });
+    }
+  }
+
+  if (Array.isArray(data.checklists?.lists)) {
+    if (mode === 'override') {
+      writeChecklistsLS(data.checklists!);
+    } else {
+      const current = readChecklistsLS();
+      const incoming = data.checklists!.lists.map(l => ({
+        ...l,
+        id: uid(),
+        items: l.items.map(it => ({ ...it, id: uid() })),
+      }));
+      writeChecklistsLS({ ...current, lists: [...current.lists, ...incoming] });
+    }
+  }
 }

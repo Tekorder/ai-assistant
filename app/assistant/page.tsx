@@ -14,6 +14,7 @@ import HabitsPanel from './components/HabitsPanel';
 import RemindersPanel from './components/RemindersPanel';
 import ActivityLogPanel from './components/ActivityLogPanel';
 import ChecklistsPanel from './components/ChecklistsPanel';
+import SettingsPanel from './components/SettingsPanel';
 import { assistantThemes, getAssistantThemeVars, type AssistantThemeName } from './_theme/themes';
 import classes from './_theme/themes.module.css';
 import { PivotPanel, buildPrunedPivotTree, buildListPivotTree, type PivotTreeRow } from './components/Pivot';
@@ -33,12 +34,15 @@ import {
   getTaskFlag,
   loadFromDatabase,
 } from '@/lib/datacenter';
+import { validateSession } from '@/lib/session';
+import { useRouter } from 'next/navigation';
 
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
 
 export default function App() {
+  const router = useRouter();
   const [selectedTheme, setSelectedTheme] = useState<AssistantThemeName>('purity');
   const theme = assistantThemes[selectedTheme];
   const [activeView, setActiveView] = useState<View>('quick');
@@ -49,6 +53,7 @@ export default function App() {
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [listsOpen, setListsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [pivotInstances, setPivotInstances] = useState<
     Array<{ id: string; word: string; listId?: string }>
   >([]);
@@ -57,7 +62,13 @@ export default function App() {
   const PANEL_WIDTH = 320;
 
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
-  useEffect(() => { void loadFromDatabase(); }, []);
+  useEffect(() => {
+    void (async () => {
+      const valid = await validateSession();
+      if (!valid) { router.replace('/login'); return; }
+      void loadFromDatabase();
+    })();
+  }, [router]);
   useEffect(() => {
     const stored = window.localStorage.getItem(ASSISTANT_THEME_LS_KEY);
     if (!stored) return;
@@ -754,12 +765,15 @@ export default function App() {
           onToggleActivity={toggleActivity}
           onToggleLists={toggleLists}
           onToggleChat={() => (chatOpen ? closeChatOverlay() : openChatOverlay())}
+          onOpenSettings={() => setSettingsOpen(true)}
           habitsOpen={habitsOpen}
           remindersOpen={remindersOpen}
           activityOpen={activityOpen}
           listsOpen={listsOpen}
           chatOpen={chatOpen}
         />
+
+        <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
         {chatOpen && (
           <>

@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { registerWithEmail } from '@/lib/auth';
 import {
-  validateUsername,
-  validateDisplayName,
+  validateName,
   validateEmail,
   validatePasswordMatch,
   validatePassword,
@@ -205,14 +204,12 @@ function ParticleCanvas({ pstate }: { pstate: PState }) {
 export default function SignUpPage() {
   const router = useRouter();
 
-  const [username, setUsername] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const [usernameError, setUsernameError] = useState('');
-  const [displayNameError, setDisplayNameError] = useState('');
+  const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
@@ -220,14 +217,9 @@ export default function SignUpPage() {
   const [submitError, setSubmitError] = useState('');
   const [pstate, setPstate] = useState<PState>('moving');
 
-  const handleUsernameChange = (v: string) => {
-    setUsername(v);
-    setUsernameError(validateUsername(v).error);
-  };
-
-  const handleDisplayNameChange = (v: string) => {
-    setDisplayName(v);
-    setDisplayNameError(validateDisplayName(v).error);
+  const handleNameChange = (v: string) => {
+    setName(v);
+    setNameError(validateName(v).error);
   };
 
   const handleEmailChange = (v: string) => {
@@ -253,13 +245,11 @@ export default function SignUpPage() {
 
   const isFormValid = () =>
     !!(
-      username &&
-      displayName &&
+      name &&
       email &&
       password &&
       confirmPassword &&
-      !usernameError &&
-      !displayNameError &&
+      !nameError &&
       !emailError &&
       !passwordError &&
       password.length >= 6
@@ -268,7 +258,6 @@ export default function SignUpPage() {
   async function syncPrismaUser(payload: {
     email: string;
     name: string;
-    username: string;
     firebaseUid: string;
     avatarUrl?: string | null;
   }) {
@@ -295,15 +284,13 @@ export default function SignUpPage() {
 
     try {
       const cleanEmail = email.trim().toLowerCase();
-      const cleanUsername = username.trim().toLowerCase();
-      const cleanDisplayName = displayName.trim();
+      const cleanName = name.trim();
 
       const cred = await registerWithEmail(cleanEmail, password);
 
       await syncPrismaUser({
         email: cleanEmail,
-        name: cleanDisplayName,
-        username: cleanUsername,
+        name: cleanName,
         firebaseUid: cred.user.uid,
         avatarUrl: cred.user.photoURL || null,
       });
@@ -315,8 +302,7 @@ export default function SignUpPage() {
           action: 'send_email',
           email: cleanEmail,
           template: 'welcome',
-          displayName: cleanDisplayName,
-          username: cleanUsername,
+          displayName: cleanName,
           data: {},
         }),
       });
@@ -333,11 +319,6 @@ export default function SignUpPage() {
 
       if (code === 'auth/email-already-in-use') {
         setEmailError('This email is already registered.');
-      } else if (
-        message.toLowerCase().includes('username') &&
-        message.toLowerCase().includes('taken')
-      ) {
-        setUsernameError('This username is already taken.');
       } else if (
         message.toLowerCase().includes('email') &&
         message.toLowerCase().includes('registered')
@@ -475,33 +456,18 @@ export default function SignUpPage() {
             style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
           >
             <div className="lp-row-2">
-              <label style={label}>Username</label>
+              <label style={label}>Name</label>
               <input
-                className={`lp-input${usernameError ? ' lp-error' : ''}`}
-                type="text"
-                placeholder="usuario123"
-                value={username}
-                onChange={(e) => handleUsernameChange(e.target.value)}
-                onFocus={() => setPstate('frozen')}
-                onBlur={() => setPstate('moving')}
-                required
-              />
-              {usernameError && <div style={errorMsg}>{usernameError}</div>}
-            </div>
-
-            <div className="lp-row-2">
-              <label style={label}>Display Name</label>
-              <input
-                className={`lp-input${displayNameError ? ' lp-error' : ''}`}
+                className={`lp-input${nameError ? ' lp-error' : ''}`}
                 type="text"
                 placeholder="Juan Pérez"
-                value={displayName}
-                onChange={(e) => handleDisplayNameChange(e.target.value)}
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
                 onFocus={() => setPstate('frozen')}
                 onBlur={() => setPstate('moving')}
                 required
               />
-              {displayNameError && <div style={errorMsg}>{displayNameError}</div>}
+              {nameError && <div style={errorMsg}>{nameError}</div>}
             </div>
 
             <div className="lp-row-3">

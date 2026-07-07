@@ -13,7 +13,10 @@ function createClient(): PrismaClient {
   // FUCK NO
   // but it works
   if (!url) return null as unknown as PrismaClient;
-  const adapter = new PrismaPg({ connectionString: url });
+  const needsSsl = url.includes('sslmode=require');
+  const cleanUrl = url.replace(/[?&]sslmode=require/, m => m.startsWith('?') ? '?' : '');
+  const ssl = needsSsl ? { rejectUnauthorized: false } : undefined;
+  const adapter = new PrismaPg({ connectionString: needsSsl ? cleanUrl : url, ssl });
   return new PrismaClient({ adapter });
 }
 

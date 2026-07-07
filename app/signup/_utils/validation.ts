@@ -44,28 +44,11 @@ export function validateField(
 }
 
 /**
- * Validates username format and length
- * Rules: 3-20 characters, no spaces
- */
-export function validateUsername(username: string): ValidationResult {
-  // Check for spaces
-  if (/\s/.test(username)) {
-    return {
-      isValid: false,
-      error: 'Username cannot contain spaces',
-    };
-  }
-
-  // Validate length
-  return validateField(username, 3, 20, 'Username');
-}
-
-/**
- * Validates display name length
+ * Validates name length
  * Rules: 3-25 characters
  */
-export function validateDisplayName(displayName: string): ValidationResult {
-  return validateField(displayName, 3, 25, 'Display name');
+export function validateName(name: string): ValidationResult {
+  return validateField(name, 3, 25, 'Name');
 }
 
 /**

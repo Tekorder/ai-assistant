@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
           weekly:   Boolean(h.weekly),
           position: i,
         })).filter(h => h.localId),
+        skipDuplicates: true,
       });
     }
   });

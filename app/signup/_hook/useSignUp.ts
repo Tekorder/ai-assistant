@@ -1,23 +1,12 @@
-/**
- * Custom hook for sign up logic with PlayFab
- * Following BEST_PRACTICES.md: Separation of concerns, Error handling
- */
-
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PlayFab, PlayFabClient } from 'playfab-sdk';
+import { registerWithEmail } from '@/lib/auth';
+import { updateProfile } from 'firebase/auth';
 
 interface SignUpData {
-  username: string;
-  displayName: string;
+  name: string;
   email: string;
   password: string;
-}
-
-interface SignUpError {
-  code?: number;
-  error?: string;
-  errorMessage?: string;
 }
 
 interface UseSignUpReturn {
@@ -25,12 +14,6 @@ interface UseSignUpReturn {
   error: string | null;
   signUp: (data: SignUpData) => Promise<void>;
 }
-
-// Initialize PlayFab settings
-if (!process.env.NEXT_PUBLIC_PLAYFAB_TITLE_ID) {
-  throw new Error('NEXT_PUBLIC_PLAYFAB_TITLE_ID is not defined');
-}
-PlayFab.settings.titleId = process.env.NEXT_PUBLIC_PLAYFAB_TITLE_ID;
 
 export function useSignUp(): UseSignUpReturn {
   const [isLoading, setIsLoading] = useState(false);
@@ -42,46 +25,42 @@ export function useSignUp(): UseSignUpReturn {
     setError(null);
 
     try {
-      const createUser = {
-        Username: data.username,
-        DisplayName: data.displayName,
-        Email: data.email,
-        Password: data.password,
-      };
+      const cleanEmail = data.email.trim().toLowerCase();
+      const cleanName = data.name.trim();
 
-      return new Promise((resolve, reject) => {
-        PlayFabClient.RegisterPlayFabUser(
-          createUser,
-          (error: SignUpError | null, result) => {
-            setIsLoading(false);
+      const cred = await registerWithEmail(cleanEmail, data.password);
 
-            if (error) {
-              const errorMessage = error.errorMessage || 'Error en el registro';
-              setError(errorMessage);
-              reject(new Error(errorMessage));
-              return;
-            }
+      await updateProfile(cred.user, { displayName: cleanName });
 
-            if (result?.data?.SessionTicket) {
-              sessionStorage.setItem('playfabTicket', result.data.SessionTicket);
-            }
-
-            router.replace('/login');
-            resolve();
-          }
-        );
+      const res = await fetch('/api/auth/upsert-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          name: cleanName,
+          firebaseUid: cred.user.uid,
+          avatarUrl: cred.user.photoURL || null,
+        }),
       });
-    } catch (err) {
-      setIsLoading(false);
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-      setError(errorMessage);
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok || !json?.user?.id) {
+        throw new Error(json?.message || 'Failed to create user in database.');
+      }
+
+      router.replace('/login');
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code === 'auth/email-already-in-use') {
+        setError('This email is already registered.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Something went wrong.');
+      }
       throw err;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  return {
-    isLoading,
-    error,
-    signUp,
-  };
+  return { isLoading, error, signUp };
 }

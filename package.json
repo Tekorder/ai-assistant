@@ -18,10 +18,10 @@
     "compromise": "^14.14.5",
     "dotenv": "^17.4.2",
     "firebase": "^12.10.0",
+    "firebase-admin": "^14.1.0",
     "next": "15.5.9",
     "openai": "^5.20.2",
     "pg": "^8.22.0",
-    "playfab-sdk": "^2.174.250526",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

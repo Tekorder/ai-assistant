@@ -19,6 +19,7 @@ import {
   writeSelectedProjectBlocks,
   isListVisible,
   getTaskFlag,
+  addTaskUnderList,
   type TaskFlagColor,
 } from '@/lib/datacenter';
 import { TaskFlagBadge } from '../TaskFlag';
@@ -98,8 +99,14 @@ export default function Timeline() {
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => monthStart(new Date()));
   const [editingDateCardId, setEditingDateCardId] = useState<string | null>(null);
   const [visibleLists, setVisibleLists] = useState<Record<string, boolean>>({});
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [editingTextCardId, setEditingTextCardId] = useState<string | null>(null);
+  const [draftText, setDraftText] = useState('');
+  const [pickListOpen, setPickListOpen] = useState(false);
 
   const inlineDateRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const inlineTextRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   /* ── Load & sync ── */
   useEffect(() => {
@@ -277,6 +284,14 @@ export default function Timeline() {
     return hasOverdue ? [OVERDUE_KEY, ...dateKeys] : dateKeys;
   }, [showCompleted, cardsByDate]);
 
+  const listOptions = useMemo(
+    () =>
+      blocks
+        .filter(b => b.indent === 0 && b.archived !== true)
+        .map(b => ({ id: b.id, title: (b.text || '').trim() || 'Uncategorized' })),
+    [blocks],
+  );
+
   const nowMonth = useMemo(() => monthStart(new Date()), []);
 
   const canGoNextMonth = useMemo(() => {
@@ -334,6 +349,74 @@ export default function Timeline() {
 
     writeSelectedProjectBlocks(projectId, next);
     setBlocks(next);
+  };
+
+  const renameTask = (cardId: string, text: string) => {
+    const next = blocks.map(x => ({ ...x }));
+    for (const b of next) {
+      if (b.id !== cardId || b.indent !== 1) continue;
+      b.text = text;
+      break;
+    }
+    writeSelectedProjectBlocks(projectId, next);
+    setBlocks(next);
+  };
+
+  const handleCreateTask = () => {
+    setPickListOpen(true);
+  };
+
+  const handleCreateTaskInList = (listId: string | null) => {
+    const result = addTaskUnderList(blocks, listId, { deadline: todayYMD() });
+    writeSelectedProjectBlocks(projectId, result.blocks);
+    setBlocks(result.blocks);
+    setDraftText('');
+    setPickListOpen(false);
+    setEditingTextCardId(result.newTaskId);
+  };
+
+  useEffect(() => {
+    if (!editingTextCardId) return;
+    const input = inlineTextRefs.current[editingTextCardId];
+    if (!input) return;
+    requestAnimationFrame(() => input.focus());
+  }, [editingTextCardId]);
+
+  const commitTaskText = (cardId: string) => {
+    renameTask(cardId, draftText);
+    setEditingTextCardId(null);
+  };
+
+  /* ── Drag and drop rescheduling ── */
+  const handleCardDragStart = (e: React.DragEvent, cardId: string) => {
+    setDraggingCardId(cardId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', cardId);
+  };
+
+  const handleCardDragEnd = () => {
+    setDraggingCardId(null);
+    setDragOverCol(null);
+  };
+
+  const handleColDragOver = (e: React.DragEvent, colKey: string) => {
+    if (colKey === OVERDUE_KEY) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverCol !== colKey) setDragOverCol(colKey);
+  };
+
+  const handleColDragLeave = (colKey: string) => {
+    setDragOverCol(prev => (prev === colKey ? null : prev));
+  };
+
+  const handleColDrop = (e: React.DragEvent, colKey: string) => {
+    if (colKey === OVERDUE_KEY) return;
+    e.preventDefault();
+    const cardId = e.dataTransfer.getData('text/plain') || draggingCardId;
+    if (cardId) rescheduleDeadline(cardId, colKey);
+    setDraggingCardId(null);
+    setDragOverCol(null);
   };
 
   /* ── Render ── */
@@ -412,6 +495,16 @@ export default function Timeline() {
           >
             {showCompleted ? '✓ Show Completed' : 'Show Completed'}
           </button>
+
+          <button
+            type="button"
+            className="youtask-timeline-addbtn"
+            onClick={handleCreateTask}
+            title="Add task"
+            aria-label="Add task"
+          >
+            +
+          </button>
         </div>
       </div>
 
@@ -460,7 +553,12 @@ export default function Timeline() {
                   ) : null}
                 </div>
 
-                <div className="yt-col-body">
+                <div
+                  className={['yt-col-body', dragOverCol === colKey && colKey !== OVERDUE_KEY ? 'is-dragover' : ''].join(' ')}
+                  onDragOver={e => handleColDragOver(e, colKey)}
+                  onDragLeave={() => handleColDragLeave(colKey)}
+                  onDrop={e => handleColDrop(e, colKey)}
+                >
                   {list.length === 0 ? (
                     <div className="yt-empty">—</div>
                   ) : (
@@ -470,40 +568,46 @@ export default function Timeline() {
                         : 0;
 
                       return (
-                        <div key={card.id} className={['yt-card', card.checked ? 'is-done' : ''].join(' ')}>
+                        <div
+                          key={card.id}
+                          className={[
+                            'yt-card',
+                            card.checked ? 'is-done' : '',
+                            draggingCardId === card.id ? 'is-dragging' : '',
+                          ].join(' ')}
+                          draggable
+                          onDragStart={e => handleCardDragStart(e, card.id)}
+                          onDragEnd={handleCardDragEnd}
+                        >
                           <div className="yt-card-top">
                             <div className="yt-project">
                               {card.projectTitle || projectTitle || 'General'}
                             </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              {isOverdueCol ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    className="yt-reschedule"
-                                    onClick={() => setEditingDateCardId(card.id)}
-                                    title="Re-schedule"
-                                    aria-label="Reschedule"
-                                  >
-                                    📅
-                                  </button>
-                                  <input
-                                    ref={el => { inlineDateRefs.current[card.id] = el; }}
-                                    type="date"
-                                    className="fixed opacity-0 pointer-events-none -z-10"
-                                    value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
-                                    onChange={e => {
-                                      if (e.target.value) rescheduleDeadline(card.id, e.target.value);
-                                      setEditingDateCardId(null);
-                                    }}
-                                    onBlur={() => setEditingDateCardId(null)}
-                                    onKeyDown={e => {
-                                      if (e.key === 'Escape' || e.key === 'Enter') setEditingDateCardId(null);
-                                    }}
-                                  />
-                                </>
-                              ) : null}
+                              <button
+                                type="button"
+                                className="yt-reschedule"
+                                onClick={() => setEditingDateCardId(card.id)}
+                                title="Re-schedule"
+                                aria-label="Reschedule"
+                              >
+                                📅
+                              </button>
+                              <input
+                                ref={el => { inlineDateRefs.current[card.id] = el; }}
+                                type="date"
+                                className="fixed opacity-0 pointer-events-none -z-10"
+                                value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
+                                onChange={e => {
+                                  if (e.target.value) rescheduleDeadline(card.id, e.target.value);
+                                  setEditingDateCardId(null);
+                                }}
+                                onBlur={() => setEditingDateCardId(null)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Escape' || e.key === 'Enter') setEditingDateCardId(null);
+                                }}
+                              />
 
                               <button
                                 type="button"
@@ -532,10 +636,28 @@ export default function Timeline() {
                             </div>
                           </div>
 
-                          <div className="yt-card-title">
-                            <TaskFlagBadge source={{ flag: card.flag }} inline />
-                            {card.text || '(sin texto)'}
-                          </div>
+                          {editingTextCardId === card.id ? (
+                            <input
+                              ref={el => { inlineTextRefs.current[card.id] = el; }}
+                              className="yt-card-title-input"
+                              value={draftText}
+                              onChange={e => setDraftText(e.target.value)}
+                              onBlur={() => commitTaskText(card.id)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') { e.preventDefault(); commitTaskText(card.id); }
+                                if (e.key === 'Escape') setEditingTextCardId(null);
+                              }}
+                              placeholder="Task name"
+                            />
+                          ) : (
+                            <div
+                              className="yt-card-title"
+                              onDoubleClick={() => { setDraftText(card.text); setEditingTextCardId(card.id); }}
+                            >
+                              <TaskFlagBadge source={{ flag: card.flag }} inline />
+                              {card.text || '(sin texto)'}
+                            </div>
+                          )}
 
                           {isOverdueCol ? (
                             <div className="yt-overdue-meta" title={card.deadline}>
@@ -566,6 +688,55 @@ export default function Timeline() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {pickListOpen && (
+        <div className="fixed inset-0 z-[10050] flex items-center justify-center p-5">
+          <button
+            type="button"
+            className="fixed inset-0"
+            style={{ background: 'var(--assistant-overlay)' }}
+            onClick={() => setPickListOpen(false)}
+            aria-label="Cancel"
+          />
+          <div
+            className="relative z-10 w-full max-w-[320px] rounded-2xl p-4 shadow-2xl"
+            style={{
+              background: 'var(--assistant-bg)',
+              color: 'var(--assistant-text)',
+              border: '1px solid var(--assistant-border-soft)',
+            }}
+          >
+            <h3 className="text-[14px] font-semibold mb-3">Add task to which list?</h3>
+            <div className="flex flex-col gap-1.5 max-h-[50vh] overflow-y-auto">
+              {listOptions.length === 0 ? (
+                <div className="text-[13px]" style={{ color: 'var(--assistant-text-soft)' }}>
+                  No lists yet.
+                </div>
+              ) : (
+                listOptions.map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => handleCreateTaskInList(opt.id)}
+                    className="w-full rounded-lg px-3 py-2 text-left text-[13px] transition-colors"
+                    style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-control-bg)' }}
+                  >
+                    {opt.title}
+                  </button>
+                ))
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setPickListOpen(false)}
+              className="mt-3 w-full rounded-lg px-3 py-2 text-[13px]"
+              style={{ color: 'var(--assistant-text-muted)' }}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>

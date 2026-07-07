@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   loginWithEmail,
-  sendFirebaseReset,
   signInWithGoogle,
 } from '@/lib/auth';
 
@@ -431,6 +430,25 @@ export default function LoginPage() {
     return json.user;
   }
 
+  async function safeUpsertPrismaUser(payload: {
+    email: string;
+    name?: string | null;
+    avatarUrl?: string | null;
+    firebaseUid?: string;
+  }) {
+    try {
+      await upsertPrismaUser(payload);
+    } catch (err) {
+      console.error('upsertPrismaUser failed, continuing with local-only session:', err);
+      const uid = payload.firebaseUid ?? payload.email;
+      localStorage.setItem('prisma_user_id', `local-${uid}`);
+      localStorage.setItem('prisma_user_email', payload.email);
+      localStorage.setItem('firebase_uid', uid);
+      if (payload.name) localStorage.setItem('prisma_user_name', payload.name);
+      if (payload.avatarUrl) localStorage.setItem('prisma_user_avatar', payload.avatarUrl);
+    }
+  }
+
   async function createAndSend2FA(targetEmail: string) {
     setSending2FA(true);
     setTwoFAError('');
@@ -474,20 +492,17 @@ export default function LoginPage() {
       const loginId = email.trim().toLowerCase();
       if (loginId === 'testuser') {
         setPstate('exploding');
-        await upsertPrismaUser({
-          email: 'testuser',
-          name: 'testuser',
-          avatarUrl: null,
-          firebaseUid: 'testuser',
-        });
+        localStorage.setItem('firebase_uid', 'testuser');
+        localStorage.setItem('prisma_user_id', 'local-testuser');
+        localStorage.setItem('prisma_user_email', 'testuser');
+        localStorage.setItem('prisma_user_name', 'testuser');
         setTrustedBrowser('testuser');
         sessionStorage.setItem('twofa_ok', '1');
-        localStorage.setItem('firebase_uid', 'testuser');
         router.replace('/assistant');
         return;
       }
 
-      const cred = await loginWithEmail(email, password);
+      const cred = await loginWithEmail(loginId, password);
 
       const firebaseEmail = cred.user.email?.trim().toLowerCase() || email.trim().toLowerCase();
       const firebaseName = cred.user.displayName || null;
@@ -504,7 +519,7 @@ export default function LoginPage() {
 
       if (readTrustedEmail() === firebaseEmail) {
         setPstate('exploding');
-        await upsertPrismaUser({
+        await safeUpsertPrismaUser({
           email: firebaseEmail,
           name: firebaseName,
           avatarUrl: firebaseAvatar,
@@ -521,7 +536,7 @@ export default function LoginPage() {
       // await createAndSend2FA(firebaseEmail);
       // setShow2FA(true);
       setPstate('exploding');
-      await upsertPrismaUser({
+      await safeUpsertPrismaUser({
         email: firebaseEmail,
         name: firebaseName,
         avatarUrl: firebaseAvatar,
@@ -536,7 +551,8 @@ export default function LoginPage() {
       if (
         code === 'auth/user-not-found' ||
         code === 'auth/wrong-password' ||
-        code === 'auth/invalid-credential'
+        code === 'auth/invalid-credential' ||
+        code === 'auth/invalid-email'
       ) {
         setLoginError('Invalid email or password.');
       } else {
@@ -560,7 +576,7 @@ export default function LoginPage() {
         throw new Error('Google account did not return an email.');
       }
 
-      await upsertPrismaUser({
+      await safeUpsertPrismaUser({
         email: firebaseEmail,
         name: cred.user.displayName || null,
         avatarUrl: cred.user.photoURL || null,
@@ -661,15 +677,18 @@ export default function LoginPage() {
     setForgotError('');
     setForgotLoading(true);
     try {
-      await sendFirebaseReset(forgotEmail);
+      const res = await fetch('/api/auth/send-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim().toLowerCase() }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.ok === false) {
+        throw new Error(json?.message || 'Failed to send reset email.');
+      }
       setForgotSuccess(true);
     } catch (e) {
-      const code = (e as { code?: string })?.code;
-      if (code === 'auth/user-not-found') {
-        setForgotError('No account found with that email.');
-      } else {
-        setForgotError(e instanceof Error ? e.message : 'Something went wrong.');
-      }
+      setForgotError(e instanceof Error ? e.message : 'Something went wrong.');
     } finally {
       setForgotLoading(false);
     }
@@ -1248,6 +1267,9 @@ export default function LoginPage() {
                     }}
                   >
                     ✓ Recovery email sent to <strong>{forgotEmail}</strong>
+                    <div style={{ marginTop: 8, color: 'rgba(213,252,67,.65)', fontSize: 12 }}>
+                      Don&apos;t see it? Check your spam or junk folder — it may take a minute to arrive.
+                    </div>
                   </div>
                   <button type="button" className="lp-btn" onClick={closeForgot}>
                     Back to login

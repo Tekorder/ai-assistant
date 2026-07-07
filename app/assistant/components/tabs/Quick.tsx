@@ -830,9 +830,17 @@ const handleKey = (
         .filter(b => b.parentId === newParentId && b.id !== drag.id && b.indent > 0)
         .sort((a, b) => a.order - b.order);
 
-      // Insert after the target (or first if dropped on list header)
-      const insertAfter = target.indent === 0 ? -Infinity : target.order;
-      const insertIdx = siblings.filter(b => b.order <= insertAfter).length;
+      // Use drag direction to decide insert position so both forward and backward moves work.
+      // Dropped on list header → insert at the top.
+      let insertIdx: number;
+      if (target.indent === 0) {
+        insertIdx = 0;
+      } else {
+        const targetIdx = siblings.findIndex(s => s.id === target.id);
+        insertIdx = dragged.order > target.order
+          ? targetIdx          // dragging up → insert before target
+          : targetIdx + 1;     // dragging down → insert after target
+      }
       siblings.splice(insertIdx, 0, dragged);
 
       return prev.map(b => {
