@@ -233,6 +233,18 @@ export default function TopNavBar({
     router.replace('/');
   }, [clearPrismaLocalStorage, router]);
 
+  // ── Current user label ──
+  const [userName, setUserName] = useState('');
+  useEffect(() => {
+    try {
+      setUserName(
+        localStorage.getItem('prisma_user_name') ||
+        localStorage.getItem('prisma_user_email') ||
+        ''
+      );
+    } catch {}
+  }, []);
+
   // ── Reminders state ──
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [hydrated, setHydrated]   = useState(false);
@@ -607,6 +619,24 @@ export default function TopNavBar({
               </div>
             )}
           </div>
+        )}
+
+        {/* ── Current user ── */}
+        {userName && (
+          <>
+            <div className={`w-px h-5 mx-1 shrink-0 ${classes.divider}`} />
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap shrink-0"
+              style={{ color: 'var(--assistant-text-muted)' }}
+              title={`Signed in as ${userName}`}
+            >
+              <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <circle cx="8" cy="5.5" r="2.5" />
+                <path strokeLinecap="round" d="M3 13.5a5 5 0 0 1 10 0" />
+              </svg>
+              <span className="max-w-[120px] truncate">{userName}</span>
+            </div>
+          </>
         )}
 
       </header>
