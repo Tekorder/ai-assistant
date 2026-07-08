@@ -107,72 +107,45 @@ export async function POST(req: NextRequest) {
     const blocks = Array.isArray(rawProj.blocks)
       ? (rawProj.blocks as Record<string, unknown>[])
       : [];
-    const incomingLocalIds = blocks
-      .map(b => (typeof b.id === 'string' ? b.id : ''))
-      .filter(Boolean);
 
-    // Replace all blocks in a single transaction
-    await prisma.$transaction(async (tx) => {
-      await tx.block.deleteMany({
-        where: {
-          projectId: project.id,
-          ...(incomingLocalIds.length ? { localId: { notIn: incomingLocalIds } } : {}),
-        },
-      });
+    // Derive parentLocalId from the flat array order + indent level.
+    // The parent of a block at indent N is the most recent preceding block at indent N-1.
+    const parentStack: Record<number, string> = {};
+    const toCreate = blocks
+      .map(b => {
+        const bLocalId = typeof b.id === 'string' ? b.id : '';
+        if (!bLocalId) return null;
+        const indent = Number(b.indent ?? 0);
+        const parentLocalId = indent > 0 ? (parentStack[indent - 1] ?? null) : null;
+        parentStack[indent] = bLocalId;
+        for (const key in parentStack) { if (Number(key) > indent) delete parentStack[key]; }
+        return {
+          projectId:     project.id,
+          localId:       bLocalId,
+          parentLocalId,
+          text:          String(b.text ?? ''),
+          indent,
+          order:         Number(b.order ?? 0),
+          checked:       typeof b.checked === 'boolean' ? b.checked : null,
+          deadline:      typeof b.deadline === 'string' ? b.deadline : null,
+          createdAt:     typeof b.createdAt === 'string' ? b.createdAt : null,
+          isHidden:      Boolean(b.isHidden ?? false),
+          archived:      Boolean(b.archived ?? false),
+          flag:          typeof b.flag === 'string' ? b.flag : null,
+        };
+      })
+      .filter((b): b is NonNullable<typeof b> => b !== null);
 
-      if (blocks.length === 0) return;
-
-      // Derive parentLocalId from the flat array order + indent level.
-      // The parent of a block at indent N is the most recent preceding block at indent N-1.
-      const parentStack: Record<number, string> = {};
-
-      const toCreate = blocks
-        .map(b => {
-          const bLocalId = typeof b.id === 'string' ? b.id : '';
-          if (!bLocalId) return null;
-          const indent = Number(b.indent ?? 0);
-          const parentLocalId = indent > 0 ? (parentStack[indent - 1] ?? null) : null;
-          parentStack[indent] = bLocalId;
-          for (const key in parentStack) { if (Number(key) > indent) delete parentStack[key]; }
-          return {
-            projectId:     project.id,
-            localId:       bLocalId,
-            parentLocalId,
-            text:          String(b.text ?? ''),
-            indent,
-            order:         Number(b.order ?? 0),
-            checked:       typeof b.checked === 'boolean' ? b.checked : null,
-            deadline:      typeof b.deadline === 'string' ? b.deadline : null,
-            createdAt:     typeof b.createdAt === 'string' ? b.createdAt : null,
-            isHidden:      Boolean(b.isHidden ?? false),
-            archived:      Boolean(b.archived ?? false),
-            flag:          typeof b.flag === 'string' ? b.flag : null,
-          };
-        })
-        .filter((b): b is NonNullable<typeof b> => b !== null);
-
-      if (toCreate.length === 0) return;
-
-      // Upsert: skip creating duplicates, update the rest individually
-      await tx.block.createMany({ data: toCreate, skipDuplicates: true });
-      for (const b of toCreate) {
-        await tx.block.updateMany({
-          where: { projectId: project.id, localId: b.localId },
-          data: {
-            parentLocalId: b.parentLocalId,
-            text:          b.text,
-            indent:        b.indent,
-            order:         b.order,
-            checked:       b.checked,
-            deadline:      b.deadline,
-            createdAt:     b.createdAt,
-            isHidden:      b.isHidden,
-            archived:      b.archived,
-            flag:          b.flag,
-          },
-        });
-      }
-    });
+    // Full replace in one batch transaction (2 queries total). The previous
+    // version updated each block individually inside an interactive
+    // transaction — with a remote DB (~46ms/query) large imports blew past
+    // Prisma's 5s transaction timeout (P2028) and the request 500'd.
+    await prisma.$transaction([
+      prisma.block.deleteMany({ where: { projectId: project.id } }),
+      ...(toCreate.length
+        ? [prisma.block.createMany({ data: toCreate, skipDuplicates: true })]
+        : []),
+    ]);
   }
 
   // Mirror the payload: drop projects the client no longer has (e.g. after an
