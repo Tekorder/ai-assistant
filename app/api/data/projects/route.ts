@@ -175,6 +175,17 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Mirror the payload: drop projects the client no longer has (e.g. after an
+  // override import or a project deletion). Blocks cascade via the FK.
+  const incomingProjectLocalIds = projects
+    .map(p => (typeof p.project_id === 'string' ? p.project_id : ''))
+    .filter(Boolean);
+  if (incomingProjectLocalIds.length > 0) {
+    await prisma.project.deleteMany({
+      where: { userId: user.id, localId: { notIn: incomingProjectLocalIds } },
+    });
+  }
+
   if (typeof body.selectedProjectId === 'string') {
     await prisma.user.update({
       where: { id: user.id },

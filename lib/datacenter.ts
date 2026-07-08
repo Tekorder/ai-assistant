@@ -1945,12 +1945,46 @@ export function importAllData(raw: unknown, mode: ImportMode): void {
         selectedProjectId: data.projects!.selectedProjectId,
       });
     } else {
+      // Merge the imported blocks into the currently selected project — the UI
+      // only renders the selected project, so appending separate projects would
+      // leave the imported data invisible.
       const current = readProjectsLS() ?? { projects: [makePersonalProject()] };
-      const incoming = data.projects!.projects.map(p => ({ ...p, project_id: pid() }));
-      writeProjectsLS({
-        projects: [...current.projects, ...incoming],
-        selectedProjectId: current.selectedProjectId,
-      });
+      const idx = Math.max(0, current.projects.findIndex(p => p.project_id === current.selectedProjectId));
+      const target = current.projects[idx];
+
+      const merged: Block[] = [...target.blocks];
+      const currentUncId = merged[findUncRange(merged).uncIndex]?.id ?? null;
+      let nextRootOrder = nextOrderInParent(merged, null);
+
+      for (const proj of data.projects!.projects) {
+        const blocks = Array.isArray(proj?.blocks) ? (proj.blocks as Block[]) : [];
+        const incomingUncId = blocks.find(b => b.indent === 0 && isUncTitleBlock(b))?.id ?? null;
+        const idMap = new Map<string, string>();
+
+        for (const b of blocks) {
+          if (b.id === incomingUncId) continue; // fold into the existing Uncategorized list
+          const newId = uid();
+          idMap.set(b.id, newId);
+          const clone: Block = { ...b, id: newId };
+          if (clone.indent === 0) {
+            clone.parentId = null;
+            clone.order = nextRootOrder++;
+          } else {
+            clone.parentId = b.parentId === incomingUncId
+              ? currentUncId
+              : (b.parentId ? (idMap.get(b.parentId) ?? currentUncId) : currentUncId);
+            clone.order = nextOrderInParent(merged, clone.parentId);
+          }
+          merged.push(clone);
+        }
+      }
+
+      const nextProjects = current.projects.map((p, i) =>
+        i === idx
+          ? { ...p, blocks: sortBlocksByOrder(moveUncToTop(ensureUncExists(merged))) }
+          : p,
+      );
+      writeProjectsLS({ projects: nextProjects, selectedProjectId: current.selectedProjectId });
     }
   }
 
