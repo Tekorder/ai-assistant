@@ -841,7 +841,7 @@ export default function App() {
 
 
         <div
-          className="pointer-events-none fixed bottom-0 left-0 right-0 z-[45] border-t px-4 py-2.5"
+          className="pointer-events-none fixed bottom-0 left-0 right-0 z-[45] hidden border-t px-4 py-2.5 md:block"
           style={{ borderColor: 'var(--assistant-border-soft)', background: 'var(--assistant-bg)' }}
           role="status"
           aria-live="polite"

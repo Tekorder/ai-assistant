@@ -39,6 +39,20 @@ export async function POST(req: NextRequest) {
     ? (body.reminders as Record<string, unknown>[])
     : [];
 
+  // Wipe protection: a fresh device boot-posts one blank reminder — never let
+  // a payload with no real reminder titles erase existing rows unless the
+  // client confirms it synced AFTER hydration.
+  const hydrated = req.headers.get('X-Sync-Hydrated') === '1';
+  if (!hydrated) {
+    const meaningful = reminders.some(r => typeof r.title === 'string' && r.title.trim() !== '');
+    if (!meaningful) {
+      const existing = await prisma.reminder.count({ where: { userId: user.id } });
+      if (existing > 0) {
+        return NextResponse.json({ error: 'empty-payload-rejected' }, { status: 409 });
+      }
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.reminder.deleteMany({ where: { userId: user.id } });
 

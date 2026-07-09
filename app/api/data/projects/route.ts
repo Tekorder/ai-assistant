@@ -82,6 +82,26 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as Record<string, unknown>;
   const projects = Array.isArray(body.projects) ? (body.projects as Record<string, unknown>[]) : [];
 
+  // Wipe protection: a payload holding no real data (only Uncategorized titles /
+  // blank blocks — the boot state of a fresh device) must not replace existing
+  // server data unless the client confirms it synced AFTER hydration.
+  const hydrated = req.headers.get('X-Sync-Hydrated') === '1';
+  if (!hydrated) {
+    const meaningful = projects.length > 1 || projects.some(p => {
+      const blocks = Array.isArray(p.blocks) ? (p.blocks as Record<string, unknown>[]) : [];
+      return blocks.some(b => {
+        const text = typeof b.text === 'string' ? b.text.trim() : '';
+        return text !== '' && text.toLowerCase() !== 'uncategorized';
+      });
+    });
+    if (!meaningful) {
+      const existing = await prisma.project.count({ where: { userId: user.id } });
+      if (existing > 0) {
+        return NextResponse.json({ error: 'empty-payload-rejected' }, { status: 409 });
+      }
+    }
+  }
+
   for (const rawProj of projects) {
     const localId = typeof rawProj.project_id === 'string' ? rawProj.project_id : '';
     if (!localId) continue;

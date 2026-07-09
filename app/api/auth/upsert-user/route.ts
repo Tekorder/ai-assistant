@@ -73,8 +73,8 @@ export async function POST(req: Request) {
         where: { id: user.id },
         data: {
           email,
-          name,
-          avatarUrl,
+          ...(name ? { name } : {}),
+          ...(avatarUrl ? { avatarUrl } : {}),
           ...(username ? { username } : {}),
           ...(firebaseUid ? { firebaseUid } : {}),
         },

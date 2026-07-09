@@ -1477,10 +1477,11 @@ const handleKey = (
                 ) : renderNormalList()}
               </div>
 
-              {/* In-flow spacer: fixed footer (z-[45]) does not reserve layout space */}
+              {/* In-flow spacer: fixed footer (z-[45]) does not reserve layout space.
+                  Hidden on mobile along with the stats footer (pb-16 covers the tab bar). */}
               <div
                 aria-hidden
-                className="w-full shrink-0"
+                className="hidden w-full shrink-0 md:block"
                 style={{
                   height: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
                 }}

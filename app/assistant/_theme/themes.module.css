@@ -174,7 +174,10 @@
 }
 
 .quickHeaderBar {
-  background: var(--assistant-header-bg);
+  /* Opaque base so scrolled tasks can't show through the sticky header */
+  background:
+    linear-gradient(var(--assistant-header-bg), var(--assistant-header-bg)),
+    var(--assistant-bg);
   border-bottom: 1px solid var(--assistant-border-soft);
 }
 

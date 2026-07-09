@@ -237,11 +237,10 @@ export default function TopNavBar({
   const [userName, setUserName] = useState('');
   useEffect(() => {
     try {
-      setUserName(
-        localStorage.getItem('prisma_user_name') ||
-        localStorage.getItem('prisma_user_email') ||
-        ''
-      );
+      const name = localStorage.getItem('prisma_user_name');
+      const email = localStorage.getItem('prisma_user_email') ?? '';
+      // Never display a raw email — fall back to its local part
+      setUserName(name || email.split('@')[0] || '');
     } catch {}
   }, []);
 
@@ -523,7 +522,7 @@ export default function TopNavBar({
             {/* Dropdown */}
             {dropOpen && (
               <div
-                className="drop-in absolute right-0 top-10 w-72 rounded-xl shadow-2xl overflow-hidden z-[200] isolate"
+                className="drop-in fixed left-3 right-3 top-14 md:absolute md:left-auto md:right-0 md:top-10 md:w-72 rounded-xl shadow-2xl overflow-hidden z-[200] isolate"
                 style={{ background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
               >
                 <div

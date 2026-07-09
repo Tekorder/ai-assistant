@@ -424,7 +424,8 @@ export default function LoginPage() {
     localStorage.setItem('prisma_user_id', json.user.id);
     localStorage.setItem('prisma_user_email', json.user.email ?? payload.email);
     localStorage.setItem('firebase_uid', payload.firebaseUid ?? payload.email);
-    if (json.user.name) localStorage.setItem('prisma_user_name', json.user.name);
+    const displayName = json.user.name || json.user.username;
+    if (displayName) localStorage.setItem('prisma_user_name', displayName);
     if (json.user.avatarUrl) localStorage.setItem('prisma_user_avatar', json.user.avatarUrl);
 
     return json.user;

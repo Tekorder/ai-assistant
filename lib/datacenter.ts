@@ -444,15 +444,64 @@ function getFirebaseUid(): string {
   try { return localStorage.getItem('firebase_uid') ?? ''; } catch { return ''; }
 }
 
-function dbPost(path: string, body: unknown): void {
+/**
+ * Sync gate. Uploads are blocked until loadFromDatabase() has confirmed, per
+ * dataset, what the server holds. Without this, components that boot-write
+ * default payloads on a fresh device (Quick/Sidebar/HabitsPanel/RemindersPanel)
+ * race the hydration GET and can replace the user's server data with an empty
+ * boot state. The gate is bound to the uid it was opened for so a stale tab
+ * can't post another account's defaults after a re-login.
+ */
+type SyncPath = '/api/data/projects' | '/api/data/habits' | '/api/data/reminders';
+
+const syncGate: Record<SyncPath, boolean> = {
+  '/api/data/projects': false,
+  '/api/data/habits': false,
+  '/api/data/reminders': false,
+};
+let hydratedUid = '';
+
+function closeSyncGates(): void {
+  syncGate['/api/data/projects'] = false;
+  syncGate['/api/data/habits'] = false;
+  syncGate['/api/data/reminders'] = false;
+  hydratedUid = '';
+}
+
+function dbPost(path: SyncPath, body: unknown): void {
   if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return;
   const uid = getFirebaseUid();
   if (!uid || uid === 'testuser') return;
+  if (!syncGate[path]) return; // not hydrated yet — local write only
+  if (uid !== hydratedUid) { closeSyncGates(); return; } // account changed under us
   fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Firebase-UID': uid },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Firebase-UID': uid,
+      'X-Sync-Hydrated': '1',
+    },
     body: JSON.stringify(body),
   }).catch(() => {});
+}
+
+/* Meaningful-data checks: boot defaults (an Uncategorized-only project, one
+   blank habit, one blank reminder) do not count as data worth uploading. */
+
+function projectsPayloadHasData(payload: ProjectsPayload | null): boolean {
+  if (!payload) return false;
+  if (payload.projects.length > 1) return true;
+  return payload.projects.some(p =>
+    (p.blocks ?? []).some(b => !isUncTitleBlock(b) && (b.text ?? '').trim() !== ''),
+  );
+}
+
+function habitsPayloadHasData(payload: HabitsPayload): boolean {
+  return payload.habits.some(h => (h.text ?? '').trim() !== '');
+}
+
+function remindersPayloadHasData(payload: RemindersPayload): boolean {
+  return payload.reminders.some(r => (r.title ?? '').trim() !== '');
 }
 
 function dbSyncProjects(): void {
@@ -479,10 +528,26 @@ function dbSyncReminders(): void {
   } catch {}
 }
 
+let hydrationRetryHooked = false;
+
+function hookHydrationRetry(): void {
+  if (hydrationRetryHooked) return;
+  hydrationRetryHooked = true;
+  const retry = () => { void loadFromDatabase(); };
+  try {
+    window.addEventListener('online', retry);
+    window.addEventListener('focus', retry);
+  } catch {}
+}
+
 /**
- * Fetch all user data from the database and hydrate localStorage.
- * Call once at app startup after the user is authenticated.
- * If the DB has no data for this user, pushes any existing localStorage data up instead.
+ * Hydrate localStorage from the database. Per dataset:
+ *   - server has data      → server wins: overwrite localStorage
+ *   - server confirmed empty → push local up, but only if local holds
+ *     meaningful data (not just boot defaults)
+ *   - request failed        → keep the gate closed; retried on focus/online
+ * Uploads (dbPost) stay blocked per dataset until its gate opens here, so a
+ * fresh device's boot writes can never replace server data.
  */
 export async function loadFromDatabase(): Promise<void> {
   if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return;
@@ -491,11 +556,24 @@ export async function loadFromDatabase(): Promise<void> {
   if (uid === 'testuser') return;
   const headers = { 'X-Firebase-UID': uid };
 
+  // A stale gate from a previous account must never carry over
+  if (hydratedUid && hydratedUid !== uid) closeSyncGates();
+
+  const needProjects  = !syncGate['/api/data/projects'];
+  const needHabits    = !syncGate['/api/data/habits'];
+  const needReminders = !syncGate['/api/data/reminders'];
+  if (!needProjects && !needHabits && !needReminders) return;
+
+  const openGate = (path: SyncPath) => {
+    hydratedUid = uid;
+    syncGate[path] = true;
+  };
+
   try {
     const [projectsRes, habitsRes, remindersRes] = await Promise.all([
-      fetch('/api/data/projects', { headers }).catch(() => null),
-      fetch('/api/data/habits',   { headers }).catch(() => null),
-      fetch('/api/data/reminders', { headers }).catch(() => null),
+      needProjects  ? fetch('/api/data/projects',  { headers }).catch(() => null) : null,
+      needHabits    ? fetch('/api/data/habits',    { headers }).catch(() => null) : null,
+      needReminders ? fetch('/api/data/reminders', { headers }).catch(() => null) : null,
     ]);
 
     if (projectsRes?.ok) {
@@ -507,8 +585,11 @@ export async function loadFromDatabase(): Promise<void> {
         localStorage.setItem(LS_KEY_V2, JSON.stringify(data));
         window.dispatchEvent(new Event('youtask_projects_updated'));
         window.dispatchEvent(new Event('youtask_blocks_updated'));
+        openGate('/api/data/projects');
       } else {
-        dbSyncProjects(); // DB empty — push local data up
+        // Server confirmed empty — one-time migration of a device's local data
+        openGate('/api/data/projects');
+        if (projectsPayloadHasData(readProjectsLS())) dbSyncProjects();
       }
     }
 
@@ -517,8 +598,10 @@ export async function loadFromDatabase(): Promise<void> {
       if (Array.isArray(data.habits) && data.habits.length > 0) {
         localStorage.setItem(LS_KEY_HABITS, JSON.stringify(data));
         window.dispatchEvent(new Event('youtask_habits_updated'));
+        openGate('/api/data/habits');
       } else {
-        dbSyncHabits();
+        openGate('/api/data/habits');
+        if (habitsPayloadHasData(readHabitsLS())) dbSyncHabits();
       }
     }
 
@@ -527,11 +610,18 @@ export async function loadFromDatabase(): Promise<void> {
       if (Array.isArray(data.reminders) && data.reminders.length > 0) {
         localStorage.setItem(LS_KEY_REMINDERS, JSON.stringify(data));
         window.dispatchEvent(new Event('youtask_reminders_updated'));
+        openGate('/api/data/reminders');
       } else {
-        dbSyncReminders();
+        openGate('/api/data/reminders');
+        if (remindersPayloadHasData(readRemindersLS())) dbSyncReminders();
       }
     }
   } catch {}
+
+  // If any GET failed its gate is still closed — retry when we're back
+  if (!syncGate['/api/data/projects'] || !syncGate['/api/data/habits'] || !syncGate['/api/data/reminders']) {
+    hookHydrationRetry();
+  }
 }
 
 /* ===================== Persistence (localStorage) ===================== */

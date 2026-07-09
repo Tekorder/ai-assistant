@@ -41,6 +41,20 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as Record<string, unknown>;
   const habits = Array.isArray(body.habits) ? (body.habits as Record<string, unknown>[]) : [];
 
+  // Wipe protection: a fresh device boot-posts one blank habit — never let a
+  // payload with no real habit text erase existing rows unless the client
+  // confirms it synced AFTER hydration.
+  const hydrated = req.headers.get('X-Sync-Hydrated') === '1';
+  if (!hydrated) {
+    const meaningful = habits.some(h => typeof h.text === 'string' && h.text.trim() !== '');
+    if (!meaningful) {
+      const existing = await prisma.habit.count({ where: { userId: user.id } });
+      if (existing > 0) {
+        return NextResponse.json({ error: 'empty-payload-rejected' }, { status: 409 });
+      }
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.habit.deleteMany({ where: { userId: user.id } });
 
