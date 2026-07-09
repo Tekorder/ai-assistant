@@ -19,6 +19,7 @@ model User {
   projects               Project[]
   habits                 Habit[]
   reminders              Reminder[]
+  checklists             Checklist[]
   habitMeta              HabitMeta?
   rowCreatedAt           DateTime   @default(now())
   rowUpdatedAt           DateTime   @updatedAt
@@ -93,6 +94,21 @@ model HabitMeta {
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   rowCreatedAt       DateTime @default(now())
   rowUpdatedAt       DateTime @updatedAt
+}
+
+model Checklist {
+  id           String   @id @default(cuid())
+  userId       String
+  localId      String
+  name         String   @default("")
+  items        Json     @default("[]")
+  position     Int      @default(0)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rowCreatedAt DateTime @default(now())
+  rowUpdatedAt DateTime @updatedAt
+
+  @@unique([userId, localId])
+  @@index([userId, position])
 }
 
 model Reminder {

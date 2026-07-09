@@ -452,12 +452,13 @@ function getFirebaseUid(): string {
  * boot state. The gate is bound to the uid it was opened for so a stale tab
  * can't post another account's defaults after a re-login.
  */
-type SyncPath = '/api/data/projects' | '/api/data/habits' | '/api/data/reminders';
+type SyncPath = '/api/data/projects' | '/api/data/habits' | '/api/data/reminders' | '/api/data/checklists';
 
 const syncGate: Record<SyncPath, boolean> = {
   '/api/data/projects': false,
   '/api/data/habits': false,
   '/api/data/reminders': false,
+  '/api/data/checklists': false,
 };
 let hydratedUid = '';
 
@@ -465,6 +466,7 @@ function closeSyncGates(): void {
   syncGate['/api/data/projects'] = false;
   syncGate['/api/data/habits'] = false;
   syncGate['/api/data/reminders'] = false;
+  syncGate['/api/data/checklists'] = false;
   hydratedUid = '';
 }
 
@@ -504,6 +506,12 @@ function remindersPayloadHasData(payload: RemindersPayload): boolean {
   return payload.reminders.some(r => (r.title ?? '').trim() !== '');
 }
 
+function checklistsPayloadHasData(payload: ChecklistsPayload): boolean {
+  return payload.lists.some(l =>
+    (l.name ?? '').trim() !== '' || l.items.some(it => (it.text ?? '').trim() !== ''),
+  );
+}
+
 function dbSyncProjects(): void {
   try {
     const raw = localStorage.getItem(LS_KEY_V2);
@@ -525,6 +533,14 @@ function dbSyncReminders(): void {
     const raw = localStorage.getItem(LS_KEY_REMINDERS);
     if (!raw) return;
     dbPost('/api/data/reminders', JSON.parse(raw));
+  } catch {}
+}
+
+function dbSyncChecklists(): void {
+  try {
+    const raw = localStorage.getItem(LS_KEY_CHECKLISTS);
+    if (!raw) return;
+    dbPost('/api/data/checklists', JSON.parse(raw));
   } catch {}
 }
 
@@ -559,10 +575,11 @@ export async function loadFromDatabase(): Promise<void> {
   // A stale gate from a previous account must never carry over
   if (hydratedUid && hydratedUid !== uid) closeSyncGates();
 
-  const needProjects  = !syncGate['/api/data/projects'];
-  const needHabits    = !syncGate['/api/data/habits'];
-  const needReminders = !syncGate['/api/data/reminders'];
-  if (!needProjects && !needHabits && !needReminders) return;
+  const needProjects   = !syncGate['/api/data/projects'];
+  const needHabits     = !syncGate['/api/data/habits'];
+  const needReminders  = !syncGate['/api/data/reminders'];
+  const needChecklists = !syncGate['/api/data/checklists'];
+  if (!needProjects && !needHabits && !needReminders && !needChecklists) return;
 
   const openGate = (path: SyncPath) => {
     hydratedUid = uid;
@@ -570,10 +587,11 @@ export async function loadFromDatabase(): Promise<void> {
   };
 
   try {
-    const [projectsRes, habitsRes, remindersRes] = await Promise.all([
-      needProjects  ? fetch('/api/data/projects',  { headers }).catch(() => null) : null,
-      needHabits    ? fetch('/api/data/habits',    { headers }).catch(() => null) : null,
-      needReminders ? fetch('/api/data/reminders', { headers }).catch(() => null) : null,
+    const [projectsRes, habitsRes, remindersRes, checklistsRes] = await Promise.all([
+      needProjects   ? fetch('/api/data/projects',   { headers }).catch(() => null) : null,
+      needHabits     ? fetch('/api/data/habits',     { headers }).catch(() => null) : null,
+      needReminders  ? fetch('/api/data/reminders',  { headers }).catch(() => null) : null,
+      needChecklists ? fetch('/api/data/checklists', { headers }).catch(() => null) : null,
     ]);
 
     if (projectsRes?.ok) {
@@ -616,10 +634,25 @@ export async function loadFromDatabase(): Promise<void> {
         if (remindersPayloadHasData(readRemindersLS())) dbSyncReminders();
       }
     }
+
+    if (checklistsRes?.ok) {
+      const data = await checklistsRes.json() as { lists?: unknown[] };
+      if (Array.isArray(data.lists) && data.lists.length > 0) {
+        // Keep the locally selected tab if it still exists in the server data
+        const selectedListId = readChecklistsLS().selectedListId;
+        localStorage.setItem(LS_KEY_CHECKLISTS, JSON.stringify({ lists: data.lists, selectedListId }));
+        window.dispatchEvent(new Event('youtask_checklists_updated'));
+        openGate('/api/data/checklists');
+      } else {
+        openGate('/api/data/checklists');
+        if (checklistsPayloadHasData(readChecklistsLS())) dbSyncChecklists();
+      }
+    }
   } catch {}
 
   // If any GET failed its gate is still closed — retry when we're back
-  if (!syncGate['/api/data/projects'] || !syncGate['/api/data/habits'] || !syncGate['/api/data/reminders']) {
+  if (!syncGate['/api/data/projects'] || !syncGate['/api/data/habits'] ||
+      !syncGate['/api/data/reminders'] || !syncGate['/api/data/checklists']) {
     hookHydrationRetry();
   }
 }
@@ -1889,6 +1922,7 @@ export function writeChecklistsLS(payload: ChecklistsPayload): void {
   try {
     localStorage.setItem(LS_KEY_CHECKLISTS, JSON.stringify(payload));
     window.dispatchEvent(new Event('youtask_checklists_updated'));
+    dbSyncChecklists();
   } catch {}
 }
 
