@@ -36,6 +36,7 @@ import {
 } from '@/lib/datacenter';
 import { validateSession } from '@/lib/session';
 import { useRouter } from 'next/navigation';
+import { version as APP_VERSION } from '../../package.json';
 
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
@@ -62,6 +63,9 @@ export default function App() {
   const PANEL_WIDTH = 320;
 
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+  useEffect(() => {
+    console.log(`YouTask v${APP_VERSION}`);
+  }, []);
   useEffect(() => {
     void (async () => {
       const valid = await validateSession();
