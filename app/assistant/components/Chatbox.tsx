@@ -10,45 +10,136 @@ import { useTaskMessaging } from '../_hook/useTaskMessaging';
 import RemindersSection from './RemindersSection';
 import ChatSection from './ChatSection';
 
+// Data layer (source of truth for lists/tasks — see lib/datacenter.ts)
+import {
+  readSelectedProject,
+  writeSelectedProjectBlocks,
+  addTaskUnderList,
+  createList,
+  updateBlock,
+  removeBlock,
+  todayYMD,
+  addDaysYMD,
+  isValidDateYYYYMMDD,
+  isUncTitleBlock,
+  type Block,
+} from '@/lib/datacenter';
+import type { TaskTableRow } from '../_types/Message';
+
 interface ChatBoxProps {
   showReminders: boolean;
   onCloseReminders: () => void;
 }
 
-function tryParseJsonString(s: unknown): Record<string, unknown> | null {
-  if (typeof s !== 'string') return null;
-  const t = s.trim();
-  if (!t) return null;
-  if (!(t.startsWith('{') || t.startsWith('['))) return null;
-  try {
-    return JSON.parse(t);
-  } catch {
-    return null;
-  }
+interface WaldyBlock {
+  text?: string;
+  deadline?: string;
 }
 
-function extractAnswerFromN8nResponse(data: unknown): string | null {
-  const root = Array.isArray(data) ? data[0] : data;
-  if (!root || typeof root !== 'object') return null;
+interface WaldyTaskResponse {
+  replyMessage?: string;
+  operation?: 'add' | 'check' | 'uncheck' | 'delete' | 'list' | 'none' | string;
+  list?: string | null;
+  task?: string | null;
+  when?: 'today' | 'tomorrow' | 'all' | null;
+  block?: WaldyBlock | null;
+  error?: string;
+}
 
-  const r = root as Record<string, unknown>;
+const norm = (s: string) => s.trim().toLowerCase();
 
-  if (typeof r.answer === 'string') return r.answer;
+function findListBlock(blocks: Block[], listName: string): Block | undefined {
+  return blocks.find(b => b.indent === 0 && !isUncTitleBlock(b) && norm(b.text) === norm(listName));
+}
 
-  if (typeof r.output === 'string') {
-    const parsed = tryParseJsonString(r.output);
-    if (parsed) {
-      const p0 = Array.isArray(parsed) ? parsed[0] : parsed;
-      const p0r = p0 as Record<string, unknown>;
-      if (typeof p0r?.answer === 'string') return p0r.answer;
-      if (typeof parsed?.answer === 'string') return parsed.answer as string;
-    }
-    return r.output;
+/** Adds the task Waldy extracted to the matching list, creating it if it doesn't exist yet. */
+function applyAddTask(listName: string, block: WaldyBlock): void {
+  const { blocks, project_id } = readSelectedProject();
+  const text = (block.text || '').trim();
+  const deadline = isValidDateYYYYMMDD(block.deadline) ? block.deadline : todayYMD();
+
+  const existingList = findListBlock(blocks, listName);
+
+  if (existingList) {
+    const result = addTaskUnderList(blocks, existingList.id, { text, deadline });
+    writeSelectedProjectBlocks(project_id, result.blocks);
+    return;
   }
 
-  if (typeof r.replyText === 'string') return r.replyText;
+  const created = createList(blocks, listName, { focusDay: deadline });
+  const finalBlocks = updateBlock(created.blocks, created.newTaskId, { text, deadline });
+  writeSelectedProjectBlocks(project_id, finalBlocks);
+}
 
-  return null;
+/** Finds the task block Waldy referred to, preferring an exact text match, scoped to a list when known. */
+function findTaskBlock(blocks: Block[], listName: string | null | undefined, taskText: string): Block | undefined {
+  const target = norm(taskText);
+  let candidates = blocks.filter(b => b.indent > 0 && b.archived !== true);
+
+  if (listName) {
+    const list = findListBlock(blocks, listName);
+    if (list) candidates = candidates.filter(b => b.parentId === list.id);
+  }
+
+  return (
+    candidates.find(b => norm(b.text) === target) ??
+    candidates.find(b => norm(b.text).includes(target) || target.includes(norm(b.text)))
+  );
+}
+
+/** Marks a matching task as done/not-done. Returns false if no task could be resolved. */
+function applyCheckTask(listName: string | null | undefined, taskText: string, checked: boolean): boolean {
+  const { blocks, project_id } = readSelectedProject();
+  const match = findTaskBlock(blocks, listName, taskText);
+  if (!match) return false;
+
+  const nextBlocks = updateBlock(blocks, match.id, { checked });
+  writeSelectedProjectBlocks(project_id, nextBlocks);
+  return true;
+}
+
+/**
+ * Deletes a single matching task. findTaskBlock only ever matches indent > 0
+ * blocks, so this can never resolve to (and delete) an entire list.
+ * Returns false if no task could be resolved.
+ */
+function applyDeleteTask(listName: string | null | undefined, taskText: string): boolean {
+  const { blocks, project_id } = readSelectedProject();
+  const match = findTaskBlock(blocks, listName, taskText);
+  if (!match) return false;
+
+  const nextBlocks = removeBlock(blocks, match.id);
+  writeSelectedProjectBlocks(project_id, nextBlocks);
+  return true;
+}
+
+/** Builds the checkable-table rows for a "list my tasks" request, filtered by list/day. */
+function buildTaskTableRows(
+  blocks: Block[],
+  listName: string | null | undefined,
+  when: string | null | undefined,
+): TaskTableRow[] {
+  let candidates = blocks.filter(b => b.indent > 0 && b.archived !== true);
+
+  if (listName) {
+    const list = findListBlock(blocks, listName);
+    if (list) candidates = candidates.filter(b => b.parentId === list.id);
+  }
+
+  if (when === 'today' || when === 'tomorrow') {
+    const target = when === 'today' ? todayYMD() : addDaysYMD(todayYMD(), 1);
+    candidates = candidates.filter(b => b.deadline === target);
+  }
+
+  const listNameById = new Map(blocks.filter(b => b.indent === 0).map(b => [b.id, b.text.trim()]));
+
+  return candidates.map(b => ({
+    id: b.id,
+    text: b.text,
+    checked: Boolean(b.checked),
+    deadline: b.deadline,
+    listName: (b.parentId && listNameById.get(b.parentId)) || 'Uncategorized',
+  }));
 }
 
 export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProps) {
@@ -58,6 +149,7 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
     isLoading,
     addUserMessage,
     addBotMessage,
+    updateTaskTableRow,
     setPendingTask,
     setIsLoading,
   } = useTaskMessaging();
@@ -65,34 +157,71 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
   const handleSendMessage = async (messageToSend: string): Promise<void> => {
     if (!messageToSend.trim()) return;
 
+    // Snapshot conversation so far (before this turn) as short-term context for Waldy.
+    const history = messages.slice(-10).map(m => ({
+      role: m.sender === 'user' ? 'user' : 'assistant',
+      content: m.text,
+    }));
+
     addUserMessage(messageToSend);
     setIsLoading(true);
 
     try {
-      await new Promise(r => setTimeout(r, 300));
+      const { blocks } = readSelectedProject();
+      const lists = blocks
+        .filter(b => b.indent === 0 && !isUncTitleBlock(b))
+        .map(listBlock => ({
+          name: listBlock.text.trim(),
+          tasks: blocks
+            .filter(b => b.indent > 0 && b.parentId === listBlock.id && b.archived !== true)
+            .map(b => ({ text: b.text.trim(), checked: Boolean(b.checked) }))
+            .filter(t => t.text),
+        }))
+        .filter(l => l.name);
 
-      const res = await fetch(
-        'https://wadu.app.n8n.cloud/webhook/0ecf4992-d5a2-4b58-92d9-42c85787c753',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            blocks: localStorage.youtask_blocks_v1,
-            message: messageToSend,
-          }),
-        }
-      );
+      const res = await fetch('/api/waldy/task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: messageToSend, lists, history }),
+      });
 
-      const data: unknown = await res.json();
-      const botText = extractAnswerFromN8nResponse(data) ?? 'Ok ✅';
-      addBotMessage(botText);
+      const data: WaldyTaskResponse = await res.json();
+
+      if (!res.ok || data.error) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      if (data.operation === 'add' && data.list && data.block) {
+        applyAddTask(data.list, data.block);
+        addBotMessage(data.replyMessage || 'Ok ✅');
+      } else if ((data.operation === 'check' || data.operation === 'uncheck') && data.task) {
+        const applied = applyCheckTask(data.list, data.task, data.operation === 'check');
+        addBotMessage(applied ? (data.replyMessage || 'Ok ✅') : `I couldn't find the task "${data.task}".`);
+      } else if (data.operation === 'delete' && data.task) {
+        const applied = applyDeleteTask(data.list, data.task);
+        addBotMessage(applied ? (data.replyMessage || 'Ok ✅') : `I couldn't find the task "${data.task}".`);
+      } else if (data.operation === 'list') {
+        const { blocks: freshBlocks } = readSelectedProject();
+        const rows = buildTaskTableRows(freshBlocks, data.list, data.when);
+        addBotMessage(data.replyMessage || "Here's what I found:", rows);
+      } else {
+        addBotMessage(data.replyMessage || 'Ok ✅');
+      }
+
       setPendingTask(null);
     } catch (err) {
       console.error(err);
-      addBotMessage('No pude contactar al agente 😅');
+      addBotMessage("I couldn't reach Waldy 😅");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleToggleTaskRow = (messageId: number, rowId: string, checked: boolean): void => {
+    const { blocks, project_id } = readSelectedProject();
+    const nextBlocks = updateBlock(blocks, rowId, { checked });
+    writeSelectedProjectBlocks(project_id, nextBlocks);
+    updateTaskTableRow(messageId, rowId, checked);
   };
 
   return (
@@ -141,6 +270,7 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
           messages={messages}
           isLoading={isLoading}
           onSendMessage={handleSendMessage}
+          onToggleTaskRow={handleToggleTaskRow}
         />
       )}
     </div>

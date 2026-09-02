@@ -939,6 +939,18 @@ export function removeListAndChildren(blocks: Block[], listId: string): Block[] 
   return moveUncToTop(ensureUncExists(next));
 }
 
+/** Remove a task block and all its nested subtasks (blocks with deeper indent right after it). */
+export function removeTaskAndSubtasks(blocks: Block[], taskId: string): Block[] {
+  const i = blocks.findIndex(b => b.id === taskId);
+  if (i < 0) return blocks;
+  const indent = blocks[i].indent;
+
+  let end = i + 1;
+  while (end < blocks.length && blocks[end].indent > indent) end++;
+
+  return blocks.slice(0, i).concat(blocks.slice(end));
+}
+
 export function updateBlock(
   blocks: Block[],
   id: string,

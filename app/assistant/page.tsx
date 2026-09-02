@@ -36,6 +36,7 @@ import {
 } from '@/lib/datacenter';
 import { validateSession } from '@/lib/session';
 import { useRouter } from 'next/navigation';
+import { WALDY_CLEAR_CHAT_EVENT } from './_hook/useTaskMessaging';
 import { version as APP_VERSION } from '../../package.json';
 
 
@@ -55,6 +56,7 @@ export default function App() {
   const [activityOpen, setActivityOpen] = useState(false);
   const [listsOpen, setListsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmClearChat, setConfirmClearChat] = useState(false);
   const [pivotInstances, setPivotInstances] = useState<
     Array<{ id: string; word: string; listId?: string }>
   >([]);
@@ -122,10 +124,12 @@ export default function App() {
   }, []);
 
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatClosing, setChatClosing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deckRightPad, setDeckRightPad] = useState(40);
   const deckScrollRef = useRef<HTMLDivElement | null>(null);
   const sidebarCloseTimerRef = useRef<number | null>(null);
+  const chatCloseTimerRef = useRef<number | null>(null);
   const prevOpenRef = useRef({
     sidebar: false,
     habits: false,
@@ -212,9 +216,30 @@ export default function App() {
     [],
   );
 
-  const openChatOverlay = useCallback(() => setChatOpen(true), []);
+  const openChatOverlay = useCallback(() => {
+    if (chatCloseTimerRef.current !== null) {
+      window.clearTimeout(chatCloseTimerRef.current);
+      chatCloseTimerRef.current = null;
+    }
+    setChatClosing(false);
+    setChatOpen(true);
+  }, []);
 
-  const closeChatOverlay = useCallback(() => setChatOpen(false), []);
+  const closeChatOverlay = useCallback(() => {
+    if (!chatOpen || chatClosing) return;
+    setChatClosing(true);
+    chatCloseTimerRef.current = window.setTimeout(() => {
+      chatCloseTimerRef.current = null;
+      setChatOpen(false);
+      setChatClosing(false);
+    }, 200);
+  }, [chatClosing, chatOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (chatCloseTimerRef.current !== null) window.clearTimeout(chatCloseTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (isDesktop !== true) return;
@@ -779,12 +804,30 @@ export default function App() {
 
         <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-        {chatOpen && (
+        {(chatOpen || chatClosing) && (
           <>
+            <style>{`
+              @keyframes chatOverlayIn  { from { opacity: 0; } to { opacity: 1; } }
+              @keyframes chatOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+              @keyframes chatPanelIn {
+                0%   { opacity: 0; transform: translateY(18px) scale(.94); filter: blur(3px); }
+                60%  { opacity: 1; transform: translateY(-3px) scale(1.012); filter: blur(0); }
+                100% { opacity: 1; transform: translateY(0) scale(1); }
+              }
+              @keyframes chatPanelOut {
+                from { opacity: 1; transform: translateY(0) scale(1); }
+                to   { opacity: 0; transform: translateY(12px) scale(.95); filter: blur(2px); }
+              }
+            `}</style>
             <button
               type="button"
               className="fixed inset-0 z-[9998]"
-              style={{ background: 'var(--assistant-overlay)' }}
+              style={{
+                background: 'var(--assistant-overlay)',
+                animation: chatClosing
+                  ? 'chatOverlayOut 0.18s ease-out both'
+                  : 'chatOverlayIn 0.22s ease-out both',
+              }}
               onClick={closeChatOverlay}
               aria-label="Close AI overlay"
             />
@@ -794,10 +837,16 @@ export default function App() {
                 `fixed z-[9999] flex flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`,
                 // mobile: full panel
                 'left-3 top-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)]',
-                // desktop: floating bubble
-                'md:left-auto md:top-auto md:right-5 md:bottom-24 md:h-150 md:w-125 md:max-w-[90vw]',
+                // desktop: floating bubble, full height between top-5 and bottom-24
+                'md:left-auto md:top-5 md:right-5 md:bottom-24 md:w-125 md:max-w-[90vw]',
               ].join(' ')}
-              style={{ color: 'var(--assistant-text)' }}
+              style={{
+                color: 'var(--assistant-text)',
+                transformOrigin: 'bottom right',
+                animation: chatClosing
+                  ? 'chatPanelOut 0.18s cubic-bezier(0.4, 0, 1, 1) both'
+                  : 'chatPanelIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both',
+              }}
             >
               <div
                 className="flex shrink-0 items-center justify-between border-b px-4 py-3"
@@ -825,14 +874,31 @@ export default function App() {
                   </span>
                   <span className="text-sm font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>AI chat</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={closeChatOverlay}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
-                  aria-label="Close"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmClearChat(true)}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
+                    aria-label="Clear chat memory"
+                    title="Clear chat memory"
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeChatOverlay}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               <div className="min-h-0 flex-1 overflow-hidden">
                 <ChatBox showReminders={false} onCloseReminders={() => {}} />
@@ -841,8 +907,50 @@ export default function App() {
           </>
         )}
 
-
-
+        {confirmClearChat && (
+          <div className="fixed inset-0 z-[10060] flex items-center justify-center p-5">
+            <button
+              type="button"
+              className="fixed inset-0"
+              style={{ background: 'var(--assistant-overlay)' }}
+              onClick={() => setConfirmClearChat(false)}
+              aria-label="Cancel"
+            />
+            <div
+              className="relative z-10 w-full max-w-[360px] rounded-2xl p-5 shadow-2xl"
+              style={{
+                background: 'var(--assistant-bg)',
+                color: 'var(--assistant-text)',
+                border: '1px solid var(--assistant-border-soft)',
+              }}
+            >
+              <h3 className="text-[15px] font-semibold mb-1.5">Clear chat memory?</h3>
+              <p className="text-[13px] mb-5" style={{ color: 'var(--assistant-text-soft)' }}>
+                Do you want to clear the chat memory?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmClearChat(false)}
+                  className={`flex-1 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors ${classes.panelBtn}`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new Event(WALDY_CLEAR_CHAT_EVENT));
+                    setConfirmClearChat(false);
+                  }}
+                  className="flex-1 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors"
+                  style={{ background: '#f87171', color: '#1a0505' }}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div
           className="pointer-events-none fixed bottom-0 left-0 right-0 z-[45] hidden border-t px-4 py-2.5 md:block"
@@ -886,36 +994,32 @@ export default function App() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => (chatOpen ? closeChatOverlay() : openChatOverlay())}
-          className="hidden md:flex fixed md:bottom-5 right-5 z-[9999] h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-2xl backdrop-blur-md transition-all duration-200 hover:bg-white/15 active:scale-95"
-          aria-label={chatOpen ? 'Close AI chat' : 'Open AI chat'}
-          title={chatOpen ? 'Close chat' : 'AI Assistant'}
-        >
-          <span className="pointer-events-none absolute -right-1 -top-1">
-            <span
-              className="absolute inline-flex h-3 w-3 rounded-full opacity-75 animate-ping"
-              style={{ background: 'var(--assistant-tone-1)' }}
-            />
-            <span
-              className="relative inline-flex h-3 w-3 rounded-full border border-black/30"
-              style={{ background: 'var(--assistant-tone-1)' }}
-            />
-          </span>
+        {!chatOpen && (
+          <button
+            type="button"
+            onClick={openChatOverlay}
+            className="hidden md:flex fixed md:bottom-5 right-5 z-[9999] h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-2xl backdrop-blur-md transition-all duration-200 hover:bg-white/15 active:scale-95"
+            aria-label="Open AI chat"
+            title="AI Assistant"
+          >
+            <span className="pointer-events-none absolute -right-1 -top-1">
+              <span
+                className="absolute inline-flex h-3 w-3 rounded-full opacity-75 animate-ping"
+                style={{ background: 'var(--assistant-tone-1)' }}
+              />
+              <span
+                className="relative inline-flex h-3 w-3 rounded-full border border-black/30"
+                style={{ background: 'var(--assistant-tone-1)' }}
+              />
+            </span>
 
-          {chatOpen ? (
-            <svg viewBox="0 0 24 24" className="h-6 w-6 text-white" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          ) : (
             <svg viewBox="0 0 24 24" className="h-6 w-6 text-white" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 14h5" />
             </svg>
-          )}
-        </button>
+          </button>
+        )}
 
         <style jsx global>{`
           [class*='bg-[#050505]'] { background-color: var(--assistant-bg) !important; }

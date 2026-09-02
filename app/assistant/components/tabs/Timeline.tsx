@@ -20,6 +20,7 @@ import {
   isListVisible,
   getTaskFlag,
   addTaskUnderList,
+  removeTaskAndSubtasks,
   type TaskFlagColor,
 } from '@/lib/datacenter';
 import { TaskFlagBadge } from '../TaskFlag';
@@ -104,6 +105,7 @@ export default function Timeline() {
   const [editingTextCardId, setEditingTextCardId] = useState<string | null>(null);
   const [draftText, setDraftText] = useState('');
   const [pickListOpen, setPickListOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const inlineDateRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const inlineTextRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -347,6 +349,12 @@ export default function Timeline() {
       break;
     }
 
+    writeSelectedProjectBlocks(projectId, next);
+    setBlocks(next);
+  };
+
+  const deleteTask = (cardId: string) => {
+    const next = removeTaskAndSubtasks(blocks, cardId);
     writeSelectedProjectBlocks(projectId, next);
     setBlocks(next);
   };
@@ -611,6 +619,16 @@ export default function Timeline() {
 
                               <button
                                 type="button"
+                                className="yt-reschedule"
+                                onClick={() => setDeleteConfirmId(card.id)}
+                                title="Delete"
+                                aria-label="Delete"
+                              >
+                                🗑️
+                              </button>
+
+                              <button
+                                type="button"
                                 className={['yt-tick', card.checked ? 'is-on' : ''].join(' ')}
                                 onClick={() => toggleDone(card.id)}
                                 title={card.checked ? 'Marcar como pendiente' : 'Marcar como completado'}
@@ -736,6 +754,48 @@ export default function Timeline() {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[10050] flex items-center justify-center p-5">
+          <button
+            type="button"
+            className="fixed inset-0"
+            style={{ background: 'var(--assistant-overlay)' }}
+            onClick={() => setDeleteConfirmId(null)}
+            aria-label="Cancel"
+          />
+          <div
+            className="relative z-10 w-full max-w-[320px] rounded-2xl p-4 shadow-2xl"
+            style={{
+              background: 'var(--assistant-bg)',
+              color: 'var(--assistant-text)',
+              border: '1px solid var(--assistant-border-soft)',
+            }}
+          >
+            <h3 className="text-[14px] font-semibold mb-1.5">Delete task?</h3>
+            <p className="text-[12px] mb-4" style={{ color: 'var(--assistant-text-soft)' }}>
+              This can&apos;t be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmId(null)}
+                className="text-[12px] px-3 py-2 rounded-lg"
+                style={{ color: 'var(--assistant-text-muted)' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { deleteTask(deleteConfirmId); setDeleteConfirmId(null); }}
+                className="text-[12px] px-3 py-2 rounded-lg bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
