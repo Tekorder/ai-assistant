@@ -20,6 +20,7 @@ import {
   type TaskFlagColor,
 } from '@/lib/datacenter';
 import { TaskFlagBadge, TaskFlagIcon } from '../TaskFlag';
+import { HoldMenu } from '../HoldMenu';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 /* ===================== Local types ===================== */
@@ -32,6 +33,7 @@ type CalCard = {
   deadline: string;
   isHidden?: boolean;
   archived?: boolean;
+  onHold?: boolean;
   flag?: TaskFlagColor;
 };
 
@@ -154,6 +156,7 @@ function DaySidebar({
   onClose,
   onToggleDone,
   onReschedule,
+  onSetHold,
   onAddTask,
   onDelete,
   isLight,
@@ -164,6 +167,7 @@ function DaySidebar({
   onClose: () => void;
   onToggleDone: (id: string) => void;
   onReschedule: (id: string, newDate: string) => void;
+  onSetHold: (id: string, onHold: boolean) => void;
   onAddTask: (listId: string, text: string) => void;
   onDelete: (id: string) => void;
   isLight: boolean;
@@ -171,6 +175,7 @@ function DaySidebar({
   const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const diff = dayDiff(ymd);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [holdMenu, setHoldMenu] = useState<{ cardId: string; x: number; y: number } | null>(null);
 
   const [addOpen, setAddOpen] = useState(false);
   const [newTaskListId, setNewTaskListId] = useState('');
@@ -248,7 +253,7 @@ function DaySidebar({
         className={[
           'z-201 flex flex-col overflow-hidden',
           // mobile
-          `fixed left-3 top-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] rounded-2xl ${classes.panelGlass}`,
+          `fixed left-3 top-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] rounded-2xl ${classes.panelGlass} ${classes.panelOverlay}`,
           // desktop
           'md:absolute md:left-auto md:top-0 md:right-0 md:h-full md:w-full md:max-w-md md:rounded-none',
         ].join(' ')}
@@ -372,10 +377,17 @@ function DaySidebar({
                             <button
                               type="button"
                               onClick={() => openPicker(card.id)}
-                              className="text-[14px] opacity-40 hover:opacity-90 transition-opacity"
-                              title="Reschedule"
+                              onContextMenu={e => {
+                                e.preventDefault();
+                                setHoldMenu({ cardId: card.id, x: e.clientX, y: e.clientY });
+                              }}
+                              className={card.onHold
+                                ? 'text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded opacity-70 hover:opacity-100 transition-opacity'
+                                : 'text-[14px] opacity-40 hover:opacity-90 transition-opacity'}
+                              style={card.onHold ? { color: 'var(--assistant-text-faint)', background: 'var(--assistant-control-bg)' } : undefined}
+                              title={card.onHold ? 'On Hold — right-click for options' : 'Reschedule'}
                             >
-                              📅
+                              {card.onHold ? 'HOLD' : '📅'}
                             </button>
                             <input
                               ref={el => void (dateRefs.current[card.id] = el)}
@@ -525,6 +537,19 @@ function DaySidebar({
           </div>
         </div>
       )}
+
+      {holdMenu ? (
+        <HoldMenu
+          x={holdMenu.x}
+          y={holdMenu.y}
+          isOnHold={Boolean(groups.flatMap(g => g.cards).find(c => c.id === holdMenu.cardId)?.onHold)}
+          onToggleHold={() => {
+            const card = groups.flatMap(g => g.cards).find(c => c.id === holdMenu.cardId);
+            onSetHold(holdMenu.cardId, !card?.onHold);
+          }}
+          onClose={() => setHoldMenu(null)}
+        />
+      ) : null}
     </>
   );
 }
@@ -600,6 +625,7 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
       deadline:  b.deadline!,
       isHidden:  b.isHidden === true,
       archived:  b.archived,
+      onHold:    b.onHold === true,
       flag: getTaskFlag(b),
     });
   }
@@ -681,6 +707,18 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
       if (b.id !== cardId || b.indent !== 1) continue;
       b.deadline = newDeadline;
       if (b.isHidden === true) b.isHidden = false;
+      b.onHold = false;
+      break;
+    }
+    writeSelectedProjectBlocks(projectId, next);
+    setBlocks(next);
+  };
+
+  const handleSetHold = (cardId: string, onHold: boolean) => {
+    const next = blocks.map(x => ({ ...x }));
+    for (const b of next) {
+      if (b.id !== cardId || b.indent !== 1) continue;
+      b.onHold = onHold;
       break;
     }
     writeSelectedProjectBlocks(projectId, next);
@@ -1070,6 +1108,7 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
               setSelectedDay(date);
             }
           }}
+          onSetHold={handleSetHold}
         />
       )}
     </div>

@@ -45,7 +45,7 @@ const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
 
 export default function App() {
   const router = useRouter();
-  const [selectedTheme, setSelectedTheme] = useState<AssistantThemeName>('purity');
+  const [selectedTheme, setSelectedTheme] = useState<AssistantThemeName>('tekorder');
   const theme = assistantThemes[selectedTheme];
   const [activeView, setActiveView] = useState<View>('quick');
 
@@ -443,19 +443,27 @@ export default function App() {
         className="font-inter flex h-screen flex-col"
         style={{
           ...getAssistantThemeVars(theme),
-          background: [
-            'linear-gradient(120deg, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-soft), transparent) 0%, transparent 38%)',
-            'linear-gradient(300deg, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-soft), transparent) 0%, transparent 42%)',
-            'radial-gradient(ellipse 120% 95% at 50% -30%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-boost), transparent) 0%, transparent 58%)',
-            'radial-gradient(ellipse 88% 70% at 16% 10%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-tone2), transparent) 0%, transparent 62%)',
-            'radial-gradient(ellipse 78% 65% at 88% 14%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 64%)',
-            'radial-gradient(ellipse 80% 68% at 96% 88%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-mid), transparent) 0%, transparent 66%)',
-            'radial-gradient(ellipse 76% 70% at 6% 84%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 67%)',
-            'radial-gradient(ellipse 96% 78% at 50% 122%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-soft), transparent) 0%, transparent 72%)',
-            'radial-gradient(ellipse 90% 48% at 50% 50%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-center), transparent) 0%, transparent 70%)',
-            'linear-gradient(to bottom, rgba(255,255,255,.035) 0%, rgba(255,255,255,.01) 16%, rgba(0,0,0,.18) 100%)',
-            'var(--assistant-bg)',
-          ].join(', '),
+          background: theme.backgroundImage
+            ? [
+                'linear-gradient(to bottom, rgba(0,0,0,.18) 0%, rgba(0,0,0,.04) 30%, rgba(0,0,0,.30) 100%)',
+                `url(${theme.backgroundImage})`,
+              ].join(', ')
+            : [
+                'linear-gradient(120deg, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-soft), transparent) 0%, transparent 38%)',
+                'linear-gradient(300deg, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-soft), transparent) 0%, transparent 42%)',
+                'radial-gradient(ellipse 120% 95% at 50% -30%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-boost), transparent) 0%, transparent 58%)',
+                'radial-gradient(ellipse 88% 70% at 16% 10%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-tone2), transparent) 0%, transparent 62%)',
+                'radial-gradient(ellipse 78% 65% at 88% 14%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 64%)',
+                'radial-gradient(ellipse 80% 68% at 96% 88%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-mid), transparent) 0%, transparent 66%)',
+                'radial-gradient(ellipse 76% 70% at 6% 84%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 67%)',
+                'radial-gradient(ellipse 96% 78% at 50% 122%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-soft), transparent) 0%, transparent 72%)',
+                'radial-gradient(ellipse 90% 48% at 50% 50%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-center), transparent) 0%, transparent 70%)',
+                'linear-gradient(to bottom, rgba(255,255,255,.035) 0%, rgba(255,255,255,.01) 16%, rgba(0,0,0,.18) 100%)',
+                'var(--assistant-bg)',
+              ].join(', '),
+          backgroundSize: theme.backgroundImage ? 'cover' : undefined,
+          backgroundPosition: theme.backgroundImage ? 'center' : undefined,
+          backgroundRepeat: theme.backgroundImage ? 'no-repeat' : undefined,
           color: 'var(--assistant-text)',
         }}
       >
@@ -513,7 +521,7 @@ export default function App() {
               }}
             />
             <div
-              className={`md:hidden fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+              className={`md:hidden fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass} ${classes.panelOverlay}`}
               style={{
                 color: 'var(--assistant-text)',
                 animation: sidebarClosing
@@ -569,7 +577,7 @@ export default function App() {
               style={{
                 width: MIN_SIDEBAR,
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.04), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.04), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
               }}
             >
               <button
@@ -605,9 +613,9 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 minWidth: `calc(${mainPanelWidth} - 1.5rem)`,
-                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 50%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 18%, transparent)',
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.06), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
                 transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             >
@@ -629,7 +637,7 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
               }}
             >
               {isDesktop && habitsOpen && (
@@ -652,7 +660,7 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
               }}
             >
               {isDesktop && remindersOpen && (
@@ -675,7 +683,7 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
               }}
             >
               {isDesktop && activityOpen && (
@@ -704,7 +712,7 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
               }}
             >
               {isDesktop && listsOpen && (
@@ -728,7 +736,7 @@ export default function App() {
                   className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
                   style={{
                     boxShadow:
-                      'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
+                      'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
                   }}
                 >
                   <PivotPanel
@@ -834,7 +842,7 @@ export default function App() {
             {/* Mobile: full-screen overlay. Desktop: floating widget bottom-right */}
             <div
               className={[
-                `fixed z-[9999] flex flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`,
+                `fixed z-[9999] flex flex-col overflow-hidden rounded-2xl ${classes.panelGlass} ${classes.panelOverlay}`,
                 // mobile: full panel
                 'left-3 top-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)]',
                 // desktop: floating bubble, full height between top-5 and bottom-24
@@ -1013,7 +1021,7 @@ export default function App() {
               />
             </span>
 
-            <svg viewBox="0 0 24 24" className="h-6 w-6 text-white" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg viewBox="0 0 24 24" className="h-6 w-6 text-black" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 14h5" />

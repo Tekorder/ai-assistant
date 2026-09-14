@@ -797,6 +797,21 @@ input[type="checkbox"]:checked::before {
   border-color: rgba(213, 252, 67, .22);
 }
 
+.yt-reschedule-hold {
+  width: auto;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: rgba(148,163,184,.95);
+  background: rgba(148,163,184,.14);
+  border-color: rgba(148,163,184,.28);
+}
+.yt-reschedule-hold:hover {
+  background: rgba(148,163,184,.22);
+  border-color: rgba(148,163,184,.4);
+}
+
 /* ===== Timeline — mobile responsive ===== */
 @media (max-width: 767px) {
   .youtask-timeline-root {

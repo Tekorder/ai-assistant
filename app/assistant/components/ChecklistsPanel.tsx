@@ -490,7 +490,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
         style={{ animation: isClosing ? 'checklistsOverlayOut 0.2s ease-out both' : 'checklistsOverlayIn 0.22s ease-out both' }}
       />
       <div
-        className={`fixed left-3 top-3 z-201 flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] max-w-3xl flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+        className={`fixed left-3 top-3 z-201 flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] max-w-3xl flex-col overflow-hidden rounded-2xl ${classes.panelGlass} ${classes.panelOverlay}`}
         style={{ color: 'var(--assistant-text)', animation: panelAnim }}
       >
         <style>{`

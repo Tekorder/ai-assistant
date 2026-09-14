@@ -24,6 +24,7 @@ import {
   type TaskFlagColor,
 } from '@/lib/datacenter';
 import { TaskFlagBadge } from '../TaskFlag';
+import { HoldMenu } from '../HoldMenu';
 
 /* ===================== Local UI types (no van a datacenter) ===================== */
 
@@ -42,6 +43,7 @@ type Card = {
   subtasks: SubTask[];
   isHidden?: boolean;
   archived?: boolean;
+  onHold?: boolean;
   flag?: TaskFlagColor;
 };
 
@@ -99,6 +101,7 @@ export default function Timeline() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => monthStart(new Date()));
   const [editingDateCardId, setEditingDateCardId] = useState<string | null>(null);
+  const [holdMenu, setHoldMenu] = useState<{ cardId: string; x: number; y: number } | null>(null);
   const [visibleLists, setVisibleLists] = useState<Record<string, boolean>>({});
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
@@ -195,6 +198,7 @@ export default function Timeline() {
         subtasks,
         isHidden,
         archived: false,
+        onHold: b.onHold === true,
         flag: getTaskFlag(b),
       });
     }
@@ -346,9 +350,21 @@ export default function Timeline() {
       if (b.id !== cardId || b.indent !== 1) continue;
       b.deadline = newDeadline;
       if (b.isHidden === true) b.isHidden = false;
+      b.onHold = false;
       break;
     }
 
+    writeSelectedProjectBlocks(projectId, next);
+    setBlocks(next);
+  };
+
+  const setHold = (cardId: string, onHold: boolean) => {
+    const next = blocks.map(x => ({ ...x }));
+    for (const b of next) {
+      if (b.id !== cardId || b.indent !== 1) continue;
+      b.onHold = onHold;
+      break;
+    }
     writeSelectedProjectBlocks(projectId, next);
     setBlocks(next);
   };
@@ -595,12 +611,16 @@ export default function Timeline() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <button
                                 type="button"
-                                className="yt-reschedule"
+                                className={['yt-reschedule', card.onHold ? 'yt-reschedule-hold' : ''].join(' ')}
                                 onClick={() => setEditingDateCardId(card.id)}
-                                title="Re-schedule"
+                                onContextMenu={e => {
+                                  e.preventDefault();
+                                  setHoldMenu({ cardId: card.id, x: e.clientX, y: e.clientY });
+                                }}
+                                title={card.onHold ? 'On Hold — right-click for options' : 'Re-schedule'}
                                 aria-label="Reschedule"
                               >
-                                📅
+                                {card.onHold ? 'HOLD' : '📅'}
                               </button>
                               <input
                                 ref={el => { inlineDateRefs.current[card.id] = el; }}
@@ -799,6 +819,19 @@ export default function Timeline() {
           </div>
         </div>
       )}
+
+      {holdMenu ? (
+        <HoldMenu
+          x={holdMenu.x}
+          y={holdMenu.y}
+          isOnHold={Boolean(cards.find(c => c.id === holdMenu.cardId)?.onHold)}
+          onToggleHold={() => {
+            const card = cards.find(c => c.id === holdMenu.cardId);
+            setHold(holdMenu.cardId, !card?.onHold);
+          }}
+          onClose={() => setHoldMenu(null)}
+        />
+      ) : null}
     </div>
   );
 }
