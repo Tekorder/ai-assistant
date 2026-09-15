@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { isTekOrderSession, logoutOfTekOrder } from '@/lib/tekorderSso';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 const TWOFA_SESSION_KEY = 'youtask_2fa';
@@ -77,13 +78,28 @@ export default function Menu({
   }, []);
 
   const handleLogout = useCallback(async () => {
+    let storedUid: string | null = null;
+    try {
+      storedUid = localStorage.getItem('firebase_uid');
+    } catch {
+      // ignore
+    }
+
     try {
       await signOut(auth);
     } catch {
       // ignore
-    } finally {
-      clearPrismaLocalStorage();
     }
+
+    if (isTekOrderSession(storedUid)) {
+      try {
+        await logoutOfTekOrder();
+      } catch {
+        // ignore — still clear our own session below
+      }
+    }
+
+    clearPrismaLocalStorage();
     onClose();
     router.replace('/');
   }, [clearPrismaLocalStorage, onClose, router]);
