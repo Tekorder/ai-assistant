@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { readProjectsLS, writeProjectsLS, cleanupEmptyTasks, type TaskFlagColor } from '@/lib/datacenter';
+import { readProjectsLS, writeProjectsLS, cleanupEmptyTasks, closeSyncGates, type TaskFlagColor } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
@@ -216,6 +216,8 @@ export default function TopNavBar({
       sessionStorage.removeItem('twofa_ok');
       sessionStorage.removeItem(TWOFA_SESSION_KEY);
     } catch {}
+
+    closeSyncGates();
   }, []);
 
   const enforcePrismaSession = useCallback(() => {

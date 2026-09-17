@@ -1,5 +1,7 @@
 import { auth } from './firebase';
 import { signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { isTekOrderSession } from './tekorderSso';
+import { closeSyncGates } from './datacenter';
 
 const SESSION_KEYS = [
   'firebase_uid', 'prisma_user_id', 'prisma_user_email',
@@ -12,6 +14,7 @@ const SESSION_KEYS = [
 
 export function clearSessionStorage() {
   try { SESSION_KEYS.forEach(k => localStorage.removeItem(k)); } catch {}
+  closeSyncGates();
 }
 
 export async function signOutAndClear(): Promise<void> {
@@ -29,13 +32,17 @@ export async function validateSession(): Promise<boolean> {
   // testuser is a dev bypass with no real Firebase account
   if (storedUid === 'testuser') return true;
 
-  const firebaseUser = await new Promise<User | null>(resolve => {
-    const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
-  });
+  // TekOrder logins never create a real Firebase Auth session — they're
+  // validated against our own DB below via the X-Firebase-UID header instead.
+  if (!isTekOrderSession(storedUid)) {
+    const firebaseUser = await new Promise<User | null>(resolve => {
+      const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
+    });
 
-  if (!firebaseUser || firebaseUser.uid !== storedUid) {
-    await signOutAndClear();
-    return false;
+    if (!firebaseUser || firebaseUser.uid !== storedUid) {
+      await signOutAndClear();
+      return false;
+    }
   }
 
   try {

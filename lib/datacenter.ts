@@ -465,7 +465,7 @@ const syncGate: Record<SyncPath, boolean> = {
 };
 let hydratedUid = '';
 
-function closeSyncGates(): void {
+export function closeSyncGates(): void {
   syncGate['/api/data/projects'] = false;
   syncGate['/api/data/habits'] = false;
   syncGate['/api/data/reminders'] = false;
@@ -513,6 +513,47 @@ function checklistsPayloadHasData(payload: ChecklistsPayload): boolean {
   return payload.lists.some(l =>
     (l.name ?? '').trim() !== '' || l.items.some(it => (it.text ?? '').trim() !== ''),
   );
+}
+
+/* ===================== Delete backups =====================
+ * Whenever a write shrinks the item count for a dataset (a task/habit/
+ * reminder/checklist item was deleted), the pre-delete JSON is snapshotted
+ * under a brand-new timestamped localStorage key before the overwrite, so a
+ * bad delete (or a sync overwriting local state) can be recovered from.
+ * Only the most recent MAX_BACKUPS_PER_DATASET snapshots per dataset are
+ * kept, oldest first. */
+
+const BACKUP_PREFIX = 'youtask_backup_';
+const MAX_BACKUPS_PER_DATASET = 20;
+
+function pruneOldBackups(datasetKey: string): void {
+  try {
+    const prefix = `${BACKUP_PREFIX}${datasetKey}__`;
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) keys.push(k);
+    }
+    keys.sort();
+    while (keys.length > MAX_BACKUPS_PER_DATASET) {
+      const oldest = keys.shift();
+      if (oldest) localStorage.removeItem(oldest);
+    }
+  } catch {}
+}
+
+function backupBeforeShrink(datasetKey: string, prevRaw: string | null, prevCount: number, nextCount: number): void {
+  if (!prevRaw || nextCount >= prevCount) return;
+  try {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    localStorage.setItem(`${BACKUP_PREFIX}${datasetKey}__${stamp}`, prevRaw);
+    pruneOldBackups(datasetKey);
+  } catch {}
+}
+
+function countProjectBlocks(payload: ProjectsPayload | null): number {
+  if (!payload) return 0;
+  return payload.projects.reduce((n, p) => n + (p.blocks?.length ?? 0), 0);
 }
 
 function dbSyncProjects(): void {
@@ -719,6 +760,9 @@ export function readProjectsLS(): ProjectsPayload | null {
 
 export function writeProjectsLS(payload: ProjectsPayload): void {
   try {
+    const prevRaw = localStorage.getItem(LS_KEY_V2);
+    const prevCount = prevRaw ? countProjectBlocks(JSON.parse(prevRaw)) : 0;
+    backupBeforeShrink('projects', prevRaw, prevCount, countProjectBlocks(payload));
     localStorage.setItem(LS_KEY_V2, JSON.stringify(payload));
     window.dispatchEvent(new Event('youtask_projects_updated'));
     window.dispatchEvent(new Event('youtask_blocks_updated'));
@@ -1176,6 +1220,9 @@ export function readHabitsLS(): HabitsPayload {
 
 export function writeHabitsLS(payload: HabitsPayload): void {
   try {
+    const prevRaw = localStorage.getItem(LS_KEY_HABITS);
+    const prevCount = prevRaw ? (JSON.parse(prevRaw) as HabitsPayload).habits?.length ?? 0 : 0;
+    backupBeforeShrink('habits', prevRaw, prevCount, payload.habits?.length ?? 0);
     localStorage.setItem(LS_KEY_HABITS, JSON.stringify(payload));
     window.dispatchEvent(new Event('youtask_habits_updated'));
     dbSyncHabits();
@@ -1313,6 +1360,9 @@ export function readRemindersLS(): RemindersPayload {
 
 export function writeRemindersLS(payload: RemindersPayload): void {
   try {
+    const prevRaw = localStorage.getItem(LS_KEY_REMINDERS);
+    const prevCount = prevRaw ? (JSON.parse(prevRaw) as RemindersPayload).reminders?.length ?? 0 : 0;
+    backupBeforeShrink('reminders', prevRaw, prevCount, payload.reminders?.length ?? 0);
     localStorage.setItem(LS_KEY_REMINDERS, JSON.stringify(payload));
     window.dispatchEvent(new Event('youtask_reminders_updated'));
     dbSyncReminders();
@@ -1935,6 +1985,12 @@ export function readChecklistsLS(): ChecklistsPayload {
 
 export function writeChecklistsLS(payload: ChecklistsPayload): void {
   try {
+    const prevRaw = localStorage.getItem(LS_KEY_CHECKLISTS);
+    const prevCount = prevRaw
+      ? (JSON.parse(prevRaw) as ChecklistsPayload).lists?.reduce((n, l) => n + (l.items?.length ?? 0), 0) ?? 0
+      : 0;
+    const nextCount = payload.lists?.reduce((n, l) => n + (l.items?.length ?? 0), 0) ?? 0;
+    backupBeforeShrink('checklists', prevRaw, prevCount, nextCount);
     localStorage.setItem(LS_KEY_CHECKLISTS, JSON.stringify(payload));
     window.dispatchEvent(new Event('youtask_checklists_updated'));
     dbSyncChecklists();
