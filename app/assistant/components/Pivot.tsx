@@ -490,7 +490,7 @@ export function PivotPanel({
         role="dialog"
         aria-modal="true"
         aria-label={word ? `Pivot: ${word}` : 'Pivot'}
-        className={`fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+        className={`fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass} ${classes.panelOverlay}`}
         style={{
           color: 'var(--assistant-text)',
           animation: isClosing

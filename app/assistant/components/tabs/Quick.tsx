@@ -48,6 +48,7 @@ import {
   sortBlocksByOrder,
 } from '@/lib/datacenter';
 import { TaskFlagButton } from '../TaskFlag';
+import { HoldMenu } from '../HoldMenu';
 import { downloadTasksExcel } from '@/lib/exportExcel';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
@@ -355,7 +356,8 @@ export default function Quick(props: QuickProps = {}) {
   const [toastMsg, setToastMsg]   = useState('');
   const toastTimerRef = useRef<number | null>(null);
 
-  const quickPillClass = (deadline?: string, checked?: boolean): string => {
+  const quickPillClass = (deadline?: string, checked?: boolean, onHold?: boolean): string => {
+    if (onHold) return classes.quickDatePillHold;
     if (checked) return classes.quickDatePillChecked;
     const diff = dayDiffFromToday(deadline);
     if (diff === null) return classes.quickDatePillEmpty;
@@ -364,6 +366,8 @@ export default function Quick(props: QuickProps = {}) {
     if (diff === 1) return classes.quickDatePillTomorrow;
     return classes.quickDatePillFuture;
   };
+
+  const [holdMenu, setHoldMenu] = useState<{ taskId: string; x: number; y: number } | null>(null);
 
   useEffect(() => {
     audioCheckRef.current = new Audio('/sounds/notif.mp3');
@@ -996,7 +1000,7 @@ const handleKey = (
                       ? 'hover:underline decoration-[var(--assistant-accent)] underline-offset-[3px]'
                       : ''
                   }
-                  onDoubleClick={
+                  onClick={
                     clickable
                       ? (e) => {
                           e.stopPropagation();
@@ -1192,7 +1196,7 @@ const handleKey = (
                             value={isValidDateYYYYMMDD(task.deadline) ? task.deadline : ''}
                             onChange={e => {
                               const v = e.target.value;
-                              handleUpdateBlock(task.id, { deadline: v ? v : undefined });
+                              handleUpdateBlock(task.id, { deadline: v ? v : undefined, onHold: false });
                               setEditingDateTaskId(null);
                             }}
                             onBlur={() => setEditingDateTaskId(null)}
@@ -1201,11 +1205,15 @@ const handleKey = (
                         ) : (
                           <button
                             type="button"
-                            className={`shrink-0 mt-0.5 text-[11px] px-1.5 py-0.5 rounded-full transition-colors ${quickPillClass(task.deadline, task.checked)}`}
-                            title="Set date"
+                            className={`shrink-0 mt-0.5 text-[11px] px-1.5 py-0.5 rounded-full transition-colors ${quickPillClass(task.deadline, task.checked, task.onHold)}`}
+                            title={task.onHold ? 'On Hold — right-click for options' : 'Set date'}
                             onClick={() => setEditingDateTaskId(task.id)}
+                            onContextMenu={e => {
+                              e.preventDefault();
+                              setHoldMenu({ taskId: task.id, x: e.clientX, y: e.clientY });
+                            }}
                           >
-                            {formatPill(task.deadline) || '📅'}
+                            {task.onHold ? 'HOLD' : (formatPill(task.deadline) || '📅')}
                           </button>
                         )}
                       </div>
@@ -1602,6 +1610,19 @@ const handleKey = (
             </div>
           </div>
         ) : null}
+
+      {holdMenu ? (
+        <HoldMenu
+          x={holdMenu.x}
+          y={holdMenu.y}
+          isOnHold={Boolean(blocks.find(b => b.id === holdMenu.taskId)?.onHold)}
+          onToggleHold={() => {
+            const task = blocks.find(b => b.id === holdMenu.taskId);
+            handleUpdateBlock(holdMenu.taskId, { onHold: !task?.onHold });
+          }}
+          onClose={() => setHoldMenu(null)}
+        />
+      ) : null}
 
       <OnboardingModal />
     </div>

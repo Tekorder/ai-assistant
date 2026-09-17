@@ -314,7 +314,7 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
         style={{ animation: isClosing ? 'habitsOverlayOut 0.2s ease-out both' : 'habitsOverlayIn 0.22s ease-out both' }}
       />
       <div
-        className={`fixed right-3 top-3 z-201 flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] max-w-md flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+        className={`fixed right-3 top-3 z-201 flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] max-w-md flex-col overflow-hidden rounded-2xl ${classes.panelGlass} ${classes.panelOverlay}`}
         style={{ color: 'var(--assistant-text)', animation: panelAnim }}
       >
         <style>{`

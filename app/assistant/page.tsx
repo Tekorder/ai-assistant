@@ -15,6 +15,7 @@ import RemindersPanel from './components/RemindersPanel';
 import ActivityLogPanel from './components/ActivityLogPanel';
 import ChecklistsPanel from './components/ChecklistsPanel';
 import SettingsPanel from './components/SettingsPanel';
+import ProfilePanel from './components/ProfilePanel';
 import { assistantThemes, getAssistantThemeVars, type AssistantThemeName } from './_theme/themes';
 import classes from './_theme/themes.module.css';
 import { PivotPanel, buildPrunedPivotTree, buildListPivotTree, type PivotTreeRow } from './components/Pivot';
@@ -36,6 +37,7 @@ import {
 } from '@/lib/datacenter';
 import { validateSession } from '@/lib/session';
 import { useRouter } from 'next/navigation';
+import { WALDY_CLEAR_CHAT_EVENT } from './_hook/useTaskMessaging';
 import { version as APP_VERSION } from '../../package.json';
 
 
@@ -44,7 +46,7 @@ const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
 
 export default function App() {
   const router = useRouter();
-  const [selectedTheme, setSelectedTheme] = useState<AssistantThemeName>('purity');
+  const [selectedTheme, setSelectedTheme] = useState<AssistantThemeName>('tekorder');
   const theme = assistantThemes[selectedTheme];
   const [activeView, setActiveView] = useState<View>('quick');
 
@@ -55,6 +57,8 @@ export default function App() {
   const [activityOpen, setActivityOpen] = useState(false);
   const [listsOpen, setListsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [confirmClearChat, setConfirmClearChat] = useState(false);
   const [pivotInstances, setPivotInstances] = useState<
     Array<{ id: string; word: string; listId?: string }>
   >([]);
@@ -122,10 +126,12 @@ export default function App() {
   }, []);
 
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatClosing, setChatClosing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deckRightPad, setDeckRightPad] = useState(40);
   const deckScrollRef = useRef<HTMLDivElement | null>(null);
   const sidebarCloseTimerRef = useRef<number | null>(null);
+  const chatCloseTimerRef = useRef<number | null>(null);
   const prevOpenRef = useRef({
     sidebar: false,
     habits: false,
@@ -212,9 +218,30 @@ export default function App() {
     [],
   );
 
-  const openChatOverlay = useCallback(() => setChatOpen(true), []);
+  const openChatOverlay = useCallback(() => {
+    if (chatCloseTimerRef.current !== null) {
+      window.clearTimeout(chatCloseTimerRef.current);
+      chatCloseTimerRef.current = null;
+    }
+    setChatClosing(false);
+    setChatOpen(true);
+  }, []);
 
-  const closeChatOverlay = useCallback(() => setChatOpen(false), []);
+  const closeChatOverlay = useCallback(() => {
+    if (!chatOpen || chatClosing) return;
+    setChatClosing(true);
+    chatCloseTimerRef.current = window.setTimeout(() => {
+      chatCloseTimerRef.current = null;
+      setChatOpen(false);
+      setChatClosing(false);
+    }, 200);
+  }, [chatClosing, chatOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (chatCloseTimerRef.current !== null) window.clearTimeout(chatCloseTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (isDesktop !== true) return;
@@ -418,19 +445,27 @@ export default function App() {
         className="font-inter flex h-screen flex-col"
         style={{
           ...getAssistantThemeVars(theme),
-          background: [
-            'linear-gradient(120deg, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-soft), transparent) 0%, transparent 38%)',
-            'linear-gradient(300deg, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-soft), transparent) 0%, transparent 42%)',
-            'radial-gradient(ellipse 120% 95% at 50% -30%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-boost), transparent) 0%, transparent 58%)',
-            'radial-gradient(ellipse 88% 70% at 16% 10%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-tone2), transparent) 0%, transparent 62%)',
-            'radial-gradient(ellipse 78% 65% at 88% 14%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 64%)',
-            'radial-gradient(ellipse 80% 68% at 96% 88%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-mid), transparent) 0%, transparent 66%)',
-            'radial-gradient(ellipse 76% 70% at 6% 84%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 67%)',
-            'radial-gradient(ellipse 96% 78% at 50% 122%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-soft), transparent) 0%, transparent 72%)',
-            'radial-gradient(ellipse 90% 48% at 50% 50%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-center), transparent) 0%, transparent 70%)',
-            'linear-gradient(to bottom, rgba(255,255,255,.035) 0%, rgba(255,255,255,.01) 16%, rgba(0,0,0,.18) 100%)',
-            'var(--assistant-bg)',
-          ].join(', '),
+          background: theme.backgroundImage
+            ? [
+                'linear-gradient(to bottom, rgba(0,0,0,.18) 0%, rgba(0,0,0,.04) 30%, rgba(0,0,0,.30) 100%)',
+                `url(${theme.backgroundImage})`,
+              ].join(', ')
+            : [
+                'linear-gradient(120deg, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-soft), transparent) 0%, transparent 38%)',
+                'linear-gradient(300deg, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-soft), transparent) 0%, transparent 42%)',
+                'radial-gradient(ellipse 120% 95% at 50% -30%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-boost), transparent) 0%, transparent 58%)',
+                'radial-gradient(ellipse 88% 70% at 16% 10%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-tone2), transparent) 0%, transparent 62%)',
+                'radial-gradient(ellipse 78% 65% at 88% 14%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 64%)',
+                'radial-gradient(ellipse 80% 68% at 96% 88%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-mid), transparent) 0%, transparent 66%)',
+                'radial-gradient(ellipse 76% 70% at 6% 84%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 67%)',
+                'radial-gradient(ellipse 96% 78% at 50% 122%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-soft), transparent) 0%, transparent 72%)',
+                'radial-gradient(ellipse 90% 48% at 50% 50%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-center), transparent) 0%, transparent 70%)',
+                'linear-gradient(to bottom, rgba(255,255,255,.035) 0%, rgba(255,255,255,.01) 16%, rgba(0,0,0,.18) 100%)',
+                'var(--assistant-bg)',
+              ].join(', '),
+          backgroundSize: theme.backgroundImage ? 'cover' : undefined,
+          backgroundPosition: theme.backgroundImage ? 'center' : undefined,
+          backgroundRepeat: theme.backgroundImage ? 'no-repeat' : undefined,
           color: 'var(--assistant-text)',
         }}
       >
@@ -488,7 +523,7 @@ export default function App() {
               }}
             />
             <div
-              className={`md:hidden fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
+              className={`md:hidden fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass} ${classes.panelOverlay}`}
               style={{
                 color: 'var(--assistant-text)',
                 animation: sidebarClosing
@@ -544,7 +579,7 @@ export default function App() {
               style={{
                 width: MIN_SIDEBAR,
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.04), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.04), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
               }}
             >
               <button
@@ -580,9 +615,9 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 minWidth: `calc(${mainPanelWidth} - 1.5rem)`,
-                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 50%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 18%, transparent)',
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.06), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.06), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
                 transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             >
@@ -604,7 +639,7 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
               }}
             >
               {isDesktop && habitsOpen && (
@@ -627,7 +662,7 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
               }}
             >
               {isDesktop && remindersOpen && (
@@ -650,7 +685,7 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
               }}
             >
               {isDesktop && activityOpen && (
@@ -679,7 +714,7 @@ export default function App() {
               className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
               style={{
                 boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
+                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
               }}
             >
               {isDesktop && listsOpen && (
@@ -703,7 +738,7 @@ export default function App() {
                   className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
                   style={{
                     boxShadow:
-                      'inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px rgba(0,0,0,.14)',
+                      'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
                   }}
                 >
                   <PivotPanel
@@ -770,6 +805,7 @@ export default function App() {
           onToggleLists={toggleLists}
           onToggleChat={() => (chatOpen ? closeChatOverlay() : openChatOverlay())}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenProfile={() => setProfileOpen(true)}
           habitsOpen={habitsOpen}
           remindersOpen={remindersOpen}
           activityOpen={activityOpen}
@@ -778,26 +814,51 @@ export default function App() {
         />
 
         <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <ProfilePanel open={profileOpen} onClose={() => setProfileOpen(false)} completedTasks={activityTasks} />
 
-        {chatOpen && (
+        {(chatOpen || chatClosing) && (
           <>
+            <style>{`
+              @keyframes chatOverlayIn  { from { opacity: 0; } to { opacity: 1; } }
+              @keyframes chatOverlayOut { from { opacity: 1; } to { opacity: 0; } }
+              @keyframes chatPanelIn {
+                0%   { opacity: 0; transform: translateY(18px) scale(.94); filter: blur(3px); }
+                60%  { opacity: 1; transform: translateY(-3px) scale(1.012); filter: blur(0); }
+                100% { opacity: 1; transform: translateY(0) scale(1); }
+              }
+              @keyframes chatPanelOut {
+                from { opacity: 1; transform: translateY(0) scale(1); }
+                to   { opacity: 0; transform: translateY(12px) scale(.95); filter: blur(2px); }
+              }
+            `}</style>
             <button
               type="button"
               className="fixed inset-0 z-[9998]"
-              style={{ background: 'var(--assistant-overlay)' }}
+              style={{
+                background: 'var(--assistant-overlay)',
+                animation: chatClosing
+                  ? 'chatOverlayOut 0.18s ease-out both'
+                  : 'chatOverlayIn 0.22s ease-out both',
+              }}
               onClick={closeChatOverlay}
               aria-label="Close AI overlay"
             />
             {/* Mobile: full-screen overlay. Desktop: floating widget bottom-right */}
             <div
               className={[
-                `fixed z-[9999] flex flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`,
+                `fixed z-[9999] flex flex-col overflow-hidden rounded-2xl ${classes.panelGlass} ${classes.panelOverlay}`,
                 // mobile: full panel
                 'left-3 top-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)]',
-                // desktop: floating bubble
-                'md:left-auto md:top-auto md:right-5 md:bottom-24 md:h-150 md:w-125 md:max-w-[90vw]',
+                // desktop: floating bubble, full height between top-5 and bottom-24
+                'md:left-auto md:top-5 md:right-5 md:bottom-24 md:w-125 md:max-w-[90vw]',
               ].join(' ')}
-              style={{ color: 'var(--assistant-text)' }}
+              style={{
+                color: 'var(--assistant-text)',
+                transformOrigin: 'bottom right',
+                animation: chatClosing
+                  ? 'chatPanelOut 0.18s cubic-bezier(0.4, 0, 1, 1) both'
+                  : 'chatPanelIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both',
+              }}
             >
               <div
                 className="flex shrink-0 items-center justify-between border-b px-4 py-3"
@@ -825,14 +886,31 @@ export default function App() {
                   </span>
                   <span className="text-sm font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>AI chat</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={closeChatOverlay}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
-                  aria-label="Close"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmClearChat(true)}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
+                    aria-label="Clear chat memory"
+                    title="Clear chat memory"
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeChatOverlay}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               <div className="min-h-0 flex-1 overflow-hidden">
                 <ChatBox showReminders={false} onCloseReminders={() => {}} />
@@ -841,8 +919,50 @@ export default function App() {
           </>
         )}
 
-
-
+        {confirmClearChat && (
+          <div className="fixed inset-0 z-[10060] flex items-center justify-center p-5">
+            <button
+              type="button"
+              className="fixed inset-0"
+              style={{ background: 'var(--assistant-overlay)' }}
+              onClick={() => setConfirmClearChat(false)}
+              aria-label="Cancel"
+            />
+            <div
+              className="relative z-10 w-full max-w-[360px] rounded-2xl p-5 shadow-2xl"
+              style={{
+                background: 'var(--assistant-bg)',
+                color: 'var(--assistant-text)',
+                border: '1px solid var(--assistant-border-soft)',
+              }}
+            >
+              <h3 className="text-[15px] font-semibold mb-1.5">Clear chat memory?</h3>
+              <p className="text-[13px] mb-5" style={{ color: 'var(--assistant-text-soft)' }}>
+                Do you want to clear the chat memory?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmClearChat(false)}
+                  className={`flex-1 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors ${classes.panelBtn}`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new Event(WALDY_CLEAR_CHAT_EVENT));
+                    setConfirmClearChat(false);
+                  }}
+                  className="flex-1 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors"
+                  style={{ background: '#f87171', color: '#1a0505' }}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div
           className="pointer-events-none fixed bottom-0 left-0 right-0 z-[45] hidden border-t px-4 py-2.5 md:block"
@@ -886,36 +1006,32 @@ export default function App() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => (chatOpen ? closeChatOverlay() : openChatOverlay())}
-          className="hidden md:flex fixed md:bottom-5 right-5 z-[9999] h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-2xl backdrop-blur-md transition-all duration-200 hover:bg-white/15 active:scale-95"
-          aria-label={chatOpen ? 'Close AI chat' : 'Open AI chat'}
-          title={chatOpen ? 'Close chat' : 'AI Assistant'}
-        >
-          <span className="pointer-events-none absolute -right-1 -top-1">
-            <span
-              className="absolute inline-flex h-3 w-3 rounded-full opacity-75 animate-ping"
-              style={{ background: 'var(--assistant-tone-1)' }}
-            />
-            <span
-              className="relative inline-flex h-3 w-3 rounded-full border border-black/30"
-              style={{ background: 'var(--assistant-tone-1)' }}
-            />
-          </span>
+        {!chatOpen && (
+          <button
+            type="button"
+            onClick={openChatOverlay}
+            className="hidden md:flex fixed md:bottom-5 right-5 z-[9999] h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-2xl backdrop-blur-md transition-all duration-200 hover:bg-white/15 active:scale-95"
+            aria-label="Open AI chat"
+            title="AI Assistant"
+          >
+            <span className="pointer-events-none absolute -right-1 -top-1">
+              <span
+                className="absolute inline-flex h-3 w-3 rounded-full opacity-75 animate-ping"
+                style={{ background: 'var(--assistant-tone-1)' }}
+              />
+              <span
+                className="relative inline-flex h-3 w-3 rounded-full border border-black/30"
+                style={{ background: 'var(--assistant-tone-1)' }}
+              />
+            </span>
 
-          {chatOpen ? (
-            <svg viewBox="0 0 24 24" className="h-6 w-6 text-white" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" className="h-6 w-6 text-white" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg viewBox="0 0 24 24" className="h-6 w-6 text-black" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 14h5" />
             </svg>
-          )}
-        </button>
+          </button>
+        )}
 
         <style jsx global>{`
           [class*='bg-[#050505]'] { background-color: var(--assistant-bg) !important; }

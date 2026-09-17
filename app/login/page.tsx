@@ -7,6 +7,7 @@ import {
   loginWithEmail,
   signInWithGoogle,
 } from '@/lib/auth';
+import { openTekOrderLogin } from '@/lib/tekorderSso';
 
 /* ─── 2FA Helpers ─────────────────────────────────────────── */
 function gen2FACode(): string {
@@ -605,6 +606,66 @@ export default function LoginPage() {
     }
   };
 
+  const handleTekOrderLogin = async () => {
+    setLoginError('');
+    setLoading(true);
+
+    try {
+      const tekOrderUser = await openTekOrderLogin('Utask');
+
+      const res = await fetch('/api/auth/tekorder/callback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tekOrderUser),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        console.error('TekOrder callback failed', { status: res.status, json });
+        throw new Error(
+          json?.message ||
+            `TekOrder sign-in failed: the server rejected it (HTTP ${res.status}). Please try again.`
+        );
+      }
+
+      const fallbackUid = `tekorder:${tekOrderUser.user_id}`;
+      const fallbackName =
+        tekOrderUser.display_name ||
+        [tekOrderUser.first_name, tekOrderUser.last_name].filter(Boolean).join(' ').trim() ||
+        null;
+
+      if (json.user?.id) {
+        const user = json.user;
+        const uid = user.firebaseUid || fallbackUid;
+        clearPreviousUserData(uid);
+        localStorage.setItem('prisma_user_id', user.id);
+        localStorage.setItem('prisma_user_email', user.email);
+        localStorage.setItem('firebase_uid', uid);
+        if (user.name) localStorage.setItem('prisma_user_name', user.name);
+        if (user.avatarUrl) localStorage.setItem('prisma_user_avatar', user.avatarUrl);
+      } else {
+        // No database configured (e.g. NEXT_PUBLIC_DATABASE_MODE=local) — fall
+        // back to a local-only session, same as email/Google login do here.
+        clearPreviousUserData(fallbackUid);
+        localStorage.setItem('prisma_user_id', `local-${fallbackUid}`);
+        localStorage.setItem('prisma_user_email', tekOrderUser.email);
+        localStorage.setItem('firebase_uid', fallbackUid);
+        if (fallbackName) localStorage.setItem('prisma_user_name', fallbackName);
+      }
+
+      setTrustedBrowser(tekOrderUser.email);
+      sessionStorage.setItem('twofa_ok', '1');
+      router.replace('/assistant');
+    } catch (err: unknown) {
+      setLoginError(
+        err instanceof Error
+          ? err.message
+          : 'TekOrder sign-in failed. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const verify2FA = async () => {
     setVerifying2FA(true);
     setTwoFAError('');
@@ -985,6 +1046,31 @@ export default function LoginPage() {
                   />
                 </svg>
                 Continue with Google
+              </button>
+
+              <button
+                type="button"
+                className="lp-google-btn"
+                onClick={handleTekOrderLogin}
+                disabled={loading || sending2FA}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect width="24" height="24" rx="6" fill="#d5fc43" />
+                  <path
+                    d="M7 12a5 5 0 1 1 5 5"
+                    stroke="#0a0a0a"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                  <circle cx="12" cy="17" r="1.4" fill="#0a0a0a" />
+                </svg>
+                Continue with TekOrder
               </button>
             </div>
           </form>

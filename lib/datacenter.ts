@@ -28,6 +28,7 @@ export type Block = {
   createdAt?: string;
   isHidden?: boolean;
   archived?: boolean;
+  onHold?: boolean;
   /** @deprecated use `flag` — kept for legacy data */
   priority?: boolean;
   flag?: TaskFlagColor;
@@ -112,6 +113,7 @@ type RawBlock = {
   createdAt?: unknown;
   isHidden?: unknown;
   archived?: unknown;
+  onHold?: unknown;
   priority?: unknown;
   flag?: unknown;
 };
@@ -407,6 +409,7 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
     b.createdAt = isValidDateYYYYMMDD(x?.createdAt) ? (x.createdAt as string) : today;
     if (typeof x?.isHidden === 'boolean') b.isHidden = x.isHidden;
     if (typeof x?.archived === 'boolean') b.archived = x.archived;
+    if (typeof x?.onHold === 'boolean') b.onHold = x.onHold;
     const flag = parseTaskFlag(x?.flag);
     if (flag) {
       b.flag = flag;
@@ -937,6 +940,18 @@ export function removeListAndChildren(blocks: Block[], listId: string): Block[] 
 
   const next = blocks.slice(0, i).concat(blocks.slice(end));
   return moveUncToTop(ensureUncExists(next));
+}
+
+/** Remove a task block and all its nested subtasks (blocks with deeper indent right after it). */
+export function removeTaskAndSubtasks(blocks: Block[], taskId: string): Block[] {
+  const i = blocks.findIndex(b => b.id === taskId);
+  if (i < 0) return blocks;
+  const indent = blocks[i].indent;
+
+  let end = i + 1;
+  while (end < blocks.length && blocks[end].indent > indent) end++;
+
+  return blocks.slice(0, i).concat(blocks.slice(end));
 }
 
 export function updateBlock(

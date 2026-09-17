@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
         ...(b.createdAt ? { createdAt: b.createdAt } : {}),
         ...(b.isHidden ? { isHidden: b.isHidden } : {}),
         ...(b.archived ? { archived: b.archived } : {}),
+        ...(b.onHold ? { onHold: b.onHold } : {}),
         ...(b.flag ? { flag: b.flag } : {}),
       })),
     })),
@@ -151,6 +152,7 @@ export async function POST(req: NextRequest) {
           createdAt:     typeof b.createdAt === 'string' ? b.createdAt : null,
           isHidden:      Boolean(b.isHidden ?? false),
           archived:      Boolean(b.archived ?? false),
+          onHold:        Boolean(b.onHold ?? false),
           flag:          typeof b.flag === 'string' ? b.flag : null,
         };
       })

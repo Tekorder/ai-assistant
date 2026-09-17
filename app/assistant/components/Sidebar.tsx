@@ -48,6 +48,7 @@ type SidebarProps = {
 
 export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, onSelectTheme }) => {
   const darkThemes: AssistantThemeName[] = [
+    'tekorder',
     'matrix',
     'ocean',
     'purity',

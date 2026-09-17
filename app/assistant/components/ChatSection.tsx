@@ -5,14 +5,16 @@ import { useSpeechRecognition } from '../_hook/useSpeechRecognition';
 import MicrophoneIcon from '../_icons/MicrophoneIcon';
 import { Message } from '../_types/Message';
 import { WRITING } from '../../_constants/chatbot.cons';
+import TaskTableMessage from './TaskTableMessage';
 
 interface ChatSectionProps {
   messages: Message[];
   isLoading: boolean;
   onSendMessage: (message: string) => void;
+  onToggleTaskRow?: (messageId: number, rowId: string, checked: boolean) => void;
 }
 
-const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMessage }) => {
+const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMessage, onToggleTaskRow }) => {
   const [inputMessage, setInputMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showVoiceError, setShowVoiceError] = useState(false);
@@ -139,6 +141,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
         {messages.map((msg) => {
           const isUser = msg.sender === 'user';
           const isNew = msg.id === justArrivedId;
+          const hasTable = Boolean(msg.taskTable);
           return (
             <div
               key={msg.id}
@@ -146,7 +149,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
             >
               <div
                 className={[
-                  'p-3 rounded-2xl max-w-xs md:max-w-md lg:max-w-lg break-words whitespace-pre-wrap shadow-sm will-change-transform',
+                  'p-3 rounded-2xl text-xs break-words whitespace-pre-wrap shadow-sm will-change-transform',
+                  hasTable ? 'max-w-full w-full sm:max-w-md md:max-w-lg' : 'max-w-xs md:max-w-md lg:max-w-lg',
                   isNew ? (isUser ? 'anim-user' : 'anim-bot') : '',
                 ].join(' ')}
                 style={isUser ? {
@@ -162,6 +166,12 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
                 }}
               >
                 {msg.text}
+                {msg.taskTable && (
+                  <TaskTableMessage
+                    rows={msg.taskTable}
+                    onToggle={(rowId, checked) => onToggleTaskRow?.(msg.id, rowId, checked)}
+                  />
+                )}
               </div>
             </div>
           );

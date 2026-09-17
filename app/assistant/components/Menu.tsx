@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { isTekOrderSession, logoutOfTekOrder } from '@/lib/tekorderSso';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 const TWOFA_SESSION_KEY = 'youtask_2fa';
@@ -18,6 +19,7 @@ type MenuProps = {
   onToggleLists?: () => void;
   onToggleChat?: () => void;
   onOpenSettings?: () => void;
+  onOpenProfile?: () => void;
   habitsOpen?: boolean;
   remindersOpen?: boolean;
   activityOpen?: boolean;
@@ -34,6 +36,7 @@ export default function Menu({
   onToggleLists,
   onToggleChat,
   onOpenSettings,
+  onOpenProfile,
   habitsOpen,
   remindersOpen,
   activityOpen,
@@ -77,13 +80,28 @@ export default function Menu({
   }, []);
 
   const handleLogout = useCallback(async () => {
+    let storedUid: string | null = null;
+    try {
+      storedUid = localStorage.getItem('firebase_uid');
+    } catch {
+      // ignore
+    }
+
     try {
       await signOut(auth);
     } catch {
       // ignore
-    } finally {
-      clearPrismaLocalStorage();
     }
+
+    if (isTekOrderSession(storedUid)) {
+      try {
+        await logoutOfTekOrder();
+      } catch {
+        // ignore — still clear our own session below
+      }
+    }
+
+    clearPrismaLocalStorage();
     onClose();
     router.replace('/');
   }, [clearPrismaLocalStorage, onClose, router]);
@@ -205,6 +223,8 @@ export default function Menu({
                 onClick={
                   item.label === 'Settings'
                     ? () => { onClose(); onOpenSettings?.(); }
+                    : item.label === 'Profile'
+                    ? () => { onClose(); onOpenProfile?.(); }
                     : undefined
                 }
                 className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors ${classes.panelBtn} ${classes.menuItem}`}

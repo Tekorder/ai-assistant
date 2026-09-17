@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 
 export type AssistantThemeName =
+    | 'tekorder'
     | 'matrix'
     | 'ocean'
     | 'purity'
@@ -28,9 +29,22 @@ type AssistantTheme = {
     tone3: string;
     textColor: string;
     glassBoost: string;
+    backgroundImage?: string;
 };
 
 export const assistantThemes: Record<AssistantThemeName, AssistantTheme> = {
+    tekorder: {
+	themeName: 'TekOrder',
+	style: 'light',
+	background: '#eef1fa',
+	tone1: '#f2821f',
+	tone2: '#c7d2f0',
+	tone3: '#9fc0e8',
+	textColor: '#1b2340',
+	glassBoost: '20%',
+	backgroundImage:
+	    'https://res.cloudinary.com/dkqetej1l/image/upload/v1777910957/Wallpaper_Blur_gxahbc.webp',
+    },
     matrix: {
 	themeName: 'Matrix',
 	style: 'dark',
@@ -205,6 +219,7 @@ export const assistantThemes: Record<AssistantThemeName, AssistantTheme> = {
 
 export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
     const isLight = theme.style === 'light';
+    const hasImage = Boolean(theme.backgroundImage);
     const glassBoostValue = Number.parseFloat(theme.glassBoost) || 38;
     const glassSoft = `${Math.round(glassBoostValue * 0.42)}%`;
     const glassMid = `${Math.round(glassBoostValue * 0.52)}%`;
@@ -236,13 +251,19 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
   ? 'rgba(0,0,0,.30)'
   : 'rgba(255,255,255,.30)',
 
-'--assistant-panel-bg': isLight
+'--assistant-panel-bg': hasImage
+  ? 'linear-gradient(rgba(255,255,255,.25), rgba(255,255,255,.2))'
+  : isLight
   ? 'rgba(255,255,255,.92)'
   : 'rgba(0,0,0,.92)',
 
-'--assistant-header-bg': isLight
+'--assistant-header-bg': hasImage
+  ? 'linear-gradient(rgba(255,255,255,.25), rgba(255,255,255,.2))'
+  : isLight
   ? 'rgba(255,255,255,.90)'
   : 'rgba(0,0,0,.45)',
+
+'--assistant-panel-blur': hasImage ? 'blur(16px)' : 'none',
 
 '--assistant-active-text': '#d5fc43',
 
@@ -252,7 +273,9 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	? 'rgba(255,255,255,.35)'
 	: 'rgba(0,0,0,.5)',
 
-	'--assistant-border-soft': isLight
+	'--assistant-border-soft': hasImage
+	? 'rgba(255,255,255,.3)'
+	: isLight
 	? 'rgba(0,0,0,.08)'
 	: 'rgba(255,255,255,.08)',
 
@@ -299,7 +322,9 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	'--assistant-surface-hover': isLight
 	? 'rgba(0,0,0,.05)'
 	: 'rgba(255,255,255,.10)',
-	'--assistant-glass-bg': isLight ? [
+	'--assistant-glass-bg': hasImage
+	? 'linear-gradient(rgba(255,255,255,.25), rgba(255,255,255,.2))'
+	: isLight ? [
 	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 12%, transparent) 0%, transparent 42%)',
 	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 8%, transparent) 0%, transparent 55%)',
 	    'linear-gradient(to bottom, rgba(255,255,255,.80) 0%, rgba(255,255,255,.60) 100%)',
@@ -310,8 +335,28 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	    'linear-gradient(to bottom, rgba(255,255,255,.08) 0%, rgba(255,255,255,.02) 24%, rgba(0,0,0,.22) 100%)',
 	    'color-mix(in srgb, var(--assistant-bg) 80%, black)',
 	].join(', '),
+	'--assistant-overlay-panel-bg': hasImage
+	? [
+	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 12%, transparent) 0%, transparent 42%)',
+	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 8%, transparent) 0%, transparent 55%)',
+	    'linear-gradient(to bottom, rgba(255,255,255,.95) 0%, rgba(255,255,255,.90) 100%)',
+	    'color-mix(in srgb, var(--assistant-bg) 95%, white)',
+	].join(', ')
+	: 'var(--assistant-glass-bg)',
 	'--assistant-danger-text': isLight ? '#be123c' : '#fca5a5',
-	'--assistant-panel-shadow': [
+	'--assistant-panel-shadow': isLight
+	? hasImage
+	  ? [
+	      '0 2px 6px 0 rgba(17,37,77,.05)',
+	      'inset 0 0 0 1px rgba(255,255,255,.3)',
+	  ].join(', ')
+	  : [
+	      '0 12px 28px rgba(17,24,39,.10)',
+	      '0 3px 10px rgba(17,24,39,.06)',
+	      '0 0 0 1px rgba(17,24,39,.04)',
+	      'inset 0 1px 0 rgba(255,255,255,.5)',
+	  ].join(', ')
+	: [
 	    '0 22px 60px rgba(0,0,0,.52)',
 	    '0 8px 24px rgba(0,0,0,.35)',
 	    '0 0 0 1px rgba(255,255,255,.04)',
