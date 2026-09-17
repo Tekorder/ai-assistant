@@ -1000,7 +1000,7 @@ const handleKey = (
                       ? 'hover:underline decoration-[var(--assistant-accent)] underline-offset-[3px]'
                       : ''
                   }
-                  onDoubleClick={
+                  onClick={
                     clickable
                       ? (e) => {
                           e.stopPropagation();
