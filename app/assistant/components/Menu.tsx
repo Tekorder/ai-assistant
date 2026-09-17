@@ -19,6 +19,7 @@ type MenuProps = {
   onToggleLists?: () => void;
   onToggleChat?: () => void;
   onOpenSettings?: () => void;
+  onOpenProfile?: () => void;
   habitsOpen?: boolean;
   remindersOpen?: boolean;
   activityOpen?: boolean;
@@ -35,6 +36,7 @@ export default function Menu({
   onToggleLists,
   onToggleChat,
   onOpenSettings,
+  onOpenProfile,
   habitsOpen,
   remindersOpen,
   activityOpen,
@@ -221,6 +223,8 @@ export default function Menu({
                 onClick={
                   item.label === 'Settings'
                     ? () => { onClose(); onOpenSettings?.(); }
+                    : item.label === 'Profile'
+                    ? () => { onClose(); onOpenProfile?.(); }
                     : undefined
                 }
                 className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors ${classes.panelBtn} ${classes.menuItem}`}
