@@ -53,22 +53,15 @@ body {
   font-family: 'Montserrat', sans-serif !important;
 }
 
-/* ===== App-wide scrollbars (official: same as Timeline board) ===== */
+/* ===== App-wide scrollbars: hidden but still scrollable ===== */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) rgba(0, 0, 0, 0.35);
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE / legacy Edge */
 }
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-*::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-}
-*::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 999px;
+  width: 0;
+  height: 0;
+  display: none; /* Chrome, Safari, Edge */
 }
 
 input[type="checkbox"] {
@@ -965,31 +958,6 @@ input[type="checkbox"]:checked::before {
   91% { transform: translateX(4px); }
   94% { transform: translateX(-3px); }
   97% { transform: translateX(3px); }
-}
-
-/* ── Quick.tsx notebook ruled rows ── */
-.quick-rows > div {
-  border-radius: 0;
-  border: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--assistant-text) 10%, transparent);
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.quick-rows > div:nth-child(even) {
-  background: color-mix(in srgb, var(--assistant-text) 2.5%, transparent);
-}
-
-.quick-rows > div:nth-child(odd) {
-  background: transparent;
-}
-
-.quick-rows > div:nth-child(even):hover,
-.quick-rows > div:nth-child(odd):hover {
-  background: color-mix(in srgb, var(--assistant-accent) 6%, transparent);
-  border-bottom-color: color-mix(in srgb, var(--assistant-accent) 18%, transparent);
-  box-shadow: none;
 }
 
 .wobble-loop {

@@ -3,15 +3,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { RemindersProvider } from './_context/RemindersContext';
+import { QuickFiltersProvider } from './components/QuickFiltersContext';
 import { Sidebar } from './components/Sidebar';
 import ChatBox from './components/Chatbox';
 import Timeline from './components/tabs/Timeline';
 import Quick from './components/tabs/Quick';
 import CalendarView from './components/tabs/Calendar';
-import TopNavBar from './components/TopNavBar';
+import TopNavBar, { NAV_ITEMS } from './components/TopNavBar';
 import Menu from './components/Menu';
 import HabitsPanel from './components/HabitsPanel';
 import RemindersPanel from './components/RemindersPanel';
+import DayPanel from './components/DayPanel';
 import ActivityLogPanel from './components/ActivityLogPanel';
 import ChecklistsPanel from './components/ChecklistsPanel';
 import SettingsPanel from './components/SettingsPanel';
@@ -24,12 +26,12 @@ import {
   type Block,
   readProjectsLS,
   writeProjectsLS,
+  cleanupEmptyTasks,
   updateBlock,
   formatPill,
   pillClass,
-  todayYMD,
   isValidDateYYYYMMDD,
-  dayDiffFromToday,
+  todayYMD,
   LS_KEY_CHECKLISTS,
   readChecklistsLS,
   getTaskFlag,
@@ -50,6 +52,22 @@ export default function App() {
   const theme = assistantThemes[selectedTheme];
   const [activeView, setActiveView] = useState<View>('quick');
 
+  const handleSetActiveView = useCallback((v: View) => {
+    if (activeView === 'quick' && v !== 'quick') {
+      const payload = readProjectsLS();
+      if (payload) {
+        writeProjectsLS({
+          ...payload,
+          projects: payload.projects.map(p => ({
+            ...p,
+            blocks: cleanupEmptyTasks(p.blocks),
+          })),
+        });
+      }
+    }
+    setActiveView(v);
+  }, [activeView]);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarClosing, setSidebarClosing] = useState(false);
   const [habitsOpen, setHabitsOpen] = useState(false);
@@ -61,6 +79,9 @@ export default function App() {
   const [confirmClearChat, setConfirmClearChat] = useState(false);
   const [pivotInstances, setPivotInstances] = useState<
     Array<{ id: string; word: string; listId?: string }>
+  >([]);
+  const [dayPanelInstances, setDayPanelInstances] = useState<
+    Array<{ id: string; ymd: string }>
   >([]);
 
   const MIN_SIDEBAR = 360;
@@ -125,12 +146,20 @@ export default function App() {
     return () => mq.removeEventListener('change', apply);
   }, []);
 
+  // Desktop: lists sidebar open by default on first load
+  useEffect(() => {
+    if (isDesktop !== true || sidebarDefaultedRef.current) return;
+    sidebarDefaultedRef.current = true;
+    setSidebarOpen(true);
+  }, [isDesktop]);
+
   const [chatOpen, setChatOpen] = useState(false);
   const [chatClosing, setChatClosing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deckRightPad, setDeckRightPad] = useState(40);
   const deckScrollRef = useRef<HTMLDivElement | null>(null);
   const sidebarCloseTimerRef = useRef<number | null>(null);
+  const sidebarDefaultedRef = useRef(false);
   const chatCloseTimerRef = useRef<number | null>(null);
   const prevOpenRef = useRef({
     sidebar: false,
@@ -139,6 +168,7 @@ export default function App() {
     activity: false,
     lists: false,
     pivots: 0,
+    dayPanels: 0,
   });
 
   const requestCloseSidebar = useCallback(() => {
@@ -218,6 +248,31 @@ export default function App() {
     [],
   );
 
+  const requestOpenDayPanel = useCallback((ymd: string) => {
+    if (!isValidDateYYYYMMDD(ymd)) return;
+    setDayPanelInstances((prev) => {
+      if (prev.some((p) => p.ymd === ymd)) return prev;
+      const id = `day_${ymd}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      return [...prev, { id, ymd }];
+    });
+    // Focus deck toward day panels even when ymd was already open (no-op push).
+    if (isDesktop === true) {
+      requestAnimationFrame(() => {
+        const el = deckScrollRef.current;
+        if (el) el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+      });
+    }
+  }, [isDesktop]);
+
+  const closeDayPanelInstance = useCallback((id: string) => {
+    setDayPanelInstances((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  const openDayYmids = useMemo(
+    () => dayPanelInstances.map((p) => p.ymd),
+    [dayPanelInstances],
+  );
+
   const openChatOverlay = useCallback(() => {
     if (chatCloseTimerRef.current !== null) {
       window.clearTimeout(chatCloseTimerRef.current);
@@ -252,7 +307,8 @@ export default function App() {
       (!prev.reminders && remindersOpen) ||
       (!prev.activity && activityOpen) ||
       (!prev.lists && listsOpen) ||
-      pivotInstances.length > prev.pivots;
+      pivotInstances.length > prev.pivots ||
+      dayPanelInstances.length > prev.dayPanels;
 
     const el = deckScrollRef.current;
     if (el) {
@@ -270,6 +326,7 @@ export default function App() {
       activity: activityOpen,
       lists: listsOpen,
       pivots: pivotInstances.length,
+      dayPanels: dayPanelInstances.length,
     };
   }, [
     isDesktop,
@@ -279,6 +336,7 @@ export default function App() {
     activityOpen,
     listsOpen,
     pivotInstances.length,
+    dayPanelInstances.length,
   ]);
 
   const [projectBlocks, setProjectBlocks] = useState<Block[]>([]);
@@ -333,30 +391,6 @@ export default function App() {
     return out;
   }, [pivotInstances, projectBlocks]);
 
-  const todayCompletedSummary = useMemo(() => {
-    const day = todayYMD();
-    const dueToday = projectBlocks.filter((b) => {
-      if (b.indent === 0 || b.archived === true) return false;
-      if (b.isHidden === true) return false;
-      return isValidDateYYYYMMDD(b.deadline) && b.deadline === day;
-    });
-    return {
-      total: dueToday.length,
-      completed: dueToday.filter((t) => t.checked === true).length,
-    };
-  }, [projectBlocks]);
-
-  const overdueCount = useMemo(
-    () =>
-      projectBlocks.filter((b) => {
-        if (b.indent === 0 || b.archived === true) return false;
-        if (b.isHidden === true || b.checked === true) return false;
-        const diff = dayDiffFromToday(b.deadline);
-        return diff !== null && diff < 0;
-      }).length,
-    [projectBlocks],
-  );
-
   const activityTasks = useMemo(
     () =>
       projectBlocks
@@ -409,7 +443,15 @@ export default function App() {
 
   const renderView = () => {
     if (activeView === 'timeline') return <Timeline />;
-    if (activeView === 'calendar') return <CalendarView isLight={isLight} />;
+    if (activeView === 'calendar') {
+      return (
+        <CalendarView
+          isLight={isLight}
+          onOpenDayPanel={requestOpenDayPanel}
+          openDayYmids={openDayYmids}
+        />
+      );
+    }
     return <Quick onOpenPivot={requestOpenPivot} />;
   };
 
@@ -423,7 +465,8 @@ export default function App() {
     !remindersOpen &&
     !activityOpen &&
     !listsOpen &&
-    pivotInstances.length === 0;
+    pivotInstances.length === 0 &&
+    dayPanelInstances.length === 0;
   const mainPanelWidth = mainPanelSolo ? '90vw' : '70vw';
 
   // Lists panel: starts as wide as the other side panels (PANEL_WIDTH),
@@ -438,14 +481,18 @@ export default function App() {
   }, []);
 
   const lastPivot = pivotInstances[pivotInstances.length - 1] ?? null;
+  const lastDayPanel = dayPanelInstances[dayPanelInstances.length - 1] ?? null;
 
   return (
     <RemindersProvider>
+    <QuickFiltersProvider>
       <div
         className="font-inter flex h-screen flex-col"
         style={{
           ...getAssistantThemeVars(theme),
-          background: theme.backgroundImage
+          background: theme.backgroundGradient
+            ? theme.backgroundGradient
+            : theme.backgroundImage
             ? [
                 'linear-gradient(to bottom, rgba(0,0,0,.18) 0%, rgba(0,0,0,.04) 30%, rgba(0,0,0,.30) 100%)',
                 `url(${theme.backgroundImage})`,
@@ -487,7 +534,10 @@ export default function App() {
           onToggleReminders={toggleReminders}
           onToggleActivity={toggleActivity}
           onToggleLists={toggleLists}
-
+          themeStyle={theme.style}
+          onToggleTheme={() => {
+            handleSelectTheme(theme.style === 'light' ? 'obsidian' : 'tekorder');
+          }}
         />
 
         <div className="relative flex-1 overflow-hidden md:hidden">
@@ -541,13 +591,13 @@ export default function App() {
                 aria-label="Close sidebar"
                 title="Close sidebar"
               >
-                ✕
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
+                </svg>
               </button>
               <div className="h-full overflow-hidden">
                 <Sidebar
                   onOpenPivot={requestOpenPivot}
-                  selectedTheme={selectedTheme}
-                  onSelectTheme={handleSelectTheme}
                 />
               </div>
             </div>
@@ -557,15 +607,13 @@ export default function App() {
         <div
           ref={deckScrollRef}
           onScroll={clampDeckRightScroll}
-          className="hidden min-h-0 flex-1 overflow-x-auto overflow-y-hidden touch-pan-x [-ms-overflow-style:auto] [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable_both-edges] [transform:scaleY(-1)] md:block"
+          className="hidden min-h-0 flex-1 overflow-x-auto overflow-y-hidden touch-pan-x [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] [transform:scaleY(-1)] md:block"
         >
           <div className="flex h-full min-h-0 min-w-full [transform:scaleY(-1)]">
           <div className="h-full w-[40px] shrink-0" aria-hidden="true" />
           <div
-            className="h-full"
+            className="h-full shrink-0"
             style={{
-              height: '85vh',
-              marginTop: '12px',
               width: sidebarVisualOpen ? MIN_SIDEBAR : 0,
               opacity: sidebarVisualOpen ? 1 : 0,
               transform: sidebarVisualOpen ? 'translateX(0)' : 'translateX(-10px)',
@@ -575,35 +623,33 @@ export default function App() {
             }}
           >
             <div
-              className="relative h-full overflow-hidden rounded-2xl"
+              className="relative m-3 box-border h-[calc(100%-5.5rem)] overflow-hidden rounded-2xl"
               style={{
-                width: MIN_SIDEBAR,
-                boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.04), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
+                width: `calc(${MIN_SIDEBAR}px - 1.5rem)`,
               }}
             >
               <button
                 type="button"
                 onClick={requestCloseSidebar}
-                className="absolute right-5 top-4 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                className="absolute right-3 top-3 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-colors"
                 style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)', color: 'var(--assistant-text-muted)' }}
                 onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
                 onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
                 aria-label="Close sidebar"
                 title="Close sidebar"
               >
-                ✕
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
+                </svg>
               </button>
               <Sidebar
                 onOpenPivot={requestOpenPivot}
-                selectedTheme={selectedTheme}
-                onSelectTheme={handleSelectTheme}
               />
             </div>
           </div>
 
           <div
-            className="min-h-0 shrink-0 overflow-hidden"
+            className="min-h-0 shrink-0 overflow-hidden flex flex-col"
             style={{
               minWidth: mainPanelWidth,
               marginLeft: mainPanelSolo ? 'auto' : undefined,
@@ -611,17 +657,38 @@ export default function App() {
               transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
+            {/* MAINPANEL — tabs + active view as one unit inside the dock */}
             <div
-              className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
+              className={`relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden ${classes.mainPanel}`}
               style={{
                 minWidth: `calc(${mainPanelWidth} - 1.5rem)`,
-                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 18%, transparent)',
-                boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.06), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
                 transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             >
-              {renderView()}
+              <div className="shrink-0 mx-auto w-full max-w-6xl px-3 md:px-8">
+                <div className={`px-3 ${classes.mainTabsBar}`}>
+                  {NAV_ITEMS.map(item => {
+                    const isActive = activeView === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSetActiveView(item.id)}
+                        className={[
+                          'flex items-center justify-center text-[13px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
+                          isActive ? classes.mainTabActive : classes.mainTabInactive,
+                        ].join(' ')}
+                        aria-current={isActive ? 'page' : undefined}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className={`relative min-h-0 flex-1 flex flex-col overflow-hidden ${classes.mainPanelBody}`}>
+                {renderView()}
+              </div>
             </div>
           </div>
 
@@ -635,13 +702,7 @@ export default function App() {
                 'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
-            <div
-              className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
-              style={{
-                boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
-              }}
-            >
+            <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
               {isDesktop && habitsOpen && (
                 <HabitsPanel variant="dock" open onClose={() => setHabitsOpen(false)} />
               )}
@@ -658,13 +719,7 @@ export default function App() {
                 'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
-            <div
-              className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
-              style={{
-                boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
-              }}
-            >
+            <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
               {isDesktop && remindersOpen && (
                 <RemindersPanel variant="dock" open onClose={() => setRemindersOpen(false)} />
               )}
@@ -681,13 +736,7 @@ export default function App() {
                 'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
-            <div
-              className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
-              style={{
-                boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
-              }}
-            >
+            <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
               {isDesktop && activityOpen && (
                 <ActivityLogPanel
                   variant="dock"
@@ -710,13 +759,7 @@ export default function App() {
                 'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
-            <div
-              className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
-              style={{
-                boxShadow:
-                  'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
-              }}
-            >
+            <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
               {isDesktop && listsOpen && (
                 <ChecklistsPanel variant="dock" open onClose={() => setListsOpen(false)} />
               )}
@@ -734,13 +777,7 @@ export default function App() {
                   transform: 'translateX(0)',
                 }}
               >
-                <div
-                  className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-transparent"
-                  style={{
-                    boxShadow:
-                      'inset 0 1px 0 rgba(255,255,255,.05), var(--assistant-panel-shadow, 0 6px 16px rgba(0,0,0,.14))',
-                  }}
-                >
+                <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
                   <PivotPanel
                     variant="dock"
                     open
@@ -752,6 +789,29 @@ export default function App() {
                     onToggleTask={handlePivotToggleTask}
                     pillText={(r: PivotTreeRow) => (r.indent > 0 ? formatPill(r.deadline) : '')}
                     pillClass={(r: PivotTreeRow) => pillClassNike(r.deadline, r.checked)}
+                  />
+                </div>
+              </div>
+            ))}
+
+          {isDesktop &&
+            dayPanelInstances.map((day) => (
+              <div
+                key={day.id}
+                className="h-full shrink-0"
+                style={{
+                  width: PANEL_WIDTH,
+                  opacity: 1,
+                  transform: 'translateX(0)',
+                }}
+              >
+                <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
+                  <DayPanel
+                    variant="dock"
+                    open
+                    ymd={day.ymd}
+                    isLight={isLight}
+                    onClose={() => closeDayPanelInstance(day.id)}
                   />
                 </div>
               </div>
@@ -792,6 +852,15 @@ export default function App() {
               onToggleTask={handlePivotToggleTask}
               pillText={(r: PivotTreeRow) => (r.indent > 0 ? formatPill(r.deadline) : '')}
               pillClass={(r: PivotTreeRow) => pillClassNike(r.deadline, r.checked)}
+            />
+            <DayPanel
+              variant="overlay"
+              open={Boolean(lastDayPanel)}
+              ymd={lastDayPanel?.ymd ?? todayYMD()}
+              isLight={isLight}
+              onClose={() => {
+                if (lastDayPanel) closeDayPanelInstance(lastDayPanel.id);
+              }}
             />
           </>
         )}
@@ -908,7 +977,9 @@ export default function App() {
                     className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
                     aria-label="Close"
                   >
-                    ✕
+                    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path strokeLinecap="round" d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -963,48 +1034,6 @@ export default function App() {
             </div>
           </div>
         )}
-
-        <div
-          className="pointer-events-none fixed bottom-0 left-0 right-0 z-[45] hidden border-t px-4 py-2.5 md:block"
-          style={{ borderColor: 'var(--assistant-border-soft)', background: 'var(--assistant-bg)' }}
-          role="status"
-          aria-live="polite"
-        >
-          <div className="pointer-events-auto mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <div className="min-w-0 flex flex-col gap-0.5">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: 'var(--assistant-text-faint)' }}>
-                Today
-              </span>
-              <span className="text-[12px]" style={{ color: 'var(--assistant-text-soft)' }}>
-                <span className="font-semibold tabular-nums" style={{ color: 'var(--assistant-tone-1)' }}>
-                  {todayCompletedSummary.completed}
-                </span>
-                <span style={{ color: 'var(--assistant-text-muted)' }}> / </span>
-                <span className="tabular-nums" style={{ color: 'var(--assistant-text-soft)' }}>{todayCompletedSummary.total}</span>
-                <span style={{ color: 'var(--assistant-text-faint)' }}> · completed</span>
-              </span>
-            </div>
-            <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--assistant-text-faint)' }}>
-                Overdue
-              </span>
-              <span
-                className="min-w-[2rem] rounded-lg border px-2.5 py-1 text-center text-[13px] font-semibold tabular-nums"
-                style={overdueCount > 0 ? {
-                  borderColor: 'rgba(244,63,94,.35)',
-                  background: 'rgba(244,63,94,.10)',
-                  color: theme.style === 'light' ? '#be123c' : '#fda4af',
-                } : {
-                  borderColor: 'var(--assistant-border-soft)',
-                  background: 'var(--assistant-surface)',
-                  color: 'var(--assistant-text-muted)',
-                }}
-              >
-                {overdueCount}
-              </span>
-            </div>
-          </div>
-        </div>
 
         {!chatOpen && (
           <button
@@ -1084,6 +1113,7 @@ export default function App() {
           }
         `}</style>
       </div>
+    </QuickFiltersProvider>
     </RemindersProvider>
   );
 }

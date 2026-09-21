@@ -12,7 +12,6 @@ import {
   LS_KEY_V1,
   // Utilities
   uid,
-  arrayMove,
   todayYMD,
   // Array structure
   isUncTitleBlock,
@@ -32,7 +31,6 @@ import {
   readProjectsLS,
   writeProjectsLS,
 } from '@/lib/datacenter';
-import { assistantThemes, type AssistantThemeName } from '../_theme/themes';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 type SidebarProps = {
@@ -42,44 +40,9 @@ type SidebarProps = {
     origin: 'sidebar';
     listId?: string | null;
   }) => void;
-  selectedTheme: AssistantThemeName;
-  onSelectTheme: (theme: AssistantThemeName) => void;
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, onSelectTheme }) => {
-  const darkThemes: AssistantThemeName[] = [
-    'tekorder',
-    'matrix',
-    'ocean',
-    'purity',
-    'vader',
-    'obsidian',
-    'midnight',
-    'ember',
-    'nebula',
-    'graphite',
-    'aurora',
-    'bloodmoon',
-    'deepsea',
-  ];
-  const lightThemes: AssistantThemeName[] = ['cloud', 'sand', 'mint', 'rose', 'lavender'];
-  const [themeTab, setThemeTab] = useState<'dark' | 'light'>('dark');
-  const [themePage, setThemePage] = useState(1);
-  const THEMES_PER_PAGE = 4;
-  const themesForTab = themeTab === 'dark' ? darkThemes : lightThemes;
-  const totalThemePages = Math.max(1, Math.ceil(themesForTab.length / THEMES_PER_PAGE));
-  const pagedThemes = themesForTab.slice(
-    (themePage - 1) * THEMES_PER_PAGE,
-    themePage * THEMES_PER_PAGE,
-  );
-  // Switch tab AND reset to page 1 in the same render. Doing the reset here instead
-  // of in a post-paint effect avoids a one-frame flash where the previous page index
-  // is out of range for the new tab's shorter list (e.g. dark p3 → light, which has
-  // only 2 pages → an empty grid would paint before the effect corrected it).
-  const selectThemeTab = (tab: 'dark' | 'light') => {
-    setThemeTab(tab);
-    setThemePage(1);
-  };
+export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot }) => {
   const buildAllCollapsedFromBlocks = (listBlocks: Block[]): Record<string, boolean> => {
     const next: Record<string, boolean> = {};
     for (const b of listBlocks) {
@@ -93,11 +56,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, on
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
 
   const [hydrated, setHydrated] = useState(false);
-  const [hintIndex, setHintIndex] = useState(0);
 
   const [deleteListConfirmId, setDeleteListConfirmId] = useState<string | null>(null);
   const [editingDateTaskId] = useState<string | null>(null);
   const [editingListTitleId, setEditingListTitleId] = useState<string | null>(null);
+  const [pivotSearch, setPivotSearch] = useState('');
 
   /* ── Refs ── */
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -106,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot, selectedTheme, on
   const nudgeTimerRef = useRef<number | null>(null);
   const newTimerRef = useRef<number | null>(null);
 
-  const dragRef = useRef<{ id: string; fromIndex: number } | null>(null);
+  const dragRef = useRef<{ id: string } | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const lastWrittenRef = useRef<string>('');
@@ -450,8 +413,9 @@ const visibleLists = useMemo<Record<string, boolean>>(
   };
 
   /* ===================== Drag & drop ===================== */
-  const onDragStartRow = (e: React.DragEvent, id: string, index: number) => {
-    dragRef.current = { id, fromIndex: index };
+  const onDragStartRow = (e: React.DragEvent, id: string) => {
+    e.stopPropagation();
+    dragRef.current = { id };
     setDragOverId(id);
     e.dataTransfer.effectAllowed = 'move';
     try {
@@ -468,13 +432,38 @@ const visibleLists = useMemo<Record<string, boolean>>(
   const onDropRow = (e: React.DragEvent, overId: string) => {
     e.preventDefault();
     const drag = dragRef.current;
-    if (!drag) return;
-
-    const toIndex = blocks.findIndex(b => b.id === overId);
-    if (toIndex < 0) return;
-    setCurrentBlocks(prev => arrayMove(prev, drag.fromIndex, toIndex));
     dragRef.current = null;
     setDragOverId(null);
+    if (!drag || drag.id === overId) return;
+
+    setCurrentBlocks(prev => {
+      const dragged = prev.find(b => b.id === drag.id);
+      const target = prev.find(b => b.id === overId);
+      if (!dragged || !target) return prev;
+      if (dragged.indent !== 0 || target.indent !== 0) return prev;
+      if (isUncTitleBlock(dragged) || isUncTitleBlock(target)) return prev;
+
+      // Reorder list roots (same order field Quick uses → workspace updates)
+      const roots = prev
+        .filter(b => b.indent === 0 && !isUncTitleBlock(b) && b.id !== drag.id)
+        .sort((a, b) => a.order - b.order);
+      const insertIdx = roots.findIndex(b => b.id === overId);
+      let at: number;
+      if (insertIdx < 0) {
+        at = roots.length;
+      } else if (dragged.order > target.order) {
+        at = insertIdx; // dragging up → before target
+      } else {
+        at = insertIdx + 1; // dragging down → after target
+      }
+      roots.splice(at, 0, dragged);
+
+      return prev.map(b => {
+        if (b.indent !== 0 || isUncTitleBlock(b)) return b;
+        const i = roots.findIndex(r => r.id === b.id);
+        return i >= 0 ? { ...b, order: i } : b;
+      });
+    });
   };
 
   const onDragEndRow = () => {
@@ -489,6 +478,43 @@ const visibleLists = useMemo<Record<string, boolean>>(
     onOpenPivot?.({ word: title, blockId: block.id, listId: block.id, origin: 'sidebar' });
   };
 
+  const listTitleSignature = (value: string) =>
+    value
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(part => part.toLocaleLowerCase())
+      .sort()
+      .join(' ');
+
+  const openPivotFromSearch = (rawValue: string) => {
+    const query = rawValue.trim();
+    if (!query) return;
+
+    const querySignature = listTitleSignature(query);
+    const matchedList = blocks.find(b => {
+      if (b.indent !== 0) return false;
+      if (isUncTitleBlock(b)) return false;
+      if (b.archived === true) return false;
+      const title = (b.text || '').trim();
+      if (!title) return false;
+      return listTitleSignature(title) === querySignature;
+    });
+
+    if (matchedList) {
+      const title = (matchedList.text || '').trim() || query;
+      onOpenPivot?.({
+        word: title,
+        blockId: matchedList.id,
+        listId: matchedList.id,
+        origin: 'sidebar',
+      });
+      return;
+    }
+
+    onOpenPivot?.({ word: query, blockId: null, origin: 'sidebar' });
+  };
+
   /* ===================== Render ===================== */
   return (
     <>
@@ -497,9 +523,23 @@ const visibleLists = useMemo<Record<string, boolean>>(
         className={`relative z-60 flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
       >
         {/* Scrollable content */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 md:px-4 md:pb-4 [scrollbar-gutter:stable]">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 pt-2 md:px-4 md:pb-4 md:pt-[4.25rem]">
           <>
-              <div className="flex items-center justify-start mt-1.5 mb-2.5 md:mt-2 md:mb-4 gap-2">
+              <input
+                type="text"
+                value={pivotSearch}
+                onChange={e => setPivotSearch(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    openPivotFromSearch(pivotSearch);
+                  }
+                }}
+                placeholder="Search keyword"
+                className={`mb-3 w-full rounded-xl px-3 py-2 text-[12px] ${classes.quickSearchInput}`}
+              />
+
+              <div className="flex items-center justify-start mb-2.5 md:mb-4 gap-2">
                 <button
                   type="button"
                   onClick={handleAddNewList}
@@ -525,11 +565,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     return (
                       <React.Fragment key={b.id}>
                         <div
-                          draggable
-                          onDragStart={e => onDragStartRow(e, b.id, blocks.findIndex(block => block.id === b.id))}
                           onDragOver={e => onDragOverRow(e, b.id)}
                           onDrop={e => onDropRow(e, b.id)}
-                          onDragEnd={onDragEndRow}
                           className={[
                             'group flex items-center gap-1 px-0.5 py-1 rounded-md',
                             dragOverId === b.id && dragRef.current?.id !== b.id ? classes.dragOver : '',
@@ -538,9 +575,13 @@ const visibleLists = useMemo<Record<string, boolean>>(
                           style={{ paddingLeft: 2 }}
                         >
                           <div
-                            className="w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                            draggable
+                            onDragStart={e => onDragStartRow(e, b.id)}
+                            onDragEnd={onDragEndRow}
+                            className="w-5 shrink-0 select-none flex items-center justify-center cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-100 transition-opacity"
                             style={{ color: 'var(--assistant-text-faint)' }}
-                            title="Drag"
+                            title="Drag to reorder"
+                            aria-label="Drag to reorder"
                           >
                             <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
                               <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
@@ -548,32 +589,6 @@ const visibleLists = useMemo<Record<string, boolean>>(
                               <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
                             </svg>
                           </div>
-                          <label className="relative h-4 w-4 shrink-0 flex items-center justify-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={isVisible}
-                              onChange={() => toggleListVisibility(b.id)}
-                              className="sr-only"
-                            />
-                            <span
-                              className="h-3 w-3 rounded-full border transition-all duration-200"
-                              style={
-                                isVisible
-                                  ? {
-                                      borderColor: 'var(--assistant-accent)',
-                                      background: 'var(--assistant-accent)',
-                                      boxShadow:
-                                        '0 0 0 1px color-mix(in srgb, var(--assistant-accent) 82%, transparent), ' +
-                                        '0 0 18px color-mix(in srgb, var(--assistant-accent) 95%, transparent), ' +
-                                        '0 0 28px color-mix(in srgb, var(--assistant-accent) 65%, transparent)',
-                                    }
-                                  : {
-                                      borderColor: 'var(--assistant-border-soft)',
-                                      background: 'transparent',
-                                    }
-                              }
-                            />
-                          </label>
 
                           {editingListTitleId === b.id ? (
                             <input
@@ -606,10 +621,32 @@ const visibleLists = useMemo<Record<string, boolean>>(
                             </button>
                           )}
 
-                          <div className="text-[10px] uppercase tracking-[0.14em] pr-1"
-                            style={{color: 'var(--assistant-text-faint)',}}>
-                            {isVisible ? 'On' : 'Off'}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleListVisibility(b.id);
+                            }}
+                            className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors"
+                            style={{ color: isVisible ? 'var(--assistant-accent)' : 'var(--assistant-text-faint)' }}
+                            title={isVisible ? 'Hide list' : 'Show list'}
+                            aria-label={isVisible ? 'Hide list' : 'Show list'}
+                            aria-pressed={isVisible}
+                          >
+                            {isVisible ? (
+                              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+                                <circle cx="12" cy="12" r="2.75" />
+                              </svg>
+                            ) : (
+                              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M10.6 10.7a2.75 2.75 0 0 0 3.7 3.7" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9.9 5.6A10.4 10.4 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-3.2 3.6" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.1 6.2A16.7 16.7 0 0 0 2.5 12S6 18.5 12 18.5c1.1 0 2.1-.2 3.1-.5" />
+                              </svg>
+                            )}
+                          </button>
                         </div>
                       </React.Fragment>
                     );
@@ -617,166 +654,6 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 })()}
               </div>
           </>
-        </div>
-
-        {/* Fixed footer */}
-          <div
-            className="shrink-0 space-y-2 md:space-y-3 bg-transparent px-3 py-2 md:px-4 md:py-3"
-            style={{
-              borderTop: '1px solid var(--assistant-border-soft)',
-            }}
-          >
-          <div className="rounded-2xl px-2.5 py-2 md:px-3 md:py-3"
-            style={{
-                  border: '1px solid var(--assistant-border-soft)',
-                  background: 'var(--assistant-panel-bg)',
-                }}>
-            <div className="text-[10px] uppercase tracking-[0.18em]"
-            style={{ color: 'var(--assistant-text-muted)'}}>Themes</div>
-              <div
-                className="mt-2 flex items-center gap-1 rounded-lg p-1"
-                style={{
-                  border: '1px solid var(--assistant-border-soft)',
-                  background: 'var(--assistant-panel-bg)',
-                }}
-              >
-              <button
-                type="button"
-                onClick={() => selectThemeTab('dark')}
-                className={[
-                  'flex-1 rounded-md px-2 py-0.5 md:py-1 text-[11px] transition-colors',
-                  themeTab === 'dark'
-                    ? classes.themeTabActive
-                    : classes.themeTabInactive,
-                ].join(' ')}
-              >
-                Dark
-              </button>
-              <button
-                type="button"
-                onClick={() => selectThemeTab('light')}
-                className={[
-                  'flex-1 rounded-md px-2 py-0.5 md:py-1 text-[11px] transition-colors',
-                  themeTab === 'light'
-                    ? classes.themeTabActive
-                    : classes.themeTabInactive,
-                ].join(' ')}
-              >
-                Light
-              </button>
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {pagedThemes.map((themeKey) => {
-                const isActive = selectedTheme === themeKey;
-                return (
-                  <button
-                    key={themeKey}
-                    type="button"
-                    onClick={() => onSelectTheme(themeKey)}
-                    className={[
-                      'rounded-lg px-2 py-1 md:py-1.5 text-left text-[11px]',
-                      isActive
-                        ? classes.themeCardActive
-                        : classes.themeCard,
-                  ].join(' ')}
-                    aria-pressed={isActive}
-                  >
-                    {assistantThemes[themeKey].themeName}
-                  </button>
-                );
-              })}
-              
-            </div>
-            <div className="mt-2 flex items-center justify-center gap-1.5">
-              {Array.from({ length: totalThemePages }).map((_, i) => {
-                const page = i + 1;
-                const isActive = page === themePage;
-                return (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setThemePage(page)}
-                    className={[
-                      'h-6 min-w-6 rounded-md px-1.5 text-[11px]',
-                      isActive
-                        ? classes.themeButtonActive
-                        : classes.themeButton,
-                    ].join(' ')}
-                    aria-label={`Theme page ${page}`}
-                  >
-                    {page}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-2xl px-2.5 py-2 md:px-3 md:py-3">
-            <div className="flex items-start gap-2 md:gap-3">
-         <div
-            className="h-7 w-7 md:h-9 md:w-9 rounded-xl flex items-center justify-center text-base md:text-lg shrink-0"
-            style={{
-              border: '1px solid var(--assistant-border-soft)',
-              background: 'var(--assistant-control-bg)',
-            }}
->
-                💡
-              </div>
-              <div className="min-w-0 flex-1">
-                <div
-                  className="text-[11px] uppercase tracking-[0.18em]"
-                  style={{ color: 'var(--assistant-text-muted)' }}
-                >Hint
-                </div>
-                <div
-                    className="mt-1 text-[11px] md:text-[12px] leading-[1.4] md:leading-5 transition-all"
-                    style={{ color: 'var(--assistant-text-soft)' }}
-                  >
-                  {hintIndex === 0 && 'Use Daily view to get focused on today’s tasks.'}
-                  {hintIndex === 1 && 'Use Organizer to plan your tasks based on your list.'}
-                  {hintIndex === 2 && 'Use Timeline to check your week progress.'}
-                  {hintIndex === 3 && 'Use Calendar to plan the future.'}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-2 md:mt-3 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                {[0, 1, 2, 3].map((i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setHintIndex(i)}
-                   className={[
-                      'h-1.5 rounded-full transition-all',
-                      i === hintIndex
-                        ? classes.hintDotActive
-                        : classes.hintDot,
-                    ].join(' ')}
-                  />
-                ))}
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setHintIndex((prev) => (prev - 1 + 4) % 4)}
-                  className={`${classes.navButton} h-6 w-6 md:h-7 md:w-7 rounded-full`}
-                  aria-label="Previous slide"
-                >
-                  ‹
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setHintIndex((prev) => (prev + 1) % 4)}
-                  className={`${classes.navButton} h-6 w-6 md:h-7 md:w-7 rounded-full`}
-                  aria-label="Next slide"
-                >
-                  ›
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
         </aside>
       </div>
