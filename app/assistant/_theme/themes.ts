@@ -30,20 +30,22 @@ type AssistantTheme = {
     textColor: string;
     glassBoost: string;
     backgroundImage?: string;
+    backgroundGradient?: string;
 };
 
 export const assistantThemes: Record<AssistantThemeName, AssistantTheme> = {
     tekorder: {
 	themeName: 'TekOrder',
 	style: 'light',
-	background: '#eef1fa',
-	tone1: '#f2821f',
-	tone2: '#c7d2f0',
-	tone3: '#9fc0e8',
-	textColor: '#1b2340',
-	glassBoost: '20%',
-	backgroundImage:
-	    'https://res.cloudinary.com/dkqetej1l/image/upload/v1777910957/Wallpaper_Blur_gxahbc.webp',
+	background: '#eef3f9',
+	tone1: '#1a2b48',
+	tone2: '#d7e4f2',
+	tone3: '#9eb9d8',
+	textColor: '#1a2b48',
+	glassBoost: '16%',
+	/* Soft airy wash: off-white top-right → pastel sky blue bottom-left */
+	backgroundGradient:
+	    'linear-gradient(145deg, #f8fafc 0%, #f1f5fa 22%, #e4eef7 48%, #d0e2f2 72%, #b8d2eb 100%)',
     },
     matrix: {
 	themeName: 'Matrix',

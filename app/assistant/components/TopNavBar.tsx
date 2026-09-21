@@ -3,11 +3,11 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { readProjectsLS, writeProjectsLS, cleanupEmptyTasks, type TaskFlagColor } from '@/lib/datacenter';
+import { readProjectsLS, writeProjectsLS, cleanupEmptyTasks, closeSyncGates, type TaskFlagColor } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
-type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
+export type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 
 type Reminder = {
   id: string;
@@ -39,6 +39,8 @@ interface TopNavBarProps {
   onToggleReminders: () => void;
   onToggleActivity: () => void;
   onToggleLists: () => void;
+  themeStyle?: 'light' | 'dark';
+  onToggleTheme?: () => void;
 }
 
 const LS_REMINDERS = 'youtask_reminders_v1';
@@ -77,11 +79,11 @@ function isReminderToday(r: Reminder, today: string): boolean {
   return r.date === today;
 }
 
-const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.ReactNode }[] = [
+export const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.ReactNode }[] = [
   {
     id: 'quick',
-    label: 'Daily',
-    mobileLabel: 'Daily',
+    label: 'Workspace',
+    mobileLabel: 'Work',
     icon: (
       <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 8.5l3 3 6-7" />
@@ -118,52 +120,75 @@ const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.Rea
 ];
 
 
-const PANEL_NAV: { id: 'habits' | 'reminders'; label: string; mobileLabel: string; icon: React.ReactNode }[] = [
+const CENTER_NAV: {
+  id: 'lists' | 'habits' | 'reminders';
+  label: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    id: 'lists',
+    label: 'Lists',
+    icon: (
+      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+        <circle cx="2.5" cy="4" r="1" fill="currentColor" stroke="none" />
+        <circle cx="2.5" cy="8" r="1" fill="currentColor" stroke="none" />
+        <circle cx="2.5" cy="12" r="1" fill="currentColor" stroke="none" />
+        <path strokeLinecap="round" d="M5.5 4h8M5.5 8h8M5.5 12h8" />
+      </svg>
+    ),
+  },
   {
     id: 'habits',
     label: 'Habits',
-    mobileLabel: 'Habits',
     icon: (
-      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 2v2M8 12v2M2 8h2M12 8h2" />
-        <circle cx="8" cy="8" r="3" />
+      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11.5 3.5A5 5 0 0 1 13 8a5 5 0 0 1-5 5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11.5 3.5V6H9" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.5A5 5 0 0 1 3 8a5 5 0 0 1 5-5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.5V10H7" />
       </svg>
     ),
   },
   {
     id: 'reminders',
     label: 'Reminders',
-    mobileLabel: 'Remind',
     icon: (
-      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
         <path strokeLinecap="round" d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 1.2v.8H2.8v-.8L4 9V6.5a4 4 0 0 1 4-4z" />
-        <path strokeLinecap="round" d="M6 12.5a2 2 0 0 0 4 0" />
+        <path strokeLinecap="round" d="M6.3 12.5a1.8 1.8 0 0 0 3.4 0" />
       </svg>
     ),
   },
 ];
 
-const ACTIVITY_TAB = {
-  label: 'Activity',
-  mobileLabel: 'Activity',
-  icon: (
-    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2 10h2.5l1.2-3 2.1 6 1.8-4H14" />
+function YouTaskLogoMark({ className = 'h-7 w-7' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} aria-hidden>
+      <circle cx="16" cy="16" r="14" fill="currentColor" />
+      <path
+        d="M9.2 18.8c2.2 3.4 5.1 5 7.8 5 3.4 0 5.8-1.9 5.8-4.4 0-2.1-1.6-3.4-4.2-3.4-1.5 0-2.8.5-3.9 1.3"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10.4 16.2c1.7 2.4 3.8 3.5 5.8 3.5 2.3 0 3.8-1.2 3.8-2.8 0-1.3-.9-2.1-2.6-2.1-1.1 0-2.1.4-3 .9"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+      />
+      <path
+        d="M11.6 13.6c1.2 1.5 2.6 2.1 3.9 2.1 1.4 0 2.2-.7 2.2-1.6 0-.7-.5-1.1-1.4-1.1-.8 0-1.5.3-2.1.6"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+      />
     </svg>
-  ),
-};
-
-const LISTS_TAB = {
-  label: 'Lists',
-  mobileLabel: 'Lists',
-  icon: (
-    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <rect x="2" y="3" width="3" height="3" rx="0.6" />
-      <rect x="2" y="10" width="3" height="3" rx="0.6" />
-      <path strokeLinecap="round" d="M7 4.5h7M7 11.5h7" />
-    </svg>
-  ),
-};
+  );
+}
 
 /*
 {
@@ -188,14 +213,12 @@ export default function TopNavBar({
   onToggleSidebar,
   habitsOpen,
   remindersOpen,
-  activityOpen,
-  listsOpen,
   timelineOpen = false,
   calendarOpen = false,
   onToggleHabits,
   onToggleReminders,
-  onToggleActivity,
-  onToggleLists,
+  themeStyle = 'light',
+  onToggleTheme,
 }: Omit<TopNavBarProps, 'title' | 'onHome'> & { title?: string; onHome?: () => void }) {
   const router = useRouter();
 
@@ -216,6 +239,8 @@ export default function TopNavBar({
       sessionStorage.removeItem('twofa_ok');
       sessionStorage.removeItem(TWOFA_SESSION_KEY);
     } catch {}
+
+    closeSyncGates();
   }, []);
 
   const enforcePrismaSession = useCallback(() => {
@@ -235,12 +260,15 @@ export default function TopNavBar({
 
   // ── Current user label ──
   const [userName, setUserName] = useState('');
+  const [userAvatar, setUserAvatar] = useState('');
   useEffect(() => {
     try {
       const name = localStorage.getItem('prisma_user_name');
       const email = localStorage.getItem('prisma_user_email') ?? '';
+      const avatar = localStorage.getItem('prisma_user_avatar') ?? '';
       // Never display a raw email — fall back to its local part
       setUserName(name || email.split('@')[0] || '');
+      setUserAvatar(avatar);
     } catch {}
   }, []);
 
@@ -354,290 +382,220 @@ export default function TopNavBar({
         .drop-in { animation: dropIn .18s cubic-bezier(.25,.9,.3,1) forwards; }
       `}</style>
 
-      {/* ── Top bar ── */}
-      <header className={`shrink-0 h-12 ${classes.header}  flex items-center px-3 md:px-4 gap-2 z-50`}>
+      {/* ── Top bar — designer reference layout ── */}
+      <header className={`shrink-0 z-50 flex items-center px-4 md:px-6 ${classes.topNav}`}>
+        {/* Left: brand */}
+        <div className="flex items-center gap-2 shrink-0 min-w-0">
+          <span className={classes.topNavBrand}>
+            <YouTaskLogoMark className="h-7 w-7 shrink-0" />
+          </span>
+          <span className={`text-[17px] font-bold tracking-tight lowercase leading-none ${classes.topNavBrand}`}>
+            youtask
+          </span>
+        </div>
 
-        {/* Logo */}
-        <button
-          type="button"
-          onClick={onOpenMenu}
-          className="shrink-0 rounded-md transition-opacity hover:opacity-90"
-          aria-label="Open menu"
-          title="Open menu"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-dark.png" alt="" className="h-9 w-auto object-contain" />
-        </button>
-
-        {/* Sidebar toggle */}
-        <button
-          type="button"
-          onClick={onToggleSidebar}
-          className={[
-            'h-8 w-8 rounded-lg flex items-center justify-center transition-colors shrink-0',
-            sidebarOpen
-              ? classes.activeTab
-              : classes.inactiveTab,
-          ].join(' ')}
-          aria-label="Toggle lists sidebar"
-          title="Toggle lists sidebar"
-        >
-          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <path strokeLinecap="round" d="M2 4h12M2 8h12M2 12h12" />
-          </svg>
-        </button>
-
-      
-
-        {/* Divider */}
-       <div className={`hidden md:block w-px h-5 mx-1 shrink-0 ${classes.divider}`} />
-
-        {/* Nav tabs — desktop only on mobile, moved to bottom bar */}
-        <nav className="hidden md:flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none">
-          {/* Main views */}
-          {NAV_ITEMS.map(item => {
+        {/* Center: Lists / Habits / Reminders */}
+        <nav className="hidden md:flex flex-1 items-center justify-center gap-2 min-w-0">
+          {CENTER_NAV.map(item => {
             const isActive =
-              item.id === 'timeline'
-                ? activeView === 'timeline' || timelineOpen
-                : item.id === 'calendar'
-                ? activeView === 'calendar' || calendarOpen
-                : activeView === item.id;
+              item.id === 'lists' ? sidebarOpen
+              : item.id === 'habits' ? habitsOpen
+              : remindersOpen;
+            const onClick =
+              item.id === 'lists' ? onToggleSidebar
+              : item.id === 'habits' ? onToggleHabits
+              : onToggleReminders;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => handleSetActiveView(item.id)}
+                onClick={onClick}
                 className={[
-                  'flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap flex-1 md:flex-none md:shrink-0',
-                  isActive
-                    ? classes.activeTab
-                    : classes.inactiveTab,
+                  'flex items-center gap-1.5 text-[13px] whitespace-nowrap shrink-0 transition-colors',
+                  isActive ? classes.topNavCenterActive : classes.topNavCenterInactive,
                 ].join(' ')}
-                aria-current={isActive ? 'page' : undefined}
+                aria-pressed={isActive}
               >
-                <span className={isActive ? classes.activeIcon : ''}>{item.icon}</span>
-                <span className="hidden md:inline">{item.label}</span>
-              </button>
-            );
-          })}
-
-        </nav>
-
-        <div className="hidden md:flex items-center gap-0.5 shrink-0">
-          {PANEL_NAV.map(item => {
-            const isOpen = item.id === 'habits' ? habitsOpen : remindersOpen;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={item.id === 'habits' ? onToggleHabits : onToggleReminders}
-                className={[
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 whitespace-nowrap shrink-0',
-                  isOpen
-                    ? classes.activeTab
-                    : classes.inactiveTab,
-                ].join(' ')}
-                aria-expanded={isOpen}
-              >
-                <span className={isOpen ? classes.activeIcon : ''}>{item.icon}</span>
+                {item.icon}
                 <span>{item.label}</span>
               </button>
             );
           })}
+        </nav>
 
-          <button
-            type="button"
-            onClick={onToggleActivity}
-            className={[
-              'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium whitespace-nowrap shrink-0 transition-all duration-150',
-              activityOpen
-                    ? classes.activeTab
-                    : classes.inactiveTab,
-            ].join(' ')}
-            aria-expanded={activityOpen}
-            title="Toggle activity log"
-          >
-            <span className={activityOpen ? classes.activeIcon : ''}>{ACTIVITY_TAB.icon}</span>
-            <span>{ACTIVITY_TAB.label}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onToggleLists}
-            className={[
-              'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium whitespace-nowrap shrink-0 transition-all duration-150',
-              listsOpen
-                    ? classes.activeTab
-                    : classes.inactiveTab,
-            ].join(' ')}
-            aria-expanded={listsOpen}
-            title="Toggle lists"
-          >
-            <span className={listsOpen ? classes.activeIcon : ''}>{LISTS_TAB.icon}</span>
-            <span>{LISTS_TAB.label}</span>
-          </button>
-        </div>
-
-        {/* Mobile spacer — pushes bell to the right when nav is hidden */}
+        {/* Mobile spacer */}
         <div className="flex-1 md:hidden" />
 
-        {/* Divider before bell */}
-        <div className="w-px h-5 mx-1 shrink-0" style={{ background: 'var(--assistant-border-soft)' }} />
-
-        {/* ── Bell ── */}
-        {hydrated && (
-          <div ref={dropRef} className="relative">
+        {/* Right: moon / bell / profile */}
+        <div className="flex items-center gap-1 md:gap-2 shrink-0">
+          {onToggleTheme ? (
             <button
               type="button"
-              onClick={() => setDropOpen(o => !o)}
-              title={
-                !todayReminders.length ? 'No reminders today'
-                : hasPending ? `${pendingCount} reminder${pendingCount > 1 ? 's' : ''} pending`
-                : 'All reminders done today'
-              }
-              className="relative h-8 w-8 flex items-center justify-center rounded-lg transition-colors shrink-0"
-              style={{ color: 'var(--assistant-text-muted)' }}
-              onMouseEnter={e => {
-                e.currentTarget.style.color = 'var(--assistant-accent)';
-                e.currentTarget.style.background = 'color-mix(in srgb, var(--assistant-accent) 12%, transparent)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.color = 'var(--assistant-text-muted)';
-                e.currentTarget.style.background = '';
-              }}
+              onClick={onToggleTheme}
+              className={classes.topNavIconBtn}
+              aria-label={themeStyle === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              title={themeStyle === 'light' ? 'Dark mode' : 'Light mode'}
             >
-              <span className={hasPending ? 'bell-ring' : ''} style={{ fontSize: 16, lineHeight: 1 }}>
-                🔔
-              </span>
-              {hasPending && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-[3px] flex items-center justify-center rounded-full bg-red-500 text-white"
-                  style={{ fontSize: 10, fontWeight: 700, lineHeight: 1, boxShadow: '0 0 0 2px var(--assistant-panel-bg)' }}
-                >
-                  {pendingCount}
-                </span>
+              {themeStyle === 'light' ? (
+                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.2 9.4A5.5 5.5 0 0 1 6.6 2.8 5.6 5.6 0 1 0 13.2 9.4z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                  <circle cx="8" cy="8" r="3.2" />
+                  <path strokeLinecap="round" d="M8 1.5v1.4M8 13.1v1.4M1.5 8h1.4M13.1 8h1.4M3.4 3.4l1 1M11.6 11.6l1 1M12.6 3.4l-1 1M4.4 11.6l-1 1" />
+                </svg>
               )}
             </button>
+          ) : null}
 
-            {/* Dropdown */}
-            {dropOpen && (
-              <div
-                className="drop-in fixed left-3 right-3 top-14 md:absolute md:left-auto md:right-0 md:top-10 md:w-72 rounded-xl shadow-2xl overflow-hidden z-[200] isolate"
-                style={{ background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
+          {hydrated && (
+            <div ref={dropRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setDropOpen(o => !o)}
+                title={
+                  !todayReminders.length ? 'No reminders today'
+                  : hasPending ? `${pendingCount} reminder${pendingCount > 1 ? 's' : ''} pending`
+                  : 'All reminders done today'
+                }
+                className={`relative ${classes.topNavIconBtn}`}
+                aria-label="Notifications"
               >
-                <div
-                  className="flex items-center justify-between px-4 py-2.5 border-b"
-                  style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
-                >
-                  <span className="text-[12px] font-semibold tracking-wide" style={{ color: 'var(--assistant-text-soft)' }}>
-                    Today&apos;s reminders
+                <span className={hasPending ? 'bell-ring inline-flex' : 'inline-flex'}>
+                  <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                    <path strokeLinecap="round" d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 1.2v.8H2.8v-.8L4 9V6.5a4 4 0 0 1 4-4z" />
+                    <path strokeLinecap="round" d="M6.3 12.5a1.8 1.8 0 0 0 3.4 0" />
+                  </svg>
+                </span>
+                {hasPending && (
+                  <span className={classes.topNavBellBadge}>
+                    {pendingCount > 9 ? '9+' : pendingCount}
                   </span>
-                  {hasPending && (
-                    <button
-                      onClick={dismissAll}
-                      className="text-[11px] transition-colors"
-                      style={{ color: 'var(--assistant-text-faint)' }}
-                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-accent)')}
-                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-faint)')}
-                    >
-                      Dismiss all
-                    </button>
-                  )}
-                </div>
+                )}
+              </button>
 
-                <div className="max-h-64 overflow-y-auto">
-                  {todayReminders.length === 0 ? (
-                    <div className="px-4 py-5 text-[12px] text-center" style={{ color: 'var(--assistant-text-faint)' }}>
-                      No reminders for today
-                    </div>
-                  ) : (
-                    todayReminders.map(r => {
-                      const isDone = !!r.dismissed;
-                      return (
-                        <div
-                          key={r.id}
-                          className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 group"
-                          style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
-                        >
-                          <span
-                            className="shrink-0 w-2 h-2 rounded-full mt-0.5"
-                            style={{ background: isDone ? 'rgba(52,211,153,.6)' : '#f87171' }}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div
-                              className="text-[13px] font-medium leading-snug truncate"
-                              style={{
-                                color: isDone ? 'var(--assistant-text-faint)' : 'var(--assistant-text)',
-                                textDecoration: isDone ? 'line-through' : 'none',
-                              }}
-                            >
-                              <TaskFlagBadge source={r} inline />
-                              {r.title}
-                            </div>
-                            {(r.time || r.daily || r.weekly) && (
-                              <div className="text-[11px] mt-0.5" style={{ color: 'var(--assistant-text-faint)' }}>
-                                {r.time && <span>{r.time}</span>}
-                                {r.daily  && <span className="ml-1">· daily</span>}
-                                {r.weekly && <span className="ml-1">· weekly</span>}
+              {dropOpen && (
+                <div
+                  className="drop-in fixed left-3 right-3 top-14 md:absolute md:left-auto md:right-0 md:top-10 md:w-72 rounded-xl shadow-2xl overflow-hidden z-[200] isolate"
+                  style={{ background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
+                >
+                  <div
+                    className="flex items-center justify-between px-4 py-2.5 border-b"
+                    style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
+                  >
+                    <span className="text-[12px] font-semibold tracking-wide" style={{ color: 'var(--assistant-text-soft)' }}>
+                      Today&apos;s reminders
+                    </span>
+                    {hasPending && (
+                      <button
+                        onClick={dismissAll}
+                        className="text-[11px] transition-colors"
+                        style={{ color: 'var(--assistant-text-faint)' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-accent)')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-faint)')}
+                      >
+                        Dismiss all
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto">
+                    {todayReminders.length === 0 ? (
+                      <div className="px-4 py-5 text-[12px] text-center" style={{ color: 'var(--assistant-text-faint)' }}>
+                        No reminders for today
+                      </div>
+                    ) : (
+                      todayReminders.map(r => {
+                        const isDone = !!r.dismissed;
+                        return (
+                          <div
+                            key={r.id}
+                            className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 group"
+                            style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
+                          >
+                            <span
+                              className="shrink-0 w-2 h-2 rounded-full mt-0.5"
+                              style={{ background: isDone ? 'rgba(52,211,153,.6)' : '#f87171' }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div
+                                className="text-[13px] font-medium leading-snug truncate"
+                                style={{
+                                  color: isDone ? 'var(--assistant-text-faint)' : 'var(--assistant-text)',
+                                  textDecoration: isDone ? 'line-through' : 'none',
+                                }}
+                              >
+                                <TaskFlagBadge source={r} inline />
+                                {r.title}
                               </div>
+                              {(r.time || r.daily || r.weekly) && (
+                                <div className="text-[11px] mt-0.5" style={{ color: 'var(--assistant-text-faint)' }}>
+                                  {r.time && <span>{r.time}</span>}
+                                  {r.daily  && <span className="ml-1">· daily</span>}
+                                  {r.weekly && <span className="ml-1">· weekly</span>}
+                                </div>
+                              )}
+                            </div>
+                            {!isDone ? (
+                              <button
+                                onClick={() => dismissOne(r.id)}
+                                className="shrink-0 opacity-0 group-hover:opacity-100 text-[11px] px-2 py-1 rounded-md transition-all"
+                                style={{ background: 'var(--assistant-control-bg)', color: 'var(--assistant-text-muted)' }}
+                              >
+                                <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.2 8.4l3 3 6.6-7" />
+                                </svg>
+                              </button>
+                            ) : (
+                              <span className="shrink-0" style={{ color: 'var(--assistant-tone-1)' }}>
+                                <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.2 8.4l3 3 6.6-7" />
+                                </svg>
+                              </span>
                             )}
                           </div>
-                          {!isDone ? (
-                            <button
-                              onClick={() => dismissOne(r.id)}
-                              className="shrink-0 opacity-0 group-hover:opacity-100 text-[11px] px-2 py-1 rounded-md transition-all"
-                              style={{ background: 'var(--assistant-control-bg)', color: 'var(--assistant-text-muted)' }}
-                              onMouseEnter={e => {
-                                e.currentTarget.style.color = 'var(--assistant-accent)';
-                                e.currentTarget.style.background = 'color-mix(in srgb, var(--assistant-accent) 15%, transparent)';
-                              }}
-                              onMouseLeave={e => {
-                                e.currentTarget.style.color = 'var(--assistant-text-muted)';
-                                e.currentTarget.style.background = 'var(--assistant-control-bg)';
-                              }}
-                            >
-                              ✓
-                            </button>
-                          ) : (
-                            <span className="shrink-0 text-[11px]" style={{ color: 'var(--assistant-tone-1)' }}>✓</span>
-                          )}
-                        </div>
-                      );
-                    })
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {!hasPending && todayReminders.length > 0 && (
+                    <div
+                      className="px-4 py-2.5 border-t text-center text-[11px]"
+                      style={{ borderTopColor: 'var(--assistant-border-soft)', color: 'var(--assistant-tone-1)' }}
+                    >
+                      All done for today
+                    </div>
                   )}
                 </div>
-
-                {!hasPending && todayReminders.length > 0 && (
-                  <div
-                    className="px-4 py-2.5 border-t text-center text-[11px]"
-                    style={{ borderTopColor: 'var(--assistant-border-soft)', color: 'var(--assistant-tone-1)' }}
-                  >
-                    All done for today 🎉
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Current user ── */}
-        {userName && (
-          <>
-            <div className={`w-px h-5 mx-1 shrink-0 ${classes.divider}`} />
-            <div
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap shrink-0"
-              style={{ color: 'var(--assistant-text-muted)' }}
-              title={`Signed in as ${userName}`}
-            >
-              <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <circle cx="8" cy="5.5" r="2.5" />
-                <path strokeLinecap="round" d="M3 13.5a5 5 0 0 1 10 0" />
-              </svg>
-              <span className="max-w-[120px] truncate">{userName}</span>
+              )}
             </div>
-          </>
-        )}
+          )}
 
+          <button
+            type="button"
+            onClick={onOpenMenu}
+            className={`flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg transition-colors ${classes.topNavProfile}`}
+            aria-label="Open profile menu"
+            title={userName ? `Signed in as ${userName}` : 'Profile'}
+          >
+            {userAvatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={userAvatar} alt="" className="h-7 w-7 rounded-full object-cover shrink-0" />
+            ) : (
+              <span className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ${classes.topNavAvatarFallback}`}>
+                {(userName || 'U').slice(0, 1).toUpperCase()}
+              </span>
+            )}
+            <span className="hidden sm:inline max-w-[140px] truncate text-[13px] font-medium">
+              {userName || 'Account'}
+            </span>
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 opacity-70" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
+            </svg>
+          </button>
+        </div>
       </header>
 
       {/* ── Bottom tab bar — mobile only: view tabs ── */}

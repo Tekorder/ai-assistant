@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { isTekOrderSession, logoutOfTekOrder } from '@/lib/tekorderSso';
+import { closeSyncGates } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 const TWOFA_SESSION_KEY = 'youtask_2fa';
@@ -77,6 +78,8 @@ export default function Menu({
       sessionStorage.removeItem('twofa_ok');
       sessionStorage.removeItem(TWOFA_SESSION_KEY);
     } catch {}
+
+    closeSyncGates();
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -198,7 +201,7 @@ export default function Menu({
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-dark.png" alt="" className="h-24 w-24 object-contain" />
+              <img src="/brand/tekorder-logo.png" alt="TekOrder" className="h-24 w-24 object-contain" />
             </div>
           </div>
           <button

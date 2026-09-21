@@ -139,7 +139,8 @@ function StepProfession({ value, onChange }: { value: Profession; onChange:(v:Pr
       <div style={{
         display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7,
         maxHeight: '44vh', overflowY: 'auto', paddingRight: 4,
-        scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,.1) transparent',
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
       }}>
         {PROFESSIONS.map((p, i) => (
           <button key={p.value} type="button"

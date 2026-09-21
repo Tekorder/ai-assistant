@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import {
   type Block,
@@ -10,18 +10,12 @@ import {
   todayYMD,
   parseYMD,
   readSelectedProject,
-  writeSelectedProjectBlocks,
   isListVisible,
-  isUncTitleBlock,
-  addTaskUnderList as addTaskUnderListArr,
-  removeTaskAndSubtasks,
   getTaskFlag,
   highestTaskFlag,
   type TaskFlagColor,
 } from '@/lib/datacenter';
-import { TaskFlagBadge, TaskFlagIcon } from '../TaskFlag';
-import { HoldMenu } from '../HoldMenu';
-import classes from '@/app/assistant/_theme/themes.module.css';
+import { TaskFlagIcon } from '../TaskFlag';
 
 /* ===================== Local types ===================== */
 
@@ -42,11 +36,6 @@ type DayGroup = {
   count: number;
   cards: CalCard[];
   listId: string;
-};
-
-type ListOption = {
-  id: string;
-  text: string;
 };
 
 /* ===================== Helpers ===================== */
@@ -73,33 +62,6 @@ function dayDiff(ymd: string): number {
   const target = startOfLocalDay(parseYMD(ymd));
   const today = startOfLocalDay(new Date());
   return Math.round((target.getTime() - today.getTime()) / 86400000);
-}
-
-function pillColorForList(index: number, isLight = false): string {
-  if (isLight) {
-    const palettes = [
-      'bg-sky-500/12 text-sky-700 border-sky-500/25',
-      'bg-violet-500/12 text-violet-700 border-violet-500/25',
-      'bg-rose-500/12 text-rose-700 border-rose-400/25',
-      'bg-cyan-500/12 text-cyan-700 border-cyan-400/25',
-      'bg-teal-500/12 text-teal-700 border-teal-500/25',
-      'bg-fuchsia-500/12 text-fuchsia-700 border-fuchsia-500/25',
-      'bg-indigo-500/12 text-indigo-700 border-indigo-500/25',
-      'bg-orange-500/12 text-orange-700 border-orange-400/25',
-    ];
-    return palettes[index % palettes.length];
-  }
-  const palettes = [
-    'bg-[#d5fc43]/15 text-[#d5fc43] border-[#d5fc43]/28',
-    'bg-sky-500/15 text-sky-200 border-sky-400/25',
-    'bg-[#d5fc43]/10 text-[#d5fc43] border-[#d5fc43]/22',
-    'bg-violet-500/15 text-violet-200 border-violet-400/25',
-    'bg-[#d5fc43]/12 text-[#d5fc43] border-[#d5fc43]/26',
-    'bg-cyan-500/15 text-cyan-200 border-cyan-400/25',
-    'bg-[#d5fc43]/8 text-[#d5fc43]/95 border-[#d5fc43]/18',
-    'bg-emerald-500/12 text-emerald-200 border-emerald-400/25',
-  ];
-  return palettes[index % palettes.length];
 }
 
 /** Pills inside month grid cells — no lime (lime reserved for calendar chrome / today / nav) */
@@ -147,419 +109,19 @@ const MONTH_NAMES = [
   'July','August','September','October','November','December',
 ];
 
-/* ===================== Sidebar Panel ===================== */
-
-function DaySidebar({
-  ymd,
-  groups,
-  listOptions,
-  onClose,
-  onToggleDone,
-  onReschedule,
-  onSetHold,
-  onAddTask,
-  onDelete,
-  isLight,
-}: {
-  ymd: string;
-  groups: DayGroup[];
-  listOptions: ListOption[];
-  onClose: () => void;
-  onToggleDone: (id: string) => void;
-  onReschedule: (id: string, newDate: string) => void;
-  onSetHold: (id: string, onHold: boolean) => void;
-  onAddTask: (listId: string, text: string) => void;
-  onDelete: (id: string) => void;
-  isLight: boolean;
-}) {
-  const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const diff = dayDiff(ymd);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [holdMenu, setHoldMenu] = useState<{ cardId: string; x: number; y: number } | null>(null);
-
-  const [addOpen, setAddOpen] = useState(false);
-  const [newTaskListId, setNewTaskListId] = useState('');
-  const [newTaskText, setNewTaskText] = useState('');
-  const newTaskInputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    if (!addOpen) return;
-    if (!newTaskListId && listOptions.length) setNewTaskListId(listOptions[0].id);
-    requestAnimationFrame(() => newTaskInputRef.current?.focus());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addOpen]);
-
-  const submitNewTask = () => {
-    const text = newTaskText.trim();
-    if (!text || !newTaskListId) return;
-    onAddTask(newTaskListId, text);
-    setNewTaskText('');
-    requestAnimationFrame(() => newTaskInputRef.current?.focus());
-  };
-
-  const dayLabel = (() => {
-    if (diff === 0) return 'Today';
-    if (diff === 1) return 'Tomorrow';
-    if (diff === -1) return 'Yesterday';
-    if (diff < 0) return `${Math.abs(diff)}d ago`;
-    return `in ${diff}d`;
-  })();
-
-  const diffStyle = (() => {
-    if (diff < 0) return { color: 'var(--assistant-danger-text)' };
-    if (diff === 0) return { color: 'var(--assistant-tone-1)' };
-    if (diff === 1) return { color: 'var(--assistant-tone-3)' };
-    return { color: 'var(--assistant-text-soft)' };
-  })();
-
-  const allCards = groups.flatMap(g => g.cards);
-  const doneCount = allCards.filter(c => c.checked).length;
-  const totalCount = allCards.length;
-
-  const openPicker = (id: string) => {
-    const el = dateRefs.current[id];
-    if (!el) return;
-    try {
-      (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
-    } catch { el.click(); }
-  };
-
-  return (
-    <>
-      <style>{`
-        @keyframes calSidebarIn {
-          from { transform: translateX(100%); opacity: 0; }
-          to   { transform: translateX(0);    opacity: 1; }
-        }
-        @keyframes calPanelIn {
-          from { transform: translateX(-28px); opacity: 0; filter: blur(1px); }
-          60%  { transform: translateX(3px); opacity: .92; filter: blur(0); }
-          to   { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes calOverlayIn { from { opacity: 0; } to { opacity: 1; } }
-      `}</style>
-      <button
-        type="button"
-        className="fixed md:absolute inset-0 z-200"
-        style={{
-          background: 'var(--assistant-overlay)',
-          animation: 'calOverlayIn 0.22s ease-out both',
-        }}
-        onClick={onClose}
-        aria-label="Close"
-      />
-      {/* Mobile: full-screen overlay panel. Desktop: slide-in from right within calendar. */}
-      <div
-        className={[
-          'z-201 flex flex-col overflow-hidden',
-          // mobile
-          `fixed left-3 top-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] rounded-2xl ${classes.panelGlass} ${classes.panelOverlay}`,
-          // desktop
-          'md:absolute md:left-auto md:top-0 md:right-0 md:h-full md:w-full md:max-w-md md:rounded-none',
-        ].join(' ')}
-        style={{
-          color: 'var(--assistant-text)',
-          animation: 'calPanelIn 0.32s cubic-bezier(.22,.9,.28,1) both',
-        }}
-      >
-
-        {/* Header */}
-        <div
-          className="flex items-start justify-between px-5 py-4 shrink-0"
-          style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}
-        >
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[22px] font-bold leading-none" style={{ color: 'var(--assistant-text)' }}>
-                {new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })}
-              </span>
-              <span
-                className="text-[12px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ ...diffStyle, background: 'var(--assistant-control-bg)', border: '1px solid var(--assistant-border-soft)' }}
-              >
-                {dayLabel}
-              </span>
-            </div>
-            <div className="text-[13px] mt-1" style={{ color: 'var(--assistant-text-muted)' }}>
-              {new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <div className="h-1 rounded-full flex-1 overflow-hidden" style={{ background: 'var(--assistant-control-bg)' }}>
-                <div
-                  className="h-full rounded-full bg-[#d5fc43]/85 transition-all duration-500 shadow-[0_0_12px_rgba(213,252,67,.25)]"
-                  style={{ width: totalCount ? `${(doneCount / totalCount) * 100}%` : '0%' }}
-                />
-              </div>
-              <span className="text-[11px] shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>{doneCount}/{totalCount}</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors mt-1 ${classes.panelBtn}`}
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-          {groups.length === 0 ? (
-            <div className="text-center py-12 text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>No tasks for this day.</div>
-          ) : (
-            groups.map((group, gi) => (
-              <div key={group.listId} className="space-y-2">
-                {/* List label */}
-                <div className="flex items-center gap-2 px-1">
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${pillColorForList(gi, isLight)}`}>
-                    {group.listTitle}
-                  </span>
-                  <span className="text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>{group.cards.length} task{group.cards.length !== 1 ? 's' : ''}</span>
-                </div>
-
-                {/* Cards */}
-                {group.cards.map(card => (
-                  <div
-                    key={card.id}
-                    className="rounded-xl border transition-all duration-200"
-                    style={{
-                      background: 'var(--assistant-surface)',
-                      borderColor: 'var(--assistant-border-soft)',
-                      opacity: card.archived ? 0.4 : card.checked ? 0.6 : 1,
-                    }}
-                  >
-                    <div className="p-3">
-                      {/* Top row */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="group flex items-start gap-2 min-w-0 flex-1">
-                          {/* Checkbox / archived indicator */}
-                          {card.archived ? (
-                            <span
-                              className="mt-0.5 h-4 w-4 rounded flex items-center justify-center shrink-0 text-[9px]"
-                              style={{ border: '1px solid var(--assistant-border-soft)', color: 'var(--assistant-text-faint)' }}
-                            >
-                              ▣
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => onToggleDone(card.id)}
-                              className="relative mt-0.5 h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
-                              title={card.checked ? 'Mark pending' : 'Mark done'}
-                            >
-                              {card.checked ? (
-                                <span className="relative flex h-3 w-3 items-center justify-center">
-                                  <span className="absolute h-2.5 w-2.5 rounded-full bg-[#d5fc43]/85 blur-[2px]" />
-                                  <span className="absolute h-1.5 w-1.5 rounded-full bg-[#d5fc43]" />
-                                </span>
-                              ) : (
-                                <span className="h-3 w-3 rounded transition-colors" style={{ border: '1px solid var(--assistant-border-soft)' }} />
-                              )}
-                            </button>
-                          )}
-
-                          {/* Text */}
-                          <span
-                            className="text-[13px] leading-snug"
-                            style={{
-                              color: card.archived || card.checked ? 'var(--assistant-text-muted)' : 'var(--assistant-text)',
-                              textDecoration: card.archived || card.checked ? 'line-through' : 'none',
-                            }}
-                          >
-                            <TaskFlagBadge source={{ flag: card.flag }} inline />
-                            {card.text || '(no text)'}
-                          </span>
-                        </div>
-
-                        {/* Reschedule + Delete — hide for archived */}
-                        {!card.archived && (
-                          <div className="shrink-0 flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => openPicker(card.id)}
-                              onContextMenu={e => {
-                                e.preventDefault();
-                                setHoldMenu({ cardId: card.id, x: e.clientX, y: e.clientY });
-                              }}
-                              className={card.onHold
-                                ? 'text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded opacity-70 hover:opacity-100 transition-opacity'
-                                : 'text-[14px] opacity-40 hover:opacity-90 transition-opacity'}
-                              style={card.onHold ? { color: 'var(--assistant-text-faint)', background: 'var(--assistant-control-bg)' } : undefined}
-                              title={card.onHold ? 'On Hold — right-click for options' : 'Reschedule'}
-                            >
-                              {card.onHold ? 'HOLD' : '📅'}
-                            </button>
-                            <input
-                              ref={el => void (dateRefs.current[card.id] = el)}
-                              type="date"
-                              className="hidden"
-                              value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
-                              onChange={e => { if (e.target.value) onReschedule(card.id, e.target.value); }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setDeleteConfirmId(card.id)}
-                              className="text-[14px] opacity-40 hover:opacity-90 transition-opacity"
-                              title="Delete"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        )}
-                        {card.archived && (
-                          <span className="text-[9px] shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>archived</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Footer — add task */}
-        <div className="shrink-0 px-4 py-3" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
-          {addOpen ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <select
-                  value={newTaskListId}
-                  onChange={e => setNewTaskListId(e.target.value)}
-                  className="text-[12px] rounded-lg px-2 py-2 flex-1 min-w-0"
-                  style={{
-                    background: 'var(--assistant-control-bg)',
-                    border: '1px solid var(--assistant-border-soft)',
-                    color: 'var(--assistant-text)',
-                  }}
-                >
-                  {listOptions.length === 0 && <option value="">No lists</option>}
-                  {listOptions.map(l => (
-                    <option key={l.id} value={l.id}>{l.text}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => { setAddOpen(false); setNewTaskText(''); }}
-                  className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
-                  title="Cancel"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  ref={newTaskInputRef}
-                  type="text"
-                  value={newTaskText}
-                  onChange={e => setNewTaskText(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') { e.preventDefault(); submitNewTask(); }
-                    if (e.key === 'Escape') { setAddOpen(false); setNewTaskText(''); }
-                  }}
-                  placeholder="Task name…"
-                  className="text-[13px] rounded-lg px-3 py-2 flex-1 min-w-0"
-                  style={{
-                    background: 'var(--assistant-surface)',
-                    border: '1px solid var(--assistant-border-soft)',
-                    color: 'var(--assistant-text)',
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={submitNewTask}
-                  disabled={!newTaskText.trim() || !newTaskListId}
-                  className="text-[12px] font-semibold px-3 py-2 rounded-lg shrink-0 transition-opacity disabled:opacity-40"
-                  style={{
-                    color: '#0a0a0a',
-                    background: '#d5fc43',
-                  }}
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setAddOpen(true)}
-              className="w-full text-[13px] font-semibold px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] flex items-center justify-center gap-1.5"
-              style={{
-                color: 'var(--assistant-tone-1)',
-                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 40%, transparent)',
-                background: 'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1) 16%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 8%, transparent) 100%)',
-              }}
-            >
-              <span className="text-[15px] leading-none">+</span> Add task
-            </button>
-          )}
-        </div>
-      </div>
-
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-300 flex items-center justify-center p-5">
-          <button
-            type="button"
-            className="fixed inset-0"
-            style={{ background: 'var(--assistant-overlay)' }}
-            onClick={() => setDeleteConfirmId(null)}
-            aria-label="Cancel"
-          />
-          <div
-            className="relative z-10 w-full max-w-[320px] rounded-2xl p-4 shadow-2xl"
-            style={{
-              background: 'var(--assistant-bg)',
-              color: 'var(--assistant-text)',
-              border: '1px solid var(--assistant-border-soft)',
-            }}
-          >
-            <h3 className="text-[14px] font-semibold mb-1.5">Delete task?</h3>
-            <p className="text-[12px] mb-4" style={{ color: 'var(--assistant-text-soft)' }}>
-              This can&apos;t be undone.
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmId(null)}
-                className="text-[12px] px-3 py-2 rounded-lg"
-                style={{ color: 'var(--assistant-text-muted)' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => { onDelete(deleteConfirmId); setDeleteConfirmId(null); }}
-                className="text-[12px] px-3 py-2 rounded-lg bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {holdMenu ? (
-        <HoldMenu
-          x={holdMenu.x}
-          y={holdMenu.y}
-          isOnHold={Boolean(groups.flatMap(g => g.cards).find(c => c.id === holdMenu.cardId)?.onHold)}
-          onToggleHold={() => {
-            const card = groups.flatMap(g => g.cards).find(c => c.id === holdMenu.cardId);
-            onSetHold(holdMenu.cardId, !card?.onHold);
-          }}
-          onClose={() => setHoldMenu(null)}
-        />
-      ) : null}
-    </>
-  );
-}
-
 /* ===================== Main Component ===================== */
 
-export default function CalendarView({ isLight = false }: { isLight?: boolean }) {
+export default function CalendarView({
+  isLight = false,
+  onOpenDayPanel,
+  openDayYmids = [],
+}: {
+  isLight?: boolean;
+  onOpenDayPanel?: (ymd: string) => void;
+  openDayYmids?: string[];
+}) {
   const [blocks, setBlocks]             = useState<Block[]>([]);
   const [hydrated, setHydrated]         = useState(false);
-  const [projectId, setProjectId]       = useState<string | null>(null);
   const [projectTitle, setProjectTitle] = useState<string>('Project');
   const [visibleLists, setVisibleLists] = useState<Record<string, boolean>>({});
 
@@ -568,8 +130,7 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
   const [viewYear, setViewYear]   = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth()); // 0-based
 
-  // Selected day sidebar
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const openDaySet = useMemo(() => new Set(openDayYmids), [openDayYmids]);
 
   /* ── Load & sync ── */
   useEffect(() => {
@@ -577,7 +138,6 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
       const snap = readSelectedProject();
       setBlocks(snap.blocks);
       setProjectTitle(snap.projectTitle);
-      setProjectId(snap.project_id);
       setVisibleLists(snap.visibleLists);
       setHydrated(true);
     };
@@ -597,41 +157,41 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
 
   /* ── Build cards from blocks ── */
   const allCards = useMemo<CalCard[]>(() => {
-  const out: CalCard[] = [];
-  let currentListTitle = '';
-  let currentListId: string | null = null;
-  let currentListVisible = true;
+    const out: CalCard[] = [];
+    let currentListTitle = '';
+    let currentListId: string | null = null;
+    let currentListVisible = true;
 
-  for (let i = 0; i < blocks.length; i++) {
-    const b = blocks[i];
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i];
 
-    if (b.indent === 0) {
-      currentListTitle = (b.text || '').trim();
-      currentListId = b.id;
-      currentListVisible = isListVisible(visibleLists, b.id);
-      continue;
+      if (b.indent === 0) {
+        currentListTitle = (b.text || '').trim();
+        currentListId = b.id;
+        currentListVisible = isListVisible(visibleLists, b.id);
+        continue;
+      }
+
+      if (b.indent !== 1) continue;
+      if (currentListId && !currentListVisible) continue;
+      if (b.archived) continue; // 👈 ocultar archivados
+      if (!isValidDateYYYYMMDD(b.deadline)) continue;
+
+      out.push({
+        id:        b.id,
+        listTitle: currentListTitle || projectTitle || 'General',
+        text:      b.text || '',
+        checked:   Boolean(b.checked),
+        deadline:  b.deadline!,
+        isHidden:  b.isHidden === true,
+        archived:  b.archived,
+        onHold:    b.onHold === true,
+        flag: getTaskFlag(b),
+      });
     }
 
-    if (b.indent !== 1) continue;
-    if (currentListId && !currentListVisible) continue;
-    if (b.archived) continue; // 👈 ocultar archivados
-    if (!isValidDateYYYYMMDD(b.deadline)) continue;
-
-    out.push({
-      id:        b.id,
-      listTitle: currentListTitle || projectTitle || 'General',
-      text:      b.text || '',
-      checked:   Boolean(b.checked),
-      deadline:  b.deadline!,
-      isHidden:  b.isHidden === true,
-      archived:  b.archived,
-      onHold:    b.onHold === true,
-      flag: getTaskFlag(b),
-    });
-  }
-
-  return out;
-}, [blocks, projectTitle, visibleLists]);
+    return out;
+  }, [blocks, projectTitle, visibleLists]);
 
   /* ── Cards by date ── */
   const cardsByDate = useMemo(() => {
@@ -676,77 +236,11 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
   const goToday = () => {
     setViewYear(new Date().getFullYear());
     setViewMonth(new Date().getMonth());
-    setSelectedDay(today);
+    onOpenDayPanel?.(today);
   };
 
-  /* ── Actions ── */
-  const handleToggleDone = (cardId: string) => {
-    const next = blocks.map(x => ({ ...x }));
-    const t = todayYMD();
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      const nextChecked = !Boolean(b.checked);
-      b.checked = nextChecked;
-      if (nextChecked) { b.deadline = t; b.isHidden = false; }
-      break;
-    }
-    writeSelectedProjectBlocks(projectId, next);
-    setBlocks(next);
-  };
-
-  const handleDelete = (cardId: string) => {
-    const next = removeTaskAndSubtasks(blocks, cardId);
-    writeSelectedProjectBlocks(projectId, next);
-    setBlocks(next);
-  };
-
-  const handleReschedule = (cardId: string, newDeadline: string) => {
-    if (!isValidDateYYYYMMDD(newDeadline)) return;
-    const next = blocks.map(x => ({ ...x }));
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      b.deadline = newDeadline;
-      if (b.isHidden === true) b.isHidden = false;
-      b.onHold = false;
-      break;
-    }
-    writeSelectedProjectBlocks(projectId, next);
-    setBlocks(next);
-  };
-
-  const handleSetHold = (cardId: string, onHold: boolean) => {
-    const next = blocks.map(x => ({ ...x }));
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      b.onHold = onHold;
-      break;
-    }
-    writeSelectedProjectBlocks(projectId, next);
-    setBlocks(next);
-  };
-
-  /* ── Selectable lists (categories) for the "add task" footer ── */
-  const listOptions = useMemo<ListOption[]>(() => {
-    const seen = new Set<string>();
-    const out: ListOption[] = [];
-    for (const b of blocks) {
-      if (b.indent !== 0 || isUncTitleBlock(b) || b.archived) continue;
-      const text = (b.text || '').trim();
-      if (!text) continue;
-      const key = text.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ id: b.id, text });
-    }
-    return out;
-  }, [blocks]);
-
-  const handleAddTask = (listId: string, text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed || !selectedDay) return;
-    const result = addTaskUnderListArr(blocks, listId, { text: trimmed, deadline: selectedDay });
-    writeSelectedProjectBlocks(projectId, result.blocks);
-    setBlocks(result.blocks);
+  const handleDayClick = (ymd: string) => {
+    onOpenDayPanel?.(ymd);
   };
 
   /* ── Unique list titles (for color assignment) ── */
@@ -807,13 +301,6 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
       </div>
     );
   };
-
-  /* ── Selected day data ── */
-  const selectedGroups = useMemo(
-    () => selectedDay ? getGroupsForDay(selectedDay) : [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedDay, cardsByDate],
-  );
 
   if (!hydrated) {
     return (
@@ -883,13 +370,10 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
         </div>
 
         {/* ── Desktop: 7-col grid ── */}
-        <div className="hidden md:grid grid-cols-7 gap-[3px] rounded-2xl overflow-hidden border border-[#52b352]/10 p-[3px] bg-transparent"
-          style={{
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,.05), 0 8px 32px rgba(0,0,0,.4)',
-          }}>
+        <div className="hidden md:grid grid-cols-7 gap-[3px] rounded-2xl overflow-hidden p-[3px] bg-transparent">
           {grid.map((ymd, idx) => {
             const isToday    = ymd === today;
-            const isSelected = ymd === selectedDay;
+            const isSelected = ymd ? openDaySet.has(ymd) : false;
             const dayCards   = ymd ? (cardsByDate[ymd] ?? []) : [];
             const hasCards   = dayCards.length > 0;
             const isPast     = ymd ? dayDiff(ymd) < 0 : false;
@@ -899,7 +383,7 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
             return (
               <div
                 key={idx}
-                onClick={() => ymd && setSelectedDay(prev => prev === ymd ? null : ymd)}
+                onClick={() => ymd && handleDayClick(ymd)}
                 className={[
                   'relative min-h-[100px] rounded-xl p-2 transition-all duration-150',
                   ymd ? 'cursor-pointer' : '',
@@ -981,7 +465,7 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
           {grid.filter(Boolean).map((ymd) => {
             if (!ymd) return null;
             const isToday    = ymd === today;
-            const isSelected = ymd === selectedDay;
+            const isSelected = openDaySet.has(ymd);
             const groups     = getGroupsForDay(ymd);
             const [,, dayNum] = ymd.split('-');
             const weekday    = new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
@@ -992,7 +476,7 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
             return (
               <div
                 key={ymd}
-                onClick={() => setSelectedDay(prev => prev === ymd ? null : ymd)}
+                onClick={() => handleDayClick(ymd)}
                 className="rounded-xl p-3 cursor-pointer transition-all duration-150"
                 style={{
                   background: isSelected
@@ -1086,31 +570,6 @@ export default function CalendarView({ isLight = false }: { isLight?: boolean })
         </div>
 
       </div>
-
-      {selectedDay && (
-        <DaySidebar
-          ymd={selectedDay}
-          groups={selectedGroups}
-          listOptions={listOptions}
-          isLight={isLight}
-          onClose={() => setSelectedDay(null)}
-          onToggleDone={id => {
-            handleToggleDone(id);
-          }}
-          onAddTask={handleAddTask}
-          onDelete={handleDelete}
-          onReschedule={(id, date) => {
-            handleReschedule(id, date);
-            if (date.slice(0, 7) !== selectedDay.slice(0, 7)) {
-              const [y, m] = date.split('-').map(Number);
-              setViewYear(y);
-              setViewMonth(m - 1);
-              setSelectedDay(date);
-            }
-          }}
-          onSetHold={handleSetHold}
-        />
-      )}
     </div>
   );
 }
