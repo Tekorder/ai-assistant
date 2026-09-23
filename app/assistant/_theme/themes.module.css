@@ -43,10 +43,6 @@
   color: var(--assistant-text);
 }
 
-.topNavBrand {
-  color: var(--assistant-text);
-}
-
 .topNavCenterActive {
   padding: 0.4rem 0.9rem;
   border-radius: 0.65rem;
@@ -148,7 +144,7 @@
   width: 100%;
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--main-tab-line);
+  border-bottom: 1px solid #FFF;
   border-radius: 0;
   padding: 0;
 }
@@ -159,9 +155,11 @@
   color: var(--assistant-text);
   background: var(--main-tab-fill);
   font-weight: 600;
-  border: 1px solid var(--main-tab-line);
+  border-top: 1px solid #FFF;
+  border-right: 1px solid #FFF;
+  border-left: 1px solid #FFF;
   border-bottom: none;
-  border-radius: 6px 6px 0 0;
+  border-radius: 8px 8px 0 0;
   box-shadow: 0 1px 0 0 var(--main-tab-fill);
   margin-bottom: -1px;
   padding: 0.45rem 0.95rem;
@@ -318,21 +316,9 @@
 
 .quickHeaderBar {
   position: relative;
-  /* Solid scene color — no wash toward white */
-  background: var(--assistant-bg);
+  background: transparent;
   backdrop-filter: blur(16px) saturate(1.15);
   -webkit-backdrop-filter: blur(16px) saturate(1.15);
-}
-
-.quickHeaderBar::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  height: 16px;
-  pointer-events: none;
-  background: linear-gradient(to bottom, var(--assistant-bg), transparent);
 }
 
 /* ── Shared panel classes (Activity, Habits, Lists, Reminders) ── */
@@ -569,25 +555,8 @@
   background: color-mix(in srgb, var(--assistant-accent) 10%, transparent);
 }
 
-.quickProgressBlock {
-  background: transparent;
-}
-
 .quickProgressLabel {
   color: color-mix(in srgb, var(--assistant-accent) 85%, transparent);
-}
-
-.quickProgressCount {
-  color: var(--assistant-text-muted);
-}
-
-.quickProgressRemaining {
-  color: var(--assistant-accent);
-  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--assistant-accent) 22%, transparent));
-}
-
-.quickProgressSoft {
-  color: var(--assistant-text-muted);
 }
 
 .quickProgressBar {

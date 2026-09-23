@@ -116,34 +116,37 @@ function GamificationToast({ show, message }: { show: boolean; message: string }
   );
 }
 
+const PROGRESS_LABELS: Record<DateMode | Exclude<TaskFilterTag, 'none'>, string> = {
+  all: 'All progress',
+  today: "Today's progress",
+  week: "This week's progress",
+  month: "This month's progress",
+  priority: 'High priority progress',
+  someday: 'Someday progress',
+  scheduled: 'Scheduled progress',
+};
+
 function QuickProgressBlock({
   progress,
+  label,
   className = '',
 }: {
   progress: { total: number; done: number; remaining: number; pct: number };
+  label: string;
   className?: string;
 }) {
   return (
-    <div className={`rounded-2xl p-3 ${classes.quickProgressBlock} ${className}`}>
-      <div className="flex items-center justify-between">
-        <div className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${classes.quickProgressLabel}`}>
-          Progress
+    <div className={`px-1 py-2 ${className}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className={`truncate text-[14px] font-semibold ${classes.quickProgressLabel}`}>
+          {label}
         </div>
-        <div className={`text-[11px] ${classes.quickProgressCount}`}>
+        <div className={`shrink-0 text-[14px] font-semibold tabular-nums ${classes.quickProgressLabel}`}>
           {progress.done}/{progress.total}
         </div>
       </div>
 
-      <div className="mt-2 flex items-end gap-2">
-        <div className={`text-[28px] leading-none font-extrabold italic tabular-nums tracking-[-0.06em] ${classes.quickProgressRemaining}`}>
-          {progress.remaining}
-        </div>
-        <div className={`pb-[2px] text-[12px] ${classes.quickProgressSoft}`}>
-          task{progress.remaining === 1 ? '' : 's'} to finish
-        </div>
-      </div>
-
-      <div className={`mt-3 h-2 w-full rounded-full overflow-hidden ${classes.quickProgressBar}`}>
+      <div className={`mt-2 h-1.5 w-full rounded-full overflow-hidden ${classes.quickProgressBar}`}>
         <div
           className={`h-full rounded-full ${classes.quickProgressFill}`}
           style={{ width: `${Math.max(0, Math.min(100, Math.round(progress.pct * 100)))}%` }}
@@ -770,7 +773,26 @@ const handleKey = (
     }
     return;
   }
-  // Tab eliminado — no se permiten subtareas por teclado
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    if (b.indent === 0) return;
+    const siblings = blocks
+      .filter(s => s.indent > 0 && s.parentId === b.parentId)
+      .sort((s1, s2) => s1.order - s2.order);
+    const idx = siblings.findIndex(s => s.id === b.id);
+    if (e.shiftKey) {
+      const nextIndent = Math.max(1, b.indent - 1);
+      if (nextIndent !== b.indent) handleUpdateBlock(b.id, { indent: nextIndent });
+      return;
+    }
+    // Indent: nest under the task directly above it in this list.
+    const prev = idx > 0 ? siblings[idx - 1] : null;
+    if (!prev) return;
+    const MAX_INDENT = 6;
+    const nextIndent = Math.min(MAX_INDENT, prev.indent + 1);
+    if (nextIndent !== b.indent) handleUpdateBlock(b.id, { indent: nextIndent });
+    return;
+  }
   if (e.key === 'Backspace' && b.text === '') {
     if (b.indent === 0) {
       e.preventDefault(); e.stopPropagation();
@@ -1250,6 +1272,13 @@ const handleKey = (
     taskFilter, setTaskFilter,
   };
 
+  const progressLabel =
+    taskFilter !== 'none'
+      ? PROGRESS_LABELS[taskFilter]
+      : dateMode === 'today' && focusDay !== todayYMD()
+      ? `${formatPill(focusDay) || labelForYMD(focusDay)} progress`
+      : PROGRESS_LABELS[dateMode];
+
   const handleMiniCalendarPickDay = (ymd: string) => {
     setDateMode('today');
     setFocusDay(ymd);
@@ -1327,7 +1356,7 @@ const handleKey = (
               <button type="button" onClick={closeDrawer} className={`flex h-7 w-7 items-center justify-center rounded-md ${classes.quickDrawerCloseBtn}`}>✕</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3">
-              <QuickProgressBlock progress={progress} className="mb-3" />
+              <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />
               <div className="mb-3 overflow-hidden rounded-2xl">
                 <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact />
               </div>
@@ -1401,7 +1430,7 @@ const handleKey = (
                     <button
                       type="button"
                       onClick={openNewListModal}
-                      className={`hidden md:flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-full transition-all hover:scale-105 ${classes.quickNewListBtn}`}
+                      className={`hidden md:flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg transition-all hover:scale-105 ${classes.quickNewListBtn}`}
                     >
                       <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
                         <path strokeLinecap="round" d="M8 3v10M3 8h10" />
@@ -1447,7 +1476,7 @@ const handleKey = (
             <div className="hidden max-h-[77vh] min-h-0 w-[270px] shrink-0 flex-col md:flex">
               <div className={`flex max-h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl ${classes.quickSidePanel}`}>
                 <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-                  <QuickProgressBlock progress={progress} className="mb-3" />
+                  <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />
                   <div className="mb-3 overflow-hidden rounded-2xl">
                     <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact />
                   </div>

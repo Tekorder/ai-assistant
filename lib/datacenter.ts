@@ -419,12 +419,16 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
     return b;
   }).filter(Boolean) as Block[];
 
-  const parentStack: Record<number, string> = {};
+  // Every non-root block belongs to the nearest preceding indent-0 block (its list),
+  // regardless of its own indent depth — deeper indent is visual nesting only, not a
+  // separate parent group (mirrors sortBlocksByOrder / renderNormalList grouping).
+  let currentListId: string | null = null;
   for (const b of out) {
-    b.parentId = b.indent === 0 ? null : (parentStack[b.indent - 1] ?? null);
-    parentStack[b.indent] = b.id;
-    for (const key of Object.keys(parentStack)) {
-      if (Number(key) > b.indent) delete parentStack[Number(key)];
+    if (b.indent === 0) {
+      currentListId = b.id;
+      b.parentId = null;
+    } else {
+      b.parentId = currentListId;
     }
   }
 

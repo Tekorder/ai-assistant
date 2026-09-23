@@ -45,6 +45,20 @@ import { version as APP_VERSION } from '../../package.json';
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
+const LAYOUT_LS_KEY = 'youtask_workspace_layout_v1';
+const RESTORABLE_VIEWS: View[] = ['quick', 'timeline', 'calendar'];
+
+type SavedLayout = Partial<{
+  activeView: View;
+  sidebarOpen: boolean;
+  habitsOpen: boolean;
+  remindersOpen: boolean;
+  activityOpen: boolean;
+  listsOpen: boolean;
+  pivots: Array<{ id: string; word: string; listId?: string }>;
+  dayPanels: Array<{ id: string; ymd: string }>;
+  dockOrder: string[];
+}>;
 
 export default function App() {
   const router = useRouter();
@@ -146,12 +160,51 @@ export default function App() {
     return () => mq.removeEventListener('change', apply);
   }, []);
 
-  // Desktop: lists sidebar open by default on first load
+  // Right-dock panels stack in the order they were opened (newest at the end).
+  // A panel keeps its slot while closing so its collapse doesn't reshuffle the others.
+  // `seeded` holds keys restored from localStorage so their first appearance isn't restamped.
+  const dockSeqRef = useRef<{ n: number; map: Record<string, number>; open: Set<string>; seeded: Set<string> }>({
+    n: 0,
+    map: {},
+    open: new Set(),
+    seeded: new Set(),
+  });
+
+  // Restore the saved workspace layout once we know the viewport. Panels are only
+  // restored on desktop — on mobile they'd pop up as overlays on load.
+  const [layoutRestored, setLayoutRestored] = useState(false);
   useEffect(() => {
-    if (isDesktop !== true || sidebarDefaultedRef.current) return;
-    sidebarDefaultedRef.current = true;
-    setSidebarOpen(true);
-  }, [isDesktop]);
+    if (isDesktop === null || layoutRestored) return;
+    let saved: SavedLayout | null = null;
+    try {
+      const raw = localStorage.getItem(LAYOUT_LS_KEY);
+      if (raw) saved = JSON.parse(raw) as SavedLayout;
+    } catch {}
+
+    if (saved?.activeView && RESTORABLE_VIEWS.includes(saved.activeView)) setActiveView(saved.activeView);
+
+    if (isDesktop) {
+      if (!saved) {
+        setSidebarOpen(true);
+      } else {
+        setSidebarOpen(saved.sidebarOpen !== false);
+        setHabitsOpen(!!saved.habitsOpen);
+        setRemindersOpen(!!saved.remindersOpen);
+        setActivityOpen(!!saved.activityOpen);
+        setListsOpen(!!saved.listsOpen);
+        setPivotInstances(Array.isArray(saved.pivots) ? saved.pivots : []);
+        setDayPanelInstances(
+          Array.isArray(saved.dayPanels) ? saved.dayPanels.filter((d) => isValidDateYYYYMMDD(d.ymd)) : [],
+        );
+        const seq = dockSeqRef.current;
+        for (const k of saved.dockOrder ?? []) {
+          seq.map[k] = ++seq.n;
+          seq.seeded.add(k);
+        }
+      }
+    }
+    setLayoutRestored(true);
+  }, [isDesktop, layoutRestored]);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatClosing, setChatClosing] = useState(false);
@@ -159,7 +212,6 @@ export default function App() {
   const [deckRightPad, setDeckRightPad] = useState(40);
   const deckScrollRef = useRef<HTMLDivElement | null>(null);
   const sidebarCloseTimerRef = useRef<number | null>(null);
-  const sidebarDefaultedRef = useRef(false);
   const chatCloseTimerRef = useRef<number | null>(null);
   const prevOpenRef = useRef({
     sidebar: false,
@@ -442,7 +494,13 @@ export default function App() {
   const isLight = theme.style === 'light';
 
   const renderView = () => {
-    if (activeView === 'timeline') return <Timeline />;
+    if (activeView === 'timeline') {
+      return (
+        <div className="mx-auto h-full min-h-0 w-full max-w-6xl px-3 md:px-8">
+          <Timeline />
+        </div>
+      );
+    }
     if (activeView === 'calendar') {
       return (
         <CalendarView
@@ -480,6 +538,58 @@ export default function App() {
     setPivotInstances((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
+  const openDockKeys = [
+    habitsOpen && 'habits',
+    remindersOpen && 'reminders',
+    activityOpen && 'activity',
+    listsOpen && 'lists',
+    ...pivotInstances.map((p) => p.id),
+    ...dayPanelInstances.map((d) => d.id),
+  ].filter(Boolean) as string[];
+  {
+    const seq = dockSeqRef.current;
+    for (const k of openDockKeys) {
+      if (!seq.open.has(k) && !seq.seeded.delete(k)) seq.map[k] = ++seq.n;
+    }
+    seq.open = new Set(openDockKeys);
+  }
+  const dockOrder = (key: string) => dockSeqRef.current.map[key] ?? 1;
+
+  const dockOrderSignature = openDockKeys
+    .slice()
+    .sort((a, b) => dockOrder(a) - dockOrder(b))
+    .join('|');
+
+  useEffect(() => {
+    if (!layoutRestored || isDesktop !== true) return;
+    const data: SavedLayout = {
+      activeView,
+      sidebarOpen,
+      habitsOpen,
+      remindersOpen,
+      activityOpen,
+      listsOpen,
+      pivots: pivotInstances,
+      dayPanels: dayPanelInstances,
+      dockOrder: dockOrderSignature ? dockOrderSignature.split('|') : [],
+    };
+    try {
+      localStorage.setItem(LAYOUT_LS_KEY, JSON.stringify(data));
+    } catch {}
+  }, [
+    layoutRestored,
+    isDesktop,
+    activeView,
+    sidebarOpen,
+    habitsOpen,
+    remindersOpen,
+    activityOpen,
+    listsOpen,
+    pivotInstances,
+    dayPanelInstances,
+    dockOrderSignature,
+  ]);
+
   const lastPivot = pivotInstances[pivotInstances.length - 1] ?? null;
   const lastDayPanel = dayPanelInstances[dayPanelInstances.length - 1] ?? null;
 
@@ -487,6 +597,7 @@ export default function App() {
     <RemindersProvider>
     <QuickFiltersProvider>
       <div
+        data-assistant-root
         className="font-inter flex h-screen flex-col"
         style={{
           ...getAssistantThemeVars(theme),
@@ -521,9 +632,7 @@ export default function App() {
           activeView={activeView}
           setActiveView={handleSetActiveViewFromNav}
           onHome={() => setActiveView('quick')}
-          sidebarOpen={sidebarOpen}
           onOpenMenu={() => setMenuOpen(true)}
-          onToggleSidebar={toggleSidebar}
           habitsOpen={habitsOpen}
           remindersOpen={remindersOpen}
           activityOpen={activityOpen}
@@ -610,7 +719,29 @@ export default function App() {
           className="hidden min-h-0 flex-1 overflow-x-auto overflow-y-hidden touch-pan-x [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] [transform:scaleY(-1)] md:block"
         >
           <div className="flex h-full min-h-0 min-w-full [transform:scaleY(-1)]">
-          <div className="h-full w-[40px] shrink-0" aria-hidden="true" />
+          <div className="relative h-full w-[40px] shrink-0">
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="absolute left-1.5 top-3 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-all"
+              style={{
+                color: 'var(--assistant-text-muted)',
+                opacity: sidebarVisualOpen ? 0 : 1,
+                pointerEvents: sidebarVisualOpen ? 'none' : 'auto',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+              aria-hidden={sidebarVisualOpen}
+              tabIndex={sidebarVisualOpen ? -1 : 0}
+            >
+              <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+                <path d="M5.5 2.5v11" />
+              </svg>
+            </button>
+          </div>
           <div
             className="h-full shrink-0"
             style={{
@@ -630,16 +761,17 @@ export default function App() {
             >
               <button
                 type="button"
-                onClick={requestCloseSidebar}
+                onClick={toggleSidebar}
                 className="absolute right-3 top-3 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-                style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)', color: 'var(--assistant-text-muted)' }}
+                style={{ color: 'var(--assistant-text-muted)' }}
                 onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
                 onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
-                aria-label="Close sidebar"
-                title="Close sidebar"
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
               >
-                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path strokeLinecap="round" d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
+                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                  <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+                  <path d="M5.5 2.5v11" />
                 </svg>
               </button>
               <Sidebar
@@ -695,6 +827,7 @@ export default function App() {
           <div
             className="h-full shrink-0"
             style={{
+              order: dockOrder('habits'),
               width: habitsOpen && isDesktop === true ? PANEL_WIDTH : 0,
               opacity: habitsOpen && isDesktop === true ? 1 : 0,
               transform: habitsOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
@@ -712,6 +845,7 @@ export default function App() {
           <div
             className="h-full shrink-0"
             style={{
+              order: dockOrder('reminders'),
               width: remindersOpen && isDesktop === true ? PANEL_WIDTH : 0,
               opacity: remindersOpen && isDesktop === true ? 1 : 0,
               transform: remindersOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
@@ -729,6 +863,7 @@ export default function App() {
           <div
             className="h-full shrink-0"
             style={{
+              order: dockOrder('activity'),
               width: activityOpen && isDesktop === true ? PANEL_WIDTH : 0,
               opacity: activityOpen && isDesktop === true ? 1 : 0,
               transform: activityOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
@@ -751,6 +886,7 @@ export default function App() {
           <div
             className="h-full shrink-0 overflow-hidden"
             style={{
+              order: dockOrder('lists'),
               width: listsOpen && isDesktop === true ? listsPanelWidth : 0,
               opacity: listsOpen && isDesktop === true ? 1 : 0,
               transform:
@@ -772,6 +908,7 @@ export default function App() {
                 key={pivot.id}
                 className="h-full shrink-0"
                 style={{
+                  order: dockOrder(pivot.id),
                   width: PANEL_WIDTH,
                   opacity: 1,
                   transform: 'translateX(0)',
@@ -800,6 +937,7 @@ export default function App() {
                 key={day.id}
                 className="h-full shrink-0"
                 style={{
+                  order: dockOrder(day.id),
                   width: PANEL_WIDTH,
                   opacity: 1,
                   transform: 'translateX(0)',
@@ -816,7 +954,7 @@ export default function App() {
                 </div>
               </div>
             ))}
-          <div className="h-full shrink-0" style={{ width: `${deckRightPad}px` }} aria-hidden="true" />
+          <div className="h-full shrink-0" style={{ order: Number.MAX_SAFE_INTEGER, width: `${deckRightPad}px` }} aria-hidden="true" />
           </div>
         </div>
 
@@ -947,13 +1085,7 @@ export default function App() {
                       }}
                     />
                   </span>
-                  <span
-                    className="text-[11px] font-semibold uppercase tracking-[0.16em]"
-                    style={{ color: 'var(--assistant-accent)' }}
-                  >
-                    Assistant
-                  </span>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>AI chat</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Chat with Waldy</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button
