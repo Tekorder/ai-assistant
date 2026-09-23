@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import {
   // Types
@@ -15,7 +16,6 @@ import {
   todayYMD,
   // Array structure
   isUncTitleBlock,
-  findUncRange,
   ensureUncExists,
   moveUncToTop,
   normalizeLoadedBlocks,
@@ -24,7 +24,7 @@ import {
   updateBlock as updateBlockArr,
   insertBlockAfter,
   removeBlock as removeBlockArr,
-  removeTitleSendChildrenToUnc,
+  removeListAndChildren,
   addNewList as addNewListArr,
   sortBlocksByOrder,
   // Projects persistence
@@ -315,26 +315,25 @@ const visibleLists = useMemo<Record<string, boolean>>(
     });
   };
 
-  const handleRemoveTitle = (listId: string) => {
-    setCurrentBlocks(prev => {
-      const next = removeTitleSendChildrenToUnc(prev, listId);
-      if (next === prev) return prev;
-      setCurrentCollapsed(c => {
-        const { [listId]: _omit, ...rest } = c;
-        void _omit;
-        return rest;
-      });
-      const { uncIndex } = findUncRange(next);
-      const target = next[Math.max(0, uncIndex + 1)] ?? next[0];
-      if (target) focusBlock(target.id, true);
-      return next;
+  const handleDeleteList = (listId: string) => {
+    setCurrentBlocks(prev => removeListAndChildren(prev, listId));
+    setCurrentCollapsed(c => {
+      const { [listId]: _omit, ...rest } = c;
+      void _omit;
+      return rest;
     });
+    setCurrentVisibleLists(v => {
+      const { [listId]: _omit, ...rest } = v;
+      void _omit;
+      return rest;
+    });
+    if (editingListTitleId === listId) setEditingListTitleId(null);
   };
 
   const handleConfirmDeleteList = (listId: string) => {
     setDeleteListConfirmId(null);
     armedDeleteListRef.current = null;
-    handleRemoveTitle(listId);
+    handleDeleteList(listId);
   };
 
 
@@ -647,6 +646,22 @@ const visibleLists = useMemo<Record<string, boolean>>(
                               </svg>
                             )}
                           </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteListConfirmId(b.id);
+                            }}
+                            className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:text-rose-400"
+                            style={{ color: 'var(--assistant-text-faint)' }}
+                            title="Delete list"
+                            aria-label="Delete list"
+                          >
+                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M9.5 7V4.5h5V7M6 7l1 12.5h10L18 7M10 11v5M14 11v5" />
+                            </svg>
+                          </button>
                         </div>
                       </React.Fragment>
                     );
@@ -658,8 +673,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
         </aside>
       </div>
 
-      {deleteListConfirmId ? (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center">
+      {deleteListConfirmId ? createPortal(
+        <div className="fixed inset-0 z-[10050] flex items-center justify-center">
           <button
             type="button"
             className="absolute inset-0 bg-black/60"
@@ -681,14 +696,14 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 borderBottom: '1px solid var(--assistant-border-soft)',
               }}
             >
-              <div className="text-sm font-semibold"   style={{ color: 'var(--assistant-text)' }}>Estas por borrar una lista</div>
+              <div className="text-sm font-semibold"   style={{ color: 'var(--assistant-text)' }}>Delete list</div>
               <p className="text-[12px]  mt-2 leading-relaxed" style={{ color: 'var(--assistant-text-muted)' }}>
-                Estás por borrar una lista con todas sus tareas. ¿Seguro que quieres continuar?
+                Caution: deleting a list will delete all its tasks. This can&apos;t be undone.
               </p>
               {(() => {
                 const t = blocks.find(x => x.id === deleteListConfirmId)?.text?.trim();
                 if (!t) return null;
-                return <div className="text-[11px]  mt-2 truncate" title={t} style={{ color: 'var(--assistant-text-faint)' }}>Lista: {t}</div>;
+                return <div className="text-[11px]  mt-2 truncate" title={t} style={{ color: 'var(--assistant-text-faint)' }}>List: {t}</div>;
               })()}
             </div>
             <div className="px-4 py-3  flex items-center justify-end gap-2"  style={{borderTop: '1px solid var(--assistant-border-soft)'}}>
@@ -700,20 +715,21 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 }}
                 className={`${classes.modalSecondaryButton} text-[12px] px-3 py-2 rounded-md`}
               >
-                Cancelar
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={() => {
                   if (deleteListConfirmId) handleConfirmDeleteList(deleteListConfirmId);
                 }}
-                className="text-[12px] px-3 py-2 rounded-md bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
+                className="text-[12px] font-semibold px-3 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors"
               >
-                Si, borrar
+                Delete list
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.querySelector('[data-assistant-root]') ?? document.body,
       ) : null}
 
     </>

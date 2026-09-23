@@ -26,9 +26,7 @@ interface TopNavBarProps {
   activeView: View;
   setActiveView: (v: View) => void;
   onHome: () => void;
-  sidebarOpen: boolean;
   onOpenMenu: () => void;
-  onToggleSidebar: () => void;
   habitsOpen: boolean;
   remindersOpen: boolean;
   activityOpen: boolean;
@@ -161,35 +159,6 @@ const CENTER_NAV: {
   },
 ];
 
-function YouTaskLogoMark({ className = 'h-7 w-7' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden>
-      <circle cx="16" cy="16" r="14" fill="currentColor" />
-      <path
-        d="M9.2 18.8c2.2 3.4 5.1 5 7.8 5 3.4 0 5.8-1.9 5.8-4.4 0-2.1-1.6-3.4-4.2-3.4-1.5 0-2.8.5-3.9 1.3"
-        fill="none"
-        stroke="#fff"
-        strokeWidth="2.1"
-        strokeLinecap="round"
-      />
-      <path
-        d="M10.4 16.2c1.7 2.4 3.8 3.5 5.8 3.5 2.3 0 3.8-1.2 3.8-2.8 0-1.3-.9-2.1-2.6-2.1-1.1 0-2.1.4-3 .9"
-        fill="none"
-        stroke="#fff"
-        strokeWidth="2.1"
-        strokeLinecap="round"
-      />
-      <path
-        d="M11.6 13.6c1.2 1.5 2.6 2.1 3.9 2.1 1.4 0 2.2-.7 2.2-1.6 0-.7-.5-1.1-1.4-1.1-.8 0-1.5.3-2.1.6"
-        fill="none"
-        stroke="#fff"
-        strokeWidth="2.1"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 /*
 {
     id: 'archive',
@@ -208,15 +177,15 @@ function YouTaskLogoMark({ className = 'h-7 w-7' }: { className?: string }) {
 export default function TopNavBar({
   activeView,
   setActiveView,
-  sidebarOpen,
   onOpenMenu,
-  onToggleSidebar,
   habitsOpen,
   remindersOpen,
+  listsOpen,
   timelineOpen = false,
   calendarOpen = false,
   onToggleHabits,
   onToggleReminders,
+  onToggleLists,
   themeStyle = 'light',
   onToggleTheme,
 }: Omit<TopNavBarProps, 'title' | 'onHome'> & { title?: string; onHome?: () => void }) {
@@ -386,23 +355,19 @@ export default function TopNavBar({
       <header className={`shrink-0 z-50 flex items-center px-4 md:px-6 ${classes.topNav}`}>
         {/* Left: brand */}
         <div className="flex items-center gap-2 shrink-0 min-w-0">
-          <span className={classes.topNavBrand}>
-            <YouTaskLogoMark className="h-7 w-7 shrink-0" />
-          </span>
-          <span className={`text-[17px] font-bold tracking-tight lowercase leading-none ${classes.topNavBrand}`}>
-            youtask
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logoblue.png" alt="youtask" className="h-7 w-auto shrink-0" />
         </div>
 
         {/* Center: Lists / Habits / Reminders */}
         <nav className="hidden md:flex flex-1 items-center justify-center gap-2 min-w-0">
           {CENTER_NAV.map(item => {
             const isActive =
-              item.id === 'lists' ? sidebarOpen
+              item.id === 'lists' ? listsOpen
               : item.id === 'habits' ? habitsOpen
               : remindersOpen;
             const onClick =
-              item.id === 'lists' ? onToggleSidebar
+              item.id === 'lists' ? onToggleLists
               : item.id === 'habits' ? onToggleHabits
               : onToggleReminders;
             return (
