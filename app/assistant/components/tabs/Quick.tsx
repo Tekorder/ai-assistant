@@ -54,11 +54,15 @@ import { TaskFlagButton } from '../TaskFlag';
 import { FirstListWizard } from '../FirstListWizard';
 
 /**
- * sessionStorage: the person closed the first-list wizard in this tab session.
- * Per-uid so another account logging in on the same tab still gets it.
+ * Uids that closed the first-list wizard during this page load. Module memory on
+ * purpose: it survives Quick remounting on tab switches (so it doesn't pop back
+ * right away) but resets on F5 — a reload with no tasks shows the wizard again.
  */
-const wizardClosedKey = () => {
-  try { return `youtask_first_list_wizard_closed:${localStorage.getItem('firebase_uid') ?? ''}`; } catch { return 'youtask_first_list_wizard_closed:'; }
+const wizardClosedThisLoad = new Set<string>();
+/** page.tsx mounts Quick twice (mobile + desktop containers) — this keeps both in step. */
+const WIZARD_CLOSED_EVENT = 'youtask_first_list_wizard_closed';
+const currentUid = () => {
+  try { return localStorage.getItem('firebase_uid') ?? ''; } catch { return ''; }
 };
 import { ListStatusPill } from '../ListStatusPill';
 import classes from '@/app/assistant/_theme/themes.module.css';
@@ -585,11 +589,16 @@ export default function Quick(props: QuickProps = {}) {
   const [projectsHydrated, setProjectsHydrated] = useState(false);
   const [wizardClosed, setWizardClosed] = useState(true);
   useEffect(() => {
-    try { setWizardClosed(sessionStorage.getItem(wizardClosedKey()) === '1'); } catch { setWizardClosed(false); }
+    setWizardClosed(wizardClosedThisLoad.has(currentUid()));
     const check = () => setProjectsHydrated(isProjectsHydrated());
+    const onClosedElsewhere = () => setWizardClosed(true);
     check();
     window.addEventListener(PROJECTS_HYDRATED_EVENT, check);
-    return () => window.removeEventListener(PROJECTS_HYDRATED_EVENT, check);
+    window.addEventListener(WIZARD_CLOSED_EVENT, onClosedElsewhere);
+    return () => {
+      window.removeEventListener(PROJECTS_HYDRATED_EVENT, check);
+      window.removeEventListener(WIZARD_CLOSED_EVENT, onClosedElsewhere);
+    };
   }, []);
 
   // Across every group, not just the selected one — someone with tasks in another group isn't new.
@@ -602,7 +611,8 @@ export default function Quick(props: QuickProps = {}) {
 
   const closeWizard = () => {
     setWizardClosed(true);
-    try { sessionStorage.setItem(wizardClosedKey(), '1'); } catch {}
+    wizardClosedThisLoad.add(currentUid());
+    window.dispatchEvent(new Event(WIZARD_CLOSED_EVENT));
   };
 
   const handleWizardFinish = (listName: string, taskTexts: string[]) => {
