@@ -8,6 +8,7 @@ import {
   signInWithGoogle,
 } from '@/lib/auth';
 import { openTekOrderLogin, markTekOrderSession, clearAuthProviderMarker } from '@/lib/tekorderSso';
+import { getDataOwner, prepareLocalDataForUser } from '@/lib/datacenter';
 
 /* ─── 2FA Helpers ─────────────────────────────────────────── */
 function gen2FACode(): string {
@@ -383,18 +384,22 @@ export default function LoginPage() {
     sessionStorage.removeItem(TWOFA_KEY);
   }
 
+  /**
+   * Account switch cleanup. Decided by who owns the local data, not by
+   * `firebase_uid` — logout removes that key but leaves the data, so checking
+   * it let the next account inherit (and sync) the previous account's tasks.
+   */
   function clearPreviousUserData(incomingUid: string) {
     try {
-      const storedUid = localStorage.getItem('firebase_uid');
-      if (!storedUid || storedUid === incomingUid) return;
-      const userKeys = [
-        'firebase_uid', 'prisma_user_id', 'prisma_user_email',
+      const switching = getDataOwner() !== incomingUid;
+      prepareLocalDataForUser(incomingUid);
+      if (!switching) return;
+      const profileKeys = [
+        'prisma_user_id', 'prisma_user_email',
         'prisma_user_name', 'prisma_user_avatar',
-        'youtask_projects_v1', 'youtask_blocks_v1',
-        'youtask_habits_v1', 'youtask_reminders_v1', 'youtask_checklists_v1',
         'youtask_occupation', 'youtask_profession', 'youtask_goal',
       ];
-      userKeys.forEach(k => localStorage.removeItem(k));
+      profileKeys.forEach(k => localStorage.removeItem(k));
     } catch { /* ignore */ }
   }
 
@@ -487,6 +492,7 @@ export default function LoginPage() {
       const loginId = email.trim().toLowerCase();
       if (loginId === 'testuser') {
         setPstate('exploding');
+        clearPreviousUserData('testuser');
         localStorage.setItem('firebase_uid', 'testuser');
         localStorage.setItem('prisma_user_id', 'local-testuser');
         localStorage.setItem('prisma_user_email', 'testuser');
