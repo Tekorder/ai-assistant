@@ -38,6 +38,8 @@ import {
   readChecklistsLS,
   getTaskFlag,
   loadFromDatabase,
+  isProjectsHydrated,
+  PROJECTS_HYDRATED_EVENT,
 } from '@/lib/datacenter';
 import { validateSession } from '@/lib/session';
 import { useRouter } from 'next/navigation';
@@ -208,6 +210,25 @@ export default function App() {
     }
     setLayoutRestored(true);
   }, [isDesktop, layoutRestored]);
+
+  // On load with no tasks anywhere, land on Workspace — that's where the
+  // first-list wizard lives, even if the saved layout was Timeline/Calendar.
+  // Runs once, after the layout restore and once the server has confirmed.
+  useEffect(() => {
+    if (!layoutRestored) return;
+    let done = false;
+    const check = () => {
+      if (done || !isProjectsHydrated()) return;
+      done = true;
+      const hasTasks = (readProjectsLS()?.projects ?? []).some(p =>
+        (p.blocks ?? []).some(b => b.indent > 0 && b.archived !== true && (b.text || '').trim() !== ''),
+      );
+      if (!hasTasks) setActiveView('quick');
+    };
+    check();
+    window.addEventListener(PROJECTS_HYDRATED_EVENT, check);
+    return () => window.removeEventListener(PROJECTS_HYDRATED_EVENT, check);
+  }, [layoutRestored]);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatClosing, setChatClosing] = useState(false);
