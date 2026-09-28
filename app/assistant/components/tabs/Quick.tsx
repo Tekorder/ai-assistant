@@ -1264,7 +1264,7 @@ const handleKey = (
                               ? 'rounded-full px-2 group-hover:opacity-100 hover:brightness-125'
                               : `rounded-md px-1 group-hover:opacity-70 hover:!opacity-100 ${classes.quickEditBtn}`,
                           ].join(' ')}
-                          style={isValidDateYYYYMMDD(task.deadline) ? { background: '#18315C', color: '#fff' } : undefined}
+                          style={isValidDateYYYYMMDD(task.deadline) ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' } : undefined}
                         >
                           {isValidDateYYYYMMDD(task.deadline) ? (
                             <span className="inline-flex items-center gap-1">

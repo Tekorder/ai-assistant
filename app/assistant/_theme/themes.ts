@@ -2,23 +2,17 @@ import type { CSSProperties } from 'react';
 
 export type AssistantThemeName =
     | 'tekorder'
-    | 'matrix'
-    | 'ocean'
-    | 'purity'
-    | 'vader'
-    | 'obsidian'
-    | 'midnight'
-    | 'ember'
-    | 'nebula'
-    | 'graphite'
-    | 'aurora'
-    | 'bloodmoon'
-    | 'deepsea'
-    | 'cloud'
-    | 'sand'
-    | 'mint'
-    | 'rose'
-    | 'lavender';
+    | 'bluedark'
+    | 'mono'
+    | 'monodark'
+    | 'green'
+    | 'greendark'
+    | 'purple'
+    | 'purpledark'
+    | 'red'
+    | 'reddark'
+    | 'orange'
+    | 'orangedark';
 
 type AssistantTheme = {
     themeName: string;
@@ -30,12 +24,28 @@ type AssistantTheme = {
     textColor: string;
     glassBoost: string;
     backgroundImage?: string;
-    backgroundGradient?: string;
+    /** Page canvas behind everything (defaults to `background`) */
+    canvas?: string;
+    /** Blurred glow circle anchored bottom-left (defaults to tone1) */
+    glowColor?: string;
+    glowOpacity?: number;
+    /** Solid "contrast" controls — active nav/filter, Logout, wizard Finish, date pill, checked box (defaults to tone1) */
+    contrastBg?: string;
+    /** Text/icons on top of contrastBg (defaults to white on light themes, black on dark) */
+    contrastText?: string;
 };
 
+/*
+ * Every theme is a family with a light and a dark mode. Pattern per family:
+ *   light — neutral canvas, the family color as the glow, its "dark" shade for
+ *           contrast buttons and text.
+ *   dark  — a deep canvas of the same hue, the family color turned bright for
+ *           contrast buttons, near-white text.
+ */
 export const assistantThemes: Record<AssistantThemeName, AssistantTheme> = {
+    /* ── Blue ── (light key kept as "tekorder" so saved preferences still resolve) */
     tekorder: {
-	themeName: 'TekOrder',
+	themeName: 'Blue',
 	style: 'light',
 	background: '#eef3f9',
 	tone1: '#1a2b48',
@@ -43,181 +53,225 @@ export const assistantThemes: Record<AssistantThemeName, AssistantTheme> = {
 	tone3: '#9eb9d8',
 	textColor: '#1a2b48',
 	glassBoost: '16%',
-	/* Official BG — the image only, no gradient/lighting overlays */
-	/* Anchored bottom-left: the blue glow stays in that corner and cover scales out from there */
-	backgroundGradient: 'url(/bg-blue.png) left bottom / cover no-repeat #e0e0e0',
+	/* ── Theme parameters ───────────────────────── */
+	canvas: '#E0E0E0',       // Color del fondo
+	glowColor: '#5BACE3',    // Color del círculo (blur, abajo a la izquierda)
+	glowOpacity: 1,
+	contrastBg: '#18315C',   // Color de contraste de botones
+	contrastText: '#FFFFFF', // Color de contraste de letras (sobre esos botones)
     },
-    matrix: {
-	themeName: 'Matrix',
+    bluedark: {
+	themeName: 'Blue',
 	style: 'dark',
-	background: '#050505',
-	tone1: '#52b352',
-	tone2: '#181d04',
-	tone3: '#2e8b2e',
-	textColor: '#ffffff',
-	glassBoost: '32%',
-    },
-    ocean: {
-	themeName: 'Ocean',
-	style: 'dark',
-	background: '#06111a',
-	tone1: '#33a1ff',
-	tone2: '#122c32',
-	tone3: '#0f5f94',
-	textColor: '#eaf6ff',
+	background: '#0d1b31',
+	tone1: '#5BACE3',
+	tone2: '#15294a',
+	tone3: '#2b5d93',
+	textColor: '#e6f0fa',
 	glassBoost: '40%',
+	canvas: '#081326',
+	glowColor: '#1f6fc4',
+	glowOpacity: 0.55,
+	contrastBg: '#5BACE3',
+	contrastText: '#081326',
     },
-    purity: {
-	themeName: 'Purity',
-	style: 'dark',
-	background: '#09060b',
-	tone1: '#8a1f3d',
-	tone2: '#251029',
-	tone3: '#4b1b63',
-	textColor: '#f3e9ff',
-	glassBoost: '42%',
+
+    /* ── White ── white with black */
+    mono: {
+	themeName: 'White',
+	style: 'light',
+	background: '#ffffff',
+	tone1: '#111111',
+	tone2: '#ececec',
+	tone3: '#bdbdbd',
+	textColor: '#111111',
+	glassBoost: '14%',
+	canvas: '#F4F4F4',
+	glowColor: '#CFCFCF',
+	glowOpacity: 0.9,
+	contrastBg: '#111111',
+	contrastText: '#FFFFFF',
     },
-    vader: {
-	themeName: 'Vader',
+    monodark: {
+	themeName: 'White',
 	style: 'dark',
-	background: '#000000',
+	background: '#141414',
 	tone1: '#ffffff',
-	tone2: '#1a1a1a',
-	tone3: '#2a2a2a',
-	textColor: '#ffffff',
-	glassBoost: '44%',
-    },
-    obsidian: {
-	themeName: 'Obsidian',
-	style: 'dark',
-	background: '#0a0c10',
-	tone1: '#8ea0b8',
-	tone2: '#171c24',
-	tone3: '#2a3442',
-	textColor: '#e8edf5',
-	glassBoost: '41%',
-    },
-    midnight: {
-	themeName: 'Midnight',
-	style: 'dark',
-	background: '#04070f',
-	tone1: '#5f79d6',
-	tone2: '#121a30',
-	tone3: '#22355c',
-	textColor: '#e7eeff',
-	glassBoost: '42%',
-    },
-    ember: {
-	themeName: 'Ember',
-	style: 'dark',
-	background: '#0d0808',
-	tone1: '#b24a3a',
-	tone2: '#2a1310',
-	tone3: '#5a2720',
-	textColor: '#ffe9e4',
-	glassBoost: '43%',
-    },
-    nebula: {
-	themeName: 'Nebula',
-	style: 'dark',
-	background: '#08060f',
-	tone1: '#7f58c9',
-	tone2: '#1a1230',
-	tone3: '#3b2a6d',
-	textColor: '#f0e9ff',
-	glassBoost: '44%',
-    },
-    graphite: {
-	themeName: 'Graphite',
-	style: 'dark',
-	background: '#0b0b0d',
-	tone1: '#7aa2ff',
-	tone2: '#2a1f33',
-	tone3: '#3f4658',
-	textColor: '#edf0f3',
+	tone2: '#1f1f1f',
+	tone3: '#3a3a3a',
+	textColor: '#f2f2f2',
 	glassBoost: '40%',
+	canvas: '#0A0A0A',
+	glowColor: '#5A5A5A',
+	glowOpacity: 0.35,
+	contrastBg: '#FFFFFF',
+	contrastText: '#0A0A0A',
     },
-    aurora: {
-	themeName: 'Aurora',
+
+    /* ── Green ── lime glow, dark green #134740 */
+    green: {
+	themeName: 'Green',
+	style: 'light',
+	background: '#eef4ef',
+	tone1: '#134740',
+	tone2: '#d9ead9',
+	tone3: '#8fbf9f',
+	textColor: '#134740',
+	glassBoost: '16%',
+	canvas: '#E0E0E0',
+	glowColor: '#CBF376',    // rgba(203, 243, 118, 0.48)
+	glowOpacity: 0.48,
+	contrastBg: '#134740',
+	contrastText: '#FFFFFF',
+    },
+    greendark: {
+	themeName: 'Green',
 	style: 'dark',
-	background: '#05090a',
-	tone1: '#3edfb5',
-	tone2: '#1f2e4a',
-	tone3: '#5b3f88',
-	textColor: '#e8fffb',
-	glassBoost: '45%',
+	background: '#0c2622',
+	tone1: '#CBF376',
+	tone2: '#123a33',
+	tone3: '#2d6b58',
+	textColor: '#e6f5ec',
+	glassBoost: '40%',
+	canvas: '#061814',
+	glowColor: '#2e7d4f',
+	glowOpacity: 0.5,
+	contrastBg: '#CBF376',
+	contrastText: '#0B2A24',
     },
-    bloodmoon: {
-	themeName: 'Bloodmoon',
+
+    /* ── Purple ── dark purple #312F66 */
+    purple: {
+	themeName: 'Purple',
+	style: 'light',
+	background: '#f1f0fa',
+	tone1: '#312F66',
+	tone2: '#e2e0f5',
+	tone3: '#a6a1dc',
+	textColor: '#312F66',
+	glassBoost: '16%',
+	canvas: '#E0E0E0',
+	glowColor: '#8B7CF6',
+	glowOpacity: 0.85,
+	contrastBg: '#312F66',
+	contrastText: '#FFFFFF',
+    },
+    purpledark: {
+	themeName: 'Purple',
 	style: 'dark',
-	background: '#0b0607',
-	tone1: '#c94663',
-	tone2: '#2b1935',
-	tone3: '#6f2c3f',
-	textColor: '#ffeaf0',
-	glassBoost: '46%',
+	background: '#16143a',
+	tone1: '#b3a9ff',
+	tone2: '#221f52',
+	tone3: '#4b44a0',
+	textColor: '#eceaff',
+	glassBoost: '40%',
+	canvas: '#0C0B22',
+	glowColor: '#5a4ed6',
+	glowOpacity: 0.5,
+	contrastBg: '#B3A9FF',
+	contrastText: '#0C0B22',
     },
-    deepsea: {
-	themeName: 'Deepsea',
+
+    /* ── Red ── dark red #662723 */
+    red: {
+	themeName: 'Red',
+	style: 'light',
+	background: '#faf0ef',
+	tone1: '#662723',
+	tone2: '#f5dcd9',
+	tone3: '#dc9a93',
+	textColor: '#662723',
+	glassBoost: '16%',
+	canvas: '#E0E0E0',
+	glowColor: '#F2786C',
+	glowOpacity: 0.85,
+	contrastBg: '#662723',
+	contrastText: '#FFFFFF',
+    },
+    reddark: {
+	themeName: 'Red',
 	style: 'dark',
-	background: '#04080d',
-	tone1: '#4d86d1',
-	tone2: '#1a2e4f',
-	tone3: '#1f6d6a',
-	textColor: '#e9f4ff',
-	glassBoost: '43%',
+	background: '#2a100e',
+	tone1: '#ff9d92',
+	tone2: '#3d1714',
+	tone3: '#7a2e28',
+	textColor: '#fdeceb',
+	glassBoost: '40%',
+	canvas: '#1A0907',
+	glowColor: '#b23a31',
+	glowOpacity: 0.5,
+	contrastBg: '#FF9D92',
+	contrastText: '#1A0907',
     },
-    cloud: {
-	themeName: 'Cloud',
+
+    /* ── Orange ── dark orange #663412 */
+    orange: {
+	themeName: 'Orange',
 	style: 'light',
-	background: '#f7f9fc',
-	tone1: '#5b8cff',
-	tone2: '#dfe7f7',
-	tone3: '#aabce8',
-	textColor: '#1c2430',
-	glassBoost: '22%',
+	background: '#faf3ec',
+	tone1: '#663412',
+	tone2: '#f5e3d2',
+	tone3: '#e0ae80',
+	textColor: '#663412',
+	glassBoost: '16%',
+	canvas: '#E0E0E0',
+	glowColor: '#F6A659',
+	glowOpacity: 0.85,
+	contrastBg: '#663412',
+	contrastText: '#FFFFFF',
     },
-    sand: {
-	themeName: 'Sand',
-	style: 'light',
-	background: '#fdf8f0',
-	tone1: '#c47b2e',
-	tone2: '#f0e6d4',
-	tone3: '#d4a96a',
-	textColor: '#2d1f0a',
-	glassBoost: '20%',
-    },
-    mint: {
-	themeName: 'Mint',
-	style: 'light',
-	background: '#f3faf7',
-	tone1: '#2a9d6e',
-	tone2: '#d4ede3',
-	tone3: '#8bcfb2',
-	textColor: '#0d261e',
-	glassBoost: '20%',
-    },
-    rose: {
-	themeName: 'Rose',
-	style: 'light',
-	background: '#fdf5f7',
-	tone1: '#c94f72',
-	tone2: '#f7dde5',
-	tone3: '#e8a0b4',
-	textColor: '#2a0f18',
-	glassBoost: '18%',
-    },
-    lavender: {
-	themeName: 'Lavender',
-	style: 'light',
-	background: '#f8f6fd',
-	tone1: '#7c5cbf',
-	tone2: '#e8e0f7',
-	tone3: '#b89ee0',
-	textColor: '#1a1030',
-	glassBoost: '19%',
+    orangedark: {
+	themeName: 'Orange',
+	style: 'dark',
+	background: '#2a180b',
+	tone1: '#ffb574',
+	tone2: '#3d2410',
+	tone3: '#7a4a22',
+	textColor: '#fdf1e6',
+	glassBoost: '40%',
+	canvas: '#1A0E05',
+	glowColor: '#c0661f',
+	glowOpacity: 0.5,
+	contrastBg: '#FFB574',
+	contrastText: '#1A0E05',
     },
 };
+
+/* ===================== Families: every theme has a light and a dark mode ===================== */
+
+export type ThemeFamily = { name: string; light: AssistantThemeName; dark: AssistantThemeName };
+
+export const themeFamilies: ThemeFamily[] = [
+    { name: 'Blue',   light: 'tekorder', dark: 'bluedark' },
+    { name: 'White',  light: 'mono',     dark: 'monodark' },
+    { name: 'Green',  light: 'green',    dark: 'greendark' },
+    { name: 'Purple', light: 'purple',   dark: 'purpledark' },
+    { name: 'Red',    light: 'red',      dark: 'reddark' },
+    { name: 'Orange', light: 'orange',   dark: 'orangedark' },
+];
+
+export const DEFAULT_THEME_FAMILY = themeFamilies[0];
+
+export function getThemeFamily(name: AssistantThemeName): ThemeFamily {
+    return themeFamilies.find(f => f.light === name || f.dark === name) ?? DEFAULT_THEME_FAMILY;
+}
+
+/** The same family in the other mode — what the light/dark toggle switches to. */
+export function getThemeCounterpart(name: AssistantThemeName): AssistantThemeName {
+    const family = getThemeFamily(name);
+    return family.light === name ? family.dark : family.light;
+}
+
+/** Colors a theme picker needs to preview a family mode without applying it. */
+export function getThemeSwatch(name: AssistantThemeName) {
+    const t = assistantThemes[name];
+    return {
+        canvas: t.canvas ?? t.background,
+        glow: t.glowColor ?? t.tone1,
+        contrast: t.contrastBg ?? t.tone1,
+        text: t.textColor,
+    };
+}
 
 export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
     const isLight = theme.style === 'light';
@@ -230,6 +284,21 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
     const glassCenter = `${Math.round(glassBoostValue * 0.22)}%`;
     return {
 	'--assistant-bg': theme.background,
+	'--assistant-canvas': theme.canvas ?? theme.background,
+	'--assistant-bg-glow-color': theme.glowColor ?? theme.tone1,
+	// Dark themes get a dimmer glow so it reads as light, not a colored blob
+	'--assistant-bg-glow-opacity': String(theme.glowOpacity ?? (isLight ? 0.55 : 0.35)),
+	// Timeline columns: frosted white on light themes, a faint lift on dark ones
+	'--assistant-column-bg': isLight
+	? 'linear-gradient(180deg, rgba(255, 255, 255, 0.29) 0%, rgba(255, 255, 255, 0.24) 100%)'
+	: 'linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.04) 100%)',
+	// Tinted with each theme's contrast color (Blue → the original rgba(17,37,77,.40))
+	'--assistant-column-shadow': isLight
+	? `0 20px 40px 0 color-mix(in srgb, ${theme.contrastBg ?? theme.tone1} 40%, transparent)`
+	: '0 20px 40px 0 rgba(0, 0, 0, 0.45)',
+	'--assistant-row-divider': isLight ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.09)',
+	'--assistant-contrast-bg': theme.contrastBg ?? theme.tone1,
+	'--assistant-contrast-text': theme.contrastText ?? (isLight ? '#ffffff' : '#000000'),
 	'--assistant-bg-style': isLight
 	? '#ffffff'
 	: '#000000',
