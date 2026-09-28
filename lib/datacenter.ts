@@ -485,6 +485,70 @@ function getFirebaseUid(): string {
   try { return localStorage.getItem('firebase_uid') ?? ''; } catch { return ''; }
 }
 
+/* ===================== Local data ownership (account switching) =====================
+ * localStorage holds ONE account's data. Which account is recorded explicitly
+ * here — deducing it from `firebase_uid` breaks, because logout removes that key
+ * but leaves the data, so the next login (any account) inherited it and the
+ * "server is empty → migrate this device's data" step could upload it into the
+ * wrong account. */
+
+export const DATA_OWNER_KEY = 'youtask_data_owner_uid';
+
+const USER_DATA_KEYS = [LS_KEY_V2, LS_KEY_V1, LS_KEY_HABITS, LS_KEY_REMINDERS, LS_KEY_CHECKLISTS];
+
+export function getDataOwner(): string {
+  try { return localStorage.getItem(DATA_OWNER_KEY) ?? ''; } catch { return ''; }
+}
+
+function setDataOwner(uid: string): void {
+  try { localStorage.setItem(DATA_OWNER_KEY, uid); } catch {}
+}
+
+/**
+ * Call on every login, before the app hydrates. If this device's local data
+ * belongs to a different account, it is removed (with that account's delete
+ * backups) so the incoming account starts clean and pulls its own data.
+ *
+ * Unknown owner (data from before ownership was tracked): kept as-is in local
+ * mode (no server copy exists), otherwise stashed under one timestamped key
+ * before clearing — nothing unsynced is destroyed outright.
+ */
+export function prepareLocalDataForUser(uid: string): void {
+  if (!uid) return;
+  try {
+    const owner = getDataOwner();
+    if (owner === uid) return;
+
+    const hasLocalData = USER_DATA_KEYS.some(k => localStorage.getItem(k) !== null);
+    if (hasLocalData && !owner && process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') {
+      setDataOwner(uid); // no server to restore from — adopt rather than lose it
+      return;
+    }
+
+    if (hasLocalData && !owner) {
+      const stash: Record<string, string> = {};
+      for (const k of USER_DATA_KEYS) {
+        const v = localStorage.getItem(k);
+        if (v !== null) stash[k] = v;
+      }
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      localStorage.setItem(`youtask_orphan_backup__${stamp}`, JSON.stringify(stash));
+    }
+
+    for (const k of USER_DATA_KEYS) localStorage.removeItem(k);
+    // Delete-backups hold the previous account's data too
+    const backupKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(BACKUP_PREFIX)) backupKeys.push(k);
+    }
+    backupKeys.forEach(k => localStorage.removeItem(k));
+
+    closeSyncGates();
+    setDataOwner(uid);
+  } catch {}
+}
+
 /**
  * Sync gate. Uploads are blocked until loadFromDatabase() has confirmed, per
  * dataset, what the server holds. Without this, components that boot-write
@@ -533,6 +597,7 @@ function dbPost(path: SyncPath, body: unknown): void {
   if (!uid || uid === 'testuser') return;
   if (!syncGate[path]) return; // not hydrated yet — local write only
   if (uid !== hydratedUid) { closeSyncGates(); return; } // account changed under us
+  if (getDataOwner() !== uid) return; // local data isn't this account's — never upload it
   fetch(path, {
     method: 'POST',
     headers: {
@@ -669,6 +734,13 @@ export async function loadFromDatabase(): Promise<void> {
   if (!uid) return;
   if (uid === 'testuser') return;
   const headers = { 'X-Firebase-UID': uid };
+
+  // Local data must belong to this account before anything below can treat it
+  // as "this device's data" (the empty-server migration uploads it).
+  // No owner yet = a session from before ownership was tracked → adopt.
+  const owner = getDataOwner();
+  if (!owner) setDataOwner(uid);
+  else if (owner !== uid) prepareLocalDataForUser(uid);
 
   // A stale gate from a previous account must never carry over
   if (hydratedUid && hydratedUid !== uid) closeSyncGates();
