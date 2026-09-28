@@ -223,16 +223,16 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
 
       <div className="flex items-center justify-between px-4 py-3 shrink-0"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <h2 className="text-[15px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Reminders</h2>
+        <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Reminders</h2>
         <button type="button" onClick={requestClose}
-          className={`h-8 w-8 rounded-lg ${classes.panelBtn}`} aria-label="Close">
+          className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
           ✕
         </button>
       </div>
 
       <div className="px-4 py-3 shrink-0 flex items-center justify-between"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <span className="text-[10px]" style={{ color: 'var(--assistant-text-faint)' }}>
+        <span className="text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>
           US format: MM/DD/YYYY · h:mm AM/PM
         </span>
         <button type="button" onClick={handleAddReminder}
@@ -292,7 +292,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                       const v = e.target.value;
                       handleUpdateReminder(r.id, { date: isValidDateYYYYMMDD(v) ? v : todayYMD() });
                     }}
-                    className={`shrink-0 text-[11px] px-2 py-1 rounded-md ${classes.panelInput}`}
+                    className={`shrink-0 text-[12px] px-2 py-1 rounded-md ${classes.panelInput}`}
                   />
 
                   <input
@@ -302,13 +302,13 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                       const v = e.target.value;
                       handleUpdateReminder(r.id, { time: isValidTimeHHMM(v) ? v : '11:00' });
                     }}
-                    className={`shrink-0 text-[11px] px-2 py-1 rounded-md ${classes.panelInput}`}
+                    className={`shrink-0 text-[12px] px-2 py-1 rounded-md ${classes.panelInput}`}
                   />
 
                   <button
                     type="button"
                     onClick={() => handleUpdateReminder(r.id, { daily: !r.daily })}
-                    className={`shrink-0 text-[11px] px-2 py-1 rounded-full ${r.daily ? classes.panelAccentBadge : classes.panelNeutralBadge}`}
+                    className={`shrink-0 text-[12px] px-2 py-1 rounded-full ${r.daily ? classes.panelAccentBadge : classes.panelNeutralBadge}`}
                   >
                     {r.daily ? 'Daily' : 'Once'}
                   </button>
@@ -323,7 +323,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                   </button>
                 </div>
 
-                <div className="pl-5 text-[10px]" style={{ color: 'var(--assistant-text-faint)' }}>
+                <div className="pl-5 text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>
                   {formatReminderDateTimeUS(
                     isValidDateYYYYMMDD(r.date) ? r.date : todayYMD(),
                     isValidTimeHHMM(r.time) ? r.time : '11:00',

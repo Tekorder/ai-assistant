@@ -97,11 +97,11 @@ export default function CompletedTasksChart({ tasks }: Props) {
   return (
     <section>
       <div className="flex items-baseline justify-between mb-1.5">
-        <h2 className="text-[13px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>
+        <h2 className="text-[14px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>
           Completed tasks this {monthLabel}
         </h2>
         {activePoint && hasData && (
-          <div className="text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
+          <div className="text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>
             <span className="font-semibold" style={{ color: 'var(--assistant-text)' }}>
               {activePoint.value}
             </span>{' '}
@@ -116,7 +116,7 @@ export default function CompletedTasksChart({ tasks }: Props) {
       >
         {!hasData ? (
           <div
-            className="flex h-[100px] items-center justify-center text-[12px]"
+            className="flex h-[100px] items-center justify-center text-[13px]"
             style={{ color: 'var(--assistant-text-faint)' }}
           >
             No completed tasks yet this {monthLabel.toLowerCase()}.
@@ -202,7 +202,7 @@ export default function CompletedTasksChart({ tasks }: Props) {
             <text
               x={xScale(1)}
               y={VIEW_H - 4}
-              fontSize={11}
+              fontSize={12}
               textAnchor="start"
               style={{ fill: 'var(--assistant-text-faint)' }}
             >
@@ -211,7 +211,7 @@ export default function CompletedTasksChart({ tasks }: Props) {
             <text
               x={xScale(todayDate)}
               y={VIEW_H - 4}
-              fontSize={11}
+              fontSize={12}
               textAnchor="end"
               style={{ fill: 'var(--assistant-text-faint)' }}
             >

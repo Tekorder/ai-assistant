@@ -33,7 +33,7 @@ export default function Archive() {
   const [collapsed] = useState<unknown>({});
   const [hydrated, setHydrated]     = useState(false);
   const [projectId, setProjectId]   = useState<string | null>(null);
-  const [outerProjectTitle, setOuterProjectTitle] = useState<string>('Project');
+  const [outerProjectTitle, setOuterProjectTitle] = useState<string>('Group');
 
   /* ── Load & sync ── */
   useEffect(() => {
@@ -131,7 +131,7 @@ export default function Archive() {
         <div className="youtask-archive-title">
           Trash Bin
           <span className="youtask-archive-sub">
-            {' '}· {outerProjectTitle || 'Project'} · {rows.length} items
+            {' '}· {outerProjectTitle || 'Group'} · {rows.length} items
           </span>
         </div>
 

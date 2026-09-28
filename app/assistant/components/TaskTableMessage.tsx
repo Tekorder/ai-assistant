@@ -56,7 +56,7 @@ export default function TaskTableMessage({ rows, onToggle }: TaskTableMessagePro
                 {row.listName}
               </td>
               <td className="px-2 py-1.5">
-                <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] ${pillClass(row.deadline, row.checked)}`}>
+                <span className={`inline-block rounded-full px-2 py-0.5 text-[12px] ${pillClass(row.deadline, row.checked)}`}>
                   {row.deadline ? labelForYMD(row.deadline) : '—'}
                 </span>
               </td>

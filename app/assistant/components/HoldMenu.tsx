@@ -46,7 +46,7 @@ export function HoldMenu({
   return (
     <div
       ref={ref}
-      className="fixed z-[9999] min-w-[170px] py-1 rounded-lg overflow-hidden text-[12px] shadow-lg"
+      className="fixed z-[9999] min-w-[170px] py-1 rounded-lg overflow-hidden text-[13px] shadow-lg"
       style={{
         left: pos.left,
         top: pos.top,

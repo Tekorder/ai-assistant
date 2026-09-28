@@ -19,12 +19,12 @@ import {
   writeSelectedProjectBlocks,
   isListVisible,
   getTaskFlag,
+  cycleTaskFlag,
   addTaskUnderList,
   removeTaskAndSubtasks,
   type TaskFlagColor,
 } from '@/lib/datacenter';
-import { TaskFlagBadge } from '../TaskFlag';
-import { HoldMenu } from '../HoldMenu';
+import { TaskFlagIcon } from '../TaskFlag';
 
 /* ===================== Local UI types (no van a datacenter) ===================== */
 
@@ -59,13 +59,6 @@ function dayDiffFromToday(ymd: string): number {
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
 
-function pillClass(diff: number): string {
-  if (diff < 0) return 'yt-pill yt-pill-overdue';
-  if (diff === 0) return 'yt-pill yt-pill-today';
-  if (diff === 1) return 'yt-pill yt-pill-tomorrow';
-  return 'yt-pill yt-pill-future';
-}
-
 function monthStart(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
@@ -91,17 +84,89 @@ function isDateWithinRange(ymd: string, fromYMD: string, toYMD: string): boolean
   return ymd >= fromYMD && ymd <= toYMD;
 }
 
+/* ===================== Row menu (⋮) ===================== */
+
+function RowMenu({
+  x,
+  y,
+  isOnHold,
+  onReschedule,
+  onToggleHold,
+  onDelete,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  isOnHold: boolean;
+  onReschedule: () => void;
+  onToggleHold: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState({ left: x, top: y });
+
+  // Anchor the menu's right edge to the button, clamped inside the viewport.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const left = Math.min(x - rect.width, window.innerWidth - rect.width - 8);
+    const top = Math.min(y, window.innerHeight - rect.height - 8);
+    setPos({ left: Math.max(8, left), top: Math.max(8, top) });
+  }, [x, y]);
+
+  useEffect(() => {
+    const handlePointerDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', onClose, true);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', onClose, true);
+    };
+  }, [onClose]);
+
+  const item = (label: string, action: () => void, danger = false) => (
+    <button
+      type="button"
+      role="menuitem"
+      className={['yt-menu-item', danger ? 'is-danger' : ''].join(' ')}
+      onClick={() => {
+        action();
+        onClose();
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div ref={ref} className="yt-menu" style={{ left: pos.left, top: pos.top }} role="menu">
+      {item('Reschedule', onReschedule)}
+      {item(isOnHold ? 'Remove hold' : 'Put on hold', onToggleHold)}
+      {item('Delete', onDelete, true)}
+    </div>
+  );
+}
+
 /* ===================== Component ===================== */
 
 export default function Timeline() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [projectTitle, setProjectTitle] = useState<string>('Project');
+  const [projectTitle, setProjectTitle] = useState<string>('Group');
   const [showCompleted, setShowCompleted] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => monthStart(new Date()));
   const [editingDateCardId, setEditingDateCardId] = useState<string | null>(null);
-  const [holdMenu, setHoldMenu] = useState<{ cardId: string; x: number; y: number } | null>(null);
+  const [rowMenu, setRowMenu] = useState<{ cardId: string; x: number; y: number } | null>(null);
   const [visibleLists, setVisibleLists] = useState<Record<string, boolean>>({});
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
@@ -369,6 +434,18 @@ export default function Timeline() {
     setBlocks(next);
   };
 
+  const setFlag = (cardId: string, flag: TaskFlagColor | undefined) => {
+    const next = blocks.map(x => ({ ...x }));
+    for (const b of next) {
+      if (b.id !== cardId || b.indent !== 1) continue;
+      b.flag = flag;
+      b.priority = undefined;
+      break;
+    }
+    writeSelectedProjectBlocks(projectId, next);
+    setBlocks(next);
+  };
+
   const deleteTask = (cardId: string) => {
     const next = removeTaskAndSubtasks(blocks, cardId);
     writeSelectedProjectBlocks(projectId, next);
@@ -463,7 +540,7 @@ export default function Timeline() {
 
           {!showCompleted ? (
             <span className="youtask-timeline-sub">
-              {' '}· {projectTitle || 'Project'}
+              {' '}· {projectTitle || 'Group'}
               {!normalRange
                 ? ' · (sin deadlines)'
                 : ` · Overdue (${overdueCount}) · ${columns.filter(k => k !== OVERDUE_KEY).length} column${columns.filter(k => k !== OVERDUE_KEY).length === 1 ? '' : 's'}`}
@@ -548,7 +625,6 @@ export default function Timeline() {
 
             const hasOpen = list.some(c => !c.checked);
             const showOverduePill = showCompleted ? diff < 0 && hasOpen : diff < 0;
-            const pillDiffForClass = showOverduePill ? -1 : Math.max(0, diff);
 
             const pillText = (() => {
               if (isOverdueCol || showOverduePill) return 'Overdue';
@@ -561,17 +637,15 @@ export default function Timeline() {
             return (
               <div key={colKey} className="yt-col">
                 <div className="yt-col-header">
-                  <div className="yt-col-title">
+                  <div
+                    className={['yt-col-title', showOverduePill ? 'is-overdue' : ''].join(' ')}
+                    title={isOverdueCol ? `${list.length} overdue` : colKey}
+                  >
                     {title}
-                    {isOverdueCol ? (
-                      <span className="youtask-timeline-sub" style={{ marginLeft: 8 }}>
-                        · {list.length}
-                      </span>
-                    ) : null}
                   </div>
 
-                  {pillText ? (
-                    <div className={pillClass(pillDiffForClass)} title={isOverdueCol ? 'Overdue' : colKey}>
+                  {pillText && !isOverdueCol ? (
+                    <div className={['yt-col-when', showOverduePill ? 'is-overdue' : ''].join(' ')}>
                       {pillText}
                     </div>
                   ) : null}
@@ -587,137 +661,137 @@ export default function Timeline() {
                     <div className="yt-empty">—</div>
                   ) : (
                     list.map(card => {
-                      const overdueDays = !showCompleted
-                        ? Math.max(0, Math.abs(Math.min(0, dayDiffFromToday(card.deadline))))
+                      const overdueDays = isOverdueCol
+                        ? Math.max(0, -dayDiffFromToday(card.deadline))
                         : 0;
 
                       return (
                         <div
                           key={card.id}
                           className={[
-                            'yt-card',
+                            'yt-row',
                             card.checked ? 'is-done' : '',
                             draggingCardId === card.id ? 'is-dragging' : '',
+                            rowMenu?.cardId === card.id ? 'is-menu-open' : '',
                           ].join(' ')}
+                          title={isOverdueCol ? `${fmtColTitle(card.deadline)} · ${overdueDays}d late` : undefined}
                           draggable
                           onDragStart={e => handleCardDragStart(e, card.id)}
                           onDragEnd={handleCardDragEnd}
                         >
-                          <div className="yt-card-top">
-                            <div className="yt-project">
-                              {card.projectTitle || projectTitle || 'General'}
-                            </div>
+                          <button
+                            type="button"
+                            className={['yt-check check-glow', card.checked ? 'is-on' : ''].join(' ')}
+                            onClick={() => toggleDone(card.id)}
+                            title={card.checked ? 'Mark as pending' : 'Mark as completed'}
+                            aria-label={card.checked ? 'Completed' : 'Mark completed'}
+                            aria-pressed={card.checked}
+                          >
+                            {card.checked ? (
+                              <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden="true">
+                                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            ) : null}
+                          </button>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <button
-                                type="button"
-                                className={['yt-reschedule', card.onHold ? 'yt-reschedule-hold' : ''].join(' ')}
-                                onClick={() => setEditingDateCardId(card.id)}
-                                onContextMenu={e => {
-                                  e.preventDefault();
-                                  setHoldMenu({ cardId: card.id, x: e.clientX, y: e.clientY });
-                                }}
-                                title={card.onHold ? 'On Hold — right-click for options' : 'Re-schedule'}
-                                aria-label="Reschedule"
-                              >
-                                {card.onHold ? 'HOLD' : '📅'}
-                              </button>
+                          <div className="yt-row-main">
+                            {editingTextCardId === card.id ? (
                               <input
-                                ref={el => { inlineDateRefs.current[card.id] = el; }}
-                                type="date"
-                                className="fixed opacity-0 pointer-events-none -z-10"
-                                value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
-                                onChange={e => {
-                                  if (e.target.value) rescheduleDeadline(card.id, e.target.value);
-                                  setEditingDateCardId(null);
-                                }}
-                                onBlur={() => setEditingDateCardId(null)}
+                                ref={el => { inlineTextRefs.current[card.id] = el; }}
+                                className="yt-row-title-input"
+                                value={draftText}
+                                onChange={e => setDraftText(e.target.value)}
+                                onBlur={() => commitTaskText(card.id)}
                                 onKeyDown={e => {
-                                  if (e.key === 'Escape' || e.key === 'Enter') setEditingDateCardId(null);
+                                  if (e.key === 'Enter') { e.preventDefault(); commitTaskText(card.id); }
+                                  if (e.key === 'Escape') setEditingTextCardId(null);
                                 }}
+                                placeholder="Task name"
                               />
-
-                              <button
-                                type="button"
-                                className="yt-reschedule"
-                                onClick={() => setDeleteConfirmId(card.id)}
-                                title="Delete"
-                                aria-label="Delete"
+                            ) : (
+                              <div
+                                className="yt-row-title"
+                                onDoubleClick={() => { setDraftText(card.text); setEditingTextCardId(card.id); }}
                               >
-                                🗑️
-                              </button>
+                                {card.text || '(sin texto)'}
+                              </div>
+                            )}
 
-                              <button
-                                type="button"
-                                className={['yt-tick', card.checked ? 'is-on' : ''].join(' ')}
-                                onClick={() => toggleDone(card.id)}
-                                title={card.checked ? 'Marcar como pendiente' : 'Marcar como completado'}
-                                aria-label={card.checked ? 'Completed' : 'Mark completed'}
-                              >
-                                {card.checked ? (
-                                  <span className="relative flex h-3 w-3 items-center justify-center">
-                                    <span
-                                      className="absolute h-2.5 w-2.5 rounded-full blur-[2px]"
-                                      style={{ background: 'color-mix(in srgb, var(--assistant-tone-1, #52b352) 85%, transparent)' }}
-                                    />
-                                    <span
-                                      className="absolute h-1.5 w-1.5 rounded-full"
-                                      style={{ background: 'var(--assistant-tone-1, #52b352)' }}
-                                    />
-                                  </span>
-                                ) : (
-                                  <span className="h-3 w-3 rounded" style={{ border: '1px solid var(--assistant-border-soft)' }} />
-                                )}
-                              </button>
+                            {card.onHold ? <div className="yt-row-meta">On hold</div> : null}
 
-                              {card.checked ? <div className="yt-donebadge">✓</div> : null}
-                            </div>
+                            {card.subtasks.length > 0 ? (
+                              <div className="yt-subtasks">
+                                {card.subtasks.map(st => (
+                                  <div key={st.id} className={['yt-subtask', st.checked ? 'is-done' : ''].join(' ')}>
+                                    <span className="yt-subdot">{st.checked ? '✓' : '•'}</span>
+                                    <span className="yt-subtext">{st.text || '(subtask)'}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
 
-                          {editingTextCardId === card.id ? (
-                            <input
-                              ref={el => { inlineTextRefs.current[card.id] = el; }}
-                              className="yt-card-title-input"
-                              value={draftText}
-                              onChange={e => setDraftText(e.target.value)}
-                              onBlur={() => commitTaskText(card.id)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') { e.preventDefault(); commitTaskText(card.id); }
-                                if (e.key === 'Escape') setEditingTextCardId(null);
-                              }}
-                              placeholder="Task name"
-                            />
-                          ) : (
-                            <div
-                              className="yt-card-title"
-                              onDoubleClick={() => { setDraftText(card.text); setEditingTextCardId(card.id); }}
+                          <div className="yt-row-actions">
+                            <button
+                              type="button"
+                              className={['yt-row-iconbtn', card.flag ? 'is-flagged' : ''].join(' ')}
+                              onClick={() => setFlag(card.id, cycleTaskFlag(card.flag))}
+                              title={card.flag ? 'Change flag' : 'Add flag'}
+                              aria-label={card.flag ? 'Change flag' : 'Add flag'}
                             >
-                              <TaskFlagBadge source={{ flag: card.flag }} inline />
-                              {card.text || '(sin texto)'}
-                            </div>
-                          )}
+                              {card.flag ? (
+                                <TaskFlagIcon color={card.flag} />
+                              ) : (
+                                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" aria-hidden="true">
+                                  <path
+                                    d="M4 17.5V3.5M4 3.5c1.6-1 3.4-1 5.3-.2 1.9.8 3.7.8 5.7-.3v8.2c-2 1.1-3.8 1.1-5.7.3-1.9-.8-3.7-.8-5.3.2"
+                                    stroke="currentColor"
+                                    strokeWidth="1.3"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              )}
+                            </button>
 
-                          {isOverdueCol ? (
-                            <div className="yt-overdue-meta" title={card.deadline}>
-                              <span className="yt-pill yt-pill-future yt-overdue-date-pill">
-                                {fmtColTitle(card.deadline)}
-                              </span>
-                              <span className="yt-pill yt-pill-overdue yt-overdue-days-pill">
-                                {overdueDays}d late
-                              </span>
-                            </div>
-                          ) : null}
+                            <button
+                              type="button"
+                              className="yt-row-iconbtn"
+                              onMouseDown={e => e.stopPropagation()}
+                              onClick={e => {
+                                const r = e.currentTarget.getBoundingClientRect();
+                                setRowMenu(prev =>
+                                  prev?.cardId === card.id ? null : { cardId: card.id, x: r.right, y: r.bottom + 4 },
+                                );
+                              }}
+                              title="Task options"
+                              aria-label="Task options"
+                              aria-haspopup="menu"
+                              aria-expanded={rowMenu?.cardId === card.id}
+                            >
+                              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
+                                <circle cx="8" cy="3.2" r="1.2" />
+                                <circle cx="8" cy="8" r="1.2" />
+                                <circle cx="8" cy="12.8" r="1.2" />
+                              </svg>
+                            </button>
 
-                          {card.subtasks.length > 0 ? (
-                            <div className="yt-subtasks">
-                              {card.subtasks.map(st => (
-                                <div key={st.id} className={['yt-subtask', st.checked ? 'is-done' : ''].join(' ')}>
-                                  <span className="yt-subdot">{st.checked ? '✓' : '•'}</span>
-                                  <span className="yt-subtext">{st.text || '(subtask)'}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
+                            <input
+                              ref={el => { inlineDateRefs.current[card.id] = el; }}
+                              type="date"
+                              className="fixed opacity-0 pointer-events-none -z-10"
+                              tabIndex={-1}
+                              value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
+                              onChange={e => {
+                                if (e.target.value) rescheduleDeadline(card.id, e.target.value);
+                                setEditingDateCardId(null);
+                              }}
+                              onBlur={() => setEditingDateCardId(null)}
+                              onKeyDown={e => {
+                                if (e.key === 'Escape' || e.key === 'Enter') setEditingDateCardId(null);
+                              }}
+                            />
+                          </div>
                         </div>
                       );
                     })
@@ -746,10 +820,10 @@ export default function Timeline() {
               border: '1px solid var(--assistant-border-soft)',
             }}
           >
-            <h3 className="text-[14px] font-semibold mb-3">Add task to which list?</h3>
+            <h3 className="text-[15px] font-semibold mb-3">Add task to which list?</h3>
             <div className="flex flex-col gap-1.5 max-h-[50vh] overflow-y-auto">
               {listOptions.length === 0 ? (
-                <div className="text-[13px]" style={{ color: 'var(--assistant-text-soft)' }}>
+                <div className="text-[14px]" style={{ color: 'var(--assistant-text-soft)' }}>
                   No lists yet.
                 </div>
               ) : (
@@ -758,7 +832,7 @@ export default function Timeline() {
                     key={opt.id}
                     type="button"
                     onClick={() => handleCreateTaskInList(opt.id)}
-                    className="w-full rounded-lg px-3 py-2 text-left text-[13px] transition-colors"
+                    className="w-full rounded-lg px-3 py-2 text-left text-[14px] transition-colors"
                     style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-control-bg)' }}
                   >
                     {opt.title}
@@ -769,7 +843,7 @@ export default function Timeline() {
             <button
               type="button"
               onClick={() => setPickListOpen(false)}
-              className="mt-3 w-full rounded-lg px-3 py-2 text-[13px]"
+              className="mt-3 w-full rounded-lg px-3 py-2 text-[14px]"
               style={{ color: 'var(--assistant-text-muted)' }}
             >
               Cancel
@@ -795,15 +869,15 @@ export default function Timeline() {
               border: '1px solid var(--assistant-border-soft)',
             }}
           >
-            <h3 className="text-[14px] font-semibold mb-1.5">Delete task?</h3>
-            <p className="text-[12px] mb-4" style={{ color: 'var(--assistant-text-soft)' }}>
+            <h3 className="text-[15px] font-semibold mb-1.5">Delete task?</h3>
+            <p className="text-[13px] mb-4" style={{ color: 'var(--assistant-text-soft)' }}>
               This can&apos;t be undone.
             </p>
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setDeleteConfirmId(null)}
-                className="text-[12px] px-3 py-2 rounded-lg"
+                className="text-[13px] px-3 py-2 rounded-lg"
                 style={{ color: 'var(--assistant-text-muted)' }}
               >
                 Cancel
@@ -811,7 +885,7 @@ export default function Timeline() {
               <button
                 type="button"
                 onClick={() => { deleteTask(deleteConfirmId); setDeleteConfirmId(null); }}
-                className="text-[12px] px-3 py-2 rounded-lg bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
+                className="text-[13px] px-3 py-2 rounded-lg bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
               >
                 Delete
               </button>
@@ -820,16 +894,18 @@ export default function Timeline() {
         </div>
       )}
 
-      {holdMenu ? (
-        <HoldMenu
-          x={holdMenu.x}
-          y={holdMenu.y}
-          isOnHold={Boolean(cards.find(c => c.id === holdMenu.cardId)?.onHold)}
+      {rowMenu ? (
+        <RowMenu
+          x={rowMenu.x}
+          y={rowMenu.y}
+          isOnHold={Boolean(cards.find(c => c.id === rowMenu.cardId)?.onHold)}
+          onReschedule={() => setEditingDateCardId(rowMenu.cardId)}
           onToggleHold={() => {
-            const card = cards.find(c => c.id === holdMenu.cardId);
-            setHold(holdMenu.cardId, !card?.onHold);
+            const card = cards.find(c => c.id === rowMenu.cardId);
+            setHold(rowMenu.cardId, !card?.onHold);
           }}
-          onClose={() => setHoldMenu(null)}
+          onDelete={() => setDeleteConfirmId(rowMenu.cardId)}
+          onClose={() => setRowMenu(null)}
         />
       ) : null}
     </div>

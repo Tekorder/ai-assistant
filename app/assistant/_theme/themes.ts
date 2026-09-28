@@ -43,9 +43,8 @@ export const assistantThemes: Record<AssistantThemeName, AssistantTheme> = {
 	tone3: '#9eb9d8',
 	textColor: '#1a2b48',
 	glassBoost: '16%',
-	/* Soft airy wash: off-white top-right → pastel sky blue bottom-left */
-	backgroundGradient:
-	    'linear-gradient(145deg, #f8fafc 0%, #f1f5fa 22%, #e4eef7 48%, #d0e2f2 72%, #b8d2eb 100%)',
+	/* Official BG — the image only, no gradient/lighting overlays */
+	backgroundGradient: 'url(/bg-blue.png) center / cover no-repeat #e0e0e0',
     },
     matrix: {
 	themeName: 'Matrix',

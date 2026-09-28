@@ -376,7 +376,7 @@ export default function TopNavBar({
                 type="button"
                 onClick={onClick}
                 className={[
-                  'flex items-center gap-1.5 text-[13px] whitespace-nowrap shrink-0 transition-colors',
+                  'flex items-center gap-1.5 text-[14px] whitespace-nowrap shrink-0 transition-colors',
                   isActive ? classes.topNavCenterActive : classes.topNavCenterInactive,
                 ].join(' ')}
                 aria-pressed={isActive}
@@ -449,13 +449,13 @@ export default function TopNavBar({
                     className="flex items-center justify-between px-4 py-2.5 border-b"
                     style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
                   >
-                    <span className="text-[12px] font-semibold tracking-wide" style={{ color: 'var(--assistant-text-soft)' }}>
+                    <span className="text-[13px] font-semibold tracking-wide" style={{ color: 'var(--assistant-text-soft)' }}>
                       Today&apos;s reminders
                     </span>
                     {hasPending && (
                       <button
                         onClick={dismissAll}
-                        className="text-[11px] transition-colors"
+                        className="text-[12px] transition-colors"
                         style={{ color: 'var(--assistant-text-faint)' }}
                         onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-accent)')}
                         onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-faint)')}
@@ -467,7 +467,7 @@ export default function TopNavBar({
 
                   <div className="max-h-64 overflow-y-auto">
                     {todayReminders.length === 0 ? (
-                      <div className="px-4 py-5 text-[12px] text-center" style={{ color: 'var(--assistant-text-faint)' }}>
+                      <div className="px-4 py-5 text-[13px] text-center" style={{ color: 'var(--assistant-text-faint)' }}>
                         No reminders for today
                       </div>
                     ) : (
@@ -485,7 +485,7 @@ export default function TopNavBar({
                             />
                             <div className="flex-1 min-w-0">
                               <div
-                                className="text-[13px] font-medium leading-snug truncate"
+                                className="text-[14px] font-medium leading-snug truncate"
                                 style={{
                                   color: isDone ? 'var(--assistant-text-faint)' : 'var(--assistant-text)',
                                   textDecoration: isDone ? 'line-through' : 'none',
@@ -495,7 +495,7 @@ export default function TopNavBar({
                                 {r.title}
                               </div>
                               {(r.time || r.daily || r.weekly) && (
-                                <div className="text-[11px] mt-0.5" style={{ color: 'var(--assistant-text-faint)' }}>
+                                <div className="text-[12px] mt-0.5" style={{ color: 'var(--assistant-text-faint)' }}>
                                   {r.time && <span>{r.time}</span>}
                                   {r.daily  && <span className="ml-1">· daily</span>}
                                   {r.weekly && <span className="ml-1">· weekly</span>}
@@ -505,7 +505,7 @@ export default function TopNavBar({
                             {!isDone ? (
                               <button
                                 onClick={() => dismissOne(r.id)}
-                                className="shrink-0 opacity-0 group-hover:opacity-100 text-[11px] px-2 py-1 rounded-md transition-all"
+                                className="shrink-0 opacity-0 group-hover:opacity-100 text-[12px] px-2 py-1 rounded-md transition-all"
                                 style={{ background: 'var(--assistant-control-bg)', color: 'var(--assistant-text-muted)' }}
                               >
                                 <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
@@ -527,7 +527,7 @@ export default function TopNavBar({
 
                   {!hasPending && todayReminders.length > 0 && (
                     <div
-                      className="px-4 py-2.5 border-t text-center text-[11px]"
+                      className="px-4 py-2.5 border-t text-center text-[12px]"
                       style={{ borderTopColor: 'var(--assistant-border-soft)', color: 'var(--assistant-tone-1)' }}
                     >
                       All done for today
@@ -549,11 +549,11 @@ export default function TopNavBar({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={userAvatar} alt="" className="h-7 w-7 rounded-full object-cover shrink-0" />
             ) : (
-              <span className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0 ${classes.topNavAvatarFallback}`}>
+              <span className={`h-7 w-7 rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0 ${classes.topNavAvatarFallback}`}>
                 {(userName || 'U').slice(0, 1).toUpperCase()}
               </span>
             )}
-            <span className="hidden sm:inline max-w-[140px] truncate text-[13px] font-medium">
+            <span className="hidden sm:inline max-w-[140px] truncate text-[14px] font-medium">
               {userName || 'Account'}
             </span>
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 opacity-70" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
@@ -585,7 +585,7 @@ export default function TopNavBar({
               }`}
             >
               <span className="text-base leading-none">{item.icon}</span>
-              <span className="text-[9px] font-medium">{item.mobileLabel}</span>
+              <span className="text-[10px] font-medium">{item.mobileLabel}</span>
               {isActive && (
                 <span className="absolute bottom-0 w-8 h-0.5 rounded-full" style={{ background: 'var(--assistant-accent)' }} />
               )}

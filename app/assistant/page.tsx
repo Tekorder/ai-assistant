@@ -527,7 +527,7 @@ export default function App() {
     dayPanelInstances.length === 0;
   const mainPanelWidth = mainPanelSolo ? '90vw' : '70vw';
 
-  // Lists panel: starts as wide as the other side panels (PANEL_WIDTH),
+  // Side panel width (shared by every dock panel except Sidebar and main): starts at PANEL_WIDTH,
   // grows ~60px per extra tab, and is capped at half the main dock width
   // (main is 70vw whenever any panel is open, including this one → cap at 35vw).
   const LISTS_TAB_STEP = 60;
@@ -598,7 +598,7 @@ export default function App() {
     <QuickFiltersProvider>
       <div
         data-assistant-root
-        className="font-inter flex h-screen flex-col"
+        className="flex h-screen flex-col"
         style={{
           ...getAssistantThemeVars(theme),
           background: theme.backgroundGradient
@@ -807,7 +807,7 @@ export default function App() {
                         type="button"
                         onClick={() => handleSetActiveView(item.id)}
                         className={[
-                          'flex items-center justify-center text-[13px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
+                          'flex items-center justify-center text-[14px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
                           isActive ? classes.mainTabActive : classes.mainTabInactive,
                         ].join(' ')}
                         aria-current={isActive ? 'page' : undefined}
@@ -828,7 +828,7 @@ export default function App() {
             className="h-full shrink-0"
             style={{
               order: dockOrder('habits'),
-              width: habitsOpen && isDesktop === true ? PANEL_WIDTH : 0,
+              width: habitsOpen && isDesktop === true ? listsPanelWidth : 0,
               opacity: habitsOpen && isDesktop === true ? 1 : 0,
               transform: habitsOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
               transition:
@@ -846,7 +846,7 @@ export default function App() {
             className="h-full shrink-0"
             style={{
               order: dockOrder('reminders'),
-              width: remindersOpen && isDesktop === true ? PANEL_WIDTH : 0,
+              width: remindersOpen && isDesktop === true ? listsPanelWidth : 0,
               opacity: remindersOpen && isDesktop === true ? 1 : 0,
               transform: remindersOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
               transition:
@@ -864,7 +864,7 @@ export default function App() {
             className="h-full shrink-0"
             style={{
               order: dockOrder('activity'),
-              width: activityOpen && isDesktop === true ? PANEL_WIDTH : 0,
+              width: activityOpen && isDesktop === true ? listsPanelWidth : 0,
               opacity: activityOpen && isDesktop === true ? 1 : 0,
               transform: activityOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
               transition:
@@ -909,7 +909,7 @@ export default function App() {
                 className="h-full shrink-0"
                 style={{
                   order: dockOrder(pivot.id),
-                  width: PANEL_WIDTH,
+                  width: listsPanelWidth,
                   opacity: 1,
                   transform: 'translateX(0)',
                 }}
@@ -938,7 +938,7 @@ export default function App() {
                 className="h-full shrink-0"
                 style={{
                   order: dockOrder(day.id),
-                  width: PANEL_WIDTH,
+                  width: listsPanelWidth,
                   opacity: 1,
                   transform: 'translateX(0)',
                 }}
@@ -1106,7 +1106,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={closeChatOverlay}
-                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelCloseBtn}`}
                     aria-label="Close"
                   >
                     <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -1139,15 +1139,15 @@ export default function App() {
                 border: '1px solid var(--assistant-border-soft)',
               }}
             >
-              <h3 className="text-[15px] font-semibold mb-1.5">Clear chat memory?</h3>
-              <p className="text-[13px] mb-5" style={{ color: 'var(--assistant-text-soft)' }}>
+              <h3 className="text-[16px] font-semibold mb-1.5">Clear chat memory?</h3>
+              <p className="text-[14px] mb-5" style={{ color: 'var(--assistant-text-soft)' }}>
                 Do you want to clear the chat memory?
               </p>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setConfirmClearChat(false)}
-                  className={`flex-1 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors ${classes.panelBtn}`}
+                  className={`flex-1 rounded-lg px-3.5 py-2.5 text-[14px] font-medium transition-colors ${classes.panelBtn}`}
                 >
                   Cancel
                 </button>
@@ -1157,7 +1157,7 @@ export default function App() {
                     window.dispatchEvent(new Event(WALDY_CLEAR_CHAT_EVENT));
                     setConfirmClearChat(false);
                   }}
-                  className="flex-1 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors"
+                  className="flex-1 rounded-lg px-3.5 py-2.5 text-[14px] font-medium transition-colors"
                   style={{ background: '#f87171', color: '#1a0505' }}
                 >
                   Clear

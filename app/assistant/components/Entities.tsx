@@ -272,13 +272,13 @@ export default function Entities({
     <div className={className ?? ''}>
       <div className="mb-3 flex items-center justify-between">
         <div className="text-white/85 font-semibold">Entities</div>
-        <div className="text-[11px] text-white/40">{loaded ? `${items.length}` : 'Loading…'}</div>
+        <div className="text-[12px] text-white/40">{loaded ? `${items.length}` : 'Loading…'}</div>
       </div>
 
       {!loaded ? (
-        <div className="text-[12px] text-white/45">Loading…</div>
+        <div className="text-[13px] text-white/45">Loading…</div>
       ) : !items.length ? (
-        <div className="text-[12px] text-white/45">No people or places found yet.</div>
+        <div className="text-[13px] text-white/45">No people or places found yet.</div>
       ) : (
         <div className="space-y-2">
           {items.map((e) => {
@@ -296,17 +296,17 @@ export default function Entities({
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[13px] text-white/85 font-semibold truncate">
+                    <div className="text-[14px] text-white/85 font-semibold truncate">
                       {e.label}
                     </div>
-                    <div className="text-[11px] text-white/45">
+                    <div className="text-[12px] text-white/45">
                       {e.kind === 'person' ? 'Person' : 'Place'} · {e.count} task{e.count === 1 ? '' : 's'}
                     </div>
                   </div>
 
                   <span
                     className={[
-                      'shrink-0 text-[11px] px-2 py-1 rounded-full',
+                      'shrink-0 text-[12px] px-2 py-1 rounded-full',
                       e.kind === 'person'
                         ? 'text-emerald-200 bg-emerald-500/16'
                         : 'text-sky-200 bg-sky-500/14',
@@ -319,7 +319,7 @@ export default function Entities({
                 {e.examples.length ? (
                   <div className="mt-2 space-y-1">
                     {e.examples.map((x) => (
-                      <div key={x.blockId} className="text-[11px] text-white/45 truncate">
+                      <div key={x.blockId} className="text-[12px] text-white/45 truncate">
                         {x.text}
                       </div>
                     ))}
