@@ -350,6 +350,11 @@
 }
 .panelBtn:hover { background: var(--assistant-hover-bg); color: var(--assistant-text); }
 .panelBtn:disabled { opacity: .3; }
+/* Disabled menu items ("Soon") don't react to hover */
+.menuItem:disabled:hover { background: transparent; }
+@media (min-width: 768px) {
+  .menuItem:disabled:hover { background: var(--assistant-control-bg); }
+}
 
 /* Panel close (✕) — icon only, no background */
 .panelCloseBtn {
@@ -364,6 +369,17 @@
   color: var(--assistant-danger-text);
   transition: background .15s;
 }
+/* Menu logout — solid accent (blue) with white text */
+.menuLogoutBtn {
+  background: var(--assistant-accent);
+  color: var(--assistant-bg-style);
+  transition: background .15s, box-shadow .15s;
+}
+.menuLogoutBtn:hover {
+  background: color-mix(in srgb, var(--assistant-accent) 88%, black);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--assistant-accent) 28%, transparent);
+}
+
 .panelBtnDanger:hover { background: color-mix(in srgb, #ef4444 24%, transparent); }
 
 .panelInput {

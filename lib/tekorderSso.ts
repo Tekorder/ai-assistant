@@ -91,10 +91,30 @@ export function openTekOrderLogin(appDisplayName: string): Promise<TekOrderUser>
   });
 }
 
-/** True for a `firebase_uid` value this app assigned during a TekOrder login (real or local-only fallback). */
+/**
+ * localStorage marker set on every TekOrder login. Needed because an email that
+ * already had a Firebase/Google account keeps that real Firebase uid in the DB —
+ * so the uid alone can't tell us the session came from TekOrder.
+ */
+export const AUTH_PROVIDER_KEY = 'youtask_auth_provider';
+
+export function markTekOrderSession() {
+  try { localStorage.setItem(AUTH_PROVIDER_KEY, 'tekorder'); } catch {}
+}
+
+export function clearAuthProviderMarker() {
+  try { localStorage.removeItem(AUTH_PROVIDER_KEY); } catch {}
+}
+
+/** True when the current session started as a TekOrder login (no Firebase Auth session behind it). */
 export function isTekOrderSession(firebaseUid: string | null | undefined): boolean {
   if (!firebaseUid) return false;
-  return firebaseUid.replace(/^local-/, '').startsWith('tekorder:');
+  if (firebaseUid.replace(/^local-/, '').startsWith('tekorder:')) return true;
+  try {
+    return localStorage.getItem(AUTH_PROVIDER_KEY) === 'tekorder';
+  } catch {
+    return false;
+  }
 }
 
 /**

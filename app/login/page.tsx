@@ -7,7 +7,7 @@ import {
   loginWithEmail,
   signInWithGoogle,
 } from '@/lib/auth';
-import { openTekOrderLogin } from '@/lib/tekorderSso';
+import { openTekOrderLogin, markTekOrderSession, clearAuthProviderMarker } from '@/lib/tekorderSso';
 
 /* ─── 2FA Helpers ─────────────────────────────────────────── */
 function gen2FACode(): string {
@@ -476,6 +476,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearAuthProviderMarker();
     setLoginError('');
     setTwoFAError('');
     setCodeInput('');
@@ -559,6 +560,7 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = async () => {
+    clearAuthProviderMarker();
     setLoginError('');
     setLoading(true);
 
@@ -644,6 +646,10 @@ export default function LoginPage() {
         if (fallbackName) localStorage.setItem('prisma_user_name', fallbackName);
       }
 
+      // An email that already had a Firebase/Google account keeps that real uid,
+      // so flag the session explicitly — validateSession must not demand a
+      // Firebase Auth session for it (TekOrder never creates one).
+      markTekOrderSession();
       setTrustedBrowser(tekOrderUser.email);
       sessionStorage.setItem('twofa_ok', '1');
       router.replace('/assistant');

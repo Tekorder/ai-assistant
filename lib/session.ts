@@ -1,6 +1,6 @@
 import { auth } from './firebase';
 import { signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { isTekOrderSession } from './tekorderSso';
+import { isTekOrderSession, AUTH_PROVIDER_KEY } from './tekorderSso';
 import { closeSyncGates } from './datacenter';
 
 const SESSION_KEYS = [
@@ -10,6 +10,7 @@ const SESSION_KEYS = [
   'youtask_habits_v1', 'youtask_reminders_v1', 'youtask_checklists_v1',
   'youtask_occupation', 'youtask_profession', 'youtask_goal',
   'youtask_trusted_browser_v1', 'youtask_2fa', 'twofa_ok',
+  AUTH_PROVIDER_KEY,
 ];
 
 export function clearSessionStorage() {
