@@ -44,7 +44,8 @@ export const assistantThemes: Record<AssistantThemeName, AssistantTheme> = {
 	textColor: '#1a2b48',
 	glassBoost: '16%',
 	/* Official BG — the image only, no gradient/lighting overlays */
-	backgroundGradient: 'url(/bg-blue.png) center / cover no-repeat #e0e0e0',
+	/* Anchored bottom-left: the blue glow stays in that corner and cover scales out from there */
+	backgroundGradient: 'url(/bg-blue.png) left bottom / cover no-repeat #e0e0e0',
     },
     matrix: {
 	themeName: 'Matrix',
