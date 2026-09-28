@@ -46,10 +46,10 @@
 .topNavCenterActive {
   padding: 0.4rem 0.9rem;
   border-radius: 0.65rem;
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--assistant-text);
+  background: var(--assistant-accent);
+  color: var(--assistant-bg-style);
   font-weight: 600;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--assistant-text) 7%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--assistant-accent) 28%, transparent);
 }
 
 .topNavCenterInactive {
@@ -93,7 +93,7 @@
   border-radius: 9999px;
   background: var(--assistant-text);
   color: #fff;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--assistant-bg) 70%, transparent);
@@ -351,6 +351,14 @@
 .panelBtn:hover { background: var(--assistant-hover-bg); color: var(--assistant-text); }
 .panelBtn:disabled { opacity: .3; }
 
+/* Panel close (✕) — icon only, no background */
+.panelCloseBtn {
+  background: transparent;
+  color: var(--assistant-text-muted);
+  transition: color .15s;
+}
+.panelCloseBtn:hover { color: var(--assistant-text); }
+
 .panelBtnDanger {
   background: color-mix(in srgb, #ef4444 14%, transparent);
   color: var(--assistant-danger-text);
@@ -427,9 +435,9 @@
 }
 
 .quickFilterActive {
-  color: var(--assistant-text);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--assistant-text) 8%, transparent);
+  color: var(--assistant-bg-style);
+  background: var(--assistant-accent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--assistant-accent) 28%, transparent);
   font-weight: 600;
 }
 
@@ -745,7 +753,6 @@
 }
 
 .quickDrawerCloseBtn:hover {
-  background: var(--assistant-hover-bg);
   color: var(--assistant-text);
 }
 

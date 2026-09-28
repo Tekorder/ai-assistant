@@ -61,9 +61,9 @@ function setTrustedBrowser(email: string) {
 }
 
 /* ─── Styles ───────────────────────────────────────────────── */
+/* Matches the assistant's default "tekorder" theme (see app/assistant/_theme/themes.ts). */
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
-  .lp-wrap { font-family: 'DM Sans', sans-serif; }
+  .lp-wrap { font-family: var(--font-thicccboi), sans-serif; color: #1a2b48; }
   @keyframes lp-in {
     from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0);    }
@@ -75,26 +75,27 @@ const STYLES = `
   .lp-row-4 { animation: lp-in .35s .26s cubic-bezier(.25,.9,.3,1) both; }
   .lp-input {
     width: 100%; padding: 11px 14px;
-    background: rgba(255,255,255,.05);
-    border: 1px solid rgba(255,255,255,.1);
-    border-radius: 10px; color: #f5f5f5;
-    font-size: 14px; font-family: 'DM Sans', sans-serif;
+    background: rgba(0,0,0,.04);
+    border: 1px solid rgba(0,0,0,.08);
+    border-radius: 10px; color: #1a2b48;
+    font-size: 15px; font-family: inherit;
     outline: none; transition: border-color .15s, background .15s;
   }
-  .lp-input::placeholder { color: rgba(255,255,255,.25); }
+  .lp-input:hover { background: rgba(0,0,0,.05); }
+  .lp-input::placeholder { color: rgba(0,0,0,.30); }
   .lp-input:focus {
-    border-color: rgba(213,252,67,.5);
-    background: rgba(213,252,67,.06);
+    border-color: color-mix(in srgb, #1a2b48 45%, transparent);
+    background: #ffffff;
   }
   .lp-btn {
     width: 100%; padding: 12px; border-radius: 10px; border: none;
-    background: #d5fc43; color: #0a0a0a;
-    font-size: 14px; font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
+    background: #18315c; color: #ffffff;
+    font-size: 15px; font-weight: 600;
+    font-family: inherit;
     cursor: pointer; transition: background .15s, opacity .15s, box-shadow .15s;
-    box-shadow: 0 0 24px rgba(213,252,67,.25);
+    box-shadow: 0 6px 18px rgba(24,49,92,.22);
   }
-  .lp-btn:hover:not(:disabled) { background: #c8f030; box-shadow: 0 0 32px rgba(213,252,67,.35); }
+  .lp-btn:hover:not(:disabled) { background: #1a2b48; box-shadow: 0 8px 24px rgba(24,49,92,.30); }
   .lp-btn:disabled { opacity: .45; cursor: not-allowed; }
   @keyframes lp-shake {
     0%,100% { transform: translateX(0);    }
@@ -108,17 +109,17 @@ const STYLES = `
   .lp-shake { animation: lp-shake .45s cubic-bezier(.25,.9,.3,1); }
   .lp-google-btn {
     width: 100%; padding: 11px; border-radius: 10px;
-    border: 1px solid rgba(255,255,255,.12);
-    background: rgba(255,255,255,.04);
-    color: #f5f5f5; font-size: 14px; font-weight: 500;
-    font-family: 'DM Sans', sans-serif;
+    border: 1px solid rgba(0,0,0,.08);
+    background: #ffffff;
+    color: #1a2b48; font-size: 15px; font-weight: 500;
+    font-family: inherit;
     cursor: pointer; display: flex; align-items: center;
-    justify-content: center; gap: 10;
+    justify-content: center; gap: 10px;
     transition: background .15s, border-color .15s;
   }
   .lp-google-btn:hover:not(:disabled) {
-    background: rgba(255,255,255,.08);
-    border-color: rgba(255,255,255,.22);
+    background: rgba(0,0,0,.03);
+    border-color: rgba(0,0,0,.16);
   }
   .lp-google-btn:disabled { opacity: .45; cursor: not-allowed; }
   .lp-wordmark-wrap {
@@ -128,22 +129,13 @@ const STYLES = `
   }
   .lp-wordmark {
     margin: 0;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 700;
     letter-spacing: 0.38em;
     padding-left: 0.38em;
     text-transform: uppercase;
-    color: #d5fc43;
+    color: #1a2b48;
     line-height: 1.3;
-    text-shadow:
-      0 0 16px rgba(213,252,67,.55),
-      0 0 36px rgba(213,252,67,.3),
-      0 0 2px rgba(255,255,255,.2);
-    animation: lp-wordmark-pulse 3.2s ease-in-out infinite;
-  }
-  @keyframes lp-wordmark-pulse {
-    0%, 100% { opacity: 1; filter: brightness(1); }
-    50% { opacity: 0.92; filter: brightness(1.12); }
   }
 `;
 
@@ -295,8 +287,8 @@ function ParticleCanvas({ pstate }: { pstate: PState }) {
         }
 
         const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 2.5);
-        g.addColorStop(0, `rgba(213,252,67,${p.alpha * 0.72})`);
-        g.addColorStop(1, `rgba(213,252,67,0)`);
+        g.addColorStop(0, `rgba(158,185,216,${p.alpha * 0.55})`);
+        g.addColorStop(1, `rgba(158,185,216,0)`);
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r * 2.5, 0, Math.PI * 2);
         ctx.fillStyle = g;
@@ -304,7 +296,7 @@ function ParticleCanvas({ pstate }: { pstate: PState }) {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r * 0.55, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(240,255,180,${p.alpha})`;
+        ctx.fillStyle = `rgba(26,43,72,${p.alpha * 0.28})`;
         ctx.fill();
       }
 
@@ -777,7 +769,7 @@ export default function LoginPage() {
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
-    background: 'rgba(0,0,0,.75)',
+    background: 'rgba(26,43,72,.22)',
     backdropFilter: 'blur(10px)',
   };
 
@@ -785,19 +777,19 @@ export default function LoginPage() {
     width: '100%',
     maxWidth: 400,
     borderRadius: 18,
-    border: '1px solid rgba(255,255,255,.12)',
-    background: 'rgba(12,12,12,.88)',
+    border: '1px solid rgba(17,24,39,.06)',
+    background: 'rgba(255,255,255,.96)',
     backdropFilter: 'blur(16px)',
     WebkitBackdropFilter: 'blur(16px)',
     boxShadow:
-      '0 32px 80px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.06)',
+      '0 22px 60px rgba(17,24,39,.16), 0 6px 18px rgba(17,24,39,.08), inset 0 1px 0 rgba(255,255,255,.5)',
     overflow: 'hidden',
   };
 
   const accentLine: React.CSSProperties = {
     height: 2,
     background:
-      'linear-gradient(90deg,transparent,rgba(213,252,67,.55),transparent)',
+      'linear-gradient(90deg,transparent,rgba(26,43,72,.35),transparent)',
   };
 
   return (
@@ -808,7 +800,7 @@ export default function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#000000',
+        background: 'linear-gradient(145deg, #f8fafc 0%, #f1f5fa 22%, #e4eef7 48%, #d0e2f2 72%, #b8d2eb 100%)',
         padding: 20,
         position: 'relative',
         overflow: 'hidden',
@@ -824,7 +816,7 @@ export default function LoginPage() {
           height: 640,
           borderRadius: '50%',
           background:
-            'radial-gradient(circle, rgba(213,252,67,.07) 0%, transparent 62%)',
+            'radial-gradient(circle, rgba(255,255,255,.55) 0%, transparent 62%)',
           pointerEvents: 'none',
           top: '50%',
           left: '50%',
@@ -841,17 +833,17 @@ export default function LoginPage() {
           width: '100%',
           maxWidth: 400,
           borderRadius: 18,
-          border: '1px solid rgba(255,255,255,.12)',
-          background: 'rgba(12,12,12,.78)',
+          border: '1px solid rgba(17,24,39,.06)',
+          background: 'rgba(255,255,255,.92)',
           backdropFilter: 'blur(14px)',
           WebkitBackdropFilter: 'blur(14px)',
           boxShadow:
-            '0 24px 64px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.06)',
+            '0 12px 28px rgba(17,24,39,.10), 0 3px 10px rgba(17,24,39,.06), inset 0 1px 0 rgba(255,255,255,.5)',
           overflow: 'hidden',
         }}
       >
         <div style={accentLine} />
-        <div style={{ padding: '4px 32px 32px' }}>
+        <div style={{ padding: '32px 32px 32px' }}>
           <div className="lp-row-1" style={{ marginBottom: 0 }}>
             <div
               style={{
@@ -863,20 +855,18 @@ export default function LoginPage() {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/logo.png"
-                alt=""
+                src="/logoblue.png"
+                alt="youtask"
                 style={{
-                  width: 'min(34%, 320px)',
-                  height: 'auto',
+                  height: 40,
+                  width: 'auto',
                   objectFit: 'contain',
                 }}
               />
             </div>
           </div>
 
-          <div className="lp-wordmark-wrap">
-            <p className="lp-wordmark">Utask</p>
-          </div>
+          <div className="lp-wordmark-wrap" />
 
           {loginError && (
             <div
@@ -887,8 +877,8 @@ export default function LoginPage() {
                 borderRadius: 10,
                 border: '1px solid rgba(248,113,113,.25)',
                 background: 'rgba(248,113,113,.08)',
-                fontSize: 13,
-                color: '#fca5a5',
+                fontSize: 14,
+                color: '#be123c',
               }}
             >
               {loginError}
@@ -902,8 +892,8 @@ export default function LoginPage() {
             <div className="lp-row-2">
               <label
                 style={{
-                  fontSize: 12,
-                  color: 'rgba(255,255,255,.45)',
+                  fontSize: 13,
+                  color: 'rgba(0,0,0,.45)',
                   fontWeight: 500,
                   display: 'block',
                   marginBottom: 6,
@@ -927,8 +917,8 @@ export default function LoginPage() {
             <div className="lp-row-3">
               <label
                 style={{
-                  fontSize: 12,
-                  color: 'rgba(255,255,255,.45)',
+                  fontSize: 13,
+                  color: 'rgba(0,0,0,.45)',
                   fontWeight: 500,
                   display: 'block',
                   marginBottom: 6,
@@ -955,10 +945,10 @@ export default function LoginPage() {
                     background: 'none',
                     border: 'none',
                     padding: 0,
-                    fontSize: 12,
-                    color: 'rgba(213,252,67,.85)',
+                    fontSize: 13,
+                    color: '#1a2b48', fontWeight: 500,
                     cursor: 'pointer',
-                    fontFamily: "'DM Sans', sans-serif",
+                    fontFamily: 'inherit',
                   }}
                 >
                   Forgot password?
@@ -995,13 +985,13 @@ export default function LoginPage() {
                   style={{
                     flex: 1,
                     height: 1,
-                    background: 'rgba(255,255,255,.08)',
+                    background: 'rgba(0,0,0,.08)',
                   }}
                 />
                 <span
                   style={{
-                    fontSize: 12,
-                    color: 'rgba(255,255,255,.22)',
+                    fontSize: 13,
+                    color: 'rgba(0,0,0,.30)',
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -1011,7 +1001,7 @@ export default function LoginPage() {
                   style={{
                     flex: 1,
                     height: 1,
-                    background: 'rgba(255,255,255,.08)',
+                    background: 'rgba(0,0,0,.08)',
                   }}
                 />
               </div>
@@ -1061,14 +1051,14 @@ export default function LoginPage() {
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
                 >
-                  <rect width="24" height="24" rx="6" fill="#d5fc43" />
+                  <rect width="24" height="24" rx="6" fill="#18315c" />
                   <path
                     d="M7 12a5 5 0 1 1 5 5"
-                    stroke="#0a0a0a"
+                    stroke="#ffffff"
                     strokeWidth="1.8"
                     strokeLinecap="round"
                   />
-                  <circle cx="12" cy="17" r="1.4" fill="#0a0a0a" />
+                  <circle cx="12" cy="17" r="1.4" fill="#ffffff" />
                 </svg>
                 Continue with TekOrder
               </button>
@@ -1080,15 +1070,15 @@ export default function LoginPage() {
             style={{
               marginTop: 24,
               textAlign: 'center',
-              fontSize: 13,
-              color: 'rgba(255,255,255,.3)',
+              fontSize: 14,
+              color: 'rgba(0,0,0,.45)',
             }}
           >
             No account?{' '}
             <Link
               href="/signup"
               style={{
-                color: 'rgba(213,252,67,.88)',
+                color: '#1a2b48',
                 textDecoration: 'none',
                 fontWeight: 500,
               }}
@@ -1116,9 +1106,9 @@ export default function LoginPage() {
                 <div>
                   <div
                     style={{
-                      fontSize: 20,
+                      fontSize: 21,
                       fontWeight: 600,
-                      color: '#f5f5f5',
+                      color: '#1a2b48',
                       letterSpacing: '-.02em',
                       marginBottom: 4,
                     }}
@@ -1127,13 +1117,13 @@ export default function LoginPage() {
                   </div>
                   <div
                     style={{
-                      fontSize: 13,
-                      color: 'rgba(255,255,255,.38)',
+                      fontSize: 14,
+                      color: 'rgba(0,0,0,.50)',
                       lineHeight: 1.5,
                     }}
                   >
                     We sent a code to{' '}
-                    <span style={{ color: 'rgba(255,255,255,.75)' }}>
+                    <span style={{ color: 'rgba(0,0,0,.80)' }}>
                       {maskedEmail}
                     </span>
                   </div>
@@ -1144,12 +1134,12 @@ export default function LoginPage() {
                     height: 40,
                     borderRadius: 10,
                     flexShrink: 0,
-                    border: '1px solid rgba(255,255,255,.1)',
-                    background: 'rgba(213,252,67,.1)',
+                    border: '1px solid rgba(0,0,0,.10)',
+                    background: 'rgba(26,43,72,.08)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 18,
+                    fontSize: 19,
                   }}
                 >
                   🔐
@@ -1164,8 +1154,8 @@ export default function LoginPage() {
                     borderRadius: 10,
                     border: '1px solid rgba(248,113,113,.25)',
                     background: 'rgba(248,113,113,.08)',
-                    fontSize: 13,
-                    color: '#fca5a5',
+                    fontSize: 14,
+                    color: '#be123c',
                   }}
                 >
                   {twoFAError}
@@ -1175,8 +1165,8 @@ export default function LoginPage() {
               <div className="lp-row-2" style={{ marginBottom: 20 }}>
                 <label
                   style={{
-                    fontSize: 12,
-                    color: 'rgba(255,255,255,.45)',
+                    fontSize: 13,
+                    color: 'rgba(0,0,0,.45)',
                     fontWeight: 500,
                     display: 'block',
                     marginBottom: 6,
@@ -1196,7 +1186,7 @@ export default function LoginPage() {
                   style={{
                     textAlign: 'center',
                     letterSpacing: '0.45em',
-                    fontSize: 20,
+                    fontSize: 21,
                     fontWeight: 600,
                   }}
                   placeholder="· · · · · ·"
@@ -1204,8 +1194,8 @@ export default function LoginPage() {
                 />
                 <div
                   style={{
-                    fontSize: 12,
-                    color: 'rgba(255,255,255,.25)',
+                    fontSize: 13,
+                    color: 'rgba(0,0,0,.35)',
                     marginTop: 8,
                   }}
                 >
@@ -1230,22 +1220,22 @@ export default function LoginPage() {
                     padding: '12px 18px',
                     borderRadius: 10,
                     flexShrink: 0,
-                    border: '1px solid rgba(255,255,255,.1)',
+                    border: '1px solid rgba(0,0,0,.10)',
                     background: 'transparent',
-                    color: 'rgba(255,255,255,.5)',
-                    fontSize: 13,
+                    color: 'rgba(0,0,0,.55)',
+                    fontSize: 14,
                     fontWeight: 500,
-                    fontFamily: "'DM Sans',sans-serif",
+                    fontFamily: 'inherit',
                     cursor: 'pointer',
                     transition: 'all .15s',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,.06)';
-                    e.currentTarget.style.color = 'rgba(255,255,255,.85)';
+                    e.currentTarget.style.background = 'rgba(0,0,0,.05)';
+                    e.currentTarget.style.color = 'rgba(0,0,0,.85)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = 'rgba(255,255,255,.5)';
+                    e.currentTarget.style.color = 'rgba(0,0,0,.55)';
                   }}
                 >
                   {sending2FA ? 'Sending…' : 'Resend'}
@@ -1257,8 +1247,8 @@ export default function LoginPage() {
                 style={{
                   marginTop: 16,
                   textAlign: 'center',
-                  fontSize: 12,
-                  color: 'rgba(255,255,255,.22)',
+                  fontSize: 13,
+                  color: 'rgba(0,0,0,.30)',
                 }}
               >
                 Tip: paste the code and you re done 😄
@@ -1285,9 +1275,9 @@ export default function LoginPage() {
                 <div>
                   <div
                     style={{
-                      fontSize: 20,
+                      fontSize: 21,
                       fontWeight: 600,
-                      color: '#f5f5f5',
+                      color: '#1a2b48',
                       letterSpacing: '-.02em',
                       marginBottom: 4,
                     }}
@@ -1296,8 +1286,8 @@ export default function LoginPage() {
                   </div>
                   <div
                     style={{
-                      fontSize: 13,
-                      color: 'rgba(255,255,255,.38)',
+                      fontSize: 14,
+                      color: 'rgba(0,0,0,.50)',
                       lineHeight: 1.5,
                     }}
                   >
@@ -1312,12 +1302,12 @@ export default function LoginPage() {
                     height: 40,
                     borderRadius: 10,
                     flexShrink: 0,
-                    border: '1px solid rgba(255,255,255,.1)',
-                    background: 'rgba(213,252,67,.1)',
+                    border: '1px solid rgba(0,0,0,.10)',
+                    background: 'rgba(26,43,72,.08)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 18,
+                    fontSize: 19,
                   }}
                 >
                   🔑
@@ -1332,8 +1322,8 @@ export default function LoginPage() {
                     borderRadius: 10,
                     border: '1px solid rgba(248,113,113,.25)',
                     background: 'rgba(248,113,113,.08)',
-                    fontSize: 13,
-                    color: '#fca5a5',
+                    fontSize: 14,
+                    color: '#be123c',
                   }}
                 >
                   {forgotError}
@@ -1346,15 +1336,15 @@ export default function LoginPage() {
                     style={{
                       padding: '14px',
                       borderRadius: 10,
-                      border: '1px solid rgba(213,252,67,.28)',
-                      background: 'rgba(213,252,67,.1)',
-                      fontSize: 13,
-                      color: 'rgba(213,252,67,.95)',
+                      border: '1px solid rgba(22,163,74,.25)',
+                      background: 'rgba(22,163,74,.08)',
+                      fontSize: 14,
+                      color: '#15803d',
                       marginBottom: 20,
                     }}
                   >
                     ✓ Recovery email sent to <strong>{forgotEmail}</strong>
-                    <div style={{ marginTop: 8, color: 'rgba(213,252,67,.65)', fontSize: 12 }}>
+                    <div style={{ marginTop: 8, color: 'rgba(21,128,61,.75)', fontSize: 13 }}>
                       Don&apos;t see it? Check your spam or junk folder — it may take a minute to arrive.
                     </div>
                   </div>
@@ -1367,8 +1357,8 @@ export default function LoginPage() {
                   <div className="lp-row-2" style={{ marginBottom: 20 }}>
                     <label
                       style={{
-                        fontSize: 12,
-                        color: 'rgba(255,255,255,.45)',
+                        fontSize: 13,
+                        color: 'rgba(0,0,0,.45)',
                         fontWeight: 500,
                         display: 'block',
                         marginBottom: 6,
@@ -1401,22 +1391,22 @@ export default function LoginPage() {
                         padding: '12px 18px',
                         borderRadius: 10,
                         flexShrink: 0,
-                        border: '1px solid rgba(255,255,255,.1)',
+                        border: '1px solid rgba(0,0,0,.10)',
                         background: 'transparent',
-                        color: 'rgba(255,255,255,.5)',
-                        fontSize: 13,
+                        color: 'rgba(0,0,0,.55)',
+                        fontSize: 14,
                         fontWeight: 500,
-                        fontFamily: "'DM Sans',sans-serif",
+                        fontFamily: 'inherit',
                         cursor: 'pointer',
                         transition: 'all .15s',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,.06)';
-                        e.currentTarget.style.color = 'rgba(255,255,255,.85)';
+                        e.currentTarget.style.background = 'rgba(0,0,0,.05)';
+                        e.currentTarget.style.color = 'rgba(0,0,0,.85)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = 'rgba(255,255,255,.5)';
+                        e.currentTarget.style.color = 'rgba(0,0,0,.55)';
                       }}
                     >
                       Cancel

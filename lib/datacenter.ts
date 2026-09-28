@@ -17,6 +17,37 @@ export const UNC_TITLE        = 'Uncategorized';
 
 export type TaskFlagColor = 'blue' | 'yellow' | 'red';
 
+/** Manually-set status of a list (indent-0 block). */
+export type ListStatus = 'in_progress' | 'on_hold' | 'someday' | 'archived';
+/** What the UI shows: `completed` is derived — every task in the list is checked. */
+export type ListDisplayStatus = ListStatus | 'completed';
+
+export const LIST_STATUSES: ListStatus[] = ['in_progress', 'on_hold', 'someday', 'archived'];
+
+export function parseListStatus(v: unknown): ListStatus | undefined {
+  return typeof v === 'string' && (LIST_STATUSES as string[]).includes(v) ? (v as ListStatus) : undefined;
+}
+
+export type ListProgress = { done: number; total: number; status: ListDisplayStatus };
+
+/** Tasks belong to the nearest preceding indent-0 block; archived tasks don't count. */
+export function getListProgress(blocks: Block[], listId: string): ListProgress {
+  const i = blocks.findIndex(b => b.id === listId);
+  const list = blocks[i];
+  let done = 0;
+  let total = 0;
+  if (list) {
+    for (let j = i + 1; j < blocks.length && blocks[j].indent !== 0; j++) {
+      if (blocks[j].archived === true) continue;
+      total++;
+      if (blocks[j].checked === true) done++;
+    }
+  }
+  const status: ListDisplayStatus =
+    total > 0 && done === total ? 'completed' : (list?.listStatus ?? 'in_progress');
+  return { done, total, status };
+}
+
 export type Block = {
   id: string;
   text: string;
@@ -32,6 +63,7 @@ export type Block = {
   /** @deprecated use `flag` — kept for legacy data */
   priority?: boolean;
   flag?: TaskFlagColor;
+  listStatus?: ListStatus;
 };
 
 export type Project = {
@@ -116,6 +148,7 @@ type RawBlock = {
   onHold?: unknown;
   priority?: unknown;
   flag?: unknown;
+  listStatus?: unknown;
 };
 
 type RawProject = {
@@ -403,7 +436,8 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
       b.checked = Boolean(x?.checked);
       if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline as string;
     } else {
-      
+      const listStatus = parseListStatus(x?.listStatus);
+      if (listStatus) b.listStatus = listStatus;
     }
 
     b.createdAt = isValidDateYYYYMMDD(x?.createdAt) ? (x.createdAt as string) : today;

@@ -213,8 +213,8 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
 
       <div className="flex items-center justify-between px-4 py-3 shrink-0"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <h2 className="text-[15px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Habits</h2>
-        <button type="button" onClick={requestClose} className={`h-8 w-8 rounded-lg ${classes.panelBtn}`} aria-label="Close">
+        <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Habits</h2>
+        <button type="button" onClick={requestClose} className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
           ✕
         </button>
       </div>
@@ -226,11 +226,11 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
             +
           </button>
           <button type="button" onClick={handleForceResetHabits}
-            className={`text-[11px] px-2 py-1 rounded-md ${classes.panelBtn}`} title="Reset now">
+            className={`text-[12px] px-2 py-1 rounded-md ${classes.panelBtn}`} title="Reset now">
             Reset
           </button>
         </div>
-        <div className="mt-2 text-[10px]" style={{ color: 'var(--assistant-text-faint)' }}>
+        <div className="mt-2 text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>
           Daily reset: {habitsMeta.lastDaily || '—'} · Weekly reset (Monday): {habitsMeta.lastWeekly || '—'}
         </div>
       </div>
@@ -265,7 +265,7 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
                 <button
                   type="button"
                   onClick={() => handleUpdateHabit(h.id, { checked: !h.checked })}
-                  className={`h-4 w-4 rounded flex items-center justify-center shrink-0 transition-[transform,background-color] duration-150 ease-out group-hover:scale-[1.06] ${h.checked ? classes.panelCheckboxChecked : classes.panelCheckboxUnchecked}`}
+                  className={`check-glow h-4 w-4 rounded flex items-center justify-center shrink-0 transition-[transform,background-color,box-shadow] duration-150 ease-out group-hover:scale-[1.06] ${h.checked ? classes.panelCheckboxChecked : classes.panelCheckboxUnchecked}`}
                 >
                   {h.checked ? <span className="text-xs" style={{ color: 'var(--assistant-accent)' }}>✓</span> : null}
                 </button>
@@ -284,7 +284,7 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
                 <button
                   type="button"
                   onClick={() => handleUpdateHabit(h.id, { weekly: !h.weekly })}
-                  className={`shrink-0 text-[11px] px-2 py-1 rounded-full ${h.weekly ? classes.panelAccentBadge : classes.panelNeutralBadge}`}
+                  className={`shrink-0 text-[12px] px-2 py-1 rounded-full ${h.weekly ? classes.panelAccentBadge : classes.panelNeutralBadge}`}
                 >
                   {h.weekly ? 'Weekly' : 'Daily'}
                 </button>

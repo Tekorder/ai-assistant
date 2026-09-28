@@ -69,7 +69,7 @@ export type MiniCalendarProps = {
 export default function MiniCalendar({ onPickDay, compact = false }: MiniCalendarProps) {
   const [blocks, setBlocks]             = useState<Block[]>([]);
   const [hydrated, setHydrated]         = useState(false);
-  const [projectTitle, setProjectTitle] = useState<string>('Project');
+  const [projectTitle, setProjectTitle] = useState<string>('Group');
 
   // Calendar nav
   const today = todayYMD();
@@ -173,11 +173,11 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
     return (
       <div className="mt-auto flex min-h-0 flex-col gap-0.5 pt-0.5">
         <div className="flex items-baseline justify-between gap-1 leading-none">
-          <span className="text-[9px] font-semibold tabular-nums" style={{ color: 'var(--assistant-text-muted)' }}>
+          <span className="text-[10px] font-semibold tabular-nums" style={{ color: 'var(--assistant-text-muted)' }}>
             {total} {total === 1 ? 'task' : 'tasks'}
           </span>
           <span
-            className={`text-[8px] tabular-nums shrink-0 ${allDone ? 'text-emerald-400/95' : ''}`}
+            className={`text-[9px] tabular-nums shrink-0 ${allDone ? 'text-emerald-400/95' : ''}`}
             style={!allDone ? { color: 'var(--assistant-text-faint)' } : undefined}
           >
             {allDone ? '✓' : `${done}/${total}`}
@@ -206,7 +206,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
       <div className="w-full p-2" style={{ color: 'var(--assistant-text)' }}>
         <div className="flex items-center justify-between mb-2">
           <button type="button" onClick={prevMonth} className={`h-6 w-6 rounded-md text-sm ${classes.miniCalNavBtn}`}>‹</button>
-          <div className="text-[12px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>
+          <div className="text-[13px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>
             {MONTH_NAMES[viewMonth]}{' '}
             <span style={{ color: 'var(--assistant-accent)' }}>{viewYear}</span>
           </div>
@@ -215,7 +215,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
 
         <div className="grid grid-cols-7 gap-1 mb-1">
           {WEEKDAYS_SHORT.map(wd => (
-            <div key={wd} className="text-center text-[9px]" style={{ color: 'var(--assistant-text-faint)' }}>{wd[0]}</div>
+            <div key={wd} className="text-center text-[10px]" style={{ color: 'var(--assistant-text-faint)' }}>{wd[0]}</div>
           ))}
         </div>
 
@@ -233,7 +233,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                 type="button"
                 onClick={() => onPickDay?.(ymd)}
                 className={[
-                  'h-7 rounded-md text-[11px] transition-colors',
+                  'h-7 rounded-md text-[12px] transition-colors',
                   isToday ? classes.miniCalDayToday : classes.miniCalDayNormal,
                 ].join(' ')}
                 title={ymd}
@@ -260,32 +260,32 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
         <div className="mb-3 flex items-center justify-between rounded-xl px-2.5 py-2 md:px-3 md:py-2.5"
           style={{ border: '1px solid color-mix(in srgb, var(--assistant-accent) 12%, transparent)', background: 'transparent', boxShadow: 'inset 0 1px 0 var(--assistant-highlight)' }}>
           <div className="min-w-0">
-            <h1 className="text-[15px] md:text-[17px] font-bold leading-tight truncate" style={{ color: 'var(--assistant-text)' }}>
+            <h1 className="text-[16px] md:text-[18px] font-bold leading-tight truncate" style={{ color: 'var(--assistant-text)' }}>
               {MONTH_NAMES[viewMonth]}{' '}
               <span style={{ color: 'var(--assistant-accent)' }}>{viewYear}</span>
             </h1>
-            <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--assistant-text-faint)' }}>{projectTitle}</p>
+            <p className="text-[11px] mt-0.5 truncate" style={{ color: 'var(--assistant-text-faint)' }}>{projectTitle}</p>
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
               onClick={goToday}
-              className={`text-[10px] px-2 py-1 rounded-lg transition-all hover:scale-[1.02] ${classes.miniCalTodayBtn}`}
+              className={`text-[11px] px-2 py-1 rounded-lg transition-all hover:scale-[1.02] ${classes.miniCalTodayBtn}`}
             >
               Today
             </button>
             <button
               type="button"
               onClick={prevMonth}
-              className={`h-7 w-7 rounded-full text-[15px] leading-none flex items-center justify-center ${classes.miniCalArrowBtn}`}
+              className={`h-7 w-7 rounded-full text-[16px] leading-none flex items-center justify-center ${classes.miniCalArrowBtn}`}
             >
               ‹
             </button>
             <button
               type="button"
               onClick={nextMonth}
-              className={`h-7 w-7 rounded-full text-[15px] leading-none flex items-center justify-center ${classes.miniCalArrowBtn}`}
+              className={`h-7 w-7 rounded-full text-[16px] leading-none flex items-center justify-center ${classes.miniCalArrowBtn}`}
             >
               ›
             </button>
@@ -295,7 +295,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
         {/* ── Weekday headers ── */}
         <div className="grid grid-cols-7 mb-0.5">
           {WEEKDAYS_SHORT.map(wd => (
-            <div key={wd} className="text-center text-[9px] font-semibold py-1 uppercase tracking-wide" style={{ color: 'var(--assistant-text-faint)' }}>
+            <div key={wd} className="text-center text-[10px] font-semibold py-1 uppercase tracking-wide" style={{ color: 'var(--assistant-text-faint)' }}>
               <span className="hidden md:inline">{wd.slice(0, 3)}</span>
               <span className="md:hidden">{wd[0]}</span>
             </div>
@@ -342,7 +342,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                   <>
                     <div className="mb-0.5 flex shrink-0 items-center gap-0.5">
                       <div className={[
-                        'inline-flex h-5 min-w-5 items-center justify-center rounded-full text-[11px] font-semibold leading-none',
+                        'inline-flex h-5 min-w-5 items-center justify-center rounded-full text-[12px] font-semibold leading-none',
                         isToday
                           ? classes.miniCalDayNumToday
                           : isOverdue
@@ -352,7 +352,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                         {parseInt(dayNum)}
                       </div>
                       {isOverdue && (
-                        <span className="text-[7px] font-semibold uppercase leading-none text-red-400/75">
+                        <span className="text-[8px] font-semibold uppercase leading-none text-red-400/75">
                           !
                         </span>
                       )}
@@ -403,21 +403,21 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                 <div className="mb-1 flex shrink-0 items-center justify-between gap-1">
                   <div className="flex items-center gap-1">
                     <span className={[
-                      'text-[15px] font-bold leading-none',
+                      'text-[16px] font-bold leading-none',
                       isOverdue ? 'text-red-400/85' : '',
                     ].join(' ')}
                       style={!isOverdue ? { color: isToday ? 'var(--assistant-accent)' : 'var(--assistant-text-soft)' } : undefined}
                     >
                       {parseInt(dayNum)}
                     </span>
-                    <span className="text-[9px] uppercase" style={{ color: 'var(--assistant-text-faint)' }}>{weekday}</span>
+                    <span className="text-[10px] uppercase" style={{ color: 'var(--assistant-text-faint)' }}>{weekday}</span>
                   </div>
                   {isOverdue && (
-                    <span className="text-[8px] font-semibold uppercase text-red-400/75">!</span>
+                    <span className="text-[9px] font-semibold uppercase text-red-400/75">!</span>
                   )}
                 </div>
                 {hasAnyTask ? renderDaySummary(ymd) : (
-                  <div className="text-[9px]" style={{ color: 'var(--assistant-text-faint)' }}>—</div>
+                  <div className="text-[10px]" style={{ color: 'var(--assistant-text-faint)' }}>—</div>
                 )}
               </div>
             );

@@ -201,13 +201,13 @@ export default function Menu({
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/tekorder-logo.png" alt="TekOrder" className="h-24 w-24 object-contain" />
+              <img src="/logoblue.png" alt="youtask" className="h-auto w-[88px] object-contain" />
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className={`absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-md transition-colors ${classes.panelBtn}`}
+            className={`absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-md transition-colors ${classes.panelCloseBtn}`}
             aria-label="Close menu"
             title="Close menu"
           >
@@ -230,7 +230,7 @@ export default function Menu({
                     ? () => { onClose(); onOpenProfile?.(); }
                     : undefined
                 }
-                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors ${classes.panelBtn} ${classes.menuItem}`}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[14px] transition-colors ${classes.panelBtn} ${classes.menuItem}`}
                 style={{ color: 'var(--assistant-text-soft)' }}
               >
                 <span className="inline-flex h-4 w-4 items-center justify-center shrink-0" style={{ color: 'var(--assistant-text-muted)' }}>
@@ -256,7 +256,7 @@ export default function Menu({
                   key={panel.label}
                   type="button"
                   onClick={() => { onClose(); panel.onToggle?.(); }}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors ${classes.panelBtn} ${classes.menuItem}`}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[14px] transition-colors ${classes.panelBtn} ${classes.menuItem}`}
                   style={{ color: panel.isOpen ? 'var(--assistant-accent)' : 'var(--assistant-text-soft)' }}
                 >
                   <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
@@ -273,7 +273,7 @@ export default function Menu({
           <button
             type="button"
             onClick={handleLogout}
-            className={`w-full rounded-lg px-2.5 py-1.5 text-left text-[12px] font-medium transition-colors ${classes.panelBtnDanger}`}
+            className={`w-full rounded-lg px-2.5 py-1.5 text-left text-[13px] font-medium transition-colors ${classes.panelBtnDanger}`}
           >
             Logout
           </button>

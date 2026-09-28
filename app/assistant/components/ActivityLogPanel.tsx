@@ -120,11 +120,11 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
     <>
       <div className="flex items-center justify-between px-4 py-3 shrink-0"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <h2 className="text-[15px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Activity Log</h2>
+        <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Activity Log</h2>
         <button
           type="button"
           onClick={requestClose}
-          className={`h-8 w-8 rounded-lg ${classes.panelBtn}`}
+          className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`}
           aria-label="Close"
         >
           ✕
@@ -137,18 +137,18 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
             type="button"
             onClick={() => canGoOlder && setMonthIndex(i => i + 1)}
             disabled={!canGoOlder}
-            className={`text-[14px] px-2 py-1 rounded-md ${classes.panelBtn}`}
+            className={`text-[15px] px-2 py-1 rounded-md ${classes.panelBtn}`}
           >
             &lt;
           </button>
-          <div className="text-[13px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>
+          <div className="text-[14px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>
             {current ? current.label : 'No activity'}
           </div>
           <button
             type="button"
             onClick={() => canGoNewer && setMonthIndex(i => i - 1)}
             disabled={!canGoNewer}
-            className={`text-[14px] px-2 py-1 rounded-md ${classes.panelBtn}`}
+            className={`text-[15px] px-2 py-1 rounded-md ${classes.panelBtn}`}
           >
             &gt;
           </button>
@@ -159,14 +159,14 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search completed tasks..."
-            className={`w-full rounded-md text-[12px] px-3 py-2 ${classes.panelInput}`}
+            className={`w-full rounded-md text-[13px] px-3 py-2 ${classes.panelInput}`}
           />
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {!current ? (
-          <div className="text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>No completed tasks yet.</div>
+          <div className="text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>No completed tasks yet.</div>
         ) : (
           <div className="space-y-2">
             {current.items.map(item => (
@@ -175,11 +175,11 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
                   border: '1px solid var(--assistant-border-soft)',
                   background: 'var(--assistant-surface)',
                 }}>
-                <div className="text-[13px]" style={{ color: 'var(--assistant-text-soft)' }}>
+                <div className="text-[14px]" style={{ color: 'var(--assistant-text-soft)' }}>
                   <TaskFlagBadge source={{ flag: item.flag }} inline />
                   {item.text || '(untitled task)'}
                 </div>
-                <div className="mt-1 text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>
+                <div className="mt-1 text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
                   {dateLabel(item.date)}
                 </div>
               </div>

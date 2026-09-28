@@ -111,22 +111,22 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 3 4.5 8l5 5" />
             </svg>
           </button>
-          <h1 className="text-[16px] font-semibold">Settings</h1>
+          <h1 className="text-[17px] font-semibold">Settings</h1>
         </div>
 
         <div className="mx-auto w-full max-w-[560px] flex-1 px-4 py-6 md:px-8">
           <div className="space-y-6">
             <section>
-              <h2 className="text-[13px] font-medium mb-1.5" style={{ color: 'var(--assistant-text-muted)' }}>
+              <h2 className="text-[14px] font-medium mb-1.5" style={{ color: 'var(--assistant-text-muted)' }}>
                 Export data
               </h2>
-              <p className="text-[13px] mb-3" style={{ color: 'var(--assistant-text-soft)' }}>
+              <p className="text-[14px] mb-3" style={{ color: 'var(--assistant-text-soft)' }}>
                 Download all your lists, habits, reminders and checklists as a single JSON file.
               </p>
               <button
                 type="button"
                 onClick={handleExport}
-                className={`w-full max-w-[280px] rounded-lg px-3.5 py-2.5 text-left text-[13px] font-medium transition-colors ${classes.panelBtn}`}
+                className={`w-full max-w-[280px] rounded-lg px-3.5 py-2.5 text-left text-[14px] font-medium transition-colors ${classes.panelBtn}`}
               >
                 Export data
               </button>
@@ -135,24 +135,24 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
             <div style={{ borderTop: '1px solid var(--assistant-border-soft)' }} />
 
             <section>
-              <h2 className="text-[13px] font-medium mb-1.5" style={{ color: 'var(--assistant-text-muted)' }}>
+              <h2 className="text-[14px] font-medium mb-1.5" style={{ color: 'var(--assistant-text-muted)' }}>
                 Import data
               </h2>
-              <p className="text-[13px] mb-3" style={{ color: 'var(--assistant-text-soft)' }}>
+              <p className="text-[14px] mb-3" style={{ color: 'var(--assistant-text-soft)' }}>
                 Restore data from a previously exported JSON file.
               </p>
               <div className="flex flex-col gap-2 max-w-[280px]">
                 <button
                   type="button"
                   onClick={() => triggerImport('override')}
-                  className={`w-full rounded-lg px-3.5 py-2.5 text-left text-[13px] transition-colors ${classes.panelBtn}`}
+                  className={`w-full rounded-lg px-3.5 py-2.5 text-left text-[14px] transition-colors ${classes.panelBtn}`}
                 >
                   Override existing data
                 </button>
                 <button
                   type="button"
                   onClick={() => triggerImport('merge')}
-                  className={`w-full rounded-lg px-3.5 py-2.5 text-left text-[13px] transition-colors ${classes.panelBtn}`}
+                  className={`w-full rounded-lg px-3.5 py-2.5 text-left text-[14px] transition-colors ${classes.panelBtn}`}
                 >
                   Add to existing data
                 </button>
@@ -168,7 +168,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 
             {status && (
               <div
-                className="max-w-[280px] rounded-lg px-3 py-2 text-[12px]"
+                className="max-w-[280px] rounded-lg px-3 py-2 text-[13px]"
                 style={{
                   border: '1px solid color-mix(in srgb, var(--assistant-accent) 25%, transparent)',
                   background: status.error
@@ -201,22 +201,22 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
               border: '1px solid var(--assistant-border-soft)',
             }}
           >
-            <h3 className="text-[15px] font-semibold mb-1.5">Override existing data?</h3>
-            <p className="text-[13px] mb-5" style={{ color: 'var(--assistant-text-soft)' }}>
+            <h3 className="text-[16px] font-semibold mb-1.5">Override existing data?</h3>
+            <p className="text-[14px] mb-5" style={{ color: 'var(--assistant-text-soft)' }}>
               This will permanently replace all your current lists, habits, reminders and checklists with the contents of the imported file.
             </p>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmOverride(false)}
-                className={`flex-1 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors ${classes.panelBtn}`}
+                className={`flex-1 rounded-lg px-3.5 py-2.5 text-[14px] font-medium transition-colors ${classes.panelBtn}`}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmOverrideImport}
-                className="flex-1 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors"
+                className="flex-1 rounded-lg px-3.5 py-2.5 text-[14px] font-medium transition-colors"
                 style={{ background: '#f87171', color: '#1a0505' }}
               >
                 Override

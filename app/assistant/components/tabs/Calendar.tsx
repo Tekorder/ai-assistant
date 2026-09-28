@@ -122,7 +122,7 @@ export default function CalendarView({
 }) {
   const [blocks, setBlocks]             = useState<Block[]>([]);
   const [hydrated, setHydrated]         = useState(false);
-  const [projectTitle, setProjectTitle] = useState<string>('Project');
+  const [projectTitle, setProjectTitle] = useState<string>('Group');
   const [visibleLists, setVisibleLists] = useState<Record<string, boolean>>({});
 
   // Calendar nav
@@ -276,11 +276,11 @@ export default function CalendarView({
             >
               {/* Label row */}
               <div className="flex items-center justify-between gap-1 leading-none mb-[4px]">
-                <span className="text-[9px] md:text-[10px] font-medium truncate">
+                <span className="text-[10px] md:text-[11px] font-medium truncate">
                   <span className="hidden md:inline">{g.listTitle}</span>
                   <span className="md:hidden">{g.listTitle.slice(0, 8)}</span>
                 </span>
-                <span className="text-[8px] md:text-[9px] opacity-60 shrink-0 tabular-nums">
+                <span className="text-[9px] md:text-[10px] opacity-60 shrink-0 tabular-nums">
                   {allDone ? '✓' : `${done}/${total}`}
                 </span>
               </div>
@@ -296,7 +296,7 @@ export default function CalendarView({
           );
         })}
         {groups.length > 3 && (
-          <div className="text-[9px] pl-1" style={{ color: 'var(--assistant-text-faint)' }}>+{groups.length - 3} more</div>
+          <div className="text-[10px] pl-1" style={{ color: 'var(--assistant-text-faint)' }}>+{groups.length - 3} more</div>
         )}
       </div>
     );
@@ -320,18 +320,18 @@ export default function CalendarView({
           style={{ border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 12%, transparent)', boxShadow: 'inset 0 1px 0 var(--assistant-border-soft)' }}
         >
           <div>
-            <h1 className="text-[24px] md:text-[28px] font-bold leading-none" style={{ color: 'var(--assistant-text)' }}>
+            <h1 className="text-[25px] md:text-[29px] font-bold leading-none" style={{ color: 'var(--assistant-text)' }}>
               {MONTH_NAMES[viewMonth]}{' '}
               <span style={{ color: 'var(--assistant-tone-1)' }}>{viewYear}</span>
             </h1>
-            <p className="text-[12px] mt-1" style={{ color: 'var(--assistant-text-faint)' }}>{projectTitle}</p>
+            <p className="text-[13px] mt-1" style={{ color: 'var(--assistant-text-faint)' }}>{projectTitle}</p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={goToday}
-              className="text-[11px] px-3 py-1.5 rounded-xl transition-all hover:scale-105"
+              className="text-[12px] px-3 py-1.5 rounded-xl transition-all hover:scale-105"
               style={{
                 color: 'var(--assistant-tone-1)',
                 border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 40%, transparent)',
@@ -363,7 +363,7 @@ export default function CalendarView({
         {/* ── Weekday headers — desktop only; mobile pills already show the day abbreviation ── */}
         <div className="hidden md:grid grid-cols-7 mb-1">
           {WEEKDAYS_SHORT.map(wd => (
-            <div key={wd} className="text-center py-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--assistant-text-soft)' }}>
+            <div key={wd} className="text-center py-2 text-[12px] font-semibold uppercase tracking-wider" style={{ color: 'var(--assistant-text-soft)' }}>
               {wd}
             </div>
           ))}
@@ -416,7 +416,7 @@ export default function CalendarView({
                     {/* Day number + status badge */}
                     <div className="flex items-center gap-1 mb-1">
                       <div
-                        className="relative inline-flex items-center justify-center w-7 h-7 rounded-full text-[13px] font-semibold leading-none transition-colors shrink-0"
+                        className="relative inline-flex items-center justify-center w-7 h-7 rounded-full text-[14px] font-semibold leading-none transition-colors shrink-0"
                         style={isToday ? {
                           background: `color-mix(in srgb, var(--assistant-tone-1) 18%, transparent)`,
                           color: 'var(--assistant-tone-1)',
@@ -445,7 +445,7 @@ export default function CalendarView({
                         ) : null;
                       })()}
                       {isOverdue && (
-                        <span className="text-[9px] font-semibold uppercase tracking-wide leading-none" style={{ color: 'var(--assistant-danger-text)' }}>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide leading-none" style={{ color: 'var(--assistant-danger-text)' }}>
                           overdue
                         </span>
                       )}
@@ -502,7 +502,7 @@ export default function CalendarView({
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5">
                     <span
-                      className="text-[18px] font-bold leading-none"
+                      className="text-[19px] font-bold leading-none"
                       style={{
                         color: isOverdue ? 'var(--assistant-danger-text)'
                           : isToday ? 'var(--assistant-tone-1)'
@@ -511,7 +511,7 @@ export default function CalendarView({
                     >
                       {parseInt(dayNum)}
                     </span>
-                    <span className="text-[10px] uppercase" style={{ color: 'var(--assistant-text-faint)' }}>{weekday}</span>
+                    <span className="text-[11px] uppercase" style={{ color: 'var(--assistant-text-faint)' }}>{weekday}</span>
                     {(() => {
                       const dayFlag = highestTaskFlag(
                         groups.flatMap(g => g.cards).filter(c => !c.checked).map(c => c.flag),
@@ -524,7 +524,7 @@ export default function CalendarView({
                     })()}
                   </div>
                   {isOverdue && (
-                    <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: 'var(--assistant-danger-text)' }}>overdue</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--assistant-danger-text)' }}>overdue</span>
                   )}
                 </div>
 
@@ -545,8 +545,8 @@ export default function CalendarView({
                           title={`${g.listTitle}: ${done}/${total}`}
                         >
                           <div className="flex items-center justify-between gap-1 leading-none mb-[4px]">
-                            <span className="text-[9px] font-medium truncate">{g.listTitle.slice(0, 10)}</span>
-                            <span className="text-[8px] opacity-60 shrink-0">{pillDone ? '✓' : `${done}/${total}`}</span>
+                            <span className="text-[10px] font-medium truncate">{g.listTitle.slice(0, 10)}</span>
+                            <span className="text-[9px] opacity-60 shrink-0">{pillDone ? '✓' : `${done}/${total}`}</span>
                           </div>
                           <div className="h-[3px] w-full rounded-full overflow-hidden" style={{ background: 'var(--assistant-control-bg)' }}>
                             <div
@@ -558,11 +558,11 @@ export default function CalendarView({
                       );
                     })}
                     {groups.length > 2 && (
-                      <div className="text-[9px]" style={{ color: 'var(--assistant-text-faint)' }}>+{groups.length - 2}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--assistant-text-faint)' }}>+{groups.length - 2}</div>
                     )}
                   </div>
                 ) : (
-                  <div className="text-[10px]" style={{ color: 'var(--assistant-text-faint)' }}>—</div>
+                  <div className="text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>—</div>
                 )}
               </div>
             );

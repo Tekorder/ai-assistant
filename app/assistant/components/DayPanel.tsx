@@ -100,7 +100,7 @@ export default function DayPanel({
 
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [projectTitle, setProjectTitle] = useState('Project');
+  const [projectTitle, setProjectTitle] = useState('Group');
   const [visibleLists, setVisibleLists] = useState<Record<string, boolean>>({});
 
   const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -358,17 +358,17 @@ export default function DayPanel({
       >
         <div className="min-w-0 pr-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[15px] font-semibold leading-none" style={{ color: 'var(--assistant-text-soft)' }}>
+            <span className="text-[16px] font-semibold leading-none" style={{ color: 'var(--assistant-text-soft)' }}>
               {new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })}
             </span>
             <span
-              className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+              className="text-[12px] font-semibold px-2 py-0.5 rounded-full"
               style={{ ...diffStyle, background: 'var(--assistant-control-bg)', border: '1px solid var(--assistant-border-soft)' }}
             >
               {dayLabel}
             </span>
           </div>
-          <div className="text-[12px] mt-1" style={{ color: 'var(--assistant-text-muted)' }}>
+          <div className="text-[13px] mt-1" style={{ color: 'var(--assistant-text-muted)' }}>
             {new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </div>
           <div className="mt-2 flex items-center gap-2">
@@ -378,7 +378,7 @@ export default function DayPanel({
                 style={{ width: totalCount ? `${(doneCount / totalCount) * 100}%` : '0%' }}
               />
             </div>
-            <span className="text-[11px] shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>
+            <span className="text-[12px] shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>
               {doneCount}/{totalCount}
             </span>
           </div>
@@ -386,7 +386,7 @@ export default function DayPanel({
         <button
           type="button"
           onClick={requestClose}
-          className={`h-8 w-8 shrink-0 rounded-lg ${classes.panelBtn}`}
+          className={`h-8 w-8 shrink-0 rounded-lg ${classes.panelCloseBtn}`}
           aria-label="Close"
         >
           ✕
@@ -395,17 +395,17 @@ export default function DayPanel({
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
         {groups.length === 0 ? (
-          <div className="text-center py-10 text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>
+          <div className="text-center py-10 text-[14px]" style={{ color: 'var(--assistant-text-faint)' }}>
             No tasks for this day.
           </div>
         ) : (
           groups.map((group, gi) => (
             <div key={group.listId} className="space-y-2">
               <div className="flex items-center gap-2 px-1">
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${pillColorForList(gi, isLight)}`}>
+                <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full border ${pillColorForList(gi, isLight)}`}>
                   {group.listTitle}
                 </span>
-                <span className="text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>
+                <span className="text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
                   {group.cards.length} task{group.cards.length !== 1 ? 's' : ''}
                 </span>
               </div>
@@ -425,7 +425,7 @@ export default function DayPanel({
                       <div className="group flex items-start gap-2 min-w-0 flex-1">
                         {card.archived ? (
                           <span
-                            className="mt-0.5 h-4 w-4 rounded flex items-center justify-center shrink-0 text-[9px]"
+                            className="mt-0.5 h-4 w-4 rounded flex items-center justify-center shrink-0 text-[10px]"
                             style={{ border: '1px solid var(--assistant-border-soft)', color: 'var(--assistant-text-faint)' }}
                           >
                             ▣
@@ -434,7 +434,7 @@ export default function DayPanel({
                           <button
                             type="button"
                             onClick={() => handleToggleDone(card.id)}
-                            className="relative mt-0.5 h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
+                            className="check-glow relative mt-0.5 h-4 w-4 shrink-0 flex items-center justify-center rounded group-hover:scale-[1.06] transition-[transform,box-shadow]"
                             title={card.checked ? 'Mark pending' : 'Mark done'}
                           >
                             {card.checked ? (
@@ -452,7 +452,7 @@ export default function DayPanel({
                         )}
 
                         <span
-                          className="text-[13px] leading-snug"
+                          className="text-[14px] leading-snug"
                           style={{
                             color: card.archived || card.checked ? 'var(--assistant-text-muted)' : 'var(--assistant-text)',
                             textDecoration: card.archived || card.checked ? 'line-through' : 'none',
@@ -474,8 +474,8 @@ export default function DayPanel({
                             }}
                             className={
                               card.onHold
-                                ? 'text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded opacity-70 hover:opacity-100 transition-opacity'
-                                : 'text-[14px] opacity-40 hover:opacity-90 transition-opacity'
+                                ? 'text-[11px] font-bold tracking-wide px-1.5 py-0.5 rounded opacity-70 hover:opacity-100 transition-opacity'
+                                : 'text-[15px] opacity-40 hover:opacity-90 transition-opacity'
                             }
                             style={
                               card.onHold
@@ -498,7 +498,7 @@ export default function DayPanel({
                           <button
                             type="button"
                             onClick={() => setDeleteConfirmId(card.id)}
-                            className="text-[14px] opacity-40 hover:opacity-90 transition-opacity"
+                            className="text-[15px] opacity-40 hover:opacity-90 transition-opacity"
                             title="Delete"
                           >
                             🗑️
@@ -506,7 +506,7 @@ export default function DayPanel({
                         </div>
                       )}
                       {card.archived && (
-                        <span className="text-[9px] shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>
+                        <span className="text-[10px] shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>
                           archived
                         </span>
                       )}
@@ -526,7 +526,7 @@ export default function DayPanel({
               <select
                 value={newTaskListId}
                 onChange={e => setNewTaskListId(e.target.value)}
-                className="text-[12px] rounded-lg px-2 py-2 flex-1 min-w-0"
+                className="text-[13px] rounded-lg px-2 py-2 flex-1 min-w-0"
                 style={{
                   background: 'var(--assistant-control-bg)',
                   border: '1px solid var(--assistant-border-soft)',
@@ -569,7 +569,7 @@ export default function DayPanel({
                   }
                 }}
                 placeholder="Task name…"
-                className="text-[13px] rounded-lg px-3 py-2 flex-1 min-w-0"
+                className="text-[14px] rounded-lg px-3 py-2 flex-1 min-w-0"
                 style={{
                   background: 'var(--assistant-surface)',
                   border: '1px solid var(--assistant-border-soft)',
@@ -580,7 +580,7 @@ export default function DayPanel({
                 type="button"
                 onClick={submitNewTask}
                 disabled={!newTaskText.trim() || !newTaskListId}
-                className="text-[12px] font-semibold px-3 py-2 rounded-lg shrink-0 transition-opacity disabled:opacity-40"
+                className="text-[13px] font-semibold px-3 py-2 rounded-lg shrink-0 transition-opacity disabled:opacity-40"
                 style={{ color: '#0a0a0a', background: '#d5fc43' }}
               >
                 Add
@@ -591,7 +591,7 @@ export default function DayPanel({
           <button
             type="button"
             onClick={() => setAddOpen(true)}
-            className="w-full text-[13px] font-semibold px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] flex items-center justify-center gap-1.5"
+            className="w-full text-[14px] font-semibold px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] flex items-center justify-center gap-1.5"
             style={{
               color: 'var(--assistant-tone-1)',
               border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 40%, transparent)',
@@ -599,7 +599,7 @@ export default function DayPanel({
                 'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1) 16%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 8%, transparent) 100%)',
             }}
           >
-            <span className="text-[15px] leading-none">+</span> Add task
+            <span className="text-[16px] leading-none">+</span> Add task
           </button>
         )}
       </div>
@@ -621,15 +621,15 @@ export default function DayPanel({
               border: '1px solid var(--assistant-border-soft)',
             }}
           >
-            <h3 className="text-[14px] font-semibold mb-1.5">Delete task?</h3>
-            <p className="text-[12px] mb-4" style={{ color: 'var(--assistant-text-soft)' }}>
+            <h3 className="text-[15px] font-semibold mb-1.5">Delete task?</h3>
+            <p className="text-[13px] mb-4" style={{ color: 'var(--assistant-text-soft)' }}>
               This can&apos;t be undone.
             </p>
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setDeleteConfirmId(null)}
-                className="text-[12px] px-3 py-2 rounded-lg"
+                className="text-[13px] px-3 py-2 rounded-lg"
                 style={{ color: 'var(--assistant-text-muted)' }}
               >
                 Cancel
@@ -640,7 +640,7 @@ export default function DayPanel({
                   handleDelete(deleteConfirmId);
                   setDeleteConfirmId(null);
                 }}
-                className="text-[12px] px-3 py-2 rounded-lg bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
+                className="text-[13px] px-3 py-2 rounded-lg bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
               >
                 Delete
               </button>

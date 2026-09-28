@@ -2,6 +2,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import type { Block as PrismaBlock } from '@prisma/client';
+import { parseListStatus } from '@/lib/datacenter';
 
 function getUid(req: NextRequest) {
   return req.headers.get('X-Firebase-UID') ?? '';
@@ -70,6 +71,7 @@ export async function GET(req: NextRequest) {
         ...(b.archived ? { archived: b.archived } : {}),
         ...(b.onHold ? { onHold: b.onHold } : {}),
         ...(b.flag ? { flag: b.flag } : {}),
+        ...(b.listStatus ? { listStatus: b.listStatus } : {}),
       })),
     })),
     selectedProjectId: user.selectedProjectLocalId ?? undefined,
@@ -154,6 +156,7 @@ export async function POST(req: NextRequest) {
           archived:      Boolean(b.archived ?? false),
           onHold:        Boolean(b.onHold ?? false),
           flag:          typeof b.flag === 'string' ? b.flag : null,
+          listStatus:    indent === 0 ? (parseListStatus(b.listStatus) ?? null) : null,
         };
       })
       .filter((b): b is NonNullable<typeof b> => b !== null);

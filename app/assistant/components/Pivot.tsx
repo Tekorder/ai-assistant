@@ -254,8 +254,8 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
                 onToggleTask?.(r.blockId, !Boolean(r.checked));
               }}
               className={[
-                'flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border',
-                onToggleTask ? 'cursor-pointer' : 'cursor-default',
+                'flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border transition-shadow',
+                onToggleTask ? 'check-glow cursor-pointer' : 'cursor-default',
                 r.checked ? 'border-emerald-400/70 bg-emerald-500/15' : '',
               ].join(' ')}
               style={r.checked ? undefined : { borderColor: 'var(--assistant-border-soft)' }}
@@ -272,7 +272,7 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
           <div className="min-w-0 flex-1">
             <div
               className={[
-                'text-[13px] whitespace-normal break-words',
+                'text-[14px] whitespace-normal break-words',
                 isTitle ? 'font-semibold' : '',
                 !isTitle && r.checked ? 'line-through' : '',
                 r.isMatch ? 'underline underline-offset-4' : '',
@@ -295,7 +295,7 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
           {!isTitle ? (
             <div className="shrink-0">
               <div
-                className={['rounded-full border px-2 py-1 text-[11px]', pillClass(r)].join(' ')}
+                className={['rounded-full border px-2 py-1 text-[12px]', pillClass(r)].join(' ')}
                 title={r.deadline ? `Date: ${r.deadline}` : 'No date'}
               >
                 {pill ? pill : '📅'}
@@ -311,25 +311,25 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
     <>
       <div className="flex shrink-0 items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <div>
-          <div className="text-[10px] uppercase tracking-[0.18em]" style={{ color: 'var(--assistant-accent)' }}>Pivot</div>
-          <h2 className="text-[15px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }}>&ldquo;{word}&rdquo;</h2>
+          <div className="text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--assistant-accent)' }}>Search</div>
+          <h2 className="text-[16px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }}>&ldquo;{word}&rdquo;</h2>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className={`h-8 w-8 rounded-lg ${classes.panelBtn}`}
-          aria-label="Close pivot"
-          title="Close pivot"
+          className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`}
+          aria-label="Close search"
+          title="Close search"
         >
           ✕
         </button>
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-4 py-2" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <div className="min-w-0 text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>
+        <div className="min-w-0 text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
           {pivotKind === 'list'
-            ? 'List pivot: all tasks under this list. Click a row to jump.'
-            : 'Click a word in Daily (Tasks) to add a Pivot. Click a row to jump.'}
+            ? 'List search: all tasks under this list. Click a row to jump.'
+            : 'Click a word in Daily (Tasks) to add a Search. Click a row to jump.'}
         </div>
       </div>
 
@@ -337,7 +337,7 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
         {hasRows ? (
           <div className="space-y-1">{renderRows}</div>
         ) : (
-          <div className="px-2 py-2 text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
+          <div className="px-2 py-2 text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>
             {pivotKind === 'list'
               ? rows.length > 0 && !showCompleted
                 ? 'No unchecked tasks in this list.'
@@ -356,7 +356,7 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
           <button
             type="button"
             onClick={() => setShowCompleted((v) => !v)}
-            className={`w-full px-2.5 py-2 text-[11px] font-medium rounded-lg ${classes.panelBtn}`}
+            className={`w-full px-2.5 py-2 text-[12px] font-medium rounded-lg ${classes.panelBtn}`}
           >
             {showCompleted ? 'Hide completed' : 'Show completed'}
           </button>
@@ -434,7 +434,7 @@ export function PivotPanel({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={word ? `Pivot: ${word}` : 'Pivot'}
+        aria-label={word ? `Search: ${word}` : 'Search'}
         className={`flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
         style={{
           color: 'var(--assistant-text)',
@@ -478,7 +478,7 @@ export function PivotPanel({
         type="button"
         className="fixed inset-0 z-[200]"
         onClick={requestClose}
-        aria-label="Close pivot"
+        aria-label="Close search"
         style={{
           background: 'var(--assistant-overlay)',
           animation: isClosing
@@ -489,7 +489,7 @@ export function PivotPanel({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={word ? `Pivot: ${word}` : 'Pivot'}
+        aria-label={word ? `Search: ${word}` : 'Search'}
         className={`fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass} ${classes.panelOverlay}`}
         style={{
           color: 'var(--assistant-text)',

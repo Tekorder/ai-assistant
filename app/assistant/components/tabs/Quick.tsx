@@ -46,8 +46,10 @@ import {
   buildListVisibilityHiddenMap,
   sortBlocksByOrder,
   getTaskFlag,
+  getListProgress,
 } from '@/lib/datacenter';
 import { TaskFlagButton } from '../TaskFlag';
+import { ListStatusPill } from '../ListStatusPill';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { useQuickFilters, type TaskFilterTag } from '../QuickFiltersContext';
 
@@ -107,9 +109,9 @@ function GamificationToast({ show, message }: { show: boolean; message: string }
           <span className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-white/10 blur-md" style={{ animation:'gamiShine 2.8s ease-in-out infinite' }} />
           <div className="mb-2 flex items-center justify-center gap-2">
             <span className={`h-2.5 w-2.5 rounded-full ${classes.quickToastAccentDot}`} />
-            <span className={`text-[11px] md:text-[12px] font-semibold uppercase tracking-[0.24em] ${classes.quickToastLabel}`}>Progress</span>
+            <span className={`text-[12px] md:text-[13px] font-semibold uppercase tracking-[0.24em] ${classes.quickToastLabel}`}>Progress</span>
           </div>
-          <div className="text-[16px] md:text-[20px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }}>{message}</div>
+          <div className="text-[17px] md:text-[21px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }}>{message}</div>
         </div>
       </div>
     </>
@@ -138,10 +140,10 @@ function QuickProgressBlock({
   return (
     <div className={`px-1 py-2 ${className}`}>
       <div className="flex items-center justify-between gap-3">
-        <div className={`truncate text-[14px] font-semibold ${classes.quickProgressLabel}`}>
+        <div className={`truncate text-[15px] font-semibold ${classes.quickProgressLabel}`}>
           {label}
         </div>
-        <div className={`shrink-0 text-[14px] font-semibold tabular-nums ${classes.quickProgressLabel}`}>
+        <div className={`shrink-0 text-[15px] font-semibold tabular-nums ${classes.quickProgressLabel}`}>
           {progress.done}/{progress.total}
         </div>
       </div>
@@ -172,7 +174,7 @@ export function ActionsPanel({
   chips?: boolean;
 }) {
   const pill = (active: boolean) =>
-    ['text-[12px] px-3 py-1.5 rounded-full transition-all whitespace-nowrap',
+    ['text-[13px] px-3 py-1.5 rounded-full transition-all whitespace-nowrap',
       active ? classes.quickFilterActive : classes.quickFilterInactive,
     ].join(' ');
 
@@ -202,7 +204,7 @@ export function ActionsPanel({
     <div className="space-y-4">
       {/* View by */}
       <div>
-        <div className={`text-[13px] font-semibold mb-2 ${classes.primaryText}`}>View by</div>
+        <div className={`text-[14px] font-semibold mb-2 ${classes.primaryText}`}>View by</div>
         <div className="flex flex-wrap gap-1.5">
           {([['dueDate', 'Due Date'], ['createdAt', 'Created Date']] as const).map(([value, label]) => (
             <button
@@ -219,7 +221,7 @@ export function ActionsPanel({
 
       {/* Filter by */}
       <div>
-        <div className={`text-[13px] font-semibold mb-2 ${classes.primaryText}`}>Filter by</div>
+        <div className={`text-[14px] font-semibold mb-2 ${classes.primaryText}`}>Filter by</div>
         <div className="flex flex-wrap gap-1.5">
           {dateFilters.map(({ mode, label }) => (
             <button
@@ -246,7 +248,7 @@ export function ActionsPanel({
 
       {/* Options */}
       <div>
-        <div className={`text-[13px] font-semibold mb-2 ${classes.primaryText}`}>Options</div>
+        <div className={`text-[14px] font-semibold mb-2 ${classes.primaryText}`}>Options</div>
         <div className="flex flex-col items-start gap-1.5">
           <button
             type="button"
@@ -354,25 +356,6 @@ export default function Quick(props: QuickProps = {}) {
   const [toastMsg, setToastMsg]   = useState('');
   const toastTimerRef = useRef<number | null>(null);
 
-
-  const [taskMenuId, setTaskMenuId] = useState<string | null>(null);
-  const taskMenuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!taskMenuId) return;
-    const onPointerDown = (e: MouseEvent) => {
-      if (taskMenuRef.current && !taskMenuRef.current.contains(e.target as Node)) {
-        setTaskMenuId(null);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setTaskMenuId(null); };
-    window.addEventListener('mousedown', onPointerDown);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('mousedown', onPointerDown);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [taskMenuId]);
 
   useEffect(() => {
     audioCheckRef.current = new Audio('/sounds/notif.mp3');
@@ -952,7 +935,7 @@ const handleKey = (
           onFocus={() => setEditingTaskId(b.id)}
           onBlur={() => setEditingTaskId(prev => (prev === b.id ? null : prev))}
           className={[
-            'bg-transparent outline-none p-0 text-[13px] md:text-sm resize-none overflow-hidden w-full min-w-0 transition-opacity duration-150',
+            'bg-transparent outline-none p-0 text-[14px] md:text-sm resize-none overflow-hidden w-full min-w-0 transition-opacity duration-150',
             isEditing ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none absolute inset-0',
           ].join(' ')}
           style={{
@@ -964,7 +947,7 @@ const handleKey = (
 
         {!isEditing ? (
           <div
-            className="cursor-text text-[13px] md:text-sm whitespace-pre-wrap break-words leading-[1.45] min-h-[1.45em]"
+            className="cursor-text text-[14px] md:text-sm whitespace-pre-wrap break-words leading-[1.45] min-h-[1.45em]"
             style={{
               color: b.checked ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)',
             }}
@@ -1083,7 +1066,7 @@ const handleKey = (
                       }}
                       aria-label="Edit list title"
                       title="Edit list title"
-                      className={`shrink-0 h-4 w-4 flex items-center justify-center text-[11px] opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-all duration-150 ${classes.quickEditBtn}`}
+                      className={`shrink-0 h-4 w-4 flex items-center justify-center text-[12px] opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-all duration-150 ${classes.quickEditBtn}`}
                     >
                       {editIcon}
                     </button>
@@ -1097,14 +1080,14 @@ const handleKey = (
                         onChange={e => handleUpdateBlock(listBlock.id, { text: e.target.value })}
                         onKeyDown={e => handleKey(e, listBlock)}
                         onBlur={() => setEditingListTitleId(null)}
-                        className="flex-none bg-transparent text-[13px] md:text-sm font-semibold outline-none"
+                        className="flex-none bg-transparent text-[14px] md:text-sm font-semibold outline-none"
                         style={{ width: `${inputWidthPx(listBlock.text)}px`, maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
                       />
                     ) : (
                       <span
                         role="button"
                         tabIndex={0}
-                        className="quick-word-clickable flex-none truncate text-[13px] md:text-sm font-semibold"
+                        className="quick-word-clickable flex-none truncate text-[14px] md:text-sm font-semibold"
                         style={{ maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
                         onClick={(e) => { e.stopPropagation(); openPivotForList(listBlock); }}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPivotForList(listBlock); } }}
@@ -1113,8 +1096,15 @@ const handleKey = (
                         {(listBlock.text || '').trim() ? listBlock.text : 'List…'}
                       </span>
                     )}
-                    <span className="text-[11px] font-medium shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>
+                    <span className="text-[12px] font-medium shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>
                       ({tasks.filter(t => t.checked).length}/{tasks.length})
+                    </span>
+                    <span className="ml-1 inline-flex">
+                      <ListStatusPill
+                        status={getListProgress(blocks, listBlock.id).status}
+                        current={listBlock.listStatus}
+                        onChange={(next) => handleUpdateBlock(listBlock.id, { listStatus: next })}
+                      />
                     </span>
                   </div>
                   <button
@@ -1122,7 +1112,7 @@ const handleKey = (
                     onClick={() => handleAddTaskUnderList(listBlock.id)}
                     aria-label="Add task"
                     title="Add task"
-                    className={`ml-auto shrink-0 flex items-center justify-center text-[18px] leading-none font-semibold transition-opacity hover:opacity-70 ${classes.quickAddTaskBtn}`}
+                    className={`ml-auto shrink-0 flex items-center justify-center text-[19px] leading-none font-semibold transition-opacity hover:opacity-70 ${classes.quickAddTaskBtn}`}
                   >
                     +
                   </button>
@@ -1151,12 +1141,8 @@ const handleKey = (
                         {dragDots}
                       </div>
                       <div className="w-3 shrink-0" />
-                      <TaskFlagButton
-                        source={task}
-                        onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
-                      />
                       <button type="button" onClick={() => handleUpdateBlock(task.id, { checked: !task.checked })}
-                        className="relative h-4 w-4 shrink-0 flex items-center justify-center group-hover:scale-[1.06] transition-transform"
+                        className="check-glow relative h-4 w-4 shrink-0 flex items-center justify-center rounded-full group-hover:scale-[1.06] transition-[transform,box-shadow]"
                         title="Complete">
                         {pulseId === task.id ? (
                           <>
@@ -1184,7 +1170,7 @@ const handleKey = (
                             autoFocus
                             type="date"
                             lang="en-US"
-                            className={`shrink-0 mt-0.5 text-[11px] px-1.5 py-0.5 rounded-full outline-none ${classes.quickDatePillInput}`}
+                            className={`shrink-0 mt-0.5 text-[12px] px-1.5 py-0.5 rounded-full outline-none ${classes.quickDatePillInput}`}
                             value={isValidDateYYYYMMDD(task.deadline) ? task.deadline : ''}
                             onChange={e => {
                               const v = e.target.value;
@@ -1196,65 +1182,60 @@ const handleKey = (
                           />
                         )}
                         {task.onHold && (
-                          <span className={`shrink-0 mt-0.5 text-[10px] px-1.5 py-0.5 rounded-full ${classes.quickDatePillHold}`}>HOLD</span>
+                          <span className={`shrink-0 mt-0.5 text-[11px] px-1.5 py-0.5 rounded-full ${classes.quickDatePillHold}`}>HOLD</span>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setTaskMenuId(prev => (prev === task.id ? null : task.id)); }}
-                        aria-label="Task options"
-                        title="Task options"
-                        className={[
-                          'shrink-0 h-5 w-5 flex items-center justify-center rounded-md transition-all duration-150',
-                          taskMenuId === task.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-70 hover:!opacity-100',
-                          classes.quickEditBtn,
-                        ].join(' ')}
-                      >
-                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
-                          <circle cx="8" cy="3.2" r="1.3" />
-                          <circle cx="8" cy="8" r="1.3" />
-                          <circle cx="8" cy="12.8" r="1.3" />
-                        </svg>
-                      </button>
-                    </div>
-                    {taskMenuId === task.id && (
-                      <div
-                        ref={taskMenuRef}
-                        className="flex flex-wrap items-center gap-1.5 pb-1.5"
-                        style={{ paddingLeft: (isUncList ? 6 : 8 + task.indent * 16) + 30 }}
-                      >
+                      {editingTaskId !== task.id && (
                         <button
                           type="button"
-                          onClick={() => { setEditingTaskId(task.id); focusBlock(task.id, true); setTaskMenuId(null); }}
-                          className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full transition-all ${classes.quickFilterInactive}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTaskId(task.id);
+                            focusBlock(task.id, true);
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          aria-label="Edit task"
+                          title="Edit task"
+                          className={`shrink-0 h-5 w-5 flex items-center justify-center opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-all duration-150 ${classes.quickEditBtn}`}
                         >
                           {editIcon}
-                          Edit
                         </button>
+                      )}
+                      {editingDateTaskId !== task.id && (
                         <button
                           type="button"
-                          onClick={() => { handleUpdateBlock(task.id, { onHold: !task.onHold }); setTaskMenuId(null); }}
-                          className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full transition-all ${classes.quickFilterInactive}`}
+                          onClick={(e) => { e.stopPropagation(); setEditingDateTaskId(task.id); }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          aria-label={task.deadline ? 'Change due date' : 'Set due date'}
+                          title={task.deadline ? 'Change due date' : 'Set due date'}
+                          className={[
+                            'shrink-0 h-5 flex items-center justify-center text-[12px] transition-all duration-150 opacity-0',
+                            isValidDateYYYYMMDD(task.deadline)
+                              ? 'rounded-full px-2 group-hover:opacity-100 hover:brightness-125'
+                              : `rounded-md px-1 group-hover:opacity-70 hover:!opacity-100 ${classes.quickEditBtn}`,
+                          ].join(' ')}
+                          style={isValidDateYYYYMMDD(task.deadline) ? { background: '#18315C', color: '#fff' } : undefined}
                         >
-                          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
-                            <rect x="4.5" y="3" width="2.2" height="10" rx="0.6" />
-                            <rect x="9.3" y="3" width="2.2" height="10" rx="0.6" />
-                          </svg>
-                          {task.onHold ? 'Remove hold' : 'Hold'}
+                          {isValidDateYYYYMMDD(task.deadline) ? (
+                            <span className="inline-flex items-center gap-1">
+                              {formatPill(task.deadline)}
+                              <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
+                              </svg>
+                            </span>
+                          ) : (
+                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                              <rect x="1.8" y="2.6" width="12.4" height="11" rx="2" />
+                              <path strokeLinecap="round" d="M1.8 6.3h12.4M5.2 1.8v2.2M10.8 1.8v2.2" />
+                            </svg>
+                          )}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => { setEditingDateTaskId(task.id); setTaskMenuId(null); }}
-                          className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full transition-all ${classes.quickFilterInactive}`}
-                        >
-                          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
-                            <rect x="1.8" y="2.6" width="12.4" height="11" rx="2" />
-                            <path strokeLinecap="round" d="M1.8 6.3h12.4M5.2 1.8v2.2M10.8 1.8v2.2" />
-                          </svg>
-                          {formatPill(task.deadline) || 'Set due date'}
-                        </button>
-                      </div>
-                    )}
+                      )}
+                      <TaskFlagButton
+                        source={task}
+                        onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
+                      />
+                    </div>
                   </React.Fragment>
                 );
               })}
@@ -1298,7 +1279,7 @@ const handleKey = (
         style={{ color: 'var(--assistant-text)' }}
         aria-busy="true"
       >
-        <div className="text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>Loading…</div>
+        <div className="text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>Loading…</div>
       </div>
     );
   }
@@ -1352,7 +1333,7 @@ const handleKey = (
               <div className="h-1 w-10 rounded-full" style={{ background: 'var(--assistant-border-soft)' }} />
             </div>
             <div className={`flex shrink-0 items-center justify-between px-4 py-2 ${classes.quickDrawerHeader}`}>
-              <span className="text-[13px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Filters</span>
+              <span className="text-[14px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Filters</span>
               <button type="button" onClick={closeDrawer} className={`flex h-7 w-7 items-center justify-center rounded-md ${classes.quickDrawerCloseBtn}`}>✕</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3">
@@ -1382,12 +1363,12 @@ const handleKey = (
                       type="button"
                       onClick={navigatePrev}
                       disabled={navDisabled}
-                      className={`grid place-items-center size-8 shrink-0 text-[22px] md:text-[28px] leading-none transition-colors ${classes.quickNavArrow}`}
+                      className={`grid place-items-center size-8 shrink-0 text-[23px] md:text-[29px] leading-none transition-colors ${classes.quickNavArrow}`}
                     >
                       ‹
                     </button>
 
-                    <div className="min-w-0 text-[15px] md:text-[18px] font-semibold tracking-tight whitespace-nowrap" style={{ color: 'var(--assistant-text)' }}>
+                    <div className="min-w-0 text-[16px] md:text-[19px] font-semibold tracking-tight whitespace-nowrap" style={{ color: 'var(--assistant-text)' }}>
                       {dateMode === 'today' && (
                         focusDay === todayYMD() ? 'Today' : (formatPill(focusDay) || labelForYMD(focusDay))
                       )}
@@ -1419,7 +1400,7 @@ const handleKey = (
                       type="button"
                       onClick={navigateNext}
                       disabled={navDisabled}
-                      className={`grid place-items-center size-8 shrink-0 text-[22px] md:text-[28px] leading-none transition-colors ${classes.quickNavArrow}`}
+                      className={`grid place-items-center size-8 shrink-0 text-[23px] md:text-[29px] leading-none transition-colors ${classes.quickNavArrow}`}
                     >
                       ›
                     </button>
@@ -1430,7 +1411,7 @@ const handleKey = (
                     <button
                       type="button"
                       onClick={openNewListModal}
-                      className={`hidden md:flex items-center gap-1.5 text-[12px] px-3 py-1.5 rounded-lg transition-all hover:scale-105 ${classes.quickNewListBtn}`}
+                      className={`hidden md:flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-all hover:scale-105 ${classes.quickNewListBtn}`}
                     >
                       <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
                         <path strokeLinecap="round" d="M8 3v10M3 8h10" />
@@ -1442,7 +1423,7 @@ const handleKey = (
                     <button
                       type="button"
                       onClick={() => setDrawerOpen(true)}
-                      className={`md:hidden flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition ${classes.quickMobileSettings}`}
+                      className={`md:hidden flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition ${classes.quickMobileSettings}`}
                     >
                       <span>⚙</span>
                       <span className="capitalize">{dateMode}</span>
@@ -1457,15 +1438,15 @@ const handleKey = (
                 {isBrandNewEmpty ? (
                   <div className={`rounded-2xl p-5 ${classes.quickEmptyState}`}>
                     <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Start here</div>
-                    <div className="text-[12px] mt-1" style={{ color: 'var(--assistant-text-muted)' }}>Create your first list and then add tasks under it.</div>
+                    <div className="text-[13px] mt-1" style={{ color: 'var(--assistant-text-muted)' }}>Create your first list and then add tasks under it.</div>
                     <button
                       type="button"
                       onClick={openNewListModal}
-                      className={`mt-4 max-w-[260px] w-full text-left text-[13px] px-4 py-3 rounded-2xl transition-colors wobble-loop ${classes.quickCtaBtn}`}
+                      className={`mt-4 max-w-[260px] w-full text-left text-[14px] px-4 py-3 rounded-2xl transition-colors wobble-loop ${classes.quickCtaBtn}`}
                     >
                       + New List
                     </button>
-                    <div className="text-[11px] mt-3" style={{ color: 'var(--assistant-text-faint)' }}>Hint: after you create a list, you&apos;ll always see an <span style={{ color: 'var(--assistant-text-muted)' }}>+ task</span> button right below it.</div>
+                    <div className="text-[12px] mt-3" style={{ color: 'var(--assistant-text-faint)' }}>Hint: after you create a list, you&apos;ll always see an <span style={{ color: 'var(--assistant-text-muted)' }}>+ task</span> button right below it.</div>
                   </div>
                 ) : renderNormalList()}
               </div>
@@ -1496,35 +1477,35 @@ const handleKey = (
             <div className={`relative w-[92vw] max-w-md rounded-2xl shadow-2xl ${classes.quickModal}`}>
               <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
                 <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Select or create List</div>
-                <div className="text-[11px] mt-0.5" style={{ color: 'var(--assistant-text-muted)' }}>Pick an existing list to add a task under it, or type a new one.</div>
+                <div className="text-[12px] mt-0.5" style={{ color: 'var(--assistant-text-muted)' }}>Pick an existing list to add a task under it, or type a new one.</div>
               </div>
               <div className="px-4 py-3">
                 <div className="mb-3">
-                  <div className="text-[11px] mb-1" style={{ color: 'var(--assistant-text-muted)' }}>Create new</div>
+                  <div className="text-[12px] mb-1" style={{ color: 'var(--assistant-text-muted)' }}>Create new</div>
                   <input value={listNewText} onChange={e => setListNewText(e.target.value)} placeholder="Type a new list name…"
-                    className={`w-full rounded-md text-[12px] px-3 py-2 ${classes.quickSearchInput}`}
+                    className={`w-full rounded-md text-[13px] px-3 py-2 ${classes.quickSearchInput}`}
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmListModal(); } if (e.key === 'Escape') setListModalOpen(false); }} />
-                  <div className="text-[11px] mt-1" style={{ color: 'var(--assistant-text-faint)' }}>If that list already exists, it will not create a duplicate — it just adds a task under it.</div>
+                  <div className="text-[12px] mt-1" style={{ color: 'var(--assistant-text-faint)' }}>If that list already exists, it will not create a duplicate — it just adds a task under it.</div>
                 </div>
                 <div>
-                  <div className="text-[11px] mb-1" style={{ color: 'var(--assistant-text-muted)' }}>Or select existing</div>
+                  <div className="text-[12px] mb-1" style={{ color: 'var(--assistant-text-muted)' }}>Or select existing</div>
                   <div className="max-h-56 overflow-auto rounded-xl" style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-surface)' }}>
                     {listTitles.length ? (
                       <div className="p-2 space-y-1">
                         {listTitles.map(t => (
                           <label key={t.id} className={`flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors ${classes.quickModalListItem}`}>
                             <input type="radio" name="listPick" value={t.id} checked={listPickId === t.id} onChange={e => setListPickId(e.target.value)} onClick={e => { const v = (e.currentTarget as HTMLInputElement).value; if (v) setListPickId(v); }} />
-                            <span className="text-[12px]" style={{ color: 'var(--assistant-text-soft)' }}>{t.text}</span>
+                            <span className="text-[13px]" style={{ color: 'var(--assistant-text-soft)' }}>{t.text}</span>
                           </label>
                         ))}
                       </div>
-                    ) : <div className="p-3 text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>No lists yet.</div>}
+                    ) : <div className="p-3 text-[13px]" style={{ color: 'var(--assistant-text-muted)' }}>No lists yet.</div>}
                   </div>
                 </div>
               </div>
               <div className="px-4 py-3 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
-                <button type="button" onClick={() => setListModalOpen(false)} className={`text-[12px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}>Cancel</button>
-                <button type="button" onClick={confirmListModal} className={`text-[12px] px-3 py-2 rounded-md ${classes.quickModalPrimary}`}>Select</button>
+                <button type="button" onClick={() => setListModalOpen(false)} className={`text-[13px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}>Cancel</button>
+                <button type="button" onClick={confirmListModal} className={`text-[13px] px-3 py-2 rounded-md ${classes.quickModalPrimary}`}>Select</button>
               </div>
             </div>
           </div>
@@ -1541,30 +1522,30 @@ const handleKey = (
             <div className={`relative w-[92vw] max-w-md rounded-2xl shadow-2xl ${classes.quickModal}`}>
               <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
                 <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Delete list?</div>
-                <p className="text-[12px] mt-2 leading-relaxed" style={{ color: 'var(--assistant-text-soft)' }}>
+                <p className="text-[13px] mt-2 leading-relaxed" style={{ color: 'var(--assistant-text-soft)' }}>
                   Are you sure you want to delete this list and all its child tasks?
                 </p>
-                <p className="text-[11px] text-rose-200/90 mt-2">
+                <p className="text-[12px] text-rose-200/90 mt-2">
                   If you choose Yes, every task in this list is removed permanently.
                 </p>
                 {(() => {
                   const t = blocks.find(x => x.id === deleteListConfirmId)?.text?.trim();
                   if (!t) return null;
-                  return <div className="text-[11px] mt-2 truncate" title={t} style={{ color: 'var(--assistant-text-faint)' }}>List: {t}</div>;
+                  return <div className="text-[12px] mt-2 truncate" title={t} style={{ color: 'var(--assistant-text-faint)' }}>List: {t}</div>;
                 })()}
               </div>
               <div className="px-4 py-3 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
                 <button
                   type="button"
                   onClick={() => { setDeleteListConfirmId(null); armedDeleteListRef.current = null; }}
-                  className={`text-[12px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}
+                  className={`text-[13px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={() => { if (deleteListConfirmId) handleConfirmDeleteList(deleteListConfirmId); }}
-                  className="text-[12px] px-3 py-2 rounded-md bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
+                  className="text-[13px] px-3 py-2 rounded-md bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
                 >
                   Yes, delete
                 </button>

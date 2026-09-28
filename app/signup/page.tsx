@@ -12,9 +12,9 @@ import {
 } from './_utils/validation';
 
 /* ─── Styles ─────────────────────────────────────────────── */
+/* Matches the login page (app/login/page.tsx). */
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
-  .lp-wrap { font-family: 'DM Sans', sans-serif; }
+  .lp-wrap { font-family: var(--font-thicccboi), sans-serif; color: #1a2b48; }
   @keyframes lp-in {
     from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0);    }
@@ -28,17 +28,18 @@ const STYLES = `
   .lp-row-6 { animation: lp-in .35s .38s cubic-bezier(.25,.9,.3,1) both; }
   .lp-input {
     width: 100%; padding: 11px 14px;
-    background: rgba(255,255,255,.05);
-    border: 1px solid rgba(255,255,255,.1);
-    border-radius: 10px; color: #f5f5f5;
-    font-size: 14px; font-family: 'DM Sans', sans-serif;
+    background: rgba(0,0,0,.04);
+    border: 1px solid rgba(0,0,0,.08);
+    border-radius: 10px; color: #1a2b48;
+    font-size: 15px; font-family: inherit;
     outline: none; transition: border-color .15s, background .15s;
     box-sizing: border-box;
   }
-  .lp-input::placeholder { color: rgba(255,255,255,.25); }
+  .lp-input:hover { background: rgba(0,0,0,.05); }
+  .lp-input::placeholder { color: rgba(0,0,0,.30); }
   .lp-input:focus {
-    border-color: rgba(213,252,67,.5);
-    background: rgba(213,252,67,.06);
+    border-color: color-mix(in srgb, #1a2b48 45%, transparent);
+    background: #ffffff;
   }
   .lp-input.lp-error {
     border-color: rgba(248,113,113,.45);
@@ -46,38 +47,14 @@ const STYLES = `
   }
   .lp-btn {
     width: 100%; padding: 12px; border-radius: 10px; border: none;
-    background: #d5fc43; color: #0a0a0a;
-    font-size: 14px; font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
+    background: #18315c; color: #ffffff;
+    font-size: 15px; font-weight: 600;
+    font-family: inherit;
     cursor: pointer; transition: background .15s, opacity .15s, box-shadow .15s;
-    box-shadow: 0 0 24px rgba(213,252,67,.25);
+    box-shadow: 0 6px 18px rgba(24,49,92,.22);
   }
-  .lp-btn:hover:not(:disabled) { background: #c8f030; box-shadow: 0 0 32px rgba(213,252,67,.35); }
+  .lp-btn:hover:not(:disabled) { background: #1a2b48; box-shadow: 0 8px 24px rgba(24,49,92,.30); }
   .lp-btn:disabled { opacity: .45; cursor: not-allowed; }
-  .lp-wordmark-wrap {
-    display: flex;
-    justify-content: center;
-    margin: 4px 0 18px;
-  }
-  .lp-wordmark {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 0.38em;
-    padding-left: 0.38em;
-    text-transform: uppercase;
-    color: #d5fc43;
-    line-height: 1.3;
-    text-shadow:
-      0 0 16px rgba(213,252,67,.55),
-      0 0 36px rgba(213,252,67,.3),
-      0 0 2px rgba(255,255,255,.2);
-    animation: lp-wordmark-pulse 3.2s ease-in-out infinite;
-  }
-  @keyframes lp-wordmark-pulse {
-    0%, 100% { opacity: 1; filter: brightness(1); }
-    50% { opacity: 0.92; filter: brightness(1.12); }
-  }
 `;
 
 /* ─── Particle Canvas ────────────────────────────────────── */
@@ -157,8 +134,8 @@ function ParticleCanvas({ pstate }: { pstate: PState }) {
         if (p.y > H + 20) p.y = -20;
 
         const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 2.5);
-        g.addColorStop(0, `rgba(213,252,67,${p.alpha * 0.72})`);
-        g.addColorStop(1, `rgba(213,252,67,0)`);
+        g.addColorStop(0, `rgba(158,185,216,${p.alpha * 0.55})`);
+        g.addColorStop(1, `rgba(158,185,216,0)`);
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r * 2.5, 0, Math.PI * 2);
@@ -167,7 +144,7 @@ function ParticleCanvas({ pstate }: { pstate: PState }) {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r * 0.55, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(240,255,180,${p.alpha})`;
+        ctx.fillStyle = `rgba(26,43,72,${p.alpha * 0.28})`;
         ctx.fill();
       }
 
@@ -333,23 +310,23 @@ export default function SignUpPage() {
   };
 
   const label: React.CSSProperties = {
-    fontSize: 12,
-    color: 'rgba(255,255,255,.45)',
+    fontSize: 13,
+    color: 'rgba(0,0,0,.45)',
     fontWeight: 500,
     display: 'block',
     marginBottom: 6,
   };
 
   const errorMsg: React.CSSProperties = {
-    fontSize: 12,
-    color: '#fca5a5',
+    fontSize: 13,
+    color: '#be123c',
     marginTop: 5,
   };
 
   const accentLine: React.CSSProperties = {
     height: 2,
     background:
-      'linear-gradient(90deg,transparent,rgba(213,252,67,.55),transparent)',
+      'linear-gradient(90deg,transparent,rgba(26,43,72,.35),transparent)',
   };
 
   return (
@@ -360,7 +337,7 @@ export default function SignUpPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#000000',
+        background: 'linear-gradient(145deg, #f8fafc 0%, #f1f5fa 22%, #e4eef7 48%, #d0e2f2 72%, #b8d2eb 100%)',
         padding: '24px 20px',
         position: 'relative',
         overflow: 'hidden',
@@ -376,7 +353,7 @@ export default function SignUpPage() {
           height: 640,
           borderRadius: '50%',
           background:
-            'radial-gradient(circle, rgba(213,252,67,.07) 0%, transparent 62%)',
+            'radial-gradient(circle, rgba(255,255,255,.55) 0%, transparent 62%)',
           pointerEvents: 'none',
           top: '50%',
           left: '50%',
@@ -393,27 +370,45 @@ export default function SignUpPage() {
           width: '100%',
           maxWidth: 400,
           borderRadius: 18,
-          border: '1px solid rgba(255,255,255,.12)',
-          background: 'rgba(12,12,12,.78)',
+          border: '1px solid rgba(17,24,39,.06)',
+          background: 'rgba(255,255,255,.92)',
           backdropFilter: 'blur(14px)',
           WebkitBackdropFilter: 'blur(14px)',
           boxShadow:
-            '0 24px 64px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.06)',
+            '0 12px 28px rgba(17,24,39,.10), 0 3px 10px rgba(17,24,39,.06), inset 0 1px 0 rgba(255,255,255,.5)',
           overflow: 'hidden',
         }}
       >
         <div style={accentLine} />
-        <div style={{ padding: '24px 32px 32px' }}>
-          <div className="lp-wordmark-wrap">
-            <p className="lp-wordmark">Utask</p>
+        <div style={{ padding: '32px 32px 32px' }}>
+          <div
+            className="lp-row-1"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              marginBottom: 22,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logoblue.png"
+              alt="youtask"
+              style={{
+                height: 40,
+                width: 'auto',
+                objectFit: 'contain',
+              }}
+            />
           </div>
 
           <div className="lp-row-1" style={{ marginBottom: 22 }}>
             <div
               style={{
-                fontSize: 24,
+                fontSize: 21,
                 fontWeight: 600,
-                color: '#f5f5f5',
+                color: '#1a2b48',
                 letterSpacing: '-.025em',
                 lineHeight: 1.2,
                 textAlign: 'center',
@@ -425,7 +420,7 @@ export default function SignUpPage() {
             <div
               style={{
                 fontSize: 14,
-                color: 'rgba(255,255,255,.38)',
+                color: 'rgba(0,0,0,.50)',
                 marginTop: 6,
                 textAlign: 'center',
               }}
@@ -443,8 +438,8 @@ export default function SignUpPage() {
                 borderRadius: 10,
                 border: '1px solid rgba(248,113,113,.25)',
                 background: 'rgba(248,113,113,.08)',
-                fontSize: 13,
-                color: '#fca5a5',
+                fontSize: 14,
+                color: '#be123c',
               }}
             >
               {submitError}
@@ -502,8 +497,8 @@ export default function SignUpPage() {
               />
               <div
                 style={{
-                  fontSize: 12,
-                  color: 'rgba(255,255,255,.25)',
+                  fontSize: 13,
+                  color: 'rgba(0,0,0,.35)',
                   marginTop: 5,
                 }}
               >
@@ -528,8 +523,8 @@ export default function SignUpPage() {
               {!passwordError && confirmPassword.length > 0 && (
                 <div
                   style={{
-                    fontSize: 12,
-                    color: 'rgba(213,252,67,.85)',
+                    fontSize: 13,
+                    color: '#15803d',
                     marginTop: 5,
                   }}
                 >
@@ -554,15 +549,15 @@ export default function SignUpPage() {
             style={{
               marginTop: 24,
               textAlign: 'center',
-              fontSize: 13,
-              color: 'rgba(255,255,255,.3)',
+              fontSize: 14,
+              color: 'rgba(0,0,0,.45)',
             }}
           >
             Already have an account?{' '}
             <Link
               href="/login"
               style={{
-                color: 'rgba(213,252,67,.88)',
+                color: '#1a2b48',
                 textDecoration: 'none',
                 fontWeight: 500,
               }}

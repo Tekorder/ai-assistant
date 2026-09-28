@@ -89,10 +89,10 @@ function StepOccupation({ value, onChange }: { value: Occupation; onChange:(v:Oc
   return (
     <div>
       <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 22, fontWeight: 600, color: '#f5f5f5', letterSpacing: '-.025em', lineHeight: 1.25, marginBottom: 6 }}>
+        <div style={{ fontSize: 23, fontWeight: 600, color: '#f5f5f5', letterSpacing: '-.025em', lineHeight: 1.25, marginBottom: 6 }}>
           Whats your role?
         </div>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,.4)', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 15, color: 'rgba(255,255,255,.4)', lineHeight: 1.5 }}>
           Helps us tailor the defaults to how you work.
         </div>
       </div>
@@ -102,9 +102,9 @@ function StepOccupation({ value, onChange }: { value: Occupation; onChange:(v:Oc
             className={`ob-opt ob-chip ${value === o.value ? 'ob-selected' : ''}`}
             style={{ animationDelay: `${i * 0.05}s`, padding: '18px 14px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 10, textAlign: 'left' }}
             onClick={() => onChange(o.value)}>
-            <span style={{ fontSize: 28, lineHeight: 1 }}>{o.emoji}</span>
+            <span style={{ fontSize: 29, lineHeight: 1 }}>{o.emoji}</span>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-              <span style={{ fontSize: 14, fontWeight: 500, color: value === o.value ? '#d1fae5' : 'rgba(255,255,255,.75)' }}>
+              <span style={{ fontSize: 15, fontWeight: 500, color: value === o.value ? '#d1fae5' : 'rgba(255,255,255,.75)' }}>
                 {o.value}
               </span>
               <span className="ob-check">
@@ -129,10 +129,10 @@ function StepProfession({ value, onChange }: { value: Profession; onChange:(v:Pr
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 22, fontWeight: 600, color: '#f5f5f5', letterSpacing: '-.025em', lineHeight: 1.25, marginBottom: 6 }}>
+        <div style={{ fontSize: 23, fontWeight: 600, color: '#f5f5f5', letterSpacing: '-.025em', lineHeight: 1.25, marginBottom: 6 }}>
           What do you do?
         </div>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,.4)', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 15, color: 'rgba(255,255,255,.4)', lineHeight: 1.5 }}>
           Pick the closest fit.
         </div>
       </div>
@@ -147,8 +147,8 @@ function StepProfession({ value, onChange }: { value: Profession; onChange:(v:Pr
             className={`ob-opt ob-chip ${value === p.value ? 'ob-selected' : ''}`}
             style={{ animationDelay: `${i * 0.035}s`, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}
             onClick={() => onChange(p.value)}>
-            <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{p.emoji}</span>
-            <span style={{ fontSize: 13, fontWeight: 500, color: value === p.value ? '#d1fae5' : 'rgba(255,255,255,.65)', flex: 1, textAlign: 'left' }}>
+            <span style={{ fontSize: 21, lineHeight: 1, flexShrink: 0 }}>{p.emoji}</span>
+            <span style={{ fontSize: 14, fontWeight: 500, color: value === p.value ? '#d1fae5' : 'rgba(255,255,255,.65)', flex: 1, textAlign: 'left' }}>
               {p.value}
             </span>
             <span className="ob-check" style={{ width: 14, height: 14 }}>
@@ -172,10 +172,10 @@ function StepGoal({ value, onChange }: { value: Goal; onChange:(v:Goal)=>void })
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 22, fontWeight: 600, color: '#f5f5f5', letterSpacing: '-.025em', lineHeight: 1.25, marginBottom: 6 }}>
+        <div style={{ fontSize: 23, fontWeight: 600, color: '#f5f5f5', letterSpacing: '-.025em', lineHeight: 1.25, marginBottom: 6 }}>
           Whats your main goal?
         </div>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,.4)', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 15, color: 'rgba(255,255,255,.4)', lineHeight: 1.5 }}>
           Well shape your defaults around this.
         </div>
       </div>
@@ -185,12 +185,12 @@ function StepGoal({ value, onChange }: { value: Goal; onChange:(v:Goal)=>void })
             className={`ob-opt ob-chip ${value === g.value ? 'ob-selected' : ''}`}
             style={{ animationDelay: `${i * 0.06}s`, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}
             onClick={() => onChange(g.value)}>
-            <span style={{ fontSize: 26, lineHeight: 1, flexShrink: 0 }}>{g.emoji}</span>
+            <span style={{ fontSize: 27, lineHeight: 1, flexShrink: 0 }}>{g.emoji}</span>
             <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: value === g.value ? '#d1fae5' : '#f0f0f0', marginBottom: 2 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: value === g.value ? '#d1fae5' : '#f0f0f0', marginBottom: 2 }}>
                 {g.value}
               </div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.35)', lineHeight: 1.45 }}>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.35)', lineHeight: 1.45 }}>
                 {g.desc}
               </div>
             </div>
@@ -279,8 +279,8 @@ export function OnboardingModal() {
           }}>
             <ProgressDots step={step} total={TOTAL} />
             <button type="button" onClick={() => finish(true)} style={{
-              fontSize: 12, color: 'rgba(255,255,255,.28)', background: 'none',
-              border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              fontSize: 13, color: 'rgba(255,255,255,.28)', background: 'none',
+              border: 'none', cursor: 'pointer', fontFamily: 'inherit',
               padding: '4px 8px', borderRadius: 6, transition: 'color .13s, background .13s',
             }}
               onMouseEnter={e => { e.currentTarget.style.color='rgba(255,255,255,.65)'; e.currentTarget.style.background='rgba(255,255,255,.06)'; }}

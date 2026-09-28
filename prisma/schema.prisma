@@ -59,6 +59,7 @@ model Block {
   onHold        Boolean  @default(false)
   flag          String?
   priority      Boolean  @default(false)
+  listStatus    String?
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   rowCreatedAt  DateTime @default(now())
   rowUpdatedAt  DateTime @updatedAt

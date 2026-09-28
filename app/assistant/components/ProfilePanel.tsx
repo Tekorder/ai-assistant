@@ -79,14 +79,14 @@ export default function ProfilePanel({ open, onClose, completedTasks = [] }: Pro
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 3 4.5 8l5 5" />
             </svg>
           </button>
-          <h1 className="text-[16px] font-semibold">Profile</h1>
+          <h1 className="text-[17px] font-semibold">Profile</h1>
         </div>
 
         <div className="mx-auto w-full max-w-[560px] flex-1 px-4 py-6 md:px-8">
           <div className="space-y-6">
             <section className="flex items-center gap-4">
               <div
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-[20px] font-semibold"
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-[21px] font-semibold"
                 style={{
                   background: 'color-mix(in srgb, var(--assistant-accent) 15%, transparent)',
                   color: 'var(--assistant-accent)',
@@ -96,8 +96,8 @@ export default function ProfilePanel({ open, onClose, completedTasks = [] }: Pro
                 {initial}
               </div>
               <div className="min-w-0">
-                <div className="truncate text-[15px] font-semibold">{displayName}</div>
-                <div className="truncate text-[13px]" style={{ color: 'var(--assistant-text-soft)' }}>
+                <div className="truncate text-[16px] font-semibold">{displayName}</div>
+                <div className="truncate text-[14px]" style={{ color: 'var(--assistant-text-soft)' }}>
                   {email}
                 </div>
               </div>
@@ -110,15 +110,15 @@ export default function ProfilePanel({ open, onClose, completedTasks = [] }: Pro
             <div style={{ borderTop: '1px solid var(--assistant-border-soft)' }} />
 
             <section>
-              <h2 className="text-[13px] font-medium mb-1.5" style={{ color: 'var(--assistant-text-muted)' }}>
+              <h2 className="text-[14px] font-medium mb-1.5" style={{ color: 'var(--assistant-text-muted)' }}>
                 Plan
               </h2>
               <div className="flex items-center justify-between max-w-[280px] rounded-lg px-3.5 py-2.5" style={{ border: '1px solid var(--assistant-border-soft)' }}>
-                <span className="text-[13px]" style={{ color: 'var(--assistant-text-soft)' }}>
+                <span className="text-[14px]" style={{ color: 'var(--assistant-text-soft)' }}>
                   Free
                 </span>
                 <span
-                  className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                  className="rounded-full px-2 py-0.5 text-[12px] font-medium"
                   style={{
                     background: 'color-mix(in srgb, var(--assistant-accent) 12%, transparent)',
                     color: 'var(--assistant-accent)',
