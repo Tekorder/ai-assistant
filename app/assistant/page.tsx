@@ -17,8 +17,10 @@ import DayPanel from './components/DayPanel';
 import ActivityLogPanel from './components/ActivityLogPanel';
 import ChecklistsPanel from './components/ChecklistsPanel';
 import SettingsPanel from './components/SettingsPanel';
+import { ThemePicker } from './components/ThemePicker';
+import { ShiftScrollHint } from './components/ShiftScrollHint';
 import ProfilePanel from './components/ProfilePanel';
-import { assistantThemes, getAssistantThemeVars, type AssistantThemeName } from './_theme/themes';
+import { assistantThemes, getAssistantThemeVars, getThemeCounterpart, type AssistantThemeName } from './_theme/themes';
 import classes from './_theme/themes.module.css';
 import { PivotPanel, buildPrunedPivotTree, buildListPivotTree, type PivotTreeRow } from './components/Pivot';
 import {
@@ -89,6 +91,7 @@ export default function App() {
   const [activityOpen, setActivityOpen] = useState(false);
   const [listsOpen, setListsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [themesOpen, setThemesOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmClearChat, setConfirmClearChat] = useState(false);
   const [pivotInstances, setPivotInstances] = useState<
@@ -268,6 +271,32 @@ export default function App() {
     setDeckRightPad((prev) => (prev === nextPad ? prev : nextPad));
   }, []);
 
+  /**
+   * Ease the deck toward its right edge for `ms`, re-reading the edge every frame.
+   * Dock panels (Lists/Habits/Reminders/Activity) grow their width from 0 over
+   * 420ms, so a one-shot scrollTo(scrollWidth) aims at the *old* edge and the new
+   * panel ends up off-screen. Following the edge keeps it in view as it grows.
+   */
+  const followRafRef = useRef<number | null>(null);
+  const followDeckToEnd = useCallback((ms = 600) => {
+    if (followRafRef.current !== null) cancelAnimationFrame(followRafRef.current);
+    const until = performance.now() + ms;
+    const step = () => {
+      const el = deckScrollRef.current;
+      if (!el) { followRafRef.current = null; return; }
+      // Same 95% cap clampDeckRightScroll enforces, so the two never fight
+      const target = Math.max(0, el.scrollWidth - el.clientWidth) * 0.95;
+      const next = el.scrollLeft + (target - el.scrollLeft) * 0.22;
+      el.scrollLeft = Math.abs(target - next) < 1 ? target : next;
+      followRafRef.current = performance.now() < until ? requestAnimationFrame(step) : null;
+    };
+    followRafRef.current = requestAnimationFrame(step);
+  }, []);
+
+  useEffect(() => () => {
+    if (followRafRef.current !== null) cancelAnimationFrame(followRafRef.current);
+  }, []);
+
   const clampDeckRightScroll = useCallback(() => {
     const el = deckScrollRef.current;
     if (!el) return;
@@ -308,13 +337,8 @@ export default function App() {
       return [...prev, { id, ymd }];
     });
     // Focus deck toward day panels even when ymd was already open (no-op push).
-    if (isDesktop === true) {
-      requestAnimationFrame(() => {
-        const el = deckScrollRef.current;
-        if (el) el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
-      });
-    }
-  }, [isDesktop]);
+    if (isDesktop === true) followDeckToEnd();
+  }, [isDesktop, followDeckToEnd]);
 
   const closeDayPanelInstance = useCallback((id: string) => {
     setDayPanelInstances((prev) => prev.filter((p) => p.id !== id));
@@ -367,7 +391,7 @@ export default function App() {
       if (sidebarAdded) {
         el.scrollTo({ left: 0, behavior: 'smooth' });
       } else if (rightPanelAdded) {
-        el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+        followDeckToEnd();
       }
     }
 
@@ -389,6 +413,7 @@ export default function App() {
     listsOpen,
     pivotInstances.length,
     dayPanelInstances.length,
+    followDeckToEnd,
   ]);
 
   const [projectBlocks, setProjectBlocks] = useState<Block[]>([]);
@@ -598,35 +623,15 @@ export default function App() {
     <QuickFiltersProvider>
       <div
         data-assistant-root
-        className="flex h-screen flex-col"
+        // `isolate` scopes the glow's z-index:-1 to this root: behind the UI, above the canvas
+        className="relative isolate flex h-screen flex-col"
         style={{
           ...getAssistantThemeVars(theme),
-          background: theme.backgroundGradient
-            ? theme.backgroundGradient
-            : theme.backgroundImage
-            ? [
-                'linear-gradient(to bottom, rgba(0,0,0,.18) 0%, rgba(0,0,0,.04) 30%, rgba(0,0,0,.30) 100%)',
-                `url(${theme.backgroundImage})`,
-              ].join(', ')
-            : [
-                'linear-gradient(120deg, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-soft), transparent) 0%, transparent 38%)',
-                'linear-gradient(300deg, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-soft), transparent) 0%, transparent 42%)',
-                'radial-gradient(ellipse 120% 95% at 50% -30%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-boost), transparent) 0%, transparent 58%)',
-                'radial-gradient(ellipse 88% 70% at 16% 10%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-tone2), transparent) 0%, transparent 62%)',
-                'radial-gradient(ellipse 78% 65% at 88% 14%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 64%)',
-                'radial-gradient(ellipse 80% 68% at 96% 88%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-mid), transparent) 0%, transparent 66%)',
-                'radial-gradient(ellipse 76% 70% at 6% 84%, color-mix(in srgb, var(--assistant-tone-3) var(--assistant-glass-strong), transparent) 0%, transparent 67%)',
-                'radial-gradient(ellipse 96% 78% at 50% 122%, color-mix(in srgb, var(--assistant-tone-2) var(--assistant-glass-soft), transparent) 0%, transparent 72%)',
-                'radial-gradient(ellipse 90% 48% at 50% 50%, color-mix(in srgb, var(--assistant-tone-1) var(--assistant-glass-center), transparent) 0%, transparent 70%)',
-                'linear-gradient(to bottom, rgba(255,255,255,.035) 0%, rgba(255,255,255,.01) 16%, rgba(0,0,0,.18) 100%)',
-                'var(--assistant-bg)',
-              ].join(', '),
-          backgroundSize: theme.backgroundImage ? 'cover' : undefined,
-          backgroundPosition: theme.backgroundImage ? 'center' : undefined,
-          backgroundRepeat: theme.backgroundImage ? 'no-repeat' : undefined,
+          background: 'var(--assistant-canvas)',
           color: 'var(--assistant-text)',
         }}
       >
+        <div aria-hidden="true" className="assistant-bg-glow" />
         <TopNavBar
           title="Youtask"
           activeView={activeView}
@@ -645,7 +650,8 @@ export default function App() {
           onToggleLists={toggleLists}
           themeStyle={theme.style}
           onToggleTheme={() => {
-            handleSelectTheme(theme.style === 'light' ? 'obsidian' : 'tekorder');
+            // Stay in the same family, flip light <-> dark
+            handleSelectTheme(getThemeCounterpart(selectedTheme));
           }}
         />
 
@@ -716,9 +722,10 @@ export default function App() {
         <div
           ref={deckScrollRef}
           onScroll={clampDeckRightScroll}
-          className="hidden min-h-0 flex-1 overflow-x-auto overflow-y-hidden touch-pan-x [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] [transform:scaleY(-1)] md:block"
+          // The dock's horizontal scrollbar is the one visible scrollbar in the app, pinned to the bottom
+          className="deck-scrollbar hidden min-h-0 flex-1 overflow-x-auto overflow-y-hidden touch-pan-x [-webkit-overflow-scrolling:touch] md:block"
         >
-          <div className="flex h-full min-h-0 min-w-full [transform:scaleY(-1)]">
+          <div className="flex h-full min-h-0 min-w-full">
           <div className="relative h-full w-[40px] shrink-0">
             <button
               type="button"
@@ -736,6 +743,7 @@ export default function App() {
               aria-hidden={sidebarVisualOpen}
               tabIndex={sidebarVisualOpen ? -1 : 0}
             >
+              {/* Closed state: divider hugs the left — the panel is collapsed */}
               <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
                 <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
                 <path d="M5.5 2.5v11" />
@@ -769,9 +777,10 @@ export default function App() {
                 aria-label="Collapse sidebar"
                 title="Collapse sidebar"
               >
+                {/* Open state: divider sits right — the panel is wide */}
                 <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
                   <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
-                  <path d="M5.5 2.5v11" />
+                  <path d="M10.5 2.5v11" />
                 </svg>
               </button>
               <Sidebar
@@ -1006,6 +1015,7 @@ export default function App() {
         <Menu
           open={menuOpen}
           onClose={() => setMenuOpen(false)}
+          themeStyle={theme.style}
           onToggleHabits={toggleHabits}
           onToggleReminders={toggleReminders}
           onToggleActivity={toggleActivity}
@@ -1013,6 +1023,7 @@ export default function App() {
           onToggleChat={() => (chatOpen ? closeChatOverlay() : openChatOverlay())}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenProfile={() => setProfileOpen(true)}
+          onOpenThemes={() => setThemesOpen(true)}
           habitsOpen={habitsOpen}
           remindersOpen={remindersOpen}
           activityOpen={activityOpen}
@@ -1021,6 +1032,15 @@ export default function App() {
         />
 
         <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        {/* Desktop only — the horizontal deck doesn't exist on mobile */}
+        <ShiftScrollHint deckRef={deckScrollRef} enabled={isDesktop === true} />
+        {themesOpen ? (
+          <ThemePicker
+            selectedTheme={selectedTheme}
+            onSelect={handleSelectTheme}
+            onClose={() => setThemesOpen(false)}
+          />
+        ) : null}
         <ProfilePanel open={profileOpen} onClose={() => setProfileOpen(false)} completedTasks={activityTasks} />
 
         {(chatOpen || chatClosing) && (

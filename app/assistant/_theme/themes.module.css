@@ -46,10 +46,10 @@
 .topNavCenterActive {
   padding: 0.4rem 0.9rem;
   border-radius: 0.65rem;
-  background: var(--assistant-accent);
-  color: var(--assistant-bg-style);
+  background: var(--assistant-contrast-bg);
+  color: var(--assistant-contrast-text);
   font-weight: 600;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--assistant-accent) 28%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--assistant-contrast-bg) 28%, transparent);
 }
 
 .topNavCenterInactive {
@@ -369,15 +369,39 @@
   color: var(--assistant-danger-text);
   transition: background .15s;
 }
-/* Menu logout — solid accent (blue) with white text */
+/* First-list wizard */
+.wizardPrimaryBtn {
+  background: var(--assistant-contrast-bg);
+  color: var(--assistant-contrast-text);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--assistant-contrast-bg) 24%, transparent);
+  transition: background .15s, box-shadow .15s, opacity .15s;
+}
+.wizardPrimaryBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--assistant-contrast-bg) 88%, black);
+}
+.wizardPrimaryBtn:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+
+.wizardChip {
+  color: var(--assistant-text-soft);
+  background: color-mix(in srgb, var(--assistant-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--assistant-accent) 16%, transparent);
+  transition: background .15s, border-color .15s, color .15s;
+}
+.wizardChip:hover {
+  color: var(--assistant-text);
+  background: color-mix(in srgb, var(--assistant-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--assistant-accent) 30%, transparent);
+}
+
+/* Menu logout — theme contrast colors */
 .menuLogoutBtn {
-  background: var(--assistant-accent);
-  color: var(--assistant-bg-style);
+  background: var(--assistant-contrast-bg);
+  color: var(--assistant-contrast-text);
   transition: background .15s, box-shadow .15s;
 }
 .menuLogoutBtn:hover {
-  background: color-mix(in srgb, var(--assistant-accent) 88%, black);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--assistant-accent) 28%, transparent);
+  background: color-mix(in srgb, var(--assistant-contrast-bg) 88%, black);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--assistant-contrast-bg) 28%, transparent);
 }
 
 .panelBtnDanger:hover { background: color-mix(in srgb, #ef4444 24%, transparent); }
@@ -451,9 +475,9 @@
 }
 
 .quickFilterActive {
-  color: var(--assistant-bg-style);
-  background: var(--assistant-accent);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--assistant-accent) 28%, transparent);
+  color: var(--assistant-contrast-text);
+  background: var(--assistant-contrast-bg);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--assistant-contrast-bg) 28%, transparent);
   font-weight: 600;
 }
 
@@ -830,15 +854,15 @@
 }
 
 .miniCalArrowBtn {
-  color: var(--assistant-bg-style);
+  color: var(--assistant-contrast-text);
   background: linear-gradient(
     145deg,
-    color-mix(in srgb, var(--assistant-accent) 140%, white) 0%,
-    var(--assistant-accent) 55%,
-    color-mix(in srgb, var(--assistant-accent) 80%, black) 100%
+    color-mix(in srgb, var(--assistant-contrast-bg) 140%, white) 0%,
+    var(--assistant-contrast-bg) 55%,
+    color-mix(in srgb, var(--assistant-contrast-bg) 80%, black) 100%
   );
   box-shadow:
-    0 2px 10px color-mix(in srgb, var(--assistant-accent) 30%, transparent),
+    0 2px 10px color-mix(in srgb, var(--assistant-contrast-bg) 30%, transparent),
     inset 0 1px 0 rgba(255,255,255,.3);
   transition: all .15s;
 }

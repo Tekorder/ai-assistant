@@ -503,6 +503,22 @@ const syncGate: Record<SyncPath, boolean> = {
 };
 let hydratedUid = '';
 
+/** Fired once loadFromDatabase() has confirmed what the server holds for projects. */
+export const PROJECTS_HYDRATED_EVENT = 'youtask_projects_hydrated';
+
+/**
+ * True once the projects on this device reflect the server (or there is no
+ * server to wait for). UI that reacts to an *empty* workspace — e.g. the
+ * first-list wizard — must wait for this, or it would flash for an existing
+ * user on a fresh device before their data arrives.
+ */
+export function isProjectsHydrated(): boolean {
+  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return true;
+  const uid = getFirebaseUid();
+  if (!uid || uid === 'testuser') return true;
+  return syncGate['/api/data/projects'] && hydratedUid === uid;
+}
+
 export function closeSyncGates(): void {
   syncGate['/api/data/projects'] = false;
   syncGate['/api/data/habits'] = false;
@@ -666,6 +682,9 @@ export async function loadFromDatabase(): Promise<void> {
   const openGate = (path: SyncPath) => {
     hydratedUid = uid;
     syncGate[path] = true;
+    if (path === '/api/data/projects') {
+      try { window.dispatchEvent(new Event(PROJECTS_HYDRATED_EVENT)); } catch {}
+    }
   };
 
   try {
@@ -2142,6 +2161,58 @@ export function moveChecklistItem(
   return lists.map(l =>
     l.id === listId ? { ...l, items: arrayMove(l.items, fromIndex, toIndex) } : l,
   );
+}
+
+/* ===================== Danger zone — delete all data ===================== */
+
+/**
+ * Wipes lists/tasks, habits, reminders and checklists — server first, then this device.
+ *
+ * Server first and awaited (not the fire-and-forget dbPost): if the wipe only
+ * happened locally, the next loadFromDatabase() would see server data and
+ * restore it. Each dataset is cleared on this device only once the server
+ * confirmed it, so device and server never disagree about what's left.
+ */
+export async function deleteAllData(): Promise<{ ok: true } | { ok: false; message: string }> {
+  const personal = makePersonalProject();
+  const datasets = [
+    { label: 'lists & tasks', path: '/api/data/projects' as SyncPath,
+      body: { projects: [personal], selectedProjectId: personal.project_id } as ProjectsPayload,
+      clearLocal: () => writeProjectsLS({ projects: [personal], selectedProjectId: personal.project_id }) },
+    { label: 'habits', path: '/api/data/habits' as SyncPath,
+      body: { habits: [] } as HabitsPayload,
+      clearLocal: () => writeHabitsLS({ ...readHabitsLS(), habits: [] }) },
+    { label: 'reminders', path: '/api/data/reminders' as SyncPath,
+      body: { reminders: [] } as RemindersPayload,
+      clearLocal: () => writeRemindersLS({ reminders: [] }) },
+    { label: 'checklists', path: '/api/data/checklists' as SyncPath,
+      body: { lists: [] } as ChecklistsPayload,
+      clearLocal: () => writeChecklistsLS({ lists: [] }) },
+  ];
+
+  const uid = getFirebaseUid();
+  const hasServer = process.env.NEXT_PUBLIC_DATABASE_MODE !== 'local' && Boolean(uid) && uid !== 'testuser';
+
+  const results = hasServer
+    ? await Promise.all(datasets.map(d =>
+        fetch(d.path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Firebase-UID': uid, 'X-Sync-Hydrated': '1' },
+          body: JSON.stringify(d.body),
+        }).then(r => r.ok).catch(() => false),
+      ))
+    : datasets.map(() => true);
+
+  datasets.forEach((d, i) => { if (results[i]) d.clearLocal(); });
+
+  const failed = datasets.filter((_, i) => !results[i]).map(d => d.label);
+  if (failed.length === datasets.length) {
+    return { ok: false, message: 'Could not reach the server. Nothing was deleted — check your connection and try again.' };
+  }
+  if (failed.length > 0) {
+    return { ok: false, message: `Some data could not be deleted (${failed.join(', ')}). Try again to finish.` };
+  }
+  return { ok: true };
 }
 
 /* ===================== Backup — export / import ===================== */

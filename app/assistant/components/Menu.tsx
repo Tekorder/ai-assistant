@@ -13,6 +13,8 @@ const TWOFA_SESSION_KEY = 'youtask_2fa';
 type MenuProps = {
   open: boolean;
   onClose: () => void;
+  /** Picks the logo variant: blue on light themes, white on dark ones */
+  themeStyle?: 'light' | 'dark';
   // Mobile-only panel toggles
   onToggleHabits?: () => void;
   onToggleReminders?: () => void;
@@ -21,6 +23,7 @@ type MenuProps = {
   onToggleChat?: () => void;
   onOpenSettings?: () => void;
   onOpenProfile?: () => void;
+  onOpenThemes?: () => void;
   habitsOpen?: boolean;
   remindersOpen?: boolean;
   activityOpen?: boolean;
@@ -31,6 +34,7 @@ type MenuProps = {
 export default function Menu({
   open,
   onClose,
+  themeStyle = 'light',
   onToggleHabits,
   onToggleReminders,
   onToggleActivity,
@@ -38,6 +42,7 @@ export default function Menu({
   onToggleChat,
   onOpenSettings,
   onOpenProfile,
+  onOpenThemes,
   habitsOpen,
   remindersOpen,
   activityOpen,
@@ -116,7 +121,7 @@ export default function Menu({
     {
       label: 'Profile',
       icon: (
-        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
           <circle cx="8" cy="5.2" r="2.5" />
           <path strokeLinecap="round" d="M3 13c.8-2 2.6-3.2 5-3.2s4.2 1.2 5 3.2" />
         </svg>
@@ -125,7 +130,7 @@ export default function Menu({
     {
       label: 'Settings',
       icon: (
-        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
           <circle cx="8" cy="8" r="2.2" />
           <path strokeLinecap="round" d="M8 1.8v1.5M8 12.7v1.5M14.2 8h-1.5M3.3 8H1.8M12.7 3.3l-1.1 1.1M4.4 11.6l-1.1 1.1M12.7 12.7l-1.1-1.1M4.4 4.4L3.3 3.3" />
         </svg>
@@ -133,9 +138,8 @@ export default function Menu({
     },
     {
       label: 'Themes',
-      soon: true,
       icon: (
-        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
           <path strokeLinecap="round" strokeLinejoin="round" d="M8 1.8c-2.9 0-5.2 2.3-5.2 5.2A5.2 5.2 0 0 0 8 12.2c.9 0 1.5-.6 1.5-1.4 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.8.7-1.4 1.5-1.4h2.3c.9 0 1.7-.8 1.7-1.8C14 3.3 11.4 1.8 8 1.8Z" />
         </svg>
       ),
@@ -144,7 +148,7 @@ export default function Menu({
       label: 'Colaborators',
       soon: true,
       icon: (
-        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
           <circle cx="5.2" cy="6" r="1.8" />
           <circle cx="10.8" cy="6" r="1.8" />
           <path strokeLinecap="round" d="M2.4 12c.6-1.6 1.8-2.6 3.6-2.6S9 10.4 9.6 12M6.4 12c.6-1.6 1.8-2.6 3.6-2.6s3 .9 3.6 2.6" />
@@ -196,7 +200,11 @@ export default function Menu({
         >
           <div className="flex flex-col items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logoblue.png" alt="youtask" className="h-10 w-auto object-contain" />
+            <img
+              src={themeStyle === 'dark' ? '/logowhite-clean.png' : '/logoblue.png'}
+              alt="youtask"
+              className="h-10 w-auto object-contain"
+            />
           </div>
           <button
             type="button"
@@ -209,10 +217,10 @@ export default function Menu({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-3">
+        <div className="flex-1 overflow-y-auto px-4 py-5">
 
           {/* App items */}
-          <div className="space-y-0.5">
+          <div className="space-y-1.5">
             {items.map((item) => {
               const soon = 'soon' in item && item.soon;
               return (
@@ -227,16 +235,18 @@ export default function Menu({
                       ? () => { onClose(); onOpenSettings?.(); }
                       : item.label === 'Profile'
                       ? () => { onClose(); onOpenProfile?.(); }
+                      : item.label === 'Themes'
+                      ? () => { onClose(); onOpenThemes?.(); }
                       : undefined
                   }
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[14px] transition-colors ${classes.panelBtn} ${classes.menuItem} ${soon ? 'cursor-default' : ''}`}
+                  className={`flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-left text-[16px] transition-colors ${classes.panelBtn} ${classes.menuItem} ${soon ? 'cursor-default' : ''}`}
                   style={{
                     color: soon ? 'var(--assistant-text-muted)' : 'var(--assistant-text-soft)',
                     // panelBtn:disabled fades to .3 — keep "Soon" items legible
                     opacity: soon ? 1 : undefined,
                   }}
                 >
-                  <span className="inline-flex h-4 w-4 items-center justify-center shrink-0" style={{ color: soon ? 'var(--assistant-text-faint)' : 'var(--assistant-text-muted)' }}>
+                  <span className="inline-flex h-5 w-5 items-center justify-center shrink-0" style={{ color: soon ? 'var(--assistant-text-faint)' : 'var(--assistant-text-muted)' }}>
                     {item.icon}
                   </span>
                   <span>{item.label}</span>
@@ -257,24 +267,24 @@ export default function Menu({
           </div>
 
           {/* Panels — mobile only */}
-          <div className="md:hidden mt-3">
-            <div className="mb-3 border-t" style={{ borderColor: 'var(--assistant-border-soft)' }} />
-            <div className="space-y-0.5">
+          <div className="md:hidden mt-5">
+            <div className="mb-5 border-t" style={{ borderColor: 'var(--assistant-border-soft)' }} />
+            <div className="space-y-1.5">
               {([
-                { label: 'Habits',    isOpen: habitsOpen,    onToggle: onToggleHabits,    icon: <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" strokeLinejoin="round" d="M8 2v2M8 12v2M2 8h2M12 8h2" /><circle cx="8" cy="8" r="3" /></svg> },
-                { label: 'Reminders', isOpen: remindersOpen, onToggle: onToggleReminders, icon: <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 1.2v.8H2.8v-.8L4 9V6.5a4 4 0 0 1 4-4z" /><path strokeLinecap="round" d="M6 12.5a2 2 0 0 0 4 0" /></svg> },
-                { label: 'Activity',  isOpen: activityOpen,  onToggle: onToggleActivity,  icon: <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" strokeLinejoin="round" d="M2 10h2.5l1.2-3 2.1 6 1.8-4H14" /></svg> },
-                { label: 'Lists',     isOpen: listsOpen,     onToggle: onToggleLists,     icon: <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="3" width="3" height="3" rx="0.6" /><rect x="2" y="10" width="3" height="3" rx="0.6" /><path strokeLinecap="round" d="M7 4.5h7M7 11.5h7" /></svg> },
-                { label: 'AI Chat',   isOpen: chatOpen,      onToggle: onToggleChat,      icon: <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5" /></svg> },
+                { label: 'Habits',    isOpen: habitsOpen,    onToggle: onToggleHabits,    icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" strokeLinejoin="round" d="M8 2v2M8 12v2M2 8h2M12 8h2" /><circle cx="8" cy="8" r="3" /></svg> },
+                { label: 'Reminders', isOpen: remindersOpen, onToggle: onToggleReminders, icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 1.2v.8H2.8v-.8L4 9V6.5a4 4 0 0 1 4-4z" /><path strokeLinecap="round" d="M6 12.5a2 2 0 0 0 4 0" /></svg> },
+                { label: 'Activity',  isOpen: activityOpen,  onToggle: onToggleActivity,  icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" strokeLinejoin="round" d="M2 10h2.5l1.2-3 2.1 6 1.8-4H14" /></svg> },
+                { label: 'Lists',     isOpen: listsOpen,     onToggle: onToggleLists,     icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="3" width="3" height="3" rx="0.6" /><rect x="2" y="10" width="3" height="3" rx="0.6" /><path strokeLinecap="round" d="M7 4.5h7M7 11.5h7" /></svg> },
+                { label: 'AI Chat',   isOpen: chatOpen,      onToggle: onToggleChat,      icon: <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5" /></svg> },
               ] as const).map((panel) => (
                 <button
                   key={panel.label}
                   type="button"
                   onClick={() => { onClose(); panel.onToggle?.(); }}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[14px] transition-colors ${classes.panelBtn} ${classes.menuItem}`}
+                  className={`flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-left text-[16px] transition-colors ${classes.panelBtn} ${classes.menuItem}`}
                   style={{ color: panel.isOpen ? 'var(--assistant-accent)' : 'var(--assistant-text-soft)' }}
                 >
-                  <span className="inline-flex h-4 w-4 items-center justify-center shrink-0">
+                  <span className="inline-flex h-5 w-5 items-center justify-center shrink-0">
                     {panel.icon}
                   </span>
                   <span>{panel.label}</span>
@@ -284,11 +294,11 @@ export default function Menu({
           </div>
         </div>
 
-        <div className="px-3 py-3" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+        <div className="px-4 py-4" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
           <button
             type="button"
             onClick={handleLogout}
-            className={`w-full rounded-lg px-2.5 py-1.5 text-left text-[13px] font-medium ${classes.menuLogoutBtn}`}
+            className={`w-full rounded-xl px-3.5 py-3 text-left text-[16px] font-medium ${classes.menuLogoutBtn}`}
           >
             Logout
           </button>

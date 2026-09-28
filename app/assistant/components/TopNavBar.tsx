@@ -228,6 +228,11 @@ export default function TopNavBar({
   }, [clearPrismaLocalStorage, router]);
 
   // ── Current user label ──
+  // Warm both logo variants so the light/dark toggle swaps instantly (no blank frame)
+  useEffect(() => {
+    for (const src of ['/logoblue.png', '/logowhite-clean.png']) new Image().src = src;
+  }, []);
+
   const [userName, setUserName] = useState('');
   const [userAvatar, setUserAvatar] = useState('');
   useEffect(() => {
@@ -356,7 +361,11 @@ export default function TopNavBar({
         {/* Left: brand */}
         <div className="flex items-center gap-2 shrink-0 min-w-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logoblue.png" alt="youtask" className="h-7 w-auto shrink-0" />
+          <img
+            src={themeStyle === 'dark' ? '/logowhite-clean.png' : '/logoblue.png'}
+            alt="youtask"
+            className="h-7 w-auto shrink-0"
+          />
         </div>
 
         {/* Center: Lists / Habits / Reminders */}
