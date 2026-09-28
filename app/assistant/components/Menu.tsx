@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { isTekOrderSession, logoutOfTekOrder } from '@/lib/tekorderSso';
+import { isTekOrderSession, logoutOfTekOrder, clearAuthProviderMarker } from '@/lib/tekorderSso';
 import { closeSyncGates } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
@@ -73,6 +73,7 @@ export default function Menu({
       keysToRemove.push('firebase_uid');
       keysToRemove.forEach((k) => localStorage.removeItem(k));
     } catch {}
+    clearAuthProviderMarker();
 
     try {
       sessionStorage.removeItem('twofa_ok');
@@ -132,6 +133,7 @@ export default function Menu({
     },
     {
       label: 'Themes',
+      soon: true,
       icon: (
         <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
           <path strokeLinecap="round" strokeLinejoin="round" d="M8 1.8c-2.9 0-5.2 2.3-5.2 5.2A5.2 5.2 0 0 0 8 12.2c.9 0 1.5-.6 1.5-1.4 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.8.7-1.4 1.5-1.4h2.3c.9 0 1.7-.8 1.7-1.8C14 3.3 11.4 1.8 8 1.8Z" />
@@ -140,6 +142,7 @@ export default function Menu({
     },
     {
       label: 'Colaborators',
+      soon: true,
       icon: (
         <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
           <circle cx="5.2" cy="6" r="1.8" />
@@ -192,17 +195,8 @@ export default function Menu({
           style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}
         >
           <div className="flex flex-col items-center gap-2">
-            <div
-              className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full"
-              style={{
-                border: '1px solid color-mix(in srgb, var(--assistant-accent) 30%, transparent)',
-                background: 'color-mix(in srgb, var(--assistant-accent) 10%, transparent)',
-                boxShadow: '0 0 36px color-mix(in srgb, var(--assistant-accent) 25%, transparent)',
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logoblue.png" alt="youtask" className="h-auto w-[88px] object-contain" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logoblue.png" alt="youtask" className="h-10 w-auto object-contain" />
           </div>
           <button
             type="button"
@@ -219,26 +213,47 @@ export default function Menu({
 
           {/* App items */}
           <div className="space-y-0.5">
-            {items.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={
-                  item.label === 'Settings'
-                    ? () => { onClose(); onOpenSettings?.(); }
-                    : item.label === 'Profile'
-                    ? () => { onClose(); onOpenProfile?.(); }
-                    : undefined
-                }
-                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[14px] transition-colors ${classes.panelBtn} ${classes.menuItem}`}
-                style={{ color: 'var(--assistant-text-soft)' }}
-              >
-                <span className="inline-flex h-4 w-4 items-center justify-center shrink-0" style={{ color: 'var(--assistant-text-muted)' }}>
-                  {item.icon}
-                </span>
-                <span>{item.label}</span>
-              </button>
-            ))}
+            {items.map((item) => {
+              const soon = 'soon' in item && item.soon;
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  disabled={soon}
+                  aria-disabled={soon}
+                  title={soon ? 'Coming soon' : undefined}
+                  onClick={
+                    item.label === 'Settings'
+                      ? () => { onClose(); onOpenSettings?.(); }
+                      : item.label === 'Profile'
+                      ? () => { onClose(); onOpenProfile?.(); }
+                      : undefined
+                  }
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[14px] transition-colors ${classes.panelBtn} ${classes.menuItem} ${soon ? 'cursor-default' : ''}`}
+                  style={{
+                    color: soon ? 'var(--assistant-text-muted)' : 'var(--assistant-text-soft)',
+                    // panelBtn:disabled fades to .3 — keep "Soon" items legible
+                    opacity: soon ? 1 : undefined,
+                  }}
+                >
+                  <span className="inline-flex h-4 w-4 items-center justify-center shrink-0" style={{ color: soon ? 'var(--assistant-text-faint)' : 'var(--assistant-text-muted)' }}>
+                    {item.icon}
+                  </span>
+                  <span>{item.label}</span>
+                  {soon ? (
+                    <span
+                      className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                      style={{
+                        color: 'var(--assistant-accent)',
+                        background: 'color-mix(in srgb, var(--assistant-accent) 12%, transparent)',
+                      }}
+                    >
+                      Soon
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
 
           {/* Panels — mobile only */}
@@ -273,7 +288,7 @@ export default function Menu({
           <button
             type="button"
             onClick={handleLogout}
-            className={`w-full rounded-lg px-2.5 py-1.5 text-left text-[13px] font-medium transition-colors ${classes.panelBtnDanger}`}
+            className={`w-full rounded-lg px-2.5 py-1.5 text-left text-[13px] font-medium ${classes.menuLogoutBtn}`}
           >
             Logout
           </button>
