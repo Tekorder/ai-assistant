@@ -503,6 +503,22 @@ const syncGate: Record<SyncPath, boolean> = {
 };
 let hydratedUid = '';
 
+/** Fired once loadFromDatabase() has confirmed what the server holds for projects. */
+export const PROJECTS_HYDRATED_EVENT = 'youtask_projects_hydrated';
+
+/**
+ * True once the projects on this device reflect the server (or there is no
+ * server to wait for). UI that reacts to an *empty* workspace — e.g. the
+ * first-list wizard — must wait for this, or it would flash for an existing
+ * user on a fresh device before their data arrives.
+ */
+export function isProjectsHydrated(): boolean {
+  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return true;
+  const uid = getFirebaseUid();
+  if (!uid || uid === 'testuser') return true;
+  return syncGate['/api/data/projects'] && hydratedUid === uid;
+}
+
 export function closeSyncGates(): void {
   syncGate['/api/data/projects'] = false;
   syncGate['/api/data/habits'] = false;
@@ -666,6 +682,9 @@ export async function loadFromDatabase(): Promise<void> {
   const openGate = (path: SyncPath) => {
     hydratedUid = uid;
     syncGate[path] = true;
+    if (path === '/api/data/projects') {
+      try { window.dispatchEvent(new Event(PROJECTS_HYDRATED_EVENT)); } catch {}
+    }
   };
 
   try {

@@ -369,6 +369,30 @@
   color: var(--assistant-danger-text);
   transition: background .15s;
 }
+/* First-list wizard */
+.wizardPrimaryBtn {
+  background: var(--assistant-accent);
+  color: var(--assistant-bg-style);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--assistant-accent) 24%, transparent);
+  transition: background .15s, box-shadow .15s, opacity .15s;
+}
+.wizardPrimaryBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--assistant-accent) 88%, black);
+}
+.wizardPrimaryBtn:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+
+.wizardChip {
+  color: var(--assistant-text-soft);
+  background: color-mix(in srgb, var(--assistant-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--assistant-accent) 16%, transparent);
+  transition: background .15s, border-color .15s, color .15s;
+}
+.wizardChip:hover {
+  color: var(--assistant-text);
+  background: color-mix(in srgb, var(--assistant-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--assistant-accent) 30%, transparent);
+}
+
 /* Menu logout — solid accent (blue) with white text */
 .menuLogoutBtn {
   background: var(--assistant-accent);

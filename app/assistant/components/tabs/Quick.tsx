@@ -46,8 +46,20 @@ import {
   sortBlocksByOrder,
   getTaskFlag,
   getListProgress,
+  // Sync status
+  isProjectsHydrated,
+  PROJECTS_HYDRATED_EVENT,
 } from '@/lib/datacenter';
 import { TaskFlagButton } from '../TaskFlag';
+import { FirstListWizard } from '../FirstListWizard';
+
+/**
+ * sessionStorage: the person closed the first-list wizard in this tab session.
+ * Per-uid so another account logging in on the same tab still gets it.
+ */
+const wizardClosedKey = () => {
+  try { return `youtask_first_list_wizard_closed:${localStorage.getItem('firebase_uid') ?? ''}`; } catch { return 'youtask_first_list_wizard_closed:'; }
+};
 import { ListStatusPill } from '../ListStatusPill';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { useQuickFilters, type TaskFilterTag } from '../QuickFiltersContext';
@@ -568,6 +580,45 @@ export default function Quick(props: QuickProps = {}) {
     () => blocks.length === 1 && isUncTitleBlock(blocks[0]),
     [blocks],
   );
+
+  /* ── First-list wizard: opens whenever the whole workspace has no tasks ── */
+  const [projectsHydrated, setProjectsHydrated] = useState(false);
+  const [wizardClosed, setWizardClosed] = useState(true);
+  useEffect(() => {
+    try { setWizardClosed(sessionStorage.getItem(wizardClosedKey()) === '1'); } catch { setWizardClosed(false); }
+    const check = () => setProjectsHydrated(isProjectsHydrated());
+    check();
+    window.addEventListener(PROJECTS_HYDRATED_EVENT, check);
+    return () => window.removeEventListener(PROJECTS_HYDRATED_EVENT, check);
+  }, []);
+
+  // Across every group, not just the selected one — someone with tasks in another group isn't new.
+  const workspaceHasNoTasks = useMemo(
+    () => !projects.some(p =>
+      (p.blocks ?? []).some(b => b.indent > 0 && b.archived !== true && (b.text || '').trim() !== ''),
+    ),
+    [projects],
+  );
+
+  const closeWizard = () => {
+    setWizardClosed(true);
+    try { sessionStorage.setItem(wizardClosedKey(), '1'); } catch {}
+  };
+
+  const handleWizardFinish = (listName: string, taskTexts: string[]) => {
+    let newListId = '';
+    setCurrentBlocks(prev => {
+      // createList seeds the list with one empty task — fill it with the first one
+      const created = createListArr(prev, listName, { focusDay });
+      newListId = created.newListId;
+      let next = updateBlockArr(created.blocks, created.newTaskId, { text: taskTexts[0] });
+      for (const text of taskTexts.slice(1)) {
+        next = addTaskUnderListArr(next, created.newListId, { focusDay, text }).blocks;
+      }
+      return next;
+    });
+    setCurrentCollapsed(prev => ({ ...prev, [newListId]: false }));
+  };
 
   const listTitlesRaw = useMemo(
     () => blocks
@@ -1552,6 +1603,11 @@ const handleKey = (
             </div>
           </div>
         ) : null}
+
+      {/* Only once the server has confirmed the workspace really has no tasks */}
+      {projectsHydrated && projects.length > 0 && workspaceHasNoTasks && !wizardClosed ? (
+        <FirstListWizard onFinish={handleWizardFinish} onClose={closeWizard} />
+      ) : null}
     </div>
   );
 }
