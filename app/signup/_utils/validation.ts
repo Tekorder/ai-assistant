@@ -44,11 +44,19 @@ export function validateField(
 }
 
 /**
- * Validates name length
- * Rules: 3-25 characters
+ * Validates first name length
+ * Rules: 2-25 characters
  */
-export function validateName(name: string): ValidationResult {
-  return validateField(name, 3, 25, 'Name');
+export function validateFirstName(name: string): ValidationResult {
+  return validateField(name, 2, 25, 'First name');
+}
+
+/**
+ * Validates last name length
+ * Rules: 2-25 characters
+ */
+export function validateLastName(name: string): ValidationResult {
+  return validateField(name, 2, 25, 'Last name');
 }
 
 /**

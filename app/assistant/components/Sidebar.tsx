@@ -60,7 +60,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot }) => {
   const [deleteListConfirmId, setDeleteListConfirmId] = useState<string | null>(null);
   const [editingDateTaskId] = useState<string | null>(null);
   const [editingListTitleId, setEditingListTitleId] = useState<string | null>(null);
-  const [pivotSearch, setPivotSearch] = useState('');
   const [listMenu, setListMenu] = useState<{ listId: string; x: number; y: number } | null>(null);
   const [groupsModalOpen, setGroupsModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -521,43 +520,6 @@ const visibleLists = useMemo<Record<string, boolean>>(
     onOpenPivot?.({ word: title, blockId: block.id, listId: block.id, origin: 'sidebar' });
   };
 
-  const listTitleSignature = (value: string) =>
-    value
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map(part => part.toLocaleLowerCase())
-      .sort()
-      .join(' ');
-
-  const openPivotFromSearch = (rawValue: string) => {
-    const query = rawValue.trim();
-    if (!query) return;
-
-    const querySignature = listTitleSignature(query);
-    const matchedList = blocks.find(b => {
-      if (b.indent !== 0) return false;
-      if (isUncTitleBlock(b)) return false;
-      if (b.archived === true) return false;
-      const title = (b.text || '').trim();
-      if (!title) return false;
-      return listTitleSignature(title) === querySignature;
-    });
-
-    if (matchedList) {
-      const title = (matchedList.text || '').trim() || query;
-      onOpenPivot?.({
-        word: title,
-        blockId: matchedList.id,
-        listId: matchedList.id,
-        origin: 'sidebar',
-      });
-      return;
-    }
-
-    onOpenPivot?.({ word: query, blockId: null, origin: 'sidebar' });
-  };
-
   // Lives on the first group's title row (right-aligned)
   const manageGroupsButton = (
     <button
@@ -591,20 +553,6 @@ const visibleLists = useMemo<Record<string, boolean>>(
         {/* Scrollable content */}
         <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 pt-2 md:px-4 md:pb-4 md:pt-[4.25rem]">
           <>
-              <input
-                type="text"
-                value={pivotSearch}
-                onChange={e => setPivotSearch(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    openPivotFromSearch(pivotSearch);
-                  }
-                }}
-                placeholder="Search keyword"
-                className={`mb-3 w-full rounded-xl px-3 py-2 text-[13px] ${classes.quickSearchInput}`}
-              />
-
               <div className="space-y-4">
               {projects.map((project, projectIndex) => {
                 const isCurrent = project.project_id === currentProject?.project_id;
