@@ -591,10 +591,15 @@ export async function flushAllToDatabase(): Promise<{ ok: boolean }> {
     if (!canUpload(path)) return true;   // never hydrated / not this account — nothing server-confirmed to protect
     const lane = lanes[path];
     if (lane.timer) { clearTimeout(lane.timer); lane.timer = null; }
-    // Through the lane, never alongside it: wait for any in-flight upload,
-    // then send the latest state once more and wait for Postgres to confirm.
+    // Through the lane, never alongside it: wait for any in-flight upload first.
     if (lane.inFlight) await lane.inFlight;
-    return sendLane(path);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      // Postgres already confirmed exactly this state — nothing to send
+      if (lane.confirmedBody !== null && lane.confirmedBody === localStorage.getItem(LS_KEY_FOR_PATH[path])) return true;
+      if (await sendLane(path)) return true;
+      await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+    }
+    return false;
   }));
   return { ok: results.every(Boolean) };
 }
@@ -733,6 +738,7 @@ function sendLane(path: SyncPath): Promise<boolean> {
       lane.inFlight = null;
       if (ok) {
         lane.failures = 0;
+        lane.confirmedBody = body;
         if (lane.pending) scheduleUpload(path, 0);     // newer state arrived while sending
       } else {
         lane.failures += 1;
@@ -757,6 +763,7 @@ function resetUploadLanes(): void {
     lane.timer = null;
     lane.pending = false;
     lane.failures = 0;
+    lane.confirmedBody = null;
   }
 }
 
