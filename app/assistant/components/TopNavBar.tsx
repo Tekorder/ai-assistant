@@ -3,7 +3,10 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { readProjectsLS, writeProjectsLS, cleanupEmptyTasks, closeSyncGates, type TaskFlagColor } from '@/lib/datacenter';
+import {
+  readProjectsLS, writeProjectsLS, cleanupEmptyTasks, closeSyncGates, type TaskFlagColor,
+  getSyncStatus, loadFromDatabase, SYNC_STATUS_EVENT, type SyncStatus, type SyncState,
+} from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
@@ -173,6 +176,49 @@ const CENTER_NAV: {
     ),
   },
 */
+
+const SYNC_DOT_COLOR: Record<SyncState, string> = {
+  synced:     '#16a34a',
+  syncing:    '#f59e0b',
+  connecting: '#f59e0b',
+  error:      '#dc2626',
+  off:        '#9ca3af',
+};
+
+/** Green = sync is on and everything is saved to the server. Click retries when it isn't green. */
+function SyncDot() {
+  const [status, setStatus] = useState<SyncStatus | null>(null);
+  useEffect(() => {
+    const update = () => setStatus(getSyncStatus());
+    update();
+    window.addEventListener(SYNC_STATUS_EVENT, update);
+    return () => window.removeEventListener(SYNC_STATUS_EVENT, update);
+  }, []);
+  if (!status) return null;
+  const busy = status.state === 'syncing' || status.state === 'connecting';
+  return (
+    <button
+      type="button"
+      onClick={() => { if (status.state !== 'synced') void loadFromDatabase(); }}
+      className="flex h-7 w-5 items-center justify-center shrink-0"
+      title={status.message}
+      aria-label={status.message}
+    >
+      <span className="relative flex h-2.5 w-2.5">
+        {busy && (
+          <span
+            className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+            style={{ background: SYNC_DOT_COLOR[status.state] }}
+          />
+        )}
+        <span
+          className="relative inline-flex h-2.5 w-2.5 rounded-full"
+          style={{ background: SYNC_DOT_COLOR[status.state] }}
+        />
+      </span>
+    </button>
+  );
+}
 
 export default function TopNavBar({
   activeView,
@@ -546,6 +592,8 @@ export default function TopNavBar({
               )}
             </div>
           )}
+
+          <SyncDot />
 
           <button
             type="button"
