@@ -485,6 +485,64 @@ function getFirebaseUid(): string {
   try { return localStorage.getItem('firebase_uid') ?? ''; } catch { return ''; }
 }
 
+/* ===================== Sync logging =====================
+ * Every step between localStorage and Postgres logs to the browser console as
+ * "[YouTask sync] …" with list/task counts, so a lost task can be traced to
+ * the exact step (never uploaded, uploaded-then-overwritten, wiped, …). */
+
+const SYNC_LOG_BADGE = 'color:#fff;padding:1px 6px;border-radius:4px;font-weight:600;background:';
+/** Color by outcome, read from the message's leading icon: green = Postgres confirmed, red = failed, amber = local only. */
+function syncLogColors(message: string): { badge: string; text: string } {
+  if (message.startsWith('✅') || message.startsWith('✔')) return { badge: '#15803d', text: 'color:#15803d;font-weight:600' };
+  if (message.startsWith('❌')) return { badge: '#b91c1c', text: 'color:#b91c1c;font-weight:600' };
+  if (message.startsWith('⏸')) return { badge: '#b45309', text: 'color:#b45309' };
+  return { badge: '#18315C', text: '' };
+}
+
+/** "3 lists, 7 tasks" for a projects payload; item counts for the other datasets. */
+function describeDataset(path: SyncPath | string, raw: unknown): string {
+  try {
+    const data = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<string, unknown> | null;
+    if (!data) return 'empty';
+    if (path === '/api/data/projects') {
+      const blocks = ((data.projects as Project[] | undefined) ?? []).flatMap(p => p.blocks ?? []);
+      const lists = blocks.filter(b => b.indent === 0 && !isUncTitleBlock(b)).length;
+      const tasks = blocks.filter(b => b.indent > 0 && (b.text ?? '').trim() !== '').length;
+      const blank = blocks.filter(b => b.indent > 0 && (b.text ?? '').trim() === '').length;
+      const groups = ((data.projects as Project[] | undefined) ?? []).length;
+      return `${groups} group(s), ${lists} list(s), ${tasks} task(s)${blank ? ` + ${blank} blank` : ''}`;
+    }
+    if (path === '/api/data/habits') return `${((data.habits as unknown[]) ?? []).length} habit(s)`;
+    if (path === '/api/data/reminders') return `${((data.reminders as unknown[]) ?? []).length} reminder(s)`;
+    if (path === '/api/data/checklists') return `${((data.lists as unknown[]) ?? []).length} checklist(s)`;
+    return 'data';
+  } catch {
+    return 'unreadable';
+  }
+}
+
+/** Task titles in a projects payload (first 20) — shows exactly WHICH version reached Postgres. */
+function taskTitles(raw: unknown): string[] {
+  try {
+    const data = (typeof raw === 'string' ? JSON.parse(raw) : raw) as { projects?: Project[] } | null;
+    return (data?.projects ?? [])
+      .flatMap(p => p.blocks ?? [])
+      .filter(b => b.indent > 0)
+      .map(b => (b.text ?? '').trim() || '(blank)')
+      .slice(0, 20);
+  } catch {
+    return [];
+  }
+}
+
+function syncLog(message: string, details?: Record<string, unknown>): void {
+  try {
+    const { badge, text } = syncLogColors(message);
+    if (details) console.log(`%cYouTask sync%c ${message}`, SYNC_LOG_BADGE + badge, text, details);
+    else console.log(`%cYouTask sync%c ${message}`, SYNC_LOG_BADGE + badge, text);
+  } catch {}
+}
+
 /* ===================== Local data ownership (account switching) =====================
  * localStorage holds ONE account's data. Which account is recorded explicitly
  * here — deducing it from `firebase_uid` breaks, because logout removes that key
@@ -536,7 +594,12 @@ export function prepareLocalDataForUser(uid: string): void {
   if (!uid) return;
   try {
     const owner = getDataOwner();
-    if (owner === uid) return;
+    const localNow = describeDataset('/api/data/projects', localStorage.getItem(LS_KEY_V2));
+    if (owner === uid) {
+      syncLog(`👤 login ${uid} — this browser's data is already this account's (${localNow})`);
+      return;
+    }
+    syncLog(`👤 login ${uid} — local data owner was ${owner || '(none)'} (${localNow})`);
 
     if (!owner) {
       // Logged-out device. Local mode parks data at logout (no Postgres to
@@ -547,6 +610,7 @@ export function prepareLocalDataForUser(uid: string): void {
         const parked = JSON.parse(parkedRaw) as Record<string, string>;
         for (const [k, v] of Object.entries(parked)) localStorage.setItem(k, v);
         localStorage.removeItem(ACCOUNT_STASH_PREFIX + uid);
+        syncLog(`📦 restored ${uid}'s parked data (${describeDataset('/api/data/projects', parked[LS_KEY_V2] ?? null)})`);
       }
       setDataOwner(uid);
       return;
@@ -556,6 +620,7 @@ export function prepareLocalDataForUser(uid: string): void {
     const outgoing = collectAccountData();
     if (Object.keys(outgoing).length > 0) {
       localStorage.setItem(ACCOUNT_STASH_PREFIX + owner, JSON.stringify(outgoing));
+      syncLog(`📦 parked ${owner}'s local data (${localNow}) — switching to ${uid}`);
     }
     Object.keys(outgoing).forEach(k => localStorage.removeItem(k));
 
@@ -565,6 +630,7 @@ export function prepareLocalDataForUser(uid: string): void {
       const parked = JSON.parse(parkedRaw) as Record<string, string>;
       for (const [k, v] of Object.entries(parked)) localStorage.setItem(k, v);
       localStorage.removeItem(ACCOUNT_STASH_PREFIX + uid);
+      syncLog(`📦 restored ${uid}'s parked data (${describeDataset('/api/data/projects', parked[LS_KEY_V2] ?? null)})`);
     }
 
     closeSyncGates();
@@ -595,13 +661,19 @@ export async function flushAllToDatabase(): Promise<{ ok: boolean }> {
     if (lane.inFlight) await lane.inFlight;
     for (let attempt = 0; attempt < 3; attempt++) {
       // Postgres already confirmed exactly this state — nothing to send
-      if (lane.confirmedBody !== null && lane.confirmedBody === localStorage.getItem(LS_KEY_FOR_PATH[path])) return true;
+      if (lane.confirmedBody !== null && lane.confirmedBody === localStorage.getItem(LS_KEY_FOR_PATH[path])) {
+        syncLog(`✅ logout check: Postgres already has the latest ${path}`);
+        return true;
+      }
       if (await sendLane(path)) return true;
       await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
     }
+    syncLog(`❌ logout check: could NOT confirm ${path} in Postgres after 3 attempts`);
     return false;
   }));
-  return { ok: results.every(Boolean) };
+  const ok = results.every(Boolean);
+  syncLog(ok ? '✅ logout: Postgres is up to date' : '❌ logout: some data is NOT in Postgres');
+  return { ok };
 }
 
 /**
@@ -616,8 +688,12 @@ export function clearLocalAccountData(): void {
   try {
     const owner = getDataOwner();
     const data = collectAccountData();
+    const summary = describeDataset('/api/data/projects', data[LS_KEY_V2] ?? null);
     if (!isDatabaseMode() && owner && Object.keys(data).length > 0) {
       localStorage.setItem(ACCOUNT_STASH_PREFIX + owner, JSON.stringify(data));
+      syncLog(`🚪 logout ${owner} — local mode: parked this browser's data (${summary}) instead of deleting`);
+    } else {
+      syncLog(`🚪 logout ${owner || '(no owner)'} — emptied this browser (${summary}); next login reloads from Postgres`);
     }
     Object.keys(data).forEach(k => localStorage.removeItem(k));
     localStorage.removeItem(DATA_OWNER_KEY);
@@ -708,15 +784,22 @@ const lanes: Record<SyncPath, UploadLane> = {
 const COALESCE_MS = 350;     // typing a task = many writes → one upload
 const MAX_RETRY_MS = 30000;
 
+/** Why this device may NOT upload `path` right now, or null if it may. */
+function uploadBlocker(path: SyncPath): string | null {
+  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return 'local mode (no Postgres)';
+  const uid = getFirebaseUid();
+  if (!uid) return 'no signed-in account';
+  if (uid === 'testuser') return 'testuser (no Postgres)';
+  if (!syncGate[path]) return 'initial load from Postgres not finished — change kept LOCAL ONLY';
+  if (uid !== hydratedUid) return `account changed (loaded for ${hydratedUid || 'nobody'}, now ${uid})`;
+  const owner = getDataOwner();
+  if (owner !== uid) return `local data belongs to ${owner || 'nobody'}, not ${uid}`;
+  return null;
+}
+
 /** Everything that must hold for this device to upload `path` right now. */
 function canUpload(path: SyncPath): string | null {
-  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return null;
-  const uid = getFirebaseUid();
-  if (!uid || uid === 'testuser') return null;
-  if (!syncGate[path]) return null;            // not hydrated yet — local write only
-  if (uid !== hydratedUid) return null;        // account changed under us
-  if (getDataOwner() !== uid) return null;     // local data isn't this account's — never upload it
-  return uid;
+  return uploadBlocker(path) ? null : getFirebaseUid();
 }
 
 function sendLane(path: SyncPath): Promise<boolean> {
@@ -727,22 +810,30 @@ function sendLane(path: SyncPath): Promise<boolean> {
   lane.pending = false;
   if (!uid || !body) return Promise.resolve(true);
 
+  const summary = describeDataset(path, body);
+  const startedAt = Date.now();
+  syncLog(`⬆ uploading ${path} → Postgres (${summary})`, { account: uid, ...(path === '/api/data/projects' ? { tasks: taskTitles(body) } : {}) });
+
   lane.inFlight = fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Firebase-UID': uid, 'X-Sync-Hydrated': '1' },
     body,
   })
-    .then(r => r.ok)
-    .catch(() => false)
-    .then(ok => {
+    .then(r => (r.ok ? { ok: true, status: r.status } : { ok: false, status: r.status }))
+    .catch((err: unknown) => ({ ok: false, status: `network error: ${err instanceof Error ? err.message : String(err)}` }))
+    .then(({ ok, status }) => {
       lane.inFlight = null;
+      const ms = Date.now() - startedAt;
       if (ok) {
         lane.failures = 0;
         lane.confirmedBody = body;
+        syncLog(`✅ Postgres saved ${path} (${summary}) in ${ms}ms`, { account: uid, ...(path === '/api/data/projects' ? { tasks: taskTitles(body) } : {}) });
         if (lane.pending) scheduleUpload(path, 0);     // newer state arrived while sending
       } else {
         lane.failures += 1;
-        scheduleUpload(path, Math.min(MAX_RETRY_MS, 1000 * 2 ** (lane.failures - 1)));
+        const retryMs = Math.min(MAX_RETRY_MS, 1000 * 2 ** (lane.failures - 1));
+        syncLog(`❌ upload FAILED ${path} (${summary}) — status ${status}; retry #${lane.failures} in ${retryMs}ms`, { account: uid });
+        scheduleUpload(path, retryMs);
       }
       return ok;
     });
@@ -768,7 +859,11 @@ function resetUploadLanes(): void {
 }
 
 function dbPost(path: SyncPath): void {
-  if (!canUpload(path)) return;
+  const blocked = uploadBlocker(path);
+  if (blocked) {
+    syncLog(`⏸ change NOT uploaded ${path} (${describeDataset(path, localStorage.getItem(LS_KEY_FOR_PATH[path]))}) — ${blocked}`);
+    return;
+  }
   scheduleUpload(path);
 }
 
@@ -892,16 +987,23 @@ function hookHydrationRetry(): void {
  * fresh device's boot writes can never replace server data.
  */
 export async function loadFromDatabase(): Promise<void> {
-  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return;
+  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') {
+    syncLog('⏭ load from Postgres skipped — NEXT_PUBLIC_DATABASE_MODE=local (no database; data lives only in this browser)');
+    return;
+  }
   const uid = getFirebaseUid();
-  if (!uid) return;
-  if (uid === 'testuser') return;
+  if (!uid) { syncLog('⏭ load from Postgres skipped — no signed-in account'); return; }
+  if (uid === 'testuser') { syncLog('⏭ load from Postgres skipped — testuser'); return; }
   const headers = { 'X-Firebase-UID': uid };
 
   // Local data must belong to this account before anything below can treat it
   // as "this device's data" (the empty-server migration uploads it).
   // No owner yet = a session from before ownership was tracked → adopt.
   const owner = getDataOwner();
+  syncLog(`⬇ loading from Postgres for ${uid}`, {
+    localOwner: owner || '(none)',
+    localBefore: describeDataset('/api/data/projects', localStorage.getItem(LS_KEY_V2)),
+  });
   if (!owner) setDataOwner(uid);
   else if (owner !== uid) prepareLocalDataForUser(uid);
 
@@ -930,12 +1032,27 @@ export async function loadFromDatabase(): Promise<void> {
       needChecklists ? fetch('/api/data/checklists', { headers }).catch(() => null) : null,
     ]);
 
+    const logGetFailure = (path: SyncPath, res: Response | null) => {
+      if (res === null) return; // not requested (already hydrated)
+      if (!res.ok) syncLog(`❌ load FAILED ${path} — status ${res.status}; uploads stay blocked, will retry on focus/online`, { account: uid });
+    };
+    if (needProjects && !projectsRes) syncLog('❌ load FAILED /api/data/projects — network error; uploads stay blocked', { account: uid });
+    logGetFailure('/api/data/projects', projectsRes);
+    logGetFailure('/api/data/habits', habitsRes);
+    logGetFailure('/api/data/reminders', remindersRes);
+    logGetFailure('/api/data/checklists', checklistsRes);
+
     if (projectsRes?.ok) {
       const data = await projectsRes.json() as { projects?: unknown[]; onboarded?: boolean };
       if (data.onboarded) {
         try { localStorage.setItem('youtask_occupation', 'skipped'); } catch {}
       }
       if (Array.isArray(data.projects) && data.projects.length > 0) {
+        syncLog(`⬇ Postgres has ${describeDataset('/api/data/projects', data)} → replacing local (server wins)`, {
+          account: uid,
+          localBeingReplaced: describeDataset('/api/data/projects', localStorage.getItem(LS_KEY_V2)),
+          tasksFromPostgres: taskTitles(data),
+        });
         localStorage.setItem(LS_KEY_V2, JSON.stringify(data));
         window.dispatchEvent(new Event('youtask_projects_updated'));
         window.dispatchEvent(new Event('youtask_blocks_updated'));
@@ -943,7 +1060,13 @@ export async function loadFromDatabase(): Promise<void> {
       } else {
         // Server confirmed empty — one-time migration of a device's local data
         openGate('/api/data/projects');
-        if (projectsPayloadHasData(readProjectsLS())) dbSyncProjects();
+        const local = readProjectsLS();
+        if (projectsPayloadHasData(local)) {
+          syncLog(`⬆ Postgres is EMPTY → migrating this browser's ${describeDataset('/api/data/projects', local)} up`, { account: uid });
+          dbSyncProjects();
+        } else {
+          syncLog('⬇ Postgres is empty and so is this browser — fresh start', { account: uid });
+        }
       }
     }
 
@@ -984,7 +1107,16 @@ export async function loadFromDatabase(): Promise<void> {
         if (checklistsPayloadHasData(readChecklistsLS())) dbSyncChecklists();
       }
     }
-  } catch {}
+    syncLog(`✔ load finished for ${uid}`, {
+      projects: syncGate['/api/data/projects'] ? 'ready' : 'NOT loaded',
+      habits: syncGate['/api/data/habits'] ? 'ready' : 'NOT loaded',
+      reminders: syncGate['/api/data/reminders'] ? 'ready' : 'NOT loaded',
+      checklists: syncGate['/api/data/checklists'] ? 'ready' : 'NOT loaded',
+      localNow: describeDataset('/api/data/projects', localStorage.getItem(LS_KEY_V2)),
+    });
+  } catch (err) {
+    syncLog(`❌ load from Postgres crashed for ${uid}`, { error: err instanceof Error ? err.message : String(err) });
+  }
 
   // If any GET failed its gate is still closed — retry when we're back
   if (!syncGate['/api/data/projects'] || !syncGate['/api/data/habits'] ||
