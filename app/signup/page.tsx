@@ -466,7 +466,7 @@ export default function SignUpPage() {
                 <input
                   className={`lp-input${firstNameError ? ' lp-error' : ''}`}
                   type="text"
-                  placeholder="Juan"
+                  placeholder="John"
                   value={firstName}
                   onChange={(e) => handleFirstNameChange(e.target.value)}
                   onFocus={() => setPstate('frozen')}
@@ -482,7 +482,7 @@ export default function SignUpPage() {
                 <input
                   className={`lp-input${lastNameError ? ' lp-error' : ''}`}
                   type="text"
-                  placeholder="Pérez"
+                  placeholder="Doe"
                   value={lastName}
                   onChange={(e) => handleLastNameChange(e.target.value)}
                   onFocus={() => setPstate('frozen')}
