@@ -504,14 +504,33 @@ function setDataOwner(uid: string): void {
   try { localStorage.setItem(DATA_OWNER_KEY, uid); } catch {}
 }
 
+/** Per-account parking spot for local data while another account is signed in. */
+const ACCOUNT_STASH_PREFIX = 'youtask_account_stash__';
+
+/** This account's data keys plus its delete-backups — everything that moves with an account. */
+function collectAccountData(): Record<string, string> {
+  const data: Record<string, string> = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k) continue;
+    if (USER_DATA_KEYS.includes(k) || k.startsWith(BACKUP_PREFIX)) {
+      const v = localStorage.getItem(k);
+      if (v !== null) data[k] = v;
+    }
+  }
+  return data;
+}
+
 /**
- * Call on every login, before the app hydrates. If this device's local data
- * belongs to a different account, it is removed (with that account's delete
- * backups) so the incoming account starts clean and pulls its own data.
+ * Call on every login, before the app hydrates. Switches this device's local
+ * data to the incoming account WITHOUT destroying anything:
+ *   1. the outgoing owner's data is parked under its own stash key,
+ *   2. the incoming account's parked data (if any) is restored.
+ * Never delete here: in local mode (no database) localStorage is the only copy,
+ * and even with a server, edits made before sync would be lost.
  *
- * Unknown owner (data from before ownership was tracked): kept as-is in local
- * mode (no server copy exists), otherwise stashed under one timestamped key
- * before clearing — nothing unsynced is destroyed outright.
+ * Unknown owner (data from before ownership was tracked) is adopted by the
+ * incoming account — the pre-existing behavior, and nothing is lost.
  */
 export function prepareLocalDataForUser(uid: string): void {
   if (!uid) return;
@@ -519,33 +538,88 @@ export function prepareLocalDataForUser(uid: string): void {
     const owner = getDataOwner();
     if (owner === uid) return;
 
-    const hasLocalData = USER_DATA_KEYS.some(k => localStorage.getItem(k) !== null);
-    if (hasLocalData && !owner && process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') {
-      setDataOwner(uid); // no server to restore from — adopt rather than lose it
+    if (!owner) {
+      // Logged-out device. Local mode parks data at logout (no Postgres to
+      // reload from) — bring this account's back if it's there.
+      const hasLocalData = USER_DATA_KEYS.some(k => localStorage.getItem(k) !== null);
+      const parkedRaw = localStorage.getItem(ACCOUNT_STASH_PREFIX + uid);
+      if (!hasLocalData && parkedRaw) {
+        const parked = JSON.parse(parkedRaw) as Record<string, string>;
+        for (const [k, v] of Object.entries(parked)) localStorage.setItem(k, v);
+        localStorage.removeItem(ACCOUNT_STASH_PREFIX + uid);
+      }
+      setDataOwner(uid);
       return;
     }
 
-    if (hasLocalData && !owner) {
-      const stash: Record<string, string> = {};
-      for (const k of USER_DATA_KEYS) {
-        const v = localStorage.getItem(k);
-        if (v !== null) stash[k] = v;
-      }
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      localStorage.setItem(`youtask_orphan_backup__${stamp}`, JSON.stringify(stash));
+    // 1. Park the outgoing account's data
+    const outgoing = collectAccountData();
+    if (Object.keys(outgoing).length > 0) {
+      localStorage.setItem(ACCOUNT_STASH_PREFIX + owner, JSON.stringify(outgoing));
     }
+    Object.keys(outgoing).forEach(k => localStorage.removeItem(k));
 
-    for (const k of USER_DATA_KEYS) localStorage.removeItem(k);
-    // Delete-backups hold the previous account's data too
-    const backupKeys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(BACKUP_PREFIX)) backupKeys.push(k);
+    // 2. Bring back the incoming account's parked data
+    const parkedRaw = localStorage.getItem(ACCOUNT_STASH_PREFIX + uid);
+    if (parkedRaw) {
+      const parked = JSON.parse(parkedRaw) as Record<string, string>;
+      for (const [k, v] of Object.entries(parked)) localStorage.setItem(k, v);
+      localStorage.removeItem(ACCOUNT_STASH_PREFIX + uid);
     }
-    backupKeys.forEach(k => localStorage.removeItem(k));
 
     closeSyncGates();
     setDataOwner(uid);
+  } catch {}
+}
+
+/* ===================== Logout: Postgres is the source of truth ===================== */
+
+function isDatabaseMode(): boolean {
+  return process.env.NEXT_PUBLIC_DATABASE_MODE !== 'local';
+}
+
+/**
+ * Before logout: push this device's current data to Postgres and wait for it.
+ * Normal edits already sync as they happen, but those POSTs are fire-and-forget
+ * — one that failed (offline, server blip) would otherwise be lost when logout
+ * empties the device. Datasets never hydrated from the server are skipped:
+ * they never held server-confirmed data to begin with.
+ */
+export async function flushAllToDatabase(): Promise<{ ok: boolean }> {
+  if (!isDatabaseMode()) return { ok: true };
+  const results = await Promise.all((Object.keys(lanes) as SyncPath[]).map(async path => {
+    if (!canUpload(path)) return true;   // never hydrated / not this account — nothing server-confirmed to protect
+    const lane = lanes[path];
+    if (lane.timer) { clearTimeout(lane.timer); lane.timer = null; }
+    // Through the lane, never alongside it: wait for any in-flight upload,
+    // then send the latest state once more and wait for Postgres to confirm.
+    if (lane.inFlight) await lane.inFlight;
+    return sendLane(path);
+  }));
+  return { ok: results.every(Boolean) };
+}
+
+/**
+ * Logout: empty this device. Tasks, habits, reminders, checklists, their
+ * delete-backups and the owner marker go; the next login pulls everything
+ * fresh from Postgres. Mounted views are told so they drop their arrays too.
+ *
+ * Local mode has no Postgres to reload from, so there the data is parked under
+ * the account instead of dropped (prepareLocalDataForUser restores it).
+ */
+export function clearLocalAccountData(): void {
+  try {
+    const owner = getDataOwner();
+    const data = collectAccountData();
+    if (!isDatabaseMode() && owner && Object.keys(data).length > 0) {
+      localStorage.setItem(ACCOUNT_STASH_PREFIX + owner, JSON.stringify(data));
+    }
+    Object.keys(data).forEach(k => localStorage.removeItem(k));
+    localStorage.removeItem(DATA_OWNER_KEY);
+    closeSyncGates();
+    for (const ev of ['youtask_projects_updated', 'youtask_blocks_updated', 'youtask_habits_updated', 'youtask_reminders_updated', 'youtask_checklists_updated']) {
+      window.dispatchEvent(new Event(ev));
+    }
   } catch {}
 }
 
@@ -584,6 +658,7 @@ export function isProjectsHydrated(): boolean {
 }
 
 export function closeSyncGates(): void {
+  resetUploadLanes();
   syncGate['/api/data/projects'] = false;
   syncGate['/api/data/habits'] = false;
   syncGate['/api/data/reminders'] = false;
@@ -591,22 +666,103 @@ export function closeSyncGates(): void {
   hydratedUid = '';
 }
 
-function dbPost(path: SyncPath, body: unknown): void {
-  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return;
+/* ===================== Upload queue (localStorage → Postgres) =====================
+ * Each dataset has one lane. Every POST replaces the whole dataset server-side,
+ * so the rules are:
+ *   - one request in flight per dataset — parallel POSTs could commit out of
+ *     order and leave Postgres on an OLDER state (e.g. a list whose task is
+ *     still empty, which later gets cleaned up → "the task vanished");
+ *   - writes that arrive meanwhile coalesce, and the body is read from
+ *     localStorage at send time, so what goes out is always the latest state;
+ *   - failures retry with backoff instead of being dropped.
+ */
+
+const LS_KEY_FOR_PATH: Record<SyncPath, string> = {
+  '/api/data/projects':   LS_KEY_V2,
+  '/api/data/habits':     LS_KEY_HABITS,
+  '/api/data/reminders':  LS_KEY_REMINDERS,
+  '/api/data/checklists': LS_KEY_CHECKLISTS,
+};
+
+type UploadLane = {
+  inFlight: Promise<boolean> | null;
+  pending: boolean;
+  timer: ReturnType<typeof setTimeout> | null;
+  failures: number;
+  /** Exact body Postgres last confirmed — lets logout skip a redundant (fallible) upload. */
+  confirmedBody: string | null;
+};
+const newLane = (): UploadLane => ({ inFlight: null, pending: false, timer: null, failures: 0, confirmedBody: null });
+const lanes: Record<SyncPath, UploadLane> = {
+  '/api/data/projects': newLane(),
+  '/api/data/habits': newLane(),
+  '/api/data/reminders': newLane(),
+  '/api/data/checklists': newLane(),
+};
+
+const COALESCE_MS = 350;     // typing a task = many writes → one upload
+const MAX_RETRY_MS = 30000;
+
+/** Everything that must hold for this device to upload `path` right now. */
+function canUpload(path: SyncPath): string | null {
+  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return null;
   const uid = getFirebaseUid();
-  if (!uid || uid === 'testuser') return;
-  if (!syncGate[path]) return; // not hydrated yet — local write only
-  if (uid !== hydratedUid) { closeSyncGates(); return; } // account changed under us
-  if (getDataOwner() !== uid) return; // local data isn't this account's — never upload it
-  fetch(path, {
+  if (!uid || uid === 'testuser') return null;
+  if (!syncGate[path]) return null;            // not hydrated yet — local write only
+  if (uid !== hydratedUid) return null;        // account changed under us
+  if (getDataOwner() !== uid) return null;     // local data isn't this account's — never upload it
+  return uid;
+}
+
+function sendLane(path: SyncPath): Promise<boolean> {
+  const lane = lanes[path];
+  if (lane.inFlight) { lane.pending = true; return lane.inFlight; }
+  const uid = canUpload(path);
+  const body = uid ? localStorage.getItem(LS_KEY_FOR_PATH[path]) : null;
+  lane.pending = false;
+  if (!uid || !body) return Promise.resolve(true);
+
+  lane.inFlight = fetch(path, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Firebase-UID': uid,
-      'X-Sync-Hydrated': '1',
-    },
-    body: JSON.stringify(body),
-  }).catch(() => {});
+    headers: { 'Content-Type': 'application/json', 'X-Firebase-UID': uid, 'X-Sync-Hydrated': '1' },
+    body,
+  })
+    .then(r => r.ok)
+    .catch(() => false)
+    .then(ok => {
+      lane.inFlight = null;
+      if (ok) {
+        lane.failures = 0;
+        if (lane.pending) scheduleUpload(path, 0);     // newer state arrived while sending
+      } else {
+        lane.failures += 1;
+        scheduleUpload(path, Math.min(MAX_RETRY_MS, 1000 * 2 ** (lane.failures - 1)));
+      }
+      return ok;
+    });
+  return lane.inFlight;
+}
+
+function scheduleUpload(path: SyncPath, delay = COALESCE_MS): void {
+  const lane = lanes[path];
+  if (lane.inFlight) { lane.pending = true; return; }
+  if (lane.timer) clearTimeout(lane.timer);
+  lane.timer = setTimeout(() => { lane.timer = null; void sendLane(path); }, delay);
+}
+
+/** Drop queued uploads (logout / account switch) — nothing may go out under the next account. */
+function resetUploadLanes(): void {
+  for (const lane of Object.values(lanes)) {
+    if (lane.timer) clearTimeout(lane.timer);
+    lane.timer = null;
+    lane.pending = false;
+    lane.failures = 0;
+  }
+}
+
+function dbPost(path: SyncPath): void {
+  if (!canUpload(path)) return;
+  scheduleUpload(path);
 }
 
 /* Meaningful-data checks: boot defaults (an Uncategorized-only project, one
@@ -679,7 +835,7 @@ function dbSyncProjects(): void {
   try {
     const raw = localStorage.getItem(LS_KEY_V2);
     if (!raw) return;
-    dbPost('/api/data/projects', JSON.parse(raw));
+    dbPost('/api/data/projects');
   } catch {}
 }
 
@@ -687,7 +843,7 @@ function dbSyncHabits(): void {
   try {
     const raw = localStorage.getItem(LS_KEY_HABITS);
     if (!raw) return;
-    dbPost('/api/data/habits', JSON.parse(raw));
+    dbPost('/api/data/habits');
   } catch {}
 }
 
@@ -695,7 +851,7 @@ function dbSyncReminders(): void {
   try {
     const raw = localStorage.getItem(LS_KEY_REMINDERS);
     if (!raw) return;
-    dbPost('/api/data/reminders', JSON.parse(raw));
+    dbPost('/api/data/reminders');
   } catch {}
 }
 
@@ -703,7 +859,7 @@ function dbSyncChecklists(): void {
   try {
     const raw = localStorage.getItem(LS_KEY_CHECKLISTS);
     if (!raw) return;
-    dbPost('/api/data/checklists', JSON.parse(raw));
+    dbPost('/api/data/checklists');
   } catch {}
 }
 

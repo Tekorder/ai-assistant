@@ -1,21 +1,21 @@
 import { auth } from './firebase';
 import { signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { isTekOrderSession, AUTH_PROVIDER_KEY } from './tekorderSso';
-import { closeSyncGates } from './datacenter';
+import { clearLocalAccountData } from './datacenter';
 
+// Session/profile keys. Account data (tasks, habits, …) is cleared by
+// clearLocalAccountData so both logout paths empty the device the same way.
 const SESSION_KEYS = [
   'firebase_uid', 'prisma_user_id', 'prisma_user_email',
   'prisma_user_name', 'prisma_user_avatar',
-  'youtask_projects_v1', 'youtask_blocks_v1',
-  'youtask_habits_v1', 'youtask_reminders_v1', 'youtask_checklists_v1',
   'youtask_occupation', 'youtask_profession', 'youtask_goal',
   'youtask_trusted_browser_v1', 'youtask_2fa', 'twofa_ok',
   AUTH_PROVIDER_KEY,
 ];
 
 export function clearSessionStorage() {
+  clearLocalAccountData();
   try { SESSION_KEYS.forEach(k => localStorage.removeItem(k)); } catch {}
-  closeSyncGates();
 }
 
 export async function signOutAndClear(): Promise<void> {
