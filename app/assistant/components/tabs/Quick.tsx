@@ -179,7 +179,10 @@ export function ActionsPanel({
   sortBy, setSortBy,
   hideOnHold, setHideOnHold,
   taskFilter, setTaskFilter,
+  onSearch,
 }: {
+  /** Enter in the keyword box — opens a pivot for the matching list or the word */
+  onSearch?: (query: string) => void;
   dateMode: DateMode; setDateMode: (m: DateMode) => void;
   showCompleted: boolean; setShowCompleted: (v: boolean | ((p: boolean) => boolean)) => void;
   sortBy: SortBy; setSortBy: (v: SortBy) => void;
@@ -188,6 +191,8 @@ export function ActionsPanel({
   /** @deprecated layout is always chips now */
   chips?: boolean;
 }) {
+  const [search, setSearch] = useState('');
+
   const pill = (active: boolean) =>
     ['text-[13px] px-3 py-1.5 rounded-full transition-all whitespace-nowrap',
       active ? classes.quickFilterActive : classes.quickFilterInactive,
@@ -217,6 +222,22 @@ export function ActionsPanel({
 
   return (
     <div className="space-y-4">
+      {onSearch && (
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              onSearch(search);
+            }
+          }}
+          placeholder="Search keyword"
+          className={`w-full rounded-xl px-3 py-2 text-[13px] ${classes.quickSearchInput}`}
+        />
+      )}
+
       {/* View by */}
       <div>
         <div className={`text-[14px] font-semibold mb-2 ${classes.primaryText}`}>View by</div>
@@ -1306,11 +1327,32 @@ const handleKey = (
     );
   };
 
+  // Keyword search: a list whose words match (any order, case-insensitive) opens
+  // that list's pivot; anything else opens a pivot for the word itself.
+  const listTitleSignature = (value: string) =>
+    value.trim().split(/\s+/).filter(Boolean).map(part => part.toLocaleLowerCase()).sort().join(' ');
+
+  const openPivotFromSearch = (rawValue: string) => {
+    const query = rawValue.trim();
+    if (!query) return;
+    const querySignature = listTitleSignature(query);
+    const matchedList = blocks.find(b =>
+      b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true &&
+      (b.text || '').trim() !== '' && listTitleSignature(b.text || '') === querySignature,
+    );
+    if (matchedList) {
+      openPivotForList(matchedList);
+      return;
+    }
+    onOpenPivot?.({ word: query, blockId: null, origin: 'quick' });
+  };
+
   const actionsPanelProps = {
     dateMode, setDateMode, showCompleted, setShowCompleted,
     sortBy, setSortBy,
     hideOnHold, setHideOnHold,
     taskFilter, setTaskFilter,
+    onSearch: openPivotFromSearch,
   };
 
   const progressLabel =
@@ -1411,10 +1453,9 @@ const handleKey = (
         <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 pt-2 pb-0 md:px-8 md:py-8">
           <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
             <div className="min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden">
-              <div className="min-h-0 flex-1 overflow-y-auto pb-16 md:pb-0">
 
-              {/* Date pagination header — sticky within main column scroll */}
-              <div className="sticky top-0 z-30">
+              {/* Date pagination header — fixed above the scroll area, never overlapped by the tasks */}
+              <div className="shrink-0 z-30">
                 <div className={`flex items-center justify-between gap-1 px-3 py-2.5 md:gap-3 md:px-4 md:py-3 ${classes.quickHeaderBar}`}>
 
                   {/* Left: ‹ date › */}
@@ -1492,8 +1533,8 @@ const handleKey = (
                 </div>
               </div>
 
-
-
+              {/* Scrollable content — only the tasks scroll */}
+              <div className="min-h-0 flex-1 overflow-y-auto pb-16 md:pb-0">
               <div className="px-3 pt-3">
                 {isBrandNewEmpty ? (
                   <div className={`rounded-2xl p-5 ${classes.quickEmptyState}`}>

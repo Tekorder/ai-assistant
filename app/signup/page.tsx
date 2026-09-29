@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { registerWithEmail } from '@/lib/auth';
 import {
-  validateName,
+  validateFirstName,
+  validateLastName,
   validateEmail,
   validatePasswordMatch,
   validatePassword,
@@ -181,12 +182,14 @@ function ParticleCanvas({ pstate }: { pstate: PState }) {
 export default function SignUpPage() {
   const router = useRouter();
 
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const [nameError, setNameError] = useState('');
+  const [firstNameError, setFirstNameError] = useState('');
+  const [lastNameError, setLastNameError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
@@ -194,9 +197,14 @@ export default function SignUpPage() {
   const [submitError, setSubmitError] = useState('');
   const [pstate, setPstate] = useState<PState>('moving');
 
-  const handleNameChange = (v: string) => {
-    setName(v);
-    setNameError(validateName(v).error);
+  const handleFirstNameChange = (v: string) => {
+    setFirstName(v);
+    setFirstNameError(validateFirstName(v.trim()).error);
+  };
+
+  const handleLastNameChange = (v: string) => {
+    setLastName(v);
+    setLastNameError(validateLastName(v.trim()).error);
   };
 
   const handleEmailChange = (v: string) => {
@@ -222,11 +230,13 @@ export default function SignUpPage() {
 
   const isFormValid = () =>
     !!(
-      name &&
+      firstName.trim() &&
+      lastName.trim() &&
       email &&
       password &&
       confirmPassword &&
-      !nameError &&
+      !firstNameError &&
+      !lastNameError &&
       !emailError &&
       !passwordError &&
       password.length >= 6
@@ -261,7 +271,7 @@ export default function SignUpPage() {
 
     try {
       const cleanEmail = email.trim().toLowerCase();
-      const cleanName = name.trim();
+      const cleanName = `${firstName.trim()} ${lastName.trim()}`;
 
       const cred = await registerWithEmail(cleanEmail, password);
 
@@ -450,19 +460,38 @@ export default function SignUpPage() {
             onSubmit={handleSubmit}
             style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
           >
-            <div className="lp-row-2">
-              <label style={label}>Name</label>
-              <input
-                className={`lp-input${nameError ? ' lp-error' : ''}`}
-                type="text"
-                placeholder="Juan Pérez"
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                onFocus={() => setPstate('frozen')}
-                onBlur={() => setPstate('moving')}
-                required
-              />
-              {nameError && <div style={errorMsg}>{nameError}</div>}
+            <div className="lp-row-2" style={{ display: 'flex', gap: 12 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <label style={label}>First name</label>
+                <input
+                  className={`lp-input${firstNameError ? ' lp-error' : ''}`}
+                  type="text"
+                  placeholder="Juan"
+                  value={firstName}
+                  onChange={(e) => handleFirstNameChange(e.target.value)}
+                  onFocus={() => setPstate('frozen')}
+                  onBlur={() => setPstate('moving')}
+                  required
+                  autoComplete="given-name"
+                />
+                {firstNameError && <div style={errorMsg}>{firstNameError}</div>}
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <label style={label}>Last name</label>
+                <input
+                  className={`lp-input${lastNameError ? ' lp-error' : ''}`}
+                  type="text"
+                  placeholder="Pérez"
+                  value={lastName}
+                  onChange={(e) => handleLastNameChange(e.target.value)}
+                  onFocus={() => setPstate('frozen')}
+                  onBlur={() => setPstate('moving')}
+                  required
+                  autoComplete="family-name"
+                />
+                {lastNameError && <div style={errorMsg}>{lastNameError}</div>}
+              </div>
             </div>
 
             <div className="lp-row-3">
