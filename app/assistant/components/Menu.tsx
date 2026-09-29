@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { isTekOrderSession, logoutOfTekOrder, clearAuthProviderMarker } from '@/lib/tekorderSso';
-import { closeSyncGates } from '@/lib/datacenter';
+import { closeSyncGates, flushAllToDatabase, clearLocalAccountData } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 const TWOFA_SESSION_KEY = 'youtask_2fa';
@@ -88,12 +88,29 @@ export default function Menu({
     closeSyncGates();
   }, []);
 
+  const [loggingOut, setLoggingOut] = useState(false);
+
   const handleLogout = useCallback(async () => {
+    if (loggingOut) return;
     let storedUid: string | null = null;
     try {
       storedUid = localStorage.getItem('firebase_uid');
     } catch {
       // ignore
+    }
+
+    // Postgres is the source of truth: make sure it has the latest before this
+    // device is emptied. If it can't confirm, let the person decide.
+    setLoggingOut(true);
+    const flushed = await flushAllToDatabase();
+    if (!flushed.ok) {
+      const proceed = window.confirm(
+        "Your latest changes couldn't be saved to the server. If you log out now, they'll be lost.\n\nLog out anyway?",
+      );
+      if (!proceed) {
+        setLoggingOut(false);
+        return;
+      }
     }
 
     try {
@@ -110,10 +127,13 @@ export default function Menu({
       }
     }
 
+    // Empty the device — the next login reads everything back from Postgres
+    clearLocalAccountData();
     clearPrismaLocalStorage();
+    setLoggingOut(false);
     onClose();
     router.replace('/');
-  }, [clearPrismaLocalStorage, onClose, router]);
+  }, [clearPrismaLocalStorage, loggingOut, onClose, router]);
 
   if (!shouldRender) return null;
 
@@ -298,9 +318,11 @@ export default function Menu({
           <button
             type="button"
             onClick={handleLogout}
-            className={`w-full rounded-xl px-3.5 py-3 text-left text-[16px] font-medium ${classes.menuLogoutBtn}`}
+            disabled={loggingOut}
+            aria-busy={loggingOut}
+            className={`w-full rounded-xl px-3.5 py-3 text-left text-[16px] font-medium disabled:opacity-70 ${classes.menuLogoutBtn}`}
           >
-            Logout
+            {loggingOut ? 'Saving…' : 'Logout'}
           </button>
         </div>
       </aside>
