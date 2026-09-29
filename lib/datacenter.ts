@@ -745,6 +745,52 @@ export function closeSyncGates(): void {
   syncGate['/api/data/reminders'] = false;
   syncGate['/api/data/checklists'] = false;
   hydratedUid = '';
+  loadFailed = false;
+  notifySyncStatus();
+}
+
+/* ===================== Sync status (UI indicator) =====================
+ * Derived from the gates + upload lanes. Green ('synced') only when sync is
+ * on, every dataset loaded from Postgres for this account, and nothing is
+ * queued, in flight or failing. */
+
+export type SyncState = 'off' | 'connecting' | 'syncing' | 'synced' | 'error';
+export type SyncStatus = { state: SyncState; message: string };
+
+/** Fired whenever getSyncStatus() may have changed. */
+export const SYNC_STATUS_EVENT = 'youtask_sync_status';
+
+let loadInProgress = false;
+let loadFailed = false;
+
+function notifySyncStatus(): void {
+  try { window.dispatchEvent(new Event(SYNC_STATUS_EVENT)); } catch {}
+}
+
+export function getSyncStatus(): SyncStatus {
+  if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return { state: 'off', message: 'Sync is off — local mode, data lives only on this device' };
+  const uid = getFirebaseUid();
+  if (!uid) return { state: 'off', message: 'Sync is off — not signed in' };
+  if (uid === 'testuser') return { state: 'off', message: 'Sync is off — test user' };
+
+  const paths = Object.keys(syncGate) as SyncPath[];
+  const notLoaded = paths.filter(p => !syncGate[p] || hydratedUid !== uid);
+  if (notLoaded.length > 0) {
+    if (loadInProgress || !loadFailed) return { state: 'connecting', message: 'Connecting to the server…' };
+    const names = notLoaded.map(p => p.replace('/api/data/', '')).join(', ');
+    return { state: 'error', message: `Could not load ${names} from the server — changes are kept on this device only. Click to retry.` };
+  }
+
+  const failing = paths.filter(p => lanes[p].failures > 0);
+  if (failing.length > 0) {
+    const names = failing.map(p => p.replace('/api/data/', '')).join(', ');
+    return { state: 'error', message: `Saving ${names} to the server is failing — retrying automatically` };
+  }
+
+  if (paths.some(p => lanes[p].inFlight || lanes[p].pending || lanes[p].timer)) {
+    return { state: 'syncing', message: 'Saving changes…' };
+  }
+  return { state: 'synced', message: 'Sync is on — all changes saved to the server' };
 }
 
 /* ===================== Upload queue (localStorage → Postgres) =====================
@@ -814,6 +860,7 @@ function sendLane(path: SyncPath): Promise<boolean> {
   const startedAt = Date.now();
   syncLog(`⬆ uploading ${path} → Postgres (${summary})`, { account: uid, ...(path === '/api/data/projects' ? { tasks: taskTitles(body) } : {}) });
 
+  notifySyncStatus();
   lane.inFlight = fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Firebase-UID': uid, 'X-Sync-Hydrated': '1' },
@@ -835,6 +882,7 @@ function sendLane(path: SyncPath): Promise<boolean> {
         syncLog(`❌ upload FAILED ${path} (${summary}) — status ${status}; retry #${lane.failures} in ${retryMs}ms`, { account: uid });
         scheduleUpload(path, retryMs);
       }
+      notifySyncStatus();
       return ok;
     });
   return lane.inFlight;
@@ -845,6 +893,7 @@ function scheduleUpload(path: SyncPath, delay = COALESCE_MS): void {
   if (lane.inFlight) { lane.pending = true; return; }
   if (lane.timer) clearTimeout(lane.timer);
   lane.timer = setTimeout(() => { lane.timer = null; void sendLane(path); }, delay);
+  notifySyncStatus();
 }
 
 /** Drop queued uploads (logout / account switch) — nothing may go out under the next account. */
@@ -1022,8 +1071,11 @@ export async function loadFromDatabase(): Promise<void> {
     if (path === '/api/data/projects') {
       try { window.dispatchEvent(new Event(PROJECTS_HYDRATED_EVENT)); } catch {}
     }
+    notifySyncStatus();
   };
 
+  loadInProgress = true;
+  notifySyncStatus();
   try {
     const [projectsRes, habitsRes, remindersRes, checklistsRes] = await Promise.all([
       needProjects   ? fetch('/api/data/projects',   { headers }).catch(() => null) : null,
@@ -1119,10 +1171,11 @@ export async function loadFromDatabase(): Promise<void> {
   }
 
   // If any GET failed its gate is still closed — retry when we're back
-  if (!syncGate['/api/data/projects'] || !syncGate['/api/data/habits'] ||
-      !syncGate['/api/data/reminders'] || !syncGate['/api/data/checklists']) {
-    hookHydrationRetry();
-  }
+  loadInProgress = false;
+  loadFailed = !syncGate['/api/data/projects'] || !syncGate['/api/data/habits'] ||
+    !syncGate['/api/data/reminders'] || !syncGate['/api/data/checklists'];
+  if (loadFailed) hookHydrationRetry();
+  notifySyncStatus();
 }
 
 /* ===================== Persistence (localStorage) ===================== */
