@@ -108,6 +108,8 @@ export type ReminderItem = {
   date: string;
   time: string;
   daily?: boolean;
+  /** Weekdays a daily reminder fires on (0 = Sun … 6 = Sat). Missing/empty = every day. */
+  days?: number[];
   /** @deprecated use `flag` — kept for legacy data */
   priority?: boolean;
   flag?: TaskFlagColor;
@@ -1782,6 +1784,9 @@ function normalizeReminders(raw: unknown): ReminderItem[] {
     date:     isValidDateYYYYMMDD(x?.date) ? x.date as string : todayYMD(),
     time:     isValidTimeHHMM(x?.time)     ? x.time as string : '11:00',
     daily:    typeof x?.daily === 'boolean'    ? x.daily    : false,
+    days: Array.isArray(x?.days)
+      ? [...new Set((x.days as unknown[]).filter((d): d is number => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6))].sort()
+      : undefined,
     priority: typeof x?.priority === 'boolean' ? x.priority : false,
     flag: parseTaskFlag(x?.flag) ?? (x?.priority === true ? 'red' : undefined),
   }));

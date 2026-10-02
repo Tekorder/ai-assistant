@@ -2,15 +2,14 @@
 
 import React, { useEffect, useState } from 'react';
 import classes from '@/app/assistant/_theme/themes.module.css';
-import CompletedTasksChart from './CompletedTasksChart';
+import ProfileDashboard from './ProfileDashboard';
 
 type ProfilePanelProps = {
   open: boolean;
   onClose: () => void;
-  completedTasks?: { id: string; date: string }[];
 };
 
-export default function ProfilePanel({ open, onClose, completedTasks = [] }: ProfilePanelProps) {
+export default function ProfilePanel({ open, onClose }: ProfilePanelProps) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
   const [name, setName] = useState('');
@@ -82,9 +81,10 @@ export default function ProfilePanel({ open, onClose, completedTasks = [] }: Pro
           <h1 className="text-[17px] font-semibold">Profile</h1>
         </div>
 
-        <div className="mx-auto w-full max-w-[560px] flex-1 px-4 py-6 md:px-8">
+        <div className="mx-auto w-full max-w-[1200px] flex-1 px-4 py-6 md:px-8">
           <div className="space-y-6">
-            <section className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+            <section className="flex min-w-0 items-center gap-4">
               <div
                 className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-[21px] font-semibold"
                 style={{
@@ -103,17 +103,11 @@ export default function ProfilePanel({ open, onClose, completedTasks = [] }: Pro
               </div>
             </section>
 
-            <div style={{ borderTop: '1px solid var(--assistant-border-soft)' }} />
-
-            <CompletedTasksChart tasks={completedTasks} />
-
-            <div style={{ borderTop: '1px solid var(--assistant-border-soft)' }} />
-
-            <section>
-              <h2 className="text-[14px] font-medium mb-1.5" style={{ color: 'var(--assistant-text-muted)' }}>
+            <section className="flex items-center gap-3">
+              <h2 className="text-[14px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>
                 Plan
               </h2>
-              <div className="flex items-center justify-between max-w-[280px] rounded-lg px-3.5 py-2.5" style={{ border: '1px solid var(--assistant-border-soft)' }}>
+              <div className="flex min-w-[180px] items-center justify-between gap-3 rounded-lg px-3.5 py-2" style={{ border: '1px solid var(--assistant-border-soft)' }}>
                 <span className="text-[14px]" style={{ color: 'var(--assistant-text-soft)' }}>
                   Free
                 </span>
@@ -128,6 +122,11 @@ export default function ProfilePanel({ open, onClose, completedTasks = [] }: Pro
                 </span>
               </div>
             </section>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--assistant-border-soft)' }} />
+
+            <ProfileDashboard />
           </div>
         </div>
       </div>

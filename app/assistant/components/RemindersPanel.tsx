@@ -16,34 +16,37 @@ import {
   removeReminder as removeReminderArr,
   updateReminder as updateReminderArr,
 } from '@/lib/datacenter';
+import { createPortal } from 'react-dom';
 import { TaskFlagButton } from './TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
-function formatDateUS(date?: string) {
-  if (!date || !isValidDateYYYYMMDD(date)) return '—';
-  const [y, m, d] = date.split('-').map(Number);
-  const dt = new Date(y, (m || 1) - 1, d || 1);
-  return new Intl.DateTimeFormat('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    year: 'numeric',
-  }).format(dt);
+/** Mon-first display order; values are JS weekdays (0 = Sun). */
+const WEEK: { value: number; short: string; letter: string }[] = [
+  { value: 1, short: 'Mon', letter: 'M' },
+  { value: 2, short: 'Tue', letter: 'T' },
+  { value: 3, short: 'Wed', letter: 'W' },
+  { value: 4, short: 'Thu', letter: 'T' },
+  { value: 5, short: 'Fri', letter: 'F' },
+  { value: 6, short: 'Sat', letter: 'S' },
+  { value: 0, short: 'Sun', letter: 'S' },
+];
+const ALL_DAYS = WEEK.map(d => d.value);
+
+/** Local "YYYY-MM-DDTHH:MM" for comparing against a reminder's date + time. */
+function localNowKey(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function formatTimeUS(time?: string) {
-  const safe = isValidTimeHHMM(time) ? time : '11:00';
-  const [hh, mm] = safe.split(':').map(Number);
-  const dt = new Date();
-  dt.setHours(hh || 0, mm || 0, 0, 0);
-  return new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  }).format(dt);
-}
-
-function formatReminderDateTimeUS(date?: string, time?: string) {
-  return `${formatDateUS(date)} · ${formatTimeUS(time)}`;
+function repeatLabel(r: ReminderItem): string {
+  if (!r.daily) return 'Once';
+  const days = r.days?.length ? r.days : ALL_DAYS;
+  if (days.length === 7) return 'Daily';
+  const set = new Set(days);
+  if (set.size === 5 && [1, 2, 3, 4, 5].every(d => set.has(d))) return 'Mon–Fri';
+  if (set.size === 2 && set.has(6) && set.has(0)) return 'Weekends';
+  return WEEK.filter(d => set.has(d.value)).map(d => d.short).join(', ');
 }
 
 type Props = {
@@ -62,6 +65,21 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
   const newTimerRef = useRef<number | null>(null);
   const dragRef = useRef<{ id: string; fromIndex: number } | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [daysModal, setDaysModal] = useState<{ id: string; days: number[] } | null>(null);
+  const [nowKey, setNowKey] = useState(localNowKey);
+
+  // Re-check every 30s so a reminder flips to "Dismiss" once its time passes
+  useEffect(() => {
+    const t = window.setInterval(() => setNowKey(localNowKey()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!daysModal) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDaysModal(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [daysModal]);
 
   useEffect(() => {
     const load = () => {
@@ -230,11 +248,8 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
         </button>
       </div>
 
-      <div className="px-4 py-3 shrink-0 flex items-center justify-between"
+      <div className="px-4 py-3 shrink-0 flex items-center justify-end"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <span className="text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>
-          US format: MM/DD/YYYY · h:mm AM/PM
-        </span>
         <button type="button" onClick={handleAddReminder}
           className={`h-8 w-8 shrink-0 rounded-md ${classes.panelBtn}`} title="New reminder">
           +
@@ -246,6 +261,9 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
           {reminders.map((r, idx) => {
             const isDraggingOver = dragOverId === r.id && dragRef.current?.id !== r.id;
             const isDraggingMe = dragRef.current?.id === r.id;
+            // One-off reminders whose date + time already went by (zero-padded, so string compare works)
+            const isPast = !r.daily && r.title.trim() !== '' &&
+              `${isValidDateYYYYMMDD(r.date) ? r.date : todayYMD()}T${isValidTimeHHMM(r.time) ? r.time : '11:00'}` < nowKey;
             return (
               <div
                 key={r.id}
@@ -270,6 +288,17 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                     </svg>
                   </div>
 
+                  {isPast ? (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveReminder(r.id)}
+                      className={`shrink-0 text-[12px] font-medium px-2.5 py-1 rounded-full ${classes.modalSecondaryButton}`}
+                      title="This reminder already passed — dismiss it"
+                    >
+                      Dismiss
+                    </button>
+                  ) : null}
+
                   <TaskFlagButton
                     source={r}
                     onChange={(next) => handleUpdateReminder(r.id, { flag: next, priority: undefined })}
@@ -282,10 +311,11 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                     onChange={e => handleUpdateReminder(r.id, { title: e.target.value })}
                     onKeyDown={e => handleReminderKey(e, r)}
                     className="min-w-30 flex-1 bg-transparent outline-none text-sm cursor-pointer"
-                    style={{ color: 'var(--assistant-text-soft)' }}
+                    style={{ color: isPast ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)' }}
                   />
 
-                  <input
+                  {/* Repeating reminders fire on their weekdays — the date only matters for "Once" */}
+                  {!r.daily && <input
                     type="date"
                     value={isValidDateYYYYMMDD(r.date) ? r.date : todayYMD()}
                     onChange={e => {
@@ -293,7 +323,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                       handleUpdateReminder(r.id, { date: isValidDateYYYYMMDD(v) ? v : todayYMD() });
                     }}
                     className={`shrink-0 text-[12px] px-2 py-1 rounded-md ${classes.panelInput}`}
-                  />
+                  />}
 
                   <input
                     type="time"
@@ -307,26 +337,22 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
 
                   <button
                     type="button"
-                    onClick={() => handleUpdateReminder(r.id, { daily: !r.daily })}
+                    onClick={() => setDaysModal({ id: r.id, days: r.daily && r.days?.length ? r.days : ALL_DAYS })}
                     className={`shrink-0 text-[12px] px-2 py-1 rounded-full ${r.daily ? classes.panelAccentBadge : classes.panelNeutralBadge}`}
+                    title="Repeat"
                   >
-                    {r.daily ? 'Daily' : 'Once'}
+                    {repeatLabel(r)}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveReminder(r.id)}
-                    className={`h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 ${classes.panelBtn}`}
-                    title="Delete"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                <div className="pl-5 text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>
-                  {formatReminderDateTimeUS(
-                    isValidDateYYYYMMDD(r.date) ? r.date : todayYMD(),
-                    isValidTimeHHMM(r.time) ? r.time : '11:00',
+                  {isPast ? null : (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveReminder(r.id)}
+                      className={`h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 ${classes.panelBtn}`}
+                      title="Delete"
+                    >
+                      ×
+                    </button>
                   )}
                 </div>
               </div>
@@ -334,6 +360,109 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
           })}
         </div>
       </div>
+
+      {daysModal ? createPortal(
+        <div className="fixed inset-0 z-[10050] flex items-center justify-center">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setDaysModal(null)}
+            aria-label="Close"
+          />
+          <div
+            role="dialog"
+            aria-label="Repeat on"
+            className="relative w-[92vw] max-w-sm rounded-2xl shadow-2xl"
+            style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-panel-bg)' }}
+          >
+            <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+              <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Repeat on</div>
+              <div className="mt-1 text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
+                Pick the days this reminder repeats.
+              </div>
+            </div>
+
+            <div className="flex justify-between gap-1.5 px-4 py-4" role="group" aria-label="Weekdays">
+              {WEEK.map(d => {
+                const on = daysModal.days.includes(d.value);
+                return (
+                  <button
+                    key={d.value}
+                    type="button"
+                    onClick={() =>
+                      setDaysModal(m => m && {
+                        ...m,
+                        days: on ? m.days.filter(x => x !== d.value) : [...m.days, d.value],
+                      })
+                    }
+                    className={`flex h-10 w-10 items-center justify-center rounded-full text-[13px] font-semibold transition-colors ${on ? '' : classes.modalSecondaryButton}`}
+                    style={on ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' } : undefined}
+                    aria-pressed={on}
+                    aria-label={d.short}
+                    title={d.short}
+                  >
+                    {d.letter}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-2 px-4 pb-4 text-[12px]">
+              {[
+                { label: 'Every day', days: ALL_DAYS },
+                { label: 'Mon–Fri', days: [1, 2, 3, 4, 5] },
+                { label: 'Weekends', days: [6, 0] },
+              ].map(p => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setDaysModal(m => m && { ...m, days: p.days })}
+                  className={`rounded-full px-2.5 py-1 ${classes.modalSecondaryButton}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="px-4 py-3 flex items-center gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  handleUpdateReminder(daysModal.id, { daily: false, days: undefined });
+                  setDaysModal(null);
+                }}
+                className={`${classes.modalSecondaryButton} text-[13px] px-3 py-2 rounded-md`}
+                title="Don't repeat"
+              >
+                Once
+              </button>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDaysModal(null)}
+                  className={`${classes.modalSecondaryButton} text-[13px] px-3 py-2 rounded-md`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={daysModal.days.length === 0}
+                  onClick={() => {
+                    const days = ALL_DAYS.filter(d => daysModal.days.includes(d)).sort();
+                    handleUpdateReminder(daysModal.id, { daily: true, days: days.length === 7 ? undefined : days });
+                    setDaysModal(null);
+                  }}
+                  className="text-[13px] font-semibold px-3 py-2 rounded-md transition-opacity hover:opacity-90 disabled:opacity-40"
+                  style={{ background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }}
+                >
+                  Accept
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.querySelector('[data-assistant-root]') ?? document.body,
+      ) : null}
     </>
   );
 

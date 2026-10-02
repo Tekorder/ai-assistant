@@ -33,6 +33,8 @@ import {
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
+const LS_KEY_COLLAPSED_GROUPS = 'youtask_sidebar_collapsed_groups';
+
 type SidebarProps = {
   onOpenPivot?: (detail: {
     word: string;
@@ -42,7 +44,7 @@ type SidebarProps = {
   }) => void;
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot }) => {
+export const Sidebar: React.FC<SidebarProps> = () => {
   const buildAllCollapsedFromBlocks = (listBlocks: Block[]): Record<string, boolean> => {
     const next: Record<string, boolean> = {};
     for (const b of listBlocks) {
@@ -63,6 +65,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenPivot }) => {
   const [listMenu, setListMenu] = useState<{ listId: string; x: number; y: number } | null>(null);
   const [groupsModalOpen, setGroupsModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
+  // Sidebar group (project) collapse state — UI-only, persisted per browser
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const groupDragRef = useRef<string | null>(null);
   const [groupDragOverId, setGroupDragOverId] = useState<string | null>(null);
 
@@ -233,6 +237,13 @@ const visibleLists = useMemo<Record<string, boolean>>(
   useEffect(() => setHydrated(true), []);
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY_COLLAPSED_GROUPS);
+      if (raw) setCollapsedGroups(JSON.parse(raw) ?? {});
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     if (!listMenu) return;
     const close = () => setListMenu(null);
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
@@ -397,6 +408,14 @@ const visibleLists = useMemo<Record<string, boolean>>(
     return () => window.removeEventListener('keydown', onKey);
   }, [groupsModalOpen]);
 
+  const toggleGroupCollapsed = (projectId: string) => {
+    setCollapsedGroups(prev => {
+      const next = { ...prev, [projectId]: !prev[projectId] };
+      try { localStorage.setItem(LS_KEY_COLLAPSED_GROUPS, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
   const toggleListVisibility = (listId: string) =>
     setCurrentVisibleLists(prev => ({ ...prev, [listId]: prev[listId] === false }));
 
@@ -513,13 +532,6 @@ const visibleLists = useMemo<Record<string, boolean>>(
     setDragOverId(null);
   };
 
-  const openPivotForList = (block: Block) => {
-    if (block.indent !== 0) return;
-    if (isUncTitleBlock(block)) return;
-    const title = (block.text || '').trim() || 'List';
-    onOpenPivot?.({ word: title, blockId: block.id, listId: block.id, origin: 'sidebar' });
-  };
-
   // Lives on the first group's title row (right-aligned)
   const manageGroupsButton = (
     <button
@@ -556,6 +568,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
               <div className="space-y-4">
               {projects.map((project, projectIndex) => {
                 const isCurrent = project.project_id === currentProject?.project_id;
+                const isGroupCollapsed = collapsedGroups[project.project_id] === true;
                 const listBlocks = (project.blocks ?? []).filter(b => b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true);
                 return (
               <div
@@ -570,16 +583,29 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 <div className="mb-1 flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setSelectedProjectId(project.project_id)}
-                    className="block min-w-0 flex-1 truncate px-1 text-left text-[12px] font-semibold uppercase tracking-wide"
-                    style={{ color: isCurrent ? 'var(--assistant-text-soft)' : 'var(--assistant-text-faint)' }}
+                    onClick={() => toggleGroupCollapsed(project.project_id)}
+                    className="flex min-w-0 flex-1 items-center gap-1 px-1 text-left text-[12px] font-semibold uppercase tracking-wide"
+                    style={{ color: 'var(--assistant-text-soft)' }}
                     title={project.title}
+                    aria-expanded={!isGroupCollapsed}
                   >
-                    {project.title}
+                    <svg
+                      viewBox="0 0 16 16"
+                      className="h-3 w-3 shrink-0 transition-transform duration-150"
+                      style={{ transform: isGroupCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
+                    </svg>
+                    <span className="truncate">{project.title}</span>
                   </button>
                   {projectIndex === 0 ? manageGroupsButton : null}
                 </div>
 
+              {isGroupCollapsed ? null : (
               <div className="space-y-1 pl-3">
                 {(() => {
                   if (!listBlocks.length) {
@@ -633,12 +659,10 @@ const visibleLists = useMemo<Record<string, boolean>>(
                                 style={{color: 'var(--assistant-text)'}}
                             />
                           ) : (
-                            <button
-                              type="button"
+                            <span
                               data-youtask-block={b.id}
-                              className="min-w-0 flex-1 truncate text-left text-[14px] md:text-sm font-semibold underline underline-offset-[3px] outline-none transition-colors"
-                                style={{color: 'var(--assistant-text)',textDecorationColor: 'color-mix(in srgb, var(--assistant-accent) 65%, transparent)',}}
-                              onClick={() => openPivotForList(b)}
+                              className="min-w-0 flex-1 cursor-default select-none truncate text-left text-[14px] md:text-sm font-semibold"
+                              style={{ color: 'var(--assistant-text)' }}
                               onDoubleClick={(e) => {
                                 e.stopPropagation();
                                 setEditingListTitleId(b.id);
@@ -646,8 +670,30 @@ const visibleLists = useMemo<Record<string, boolean>>(
                               }}
                             >
                               {(b.text || '').trim() ? b.text : 'List…'}
-                            </button>
+                            </span>
                           )}
+
+                          {/* mousedown on the group selects its project first, so the toggle hits the right one */}
+                          {project.visibleLists?.[b.id] === false ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleListVisibility(b.id);
+                              }}
+                              className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100"
+                              style={{ color: 'var(--assistant-text-faint)' }}
+                              title="Hidden — click to show"
+                              aria-label="Show list"
+                            >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M10.6 10.7a2.75 2.75 0 0 0 3.7 3.7" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9.9 5.6A10.4 10.4 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-3.2 3.6" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.1 6.2A16.7 16.7 0 0 0 2.5 12S6 18.5 12 18.5c1.1 0 2.1-.2 3.1-.5" />
+                              </svg>
+                            </button>
+                          ) : null}
 
                           <button
                             type="button"
@@ -681,6 +727,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                   });
                 })()}
               </div>
+              )}
               </div>
                 );
               })}

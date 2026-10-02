@@ -451,7 +451,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
       <div className="flex items-center justify-between px-4 py-3 shrink-0"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <div className="flex items-baseline gap-2">
-          <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Lists</h2>
+          <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Check Lists</h2>
           {lists.length > 0 && (
             <span className="text-[12px] tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
               {lists.length} {lists.length === 1 ? 'list' : 'lists'}

@@ -181,13 +181,13 @@ export default function Menu({
     <>
       <style>{`
         @keyframes menuSlideIn {
-          from { transform: translateX(-100%); opacity: 0; }
+          from { transform: translateX(100%); opacity: 0; }
           60% { opacity: 1; }
           to { transform: translateX(0); opacity: 1; }
         }
         @keyframes menuSlideOut {
           from { transform: translateX(0); opacity: 1; }
-          to { transform: translateX(-100%); opacity: 0; }
+          to { transform: translateX(100%); opacity: 0; }
         }
         @keyframes menuOverlayIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes menuOverlayOut { from { opacity: 1; } to { opacity: 0; } }
@@ -204,11 +204,11 @@ export default function Menu({
       />
 
       <aside
-        className="fixed left-0 top-0 z-[301] flex h-full w-[86%] max-w-[360px] flex-col shadow-2xl"
+        className="fixed right-0 top-0 z-[301] flex h-full w-[86%] max-w-[360px] flex-col shadow-2xl"
         style={{
           background: 'var(--assistant-bg)',
           color: 'var(--assistant-text)',
-          borderRight: '1px solid color-mix(in srgb, var(--assistant-accent) 20%, transparent)',
+          borderLeft: '1px solid color-mix(in srgb, var(--assistant-accent) 20%, transparent)',
           animation: isClosing
             ? 'menuSlideOut 0.26s cubic-bezier(0.4, 0, 1, 1) both'
             : 'menuSlideIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both',
@@ -294,7 +294,7 @@ export default function Menu({
                 { label: 'Habits',    isOpen: habitsOpen,    onToggle: onToggleHabits,    icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" strokeLinejoin="round" d="M8 2v2M8 12v2M2 8h2M12 8h2" /><circle cx="8" cy="8" r="3" /></svg> },
                 { label: 'Reminders', isOpen: remindersOpen, onToggle: onToggleReminders, icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 1.2v.8H2.8v-.8L4 9V6.5a4 4 0 0 1 4-4z" /><path strokeLinecap="round" d="M6 12.5a2 2 0 0 0 4 0" /></svg> },
                 { label: 'Activity',  isOpen: activityOpen,  onToggle: onToggleActivity,  icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" strokeLinejoin="round" d="M2 10h2.5l1.2-3 2.1 6 1.8-4H14" /></svg> },
-                { label: 'Lists',     isOpen: listsOpen,     onToggle: onToggleLists,     icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="3" width="3" height="3" rx="0.6" /><rect x="2" y="10" width="3" height="3" rx="0.6" /><path strokeLinecap="round" d="M7 4.5h7M7 11.5h7" /></svg> },
+                { label: 'Check Lists', isOpen: listsOpen,     onToggle: onToggleLists,     icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="3" width="3" height="3" rx="0.6" /><rect x="2" y="10" width="3" height="3" rx="0.6" /><path strokeLinecap="round" d="M7 4.5h7M7 11.5h7" /></svg> },
                 { label: 'AI Chat',   isOpen: chatOpen,      onToggle: onToggleChat,      icon: <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5" /></svg> },
               ] as const).map((panel) => (
                 <button

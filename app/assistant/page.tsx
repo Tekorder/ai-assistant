@@ -579,6 +579,8 @@ export default function App() {
   const LISTS_TAB_STEP = 60;
   const desiredListsPx = PANEL_WIDTH + Math.max(0, listsCount - 1) * LISTS_TAB_STEP;
   const listsPanelWidth = `min(${desiredListsPx}px, 35vw)`;
+  // Reminders rows carry date + time + daily inputs → twice the shared panel width
+  const remindersPanelWidth = `calc(${listsPanelWidth} * 2)`;
 
   const closePivotInstance = useCallback((id: string) => {
     setPivotInstances((prev) => prev.filter((p) => p.id !== id));
@@ -751,7 +753,8 @@ export default function App() {
             <button
               type="button"
               onClick={toggleSidebar}
-              className="absolute left-1.5 top-3 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-all"
+              // Same offset as the collapse button inside the open panel (m-3 + top-3 / right-3)
+              className="absolute left-3 top-6 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-all"
               style={{
                 color: 'var(--assistant-text-muted)',
                 opacity: sidebarVisualOpen ? 0 : 1,
@@ -876,7 +879,7 @@ export default function App() {
             className="h-full shrink-0"
             style={{
               order: dockOrder('reminders'),
-              width: remindersOpen && isDesktop === true ? listsPanelWidth : 0,
+              width: remindersOpen && isDesktop === true ? remindersPanelWidth : 0,
               opacity: remindersOpen && isDesktop === true ? 1 : 0,
               transform: remindersOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
               transition:
@@ -1062,7 +1065,7 @@ export default function App() {
             onClose={() => setThemesOpen(false)}
           />
         ) : null}
-        <ProfilePanel open={profileOpen} onClose={() => setProfileOpen(false)} completedTasks={activityTasks} />
+        <ProfilePanel open={profileOpen} onClose={() => setProfileOpen(false)} />
 
         {(chatOpen || chatClosing) && (
           <>
