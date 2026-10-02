@@ -51,6 +51,7 @@ import {
   PROJECTS_HYDRATED_EVENT,
 } from '@/lib/datacenter';
 import { TaskFlagButton } from '../TaskFlag';
+import { TaskReminderButton } from '../TaskReminder';
 import { FirstListWizard } from '../FirstListWizard';
 
 /**
@@ -1312,6 +1313,7 @@ const handleKey = (
                           )}
                         </button>
                       )}
+                      <TaskReminderButton task={task} />
                       <TaskFlagButton
                         source={task}
                         onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}

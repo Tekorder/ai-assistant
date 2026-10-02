@@ -19,6 +19,7 @@ type Reminder = {
   time?: string;
   daily?: boolean;
   weekly?: boolean;
+  days?: number[];
   dismissed?: boolean;
   priority?: boolean;
   flag?: TaskFlagColor;
@@ -75,7 +76,7 @@ function writeReminders(reminders: Reminder[]) {
 }
 
 function isReminderToday(r: Reminder, today: string): boolean {
-  if (r.daily) return true;
+  if (r.daily) return !r.days?.length || r.days.includes(weekdayOf(today));
   if (r.weekly) return weekdayOf(r.date) === weekdayOf(today);
   return r.date === today;
 }
@@ -128,7 +129,7 @@ const CENTER_NAV: {
 }[] = [
   {
     id: 'lists',
-    label: 'Lists',
+    label: 'Check Lists',
     icon: (
       <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
         <circle cx="2.5" cy="4" r="1" fill="currentColor" stroke="none" />
@@ -599,7 +600,7 @@ export default function TopNavBar({
             type="button"
             onClick={onOpenMenu}
             className={`flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg transition-colors ${classes.topNavProfile}`}
-            aria-label="Open profile menu"
+            aria-label="Open menu"
             title={userName ? `Signed in as ${userName}` : 'Profile'}
           >
             {userAvatar ? (
@@ -613,8 +614,9 @@ export default function TopNavBar({
             <span className="hidden sm:inline max-w-[140px] truncate text-[14px] font-medium">
               {userName || 'Account'}
             </span>
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 opacity-70" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
+            {/* Menu icon — opens the drawer from the right */}
+            <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 opacity-80" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <path strokeLinecap="round" d="M2.75 4.25h10.5M2.75 8h10.5M2.75 11.75h10.5" />
             </svg>
           </button>
         </div>

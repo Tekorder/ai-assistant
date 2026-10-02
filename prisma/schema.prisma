@@ -121,6 +121,8 @@ model Reminder {
   date         String
   time         String
   daily        Boolean  @default(false)
+  /// Weekdays a daily reminder fires on (0 = Sun … 6 = Sat); empty = every day
+  days         Int[]    @default([])
   position     Int      @default(0)
   flag         String?
   createdAt    String?

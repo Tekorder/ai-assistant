@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
       date:  r.date,
       time:  r.time,
       daily: r.daily,
+      ...(r.days.length ? { days: r.days } : {}),
       ...(r.flag ? { flag: r.flag } : {}),
     })),
   });
@@ -65,6 +66,9 @@ export async function POST(req: NextRequest) {
           date:     typeof r.date === 'string' ? r.date : '',
           time:     typeof r.time === 'string' ? r.time : '11:00',
           daily:    Boolean(r.daily),
+          days:     Array.isArray(r.days)
+            ? [...new Set((r.days as unknown[]).filter((d): d is number => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6))]
+            : [],
           position: i,
           flag:     typeof r.flag === 'string' ? r.flag : null,
         })).filter(r => r.localId && r.date),
