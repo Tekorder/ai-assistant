@@ -3,28 +3,7 @@
 
 import React from 'react';
 import nlp from 'compromise';
-
-type Block = {
-  id: string;
-  text: string;
-  indent: number; // 0 = title, 1+ = task/subtask
-  checked?: boolean;
-  deadline?: string; // YYYY-MM-DD
-  isHidden?: boolean;
-  archived?: boolean;
-};
-
-type Project = {
-  project_id: string;
-  title: string;
-  blocks: Block[];
-  collapsed?: Record<string, boolean>;
-};
-
-type ProjectsPayload = {
-  projects: Project[];
-  selectedProjectId?: string;
-};
+import { readProjectsLS, LS_KEY_V2, type ProjectsPayload } from '@/lib/datacenter';
 
 type EntityKind = 'person' | 'place';
 
@@ -39,8 +18,6 @@ type EntityCandidate = {
     sectionTitle: string;
   }>;
 };
-
-const LS_KEY_V2 = 'youtask_projects_v1';
 
 function normEntity(s: string) {
   return (s || '')
@@ -157,18 +134,6 @@ function extractPeoplePlacesStrict(text: string): { people: string[]; places: st
   return { people: peopleClean, places };
 }
 
-function readProjectsFromLS(): ProjectsPayload | null {
-  try {
-    const raw = localStorage.getItem(LS_KEY_V2);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed?.projects)) return null;
-    return parsed as ProjectsPayload;
-  } catch {
-    return null;
-  }
-}
-
 function buildEntityCandidates(payload: ProjectsPayload): EntityCandidate[] {
   const map = new Map<string, EntityCandidate>();
 
@@ -243,7 +208,7 @@ export default function Entities({
 
   React.useEffect(() => {
     const load = () => {
-      const payload = readProjectsFromLS();
+      const payload = readProjectsLS();
       if (!payload) {
         setItems([]);
         setLoaded(true);

@@ -1,6 +1,6 @@
 {
   "name": "ai-assistant",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack --hostname 0.0.0.0",
@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
-    "@azure/identity": "^4.12.0",
     "@getbrevo/brevo": "^3.0.1",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
@@ -23,7 +22,6 @@
     "firebase": "^12.10.0",
     "firebase-admin": "^14.1.0",
     "next": "15.5.9",
-    "openai": "^5.20.2",
     "pg": "^8.22.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

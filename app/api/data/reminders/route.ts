@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
       daily: r.daily,
       ...(r.days.length ? { days: r.days } : {}),
       ...(r.flag ? { flag: r.flag } : {}),
+      ...(r.dismissedOn ? { dismissedOn: r.dismissedOn } : {}),
     })),
   });
 }
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
             : [],
           position: i,
           flag:     typeof r.flag === 'string' ? r.flag : null,
+          dismissedOn: typeof r.dismissedOn === 'string' ? r.dismissedOn : null,
         })).filter(r => r.localId && r.date),
       });
     }

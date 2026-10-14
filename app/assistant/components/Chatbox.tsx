@@ -24,6 +24,7 @@ import {
   isUncTitleBlock,
   type Block,
 } from '@/lib/datacenter';
+import { apiFetch } from '@/lib/api';
 import type { TaskTableRow } from '../_types/Message';
 
 interface ChatBoxProps {
@@ -179,7 +180,7 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
         }))
         .filter(l => l.name);
 
-      const res = await fetch('/api/waldy/task', {
+      const res = await apiFetch('/api/waldy/task', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: messageToSend, lists, history }),

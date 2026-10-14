@@ -7,8 +7,8 @@ import {
   loginWithEmail,
   signInWithGoogle,
 } from '@/lib/auth';
-import { openTekOrderLogin, markTekOrderSession, clearAuthProviderMarker } from '@/lib/tekorderSso';
-import { getDataOwner, prepareLocalDataForUser } from '@/lib/datacenter';
+import { openTekOrderLogin } from '@/lib/tekorderSso';
+import { prepareSessionFor, setSession } from '@/lib/session';
 
 /* ─── 2FA Helpers ─────────────────────────────────────────── */
 function gen2FACode(): string {
@@ -384,32 +384,13 @@ export default function LoginPage() {
     sessionStorage.removeItem(TWOFA_KEY);
   }
 
-  /**
-   * Account switch cleanup. Decided by who owns the local data, not by
-   * `firebase_uid` — logout removes that key but leaves the data, so checking
-   * it let the next account inherit (and sync) the previous account's tasks.
-   */
-  function clearPreviousUserData(incomingUid: string) {
-    try {
-      const switching = getDataOwner() !== incomingUid;
-      prepareLocalDataForUser(incomingUid);
-      if (!switching) return;
-      const profileKeys = [
-        'prisma_user_id', 'prisma_user_email',
-        'prisma_user_name', 'prisma_user_avatar',
-        'youtask_occupation', 'youtask_profession', 'youtask_goal',
-      ];
-      profileKeys.forEach(k => localStorage.removeItem(k));
-    } catch { /* ignore */ }
-  }
-
   async function upsertPrismaUser(payload: {
     email: string;
     name?: string | null;
     avatarUrl?: string | null;
     firebaseUid?: string;
   }) {
-    if (payload.firebaseUid) clearPreviousUserData(payload.firebaseUid);
+    if (payload.firebaseUid) prepareSessionFor(payload.firebaseUid);
     const res = await fetch('/api/auth/upsert-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -419,12 +400,13 @@ export default function LoginPage() {
     if (!res.ok || !json?.ok || !json?.user?.id) {
       throw new Error(json?.message || 'Failed to sync user with database.');
     }
-    localStorage.setItem('prisma_user_id', json.user.id);
-    localStorage.setItem('prisma_user_email', json.user.email ?? payload.email);
-    localStorage.setItem('firebase_uid', payload.firebaseUid ?? payload.email);
-    const displayName = json.user.name || json.user.username;
-    if (displayName) localStorage.setItem('prisma_user_name', displayName);
-    if (json.user.avatarUrl) localStorage.setItem('prisma_user_avatar', json.user.avatarUrl);
+    setSession({
+      uid:          payload.firebaseUid ?? payload.email,
+      prismaUserId: json.user.id,
+      email:        json.user.email ?? payload.email,
+      name:         json.user.name || json.user.username,
+      avatarUrl:    json.user.avatarUrl,
+    });
 
     return json.user;
   }
@@ -440,11 +422,13 @@ export default function LoginPage() {
     } catch (err) {
       console.error('upsertPrismaUser failed, continuing with local-only session:', err);
       const uid = payload.firebaseUid ?? payload.email;
-      localStorage.setItem('prisma_user_id', `local-${uid}`);
-      localStorage.setItem('prisma_user_email', payload.email);
-      localStorage.setItem('firebase_uid', uid);
-      if (payload.name) localStorage.setItem('prisma_user_name', payload.name);
-      if (payload.avatarUrl) localStorage.setItem('prisma_user_avatar', payload.avatarUrl);
+      setSession({
+        uid,
+        prismaUserId: `local-${uid}`,
+        email:        payload.email,
+        name:         payload.name,
+        avatarUrl:    payload.avatarUrl,
+      });
     }
   }
 
@@ -481,7 +465,6 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    clearAuthProviderMarker();
     setLoginError('');
     setTwoFAError('');
     setCodeInput('');
@@ -492,13 +475,9 @@ export default function LoginPage() {
       const loginId = email.trim().toLowerCase();
       if (loginId === 'testuser') {
         setPstate('exploding');
-        clearPreviousUserData('testuser');
-        localStorage.setItem('firebase_uid', 'testuser');
-        localStorage.setItem('prisma_user_id', 'local-testuser');
-        localStorage.setItem('prisma_user_email', 'testuser');
-        localStorage.setItem('prisma_user_name', 'testuser');
+        prepareSessionFor('testuser');
+        setSession({ uid: 'testuser', prismaUserId: 'local-testuser', email: 'testuser', name: 'testuser' });
         setTrustedBrowser('testuser');
-        sessionStorage.setItem('twofa_ok', '1');
         router.replace('/assistant');
         return;
       }
@@ -526,8 +505,6 @@ export default function LoginPage() {
           avatarUrl: firebaseAvatar,
           firebaseUid,
         });
-        sessionStorage.setItem('twofa_ok', '1');
-        localStorage.setItem('firebase_uid', firebaseUid);
         router.replace('/assistant');
         return;
       }
@@ -544,8 +521,6 @@ export default function LoginPage() {
         firebaseUid,
       });
       setTrustedBrowser(firebaseEmail);
-      sessionStorage.setItem('twofa_ok', '1');
-      localStorage.setItem('firebase_uid', firebaseUid);
       router.replace('/assistant');
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
@@ -566,7 +541,6 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = async () => {
-    clearAuthProviderMarker();
     setLoginError('');
     setLoading(true);
 
@@ -586,7 +560,6 @@ export default function LoginPage() {
       });
 
       setTrustedBrowser(firebaseEmail);
-      sessionStorage.setItem('twofa_ok', '1');
       router.replace('/assistant');
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
@@ -636,28 +609,29 @@ export default function LoginPage() {
       if (json.user?.id) {
         const user = json.user;
         const uid = user.firebaseUid || fallbackUid;
-        clearPreviousUserData(uid);
-        localStorage.setItem('prisma_user_id', user.id);
-        localStorage.setItem('prisma_user_email', user.email);
-        localStorage.setItem('firebase_uid', uid);
-        if (user.name) localStorage.setItem('prisma_user_name', user.name);
-        if (user.avatarUrl) localStorage.setItem('prisma_user_avatar', user.avatarUrl);
+        prepareSessionFor(uid);
+        setSession({
+          uid,
+          prismaUserId: user.id,
+          email:        user.email,
+          name:         user.name,
+          avatarUrl:    user.avatarUrl,
+          provider:     'tekorder',
+        });
       } else {
         // No database configured (e.g. NEXT_PUBLIC_DATABASE_MODE=local) — fall
         // back to a local-only session, same as email/Google login do here.
-        clearPreviousUserData(fallbackUid);
-        localStorage.setItem('prisma_user_id', `local-${fallbackUid}`);
-        localStorage.setItem('prisma_user_email', tekOrderUser.email);
-        localStorage.setItem('firebase_uid', fallbackUid);
-        if (fallbackName) localStorage.setItem('prisma_user_name', fallbackName);
+        prepareSessionFor(fallbackUid);
+        setSession({
+          uid:          fallbackUid,
+          prismaUserId: `local-${fallbackUid}`,
+          email:        tekOrderUser.email,
+          name:         fallbackName,
+          provider:     'tekorder',
+        });
       }
 
-      // An email that already had a Firebase/Google account keeps that real uid,
-      // so flag the session explicitly — validateSession must not demand a
-      // Firebase Auth session for it (TekOrder never creates one).
-      markTekOrderSession();
       setTrustedBrowser(tekOrderUser.email);
-      sessionStorage.setItem('twofa_ok', '1');
       router.replace('/assistant');
     } catch (err: unknown) {
       setLoginError(
@@ -716,9 +690,6 @@ export default function LoginPage() {
       });
 
       setTrustedBrowser(pendingFirebaseUser.email);
-      sessionStorage.setItem('twofa_ok', '1');
-      localStorage.setItem('firebase_uid', pendingUID);
-
       router.replace('/assistant');
     } catch (err) {
       setTwoFAError(

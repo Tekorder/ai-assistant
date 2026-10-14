@@ -4,7 +4,6 @@
  */
 
 import type { PendingTask } from '../_types/PendingTask';
-import type { GPTResponse } from '../_types/GTPResponse';
 
 /**
  * Generates response message based on task action result
@@ -44,41 +43,4 @@ function getItemTypeName(itemType: string): string {
   };
 
   return translations[itemType.toLowerCase()] || 'task';
-}
-
-/**
- * Fetches task data from Azure API
- */
-export async function fetchTaskFromAPI(
-  message: string
-): Promise<GPTResponse> {
-  const apiUrl = process.env.NEXT_PUBLIC_BACKEND_PROD || 'https://go-youtask.vercel.app';
-  const response = await fetch(`${apiUrl}/api/task`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: message }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
-/**
- * Extracts task data from GPT response
- */
-export function extractTaskData(data: GPTResponse) {
-  const { taskName, peopleInvolved, taskCategory, dateToPerform, itemType, assignedTo } =
-    data.response;
-
-  return {
-    taskName: taskName[0],
-    peopleInvolved,
-    taskCategory: taskCategory[0],
-    dateToPerform,
-    itemType: itemType[0],
-    assignedTo,
-  };
 }

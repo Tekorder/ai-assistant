@@ -1,29 +1,16 @@
 'use client';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { getProfile, hasSession, signOutAndClear, subscribeSessionChange } from '@/lib/session';
 import {
-  readProjectsLS, writeProjectsLS, cleanupEmptyTasks, closeSyncGates, type TaskFlagColor,
+  readProjectsLS, writeProjectsLS, cleanupEmptyTasks,
   getSyncStatus, loadFromDatabase, SYNC_STATUS_EVENT, type SyncStatus, type SyncState,
+  readRemindersLS, writeRemindersLS, LS_KEY_REMINDERS, type ReminderItem,
 } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 export type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
-
-type Reminder = {
-  id: string;
-  title: string;
-  date: string;
-  time?: string;
-  daily?: boolean;
-  weekly?: boolean;
-  days?: number[];
-  dismissed?: boolean;
-  priority?: boolean;
-  flag?: TaskFlagColor;
-};
 
 interface TopNavBarProps {
   title: string;
@@ -45,9 +32,6 @@ interface TopNavBarProps {
   onToggleTheme?: () => void;
 }
 
-const LS_REMINDERS = 'youtask_reminders_v1';
-const PRISMA_USER_ID_KEY = 'prisma_user_id';
-const TWOFA_SESSION_KEY = 'youtask_2fa';
 
 function todayYMD() {
   const d = new Date();
@@ -59,25 +43,8 @@ function weekdayOf(ymd: string): number {
   return new Date(y, m - 1, d).getDay();
 }
 
-function readReminders(): Reminder[] {
-  try {
-    const raw = localStorage.getItem(LS_REMINDERS);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed?.reminders) ? parsed.reminders : [];
-    
-  } catch { return []; }
-}
-
-function writeReminders(reminders: Reminder[]) {
-  try {
-    localStorage.setItem(LS_REMINDERS, JSON.stringify({ reminders }));
-  } catch {}
-}
-
-function isReminderToday(r: Reminder, today: string): boolean {
+function isReminderToday(r: ReminderItem, today: string): boolean {
   if (r.daily) return !r.days?.length || r.days.includes(weekdayOf(today));
-  if (r.weekly) return weekdayOf(r.date) === weekdayOf(today);
   return r.date === today;
 }
 
@@ -238,41 +205,14 @@ export default function TopNavBar({
 }: Omit<TopNavBarProps, 'title' | 'onHome'> & { title?: string; onHome?: () => void }) {
   const router = useRouter();
 
-  const clearPrismaLocalStorage = useCallback(() => {
-    try {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k) continue;
-        if (k.startsWith('prisma_user_')) keysToRemove.push(k);
-      }
-      // También se setea en login flow (no es prisma_, pero es parte de la sesión)
-      keysToRemove.push('firebase_uid');
-      keysToRemove.forEach(k => localStorage.removeItem(k));
-    } catch {}
-
-    try {
-      sessionStorage.removeItem('twofa_ok');
-      sessionStorage.removeItem(TWOFA_SESSION_KEY);
-    } catch {}
-
-    closeSyncGates();
-  }, []);
-
   const enforcePrismaSession = useCallback(() => {
-    let ok = false;
-    try {
-      ok = !!localStorage.getItem(PRISMA_USER_ID_KEY);
-    } catch {
-      ok = false;
-    }
-    if (ok) return;
+    if (hasSession()) return;
 
-    // Si falta prisma_user_id, cerramos sesión Firebase y mandamos a Home.
-    void signOut(auth).catch(() => {});
-    clearPrismaLocalStorage();
+    // No session (e.g. logged out in another tab): sign out and go Home. Local
+    // data stays — it may hold edits that haven't reached Postgres yet.
+    void signOutAndClear({ keepLocalData: true });
     router.replace('/');
-  }, [clearPrismaLocalStorage, router]);
+  }, [router]);
 
   // ── Current user label ──
   // Warm both logo variants so the light/dark toggle swaps instantly (no blank frame)
@@ -283,18 +223,14 @@ export default function TopNavBar({
   const [userName, setUserName] = useState('');
   const [userAvatar, setUserAvatar] = useState('');
   useEffect(() => {
-    try {
-      const name = localStorage.getItem('prisma_user_name');
-      const email = localStorage.getItem('prisma_user_email') ?? '';
-      const avatar = localStorage.getItem('prisma_user_avatar') ?? '';
-      // Never display a raw email — fall back to its local part
-      setUserName(name || email.split('@')[0] || '');
-      setUserAvatar(avatar);
-    } catch {}
+    const { name, email, avatarUrl } = getProfile();
+    // Never display a raw email — fall back to its local part
+    setUserName(name || email.split('@')[0] || '');
+    setUserAvatar(avatarUrl);
   }, []);
 
   // ── Reminders state ──
-  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [hydrated, setHydrated]   = useState(false);
   const [dropOpen, setDropOpen]   = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -304,29 +240,29 @@ export default function TopNavBar({
   useEffect(() => {
     enforcePrismaSession();
 
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === PRISMA_USER_ID_KEY) enforcePrismaSession();
-    };
+    const unsubscribe = subscribeSessionChange(enforcePrismaSession);
     const onFocus = () => enforcePrismaSession();
-
-    window.addEventListener('storage', onStorage);
     window.addEventListener('focus', onFocus);
     return () => {
-      window.removeEventListener('storage', onStorage);
+      unsubscribe();
       window.removeEventListener('focus', onFocus);
     };
   }, [enforcePrismaSession]);
 
   const load = useCallback(() => {
-    setReminders(readReminders());
+    setReminders(readRemindersLS().reminders);
     setHydrated(true);
   }, []);
 
   useEffect(() => {
     load();
-    const handler = (e: StorageEvent) => { if (e.key === LS_REMINDERS) load(); };
+    const handler = (e: StorageEvent) => { if (e.key === LS_KEY_REMINDERS) load(); };
     window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
+    window.addEventListener('youtask_reminders_updated', load);
+    return () => {
+      window.removeEventListener('storage', handler);
+      window.removeEventListener('youtask_reminders_updated', load);
+    };
   }, [load]);
 
   // Close dropdown on outside click
@@ -344,20 +280,20 @@ export default function TopNavBar({
   const todayReminders = hydrated
     ? reminders.filter(r => isReminderToday(r, today) && r.title.trim().length > 0)
     : [];
-  const pendingCount = todayReminders.filter(r => !r.dismissed).length;
+  const pendingCount = todayReminders.filter(r => r.dismissedOn !== today).length;
   const hasPending   = pendingCount > 0;
 
   const dismissOne = (id: string) => {
-    const next = reminders.map(r => r.id === id ? { ...r, dismissed: true } : r);
+    const next = reminders.map(r => r.id === id ? { ...r, dismissedOn: today } : r);
     setReminders(next);
-    writeReminders(next);
+    writeRemindersLS({ reminders: next });
   };
 
   const dismissAll = () => {
     const todayIds = new Set(todayReminders.map(r => r.id));
-    const next = reminders.map(r => todayIds.has(r.id) ? { ...r, dismissed: true } : r);
+    const next = reminders.map(r => todayIds.has(r.id) ? { ...r, dismissedOn: today } : r);
     setReminders(next);
-    writeReminders(next);
+    writeRemindersLS({ reminders: next });
     setDropOpen(false);
   };
 
@@ -528,7 +464,7 @@ export default function TopNavBar({
                       </div>
                     ) : (
                       todayReminders.map(r => {
-                        const isDone = !!r.dismissed;
+                        const isDone = r.dismissedOn === today;
                         return (
                           <div
                             key={r.id}
@@ -550,11 +486,10 @@ export default function TopNavBar({
                                 <TaskFlagBadge source={r} inline />
                                 {r.title}
                               </div>
-                              {(r.time || r.daily || r.weekly) && (
+                              {(r.time || r.daily) && (
                                 <div className="text-[12px] mt-0.5" style={{ color: 'var(--assistant-text-faint)' }}>
                                   {r.time && <span>{r.time}</span>}
                                   {r.daily  && <span className="ml-1">· daily</span>}
-                                  {r.weekly && <span className="ml-1">· weekly</span>}
                                 </div>
                               )}
                             </div>

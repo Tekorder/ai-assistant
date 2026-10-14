@@ -12,10 +12,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, message: 'Email is required.' }, { status: 400 });
     }
 
+    const missing = [
+      'FIREBASE_ADMIN_PROJECT_ID',
+      'FIREBASE_ADMIN_CLIENT_EMAIL',
+      'FIREBASE_ADMIN_PRIVATE_KEY',
+    ].filter((k) => !process.env[k]);
+    if (missing.length) {
+      console.error('send-reset: missing env vars:', missing.join(', '));
+      return NextResponse.json(
+        { ok: false, message: 'Password reset is not configured on the server.' },
+        { status: 500 }
+      );
+    }
+
     const auth = getAuth(getAdminApp());
     const resetLink = await auth.generatePasswordResetLink(email);
 
-    await sendEmailBrevo(email, 'reset', { resetLink });
+    try {
+      await sendEmailBrevo(email, 'reset', { resetLink });
+    } catch (err) {
+      console.error('send-reset: Brevo send failed:', err);
+      return NextResponse.json(
+        { ok: false, message: 'Failed to send reset email.' },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -26,7 +47,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    console.error('send-reset error:', err);
+    console.error('send-reset: Firebase reset link failed:', err);
     return NextResponse.json(
       { ok: false, message: 'Failed to send reset email.' },
       { status: 500 }

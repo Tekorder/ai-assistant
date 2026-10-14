@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import ProfileDashboard from './ProfileDashboard';
+import { getProfile } from '@/lib/session';
 
 type ProfilePanelProps = {
   open: boolean;
@@ -30,10 +31,9 @@ export default function ProfilePanel({ open, onClose }: ProfilePanelProps) {
   }, [open, shouldRender]);
 
   useEffect(() => {
-    try {
-      setName(localStorage.getItem('prisma_user_name') ?? '');
-      setEmail(localStorage.getItem('prisma_user_email') ?? '');
-    } catch {}
+    const profile = getProfile();
+    setName(profile.name);
+    setEmail(profile.email);
   }, [open]);
 
   if (!shouldRender) return null;
