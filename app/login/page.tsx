@@ -721,7 +721,8 @@ export default function LoginPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.ok === false) {
-        throw new Error(json?.message || 'Failed to send reset email.');
+        const base = json?.message || `Failed to send reset email (HTTP ${res.status}).`;
+        throw new Error(json?.detail ? `${base} (${json.detail})` : base);
       }
       setForgotSuccess(true);
     } catch (e) {
