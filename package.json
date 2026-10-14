@@ -20,7 +20,7 @@
     "compromise": "^14.14.5",
     "dotenv": "^17.4.2",
     "firebase": "^12.10.0",
-    "firebase-admin": "^14.1.0",
+    "firebase-admin": "^13.10.0",
     "next": "15.5.9",
     "pg": "^8.22.0",
     "react": "^19.0.0",
