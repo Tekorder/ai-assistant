@@ -10,7 +10,6 @@ import {
   type Project,
   // Constants
   LS_KEY_V2,
-  LS_KEY_V1,
   // Utilities
   uid,
   todayYMD,
@@ -18,7 +17,6 @@ import {
   isUncTitleBlock,
   ensureUncExists,
   moveUncToTop,
-  normalizeLoadedBlocks,
   makePersonalProject,
   // Block mutations
   updateBlock as updateBlockArr,
@@ -29,6 +27,7 @@ import {
   sortBlocksByOrder,
   // Projects persistence
   readProjectsLS,
+  readLegacyBlocksLS,
   writeProjectsLS,
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
@@ -180,10 +179,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
         return;
       }
 
-      const rawV1 = localStorage.getItem(LS_KEY_V1);
-      if (rawV1) {
-        const parsed = JSON.parse(rawV1);
-        const loadedBlocks = normalizeLoadedBlocks(parsed?.blocks ?? parsed);
+      const loadedBlocks = readLegacyBlocksLS();
+      if (loadedBlocks) {
         const loadedCollapsed = buildAllCollapsedFromBlocks(loadedBlocks);
         const personal = makePersonalProject(loadedBlocks, loadedCollapsed);
         setProjects([personal]);

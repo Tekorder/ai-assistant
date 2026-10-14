@@ -50,6 +50,7 @@ import {
   isProjectsHydrated,
   PROJECTS_HYDRATED_EVENT,
 } from '@/lib/datacenter';
+import { getCurrentUid } from '@/lib/session';
 import { TaskFlagButton } from '../TaskFlag';
 import { TaskReminderButton } from '../TaskReminder';
 import { FirstListWizard } from '../FirstListWizard';
@@ -62,9 +63,6 @@ import { FirstListWizard } from '../FirstListWizard';
 const wizardClosedThisLoad = new Set<string>();
 /** page.tsx mounts Quick twice (mobile + desktop containers) — this keeps both in step. */
 const WIZARD_CLOSED_EVENT = 'youtask_first_list_wizard_closed';
-const currentUid = () => {
-  try { return localStorage.getItem('firebase_uid') ?? ''; } catch { return ''; }
-};
 import { ListStatusPill } from '../ListStatusPill';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { useQuickFilters, type TaskFilterTag } from '../QuickFiltersContext';
@@ -611,7 +609,7 @@ export default function Quick(props: QuickProps = {}) {
   const [projectsHydrated, setProjectsHydrated] = useState(false);
   const [wizardClosed, setWizardClosed] = useState(true);
   useEffect(() => {
-    setWizardClosed(wizardClosedThisLoad.has(currentUid()));
+    setWizardClosed(wizardClosedThisLoad.has(getCurrentUid()));
     const check = () => setProjectsHydrated(isProjectsHydrated());
     const onClosedElsewhere = () => setWizardClosed(true);
     check();
@@ -633,7 +631,7 @@ export default function Quick(props: QuickProps = {}) {
 
   const closeWizard = () => {
     setWizardClosed(true);
-    wizardClosedThisLoad.add(currentUid());
+    wizardClosedThisLoad.add(getCurrentUid());
     window.dispatchEvent(new Event(WIZARD_CLOSED_EVENT));
   };
 

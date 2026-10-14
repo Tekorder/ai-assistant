@@ -2,13 +2,9 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { isTekOrderSession, logoutOfTekOrder, clearAuthProviderMarker } from '@/lib/tekorderSso';
-import { closeSyncGates, flushAllToDatabase, clearLocalAccountData } from '@/lib/datacenter';
+import { flushAllToDatabase } from '@/lib/datacenter';
+import { signOutAndClear } from '@/lib/session';
 import classes from '@/app/assistant/_theme/themes.module.css';
-
-const TWOFA_SESSION_KEY = 'youtask_2fa';
 
 type MenuProps = {
   open: boolean;
@@ -67,37 +63,10 @@ export default function Menu({
     }
   }, [open, shouldRender]);
 
-  const clearPrismaLocalStorage = useCallback(() => {
-    try {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k) continue;
-        if (k.startsWith('prisma_user_')) keysToRemove.push(k);
-      }
-      keysToRemove.push('firebase_uid');
-      keysToRemove.forEach((k) => localStorage.removeItem(k));
-    } catch {}
-    clearAuthProviderMarker();
-
-    try {
-      sessionStorage.removeItem('twofa_ok');
-      sessionStorage.removeItem(TWOFA_SESSION_KEY);
-    } catch {}
-
-    closeSyncGates();
-  }, []);
-
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = useCallback(async () => {
     if (loggingOut) return;
-    let storedUid: string | null = null;
-    try {
-      storedUid = localStorage.getItem('firebase_uid');
-    } catch {
-      // ignore
-    }
 
     // Postgres is the source of truth: make sure it has the latest before this
     // device is emptied. If it can't confirm, let the person decide.
@@ -113,27 +82,12 @@ export default function Menu({
       }
     }
 
-    try {
-      await signOut(auth);
-    } catch {
-      // ignore
-    }
-
-    if (isTekOrderSession(storedUid)) {
-      try {
-        await logoutOfTekOrder();
-      } catch {
-        // ignore — still clear our own session below
-      }
-    }
-
     // Empty the device — the next login reads everything back from Postgres
-    clearLocalAccountData();
-    clearPrismaLocalStorage();
+    await signOutAndClear({ tekorder: true });
     setLoggingOut(false);
     onClose();
     router.replace('/');
-  }, [clearPrismaLocalStorage, loggingOut, onClose, router]);
+  }, [loggingOut, onClose, router]);
 
   if (!shouldRender) return null;
 

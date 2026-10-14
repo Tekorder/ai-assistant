@@ -4,6 +4,9 @@
 //  Toda mutación, normalización y persistencia pasa por aquí.
 // ─────────────────────────────────────────────────────────────
 
+import { apiFetch } from './api';
+import { getCurrentUid } from './sessionStore';
+
 /* ===================== Constants ===================== */
 
 export const LS_KEY_V2        = 'youtask_projects_v1';
@@ -113,6 +116,8 @@ export type ReminderItem = {
   /** @deprecated use `flag` — kept for legacy data */
   priority?: boolean;
   flag?: TaskFlagColor;
+  /** YYYY-MM-DD it was dismissed from the bell — only counts as dismissed on that day. */
+  dismissedOn?: string;
 };
 
 export type RemindersPayload = {
@@ -483,9 +488,6 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
 
 /* ===================== Database sync (background, fire-and-forget) ===================== */
 
-function getFirebaseUid(): string {
-  try { return localStorage.getItem('firebase_uid') ?? ''; } catch { return ''; }
-}
 
 /* ===================== Sync logging =====================
  * Every step between localStorage and Postgres logs to the browser console as
@@ -735,7 +737,7 @@ export const PROJECTS_HYDRATED_EVENT = 'youtask_projects_hydrated';
  */
 export function isProjectsHydrated(): boolean {
   if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return true;
-  const uid = getFirebaseUid();
+  const uid = getCurrentUid();
   if (!uid || uid === 'testuser') return true;
   return syncGate['/api/data/projects'] && hydratedUid === uid;
 }
@@ -771,7 +773,7 @@ function notifySyncStatus(): void {
 
 export function getSyncStatus(): SyncStatus {
   if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return { state: 'off', message: 'Sync is off — local mode, data lives only on this device' };
-  const uid = getFirebaseUid();
+  const uid = getCurrentUid();
   if (!uid) return { state: 'off', message: 'Sync is off — not signed in' };
   if (uid === 'testuser') return { state: 'off', message: 'Sync is off — test user' };
 
@@ -835,7 +837,7 @@ const MAX_RETRY_MS = 30000;
 /** Why this device may NOT upload `path` right now, or null if it may. */
 function uploadBlocker(path: SyncPath): string | null {
   if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') return 'local mode (no Postgres)';
-  const uid = getFirebaseUid();
+  const uid = getCurrentUid();
   if (!uid) return 'no signed-in account';
   if (uid === 'testuser') return 'testuser (no Postgres)';
   if (!syncGate[path]) return 'initial load from Postgres not finished — change kept LOCAL ONLY';
@@ -847,7 +849,7 @@ function uploadBlocker(path: SyncPath): string | null {
 
 /** Everything that must hold for this device to upload `path` right now. */
 function canUpload(path: SyncPath): string | null {
-  return uploadBlocker(path) ? null : getFirebaseUid();
+  return uploadBlocker(path) ? null : getCurrentUid();
 }
 
 function sendLane(path: SyncPath): Promise<boolean> {
@@ -863,9 +865,10 @@ function sendLane(path: SyncPath): Promise<boolean> {
   syncLog(`⬆ uploading ${path} → Postgres (${summary})`, { account: uid, ...(path === '/api/data/projects' ? { tasks: taskTitles(body) } : {}) });
 
   notifySyncStatus();
-  lane.inFlight = fetch(path, {
+  lane.inFlight = apiFetch(path, {
+    uid,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Firebase-UID': uid, 'X-Sync-Hydrated': '1' },
+    headers: { 'Content-Type': 'application/json', 'X-Sync-Hydrated': '1' },
     body,
   })
     .then(r => (r.ok ? { ok: true, status: r.status } : { ok: false, status: r.status }))
@@ -1042,10 +1045,9 @@ export async function loadFromDatabase(): Promise<void> {
     syncLog('⏭ load from Postgres skipped — NEXT_PUBLIC_DATABASE_MODE=local (no database; data lives only in this browser)');
     return;
   }
-  const uid = getFirebaseUid();
+  const uid = getCurrentUid();
   if (!uid) { syncLog('⏭ load from Postgres skipped — no signed-in account'); return; }
   if (uid === 'testuser') { syncLog('⏭ load from Postgres skipped — testuser'); return; }
-  const headers = { 'X-Firebase-UID': uid };
 
   // Local data must belong to this account before anything below can treat it
   // as "this device's data" (the empty-server migration uploads it).
@@ -1080,10 +1082,10 @@ export async function loadFromDatabase(): Promise<void> {
   notifySyncStatus();
   try {
     const [projectsRes, habitsRes, remindersRes, checklistsRes] = await Promise.all([
-      needProjects   ? fetch('/api/data/projects',   { headers }).catch(() => null) : null,
-      needHabits     ? fetch('/api/data/habits',     { headers }).catch(() => null) : null,
-      needReminders  ? fetch('/api/data/reminders',  { headers }).catch(() => null) : null,
-      needChecklists ? fetch('/api/data/checklists', { headers }).catch(() => null) : null,
+      needProjects   ? apiFetch('/api/data/projects',   { uid }).catch(() => null) : null,
+      needHabits     ? apiFetch('/api/data/habits',     { uid }).catch(() => null) : null,
+      needReminders  ? apiFetch('/api/data/reminders',  { uid }).catch(() => null) : null,
+      needChecklists ? apiFetch('/api/data/checklists', { uid }).catch(() => null) : null,
     ]);
 
     const logGetFailure = (path: SyncPath, res: Response | null) => {
@@ -1232,6 +1234,18 @@ export function readProjectsLS(): ProjectsPayload | null {
         ? sel
         : safeProjects[0].project_id,
     };
+  } catch {
+    return null;
+  }
+}
+
+/** Pre-projects storage format — read only to migrate it into a Personal project. */
+export function readLegacyBlocksLS(): Block[] | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY_V1);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return normalizeLoadedBlocks(parsed?.blocks ?? parsed);
   } catch {
     return null;
   }
@@ -1789,6 +1803,7 @@ function normalizeReminders(raw: unknown): ReminderItem[] {
       : undefined,
     priority: typeof x?.priority === 'boolean' ? x.priority : false,
     flag: parseTaskFlag(x?.flag) ?? (x?.priority === true ? 'red' : undefined),
+    dismissedOn: isValidDateYYYYMMDD(x?.dismissedOn) ? x.dismissedOn as string : undefined,
   }));
 }
 
@@ -2615,14 +2630,15 @@ export async function deleteAllData(): Promise<{ ok: true } | { ok: false; messa
       clearLocal: () => writeChecklistsLS({ lists: [] }) },
   ];
 
-  const uid = getFirebaseUid();
+  const uid = getCurrentUid();
   const hasServer = process.env.NEXT_PUBLIC_DATABASE_MODE !== 'local' && Boolean(uid) && uid !== 'testuser';
 
   const results = hasServer
     ? await Promise.all(datasets.map(d =>
-        fetch(d.path, {
+        apiFetch(d.path, {
+          uid,
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Firebase-UID': uid, 'X-Sync-Hydrated': '1' },
+          headers: { 'Content-Type': 'application/json', 'X-Sync-Hydrated': '1' },
           body: JSON.stringify(d.body),
         }).then(r => r.ok).catch(() => false),
       ))

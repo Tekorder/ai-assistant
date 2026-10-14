@@ -16,6 +16,10 @@ model User {
   timezone               String     @default("America/Tegucigalpa")
   selectedProjectLocalId String?
   onboarded              Boolean    @default(false)
+  // free | paid | perpetual. "paid" is active only while paidUntil is in the future.
+  plan                   String     @default("free")
+  paidUntil              DateTime?
+  payments               Payment[]
   projects               Project[]
   habits                 Habit[]
   reminders              Reminder[]
@@ -125,6 +129,8 @@ model Reminder {
   days         Int[]    @default([])
   position     Int      @default(0)
   flag         String?
+  /// YYYY-MM-DD the user dismissed it from the bell; it counts as dismissed only on that day
+  dismissedOn  String?
   createdAt    String?
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   rowCreatedAt DateTime @default(now())
@@ -133,4 +139,18 @@ model Reminder {
   @@unique([userId, localId])
   @@index([userId, date])
   @@index([userId, position])
+}
+
+model Payment {
+  id           String   @id @default(cuid())
+  userId       String
+  /// Amount in cents
+  amount       Int
+  currency     String   @default("USD")
+  paidAt       DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rowCreatedAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([paidAt])
 }
