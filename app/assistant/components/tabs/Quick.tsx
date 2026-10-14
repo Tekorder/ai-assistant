@@ -1101,6 +1101,21 @@ const handleKey = (
           if (hiddenByListMap[listBlock.id]) return null;
           const isUncList = isUncTitleBlock(listBlock);
           const tasks = tasksByParent.get(listBlock.id) ?? [];
+          const visibleTasks = tasks.filter(task =>
+            !hiddenMap[task.id] && !hiddenByListMap[task.id] &&
+            (showCompleted || task.checked !== true) &&
+            !(hideOnHold && task.onHold === true) &&
+            !(taskFilter === 'priority' && !getTaskFlag(task)),
+          );
+          // Hovering the last visible task (or the header of an empty list) reveals a
+          // ghost "Task…" row right below it; clicking it adds a task to this list.
+          // Only offered once the last task is committed (has text, not being edited),
+          // so a task still being typed never gets another suggested under it.
+          const lastVisibleTask = visibleTasks.length > 0 ? visibleTasks[visibleTasks.length - 1] : null;
+          const lastVisibleTaskId = lastVisibleTask?.id ?? null;
+          const lastTaskCommitted = !lastVisibleTask ||
+            ((lastVisibleTask.text || '').trim() !== '' && editingTaskId !== lastVisibleTask.id);
+          const showAddGhost = !collapsed[listBlock.id] && (visibleTasks.length > 0 || !isUncList) && lastTaskCommitted;
           const lDragOver = dragOverId === listBlock.id && dragRef.current?.id !== listBlock.id;
           const lDragMe   = dragRef.current?.id === listBlock.id;
 
@@ -1114,7 +1129,7 @@ const handleKey = (
                   onDragOver={e => onDragOverRow(e, listBlock.id)}
                   onDrop={e => onDropRow(e, listBlock.id)}
                   onDragEnd={onDragEndRow}
-                  className={['group flex items-center px-0.5 py-1 gap-2', lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : ''].join(' ')}
+                  className={['group flex items-center px-0.5 py-1 gap-2', lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : '', showAddGhost && !lastVisibleTaskId ? 'quick-add-anchor' : ''].join(' ')}
                   style={{ paddingLeft: 2 }}>
                   <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
                     {dragDots}
@@ -1199,11 +1214,7 @@ const handleKey = (
                 </div>
               )}
               {/* ── Tasks belonging to this list ── */}
-              {tasks.map(task => {
-                if (hiddenMap[task.id] || hiddenByListMap[task.id]) return null;
-                if (!showCompleted && task.checked === true) return null;
-                if (hideOnHold && task.onHold === true) return null;
-                if (taskFilter === 'priority' && !getTaskFlag(task)) return null;
+              {visibleTasks.map(task => {
                 // someday / scheduled: layout only for now
                 const tDragOver = dragOverId === task.id && dragRef.current?.id !== task.id;
                 const tDragMe   = dragRef.current?.id === task.id;
@@ -1215,7 +1226,7 @@ const handleKey = (
                       onDragOver={e => onDragOverRow(e, task.id)}
                       onDrop={e => onDropRow(e, task.id)}
                       onDragEnd={onDragEndRow}
-                      className={['group flex items-center px-0.5 py-1 gap-1', tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : ''].join(' ')}
+                      className={['group flex items-center px-0.5 py-1 gap-1', tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', showAddGhost && task.id === lastVisibleTaskId ? 'quick-add-anchor' : ''].join(' ')}
                       style={{ paddingLeft: isUncList ? 6 : 8 + task.indent * 16 }}>
                       <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
                         {dragDots}
@@ -1320,6 +1331,24 @@ const handleKey = (
                   </React.Fragment>
                 );
               })}
+              {showAddGhost && (
+                <button
+                  type="button"
+                  onClick={() => handleAddTaskUnderList(listBlock.id)}
+                  aria-label="Add task"
+                  className="quick-add-ghost w-full flex items-center px-0.5 gap-1 text-left"
+                  style={{ paddingLeft: isUncList ? 6 : 24, marginTop: 0, marginBottom: 0 }}
+                >
+                  <div className="w-3 shrink-0" />
+                  <div className="w-3 shrink-0" />
+                  <span className="h-4 w-4 shrink-0 flex items-center justify-center">
+                    <span className="h-3.5 w-3.5 rounded-full border border-dashed" style={{ borderColor: 'var(--assistant-text-faint)' }} />
+                  </span>
+                  <span className="text-[14px] md:text-sm leading-[1.45]" style={{ color: 'var(--assistant-text-faint)' }}>
+                    Task…
+                  </span>
+                </button>
+              )}
             </React.Fragment>
           );
         })}
@@ -1392,6 +1421,18 @@ const handleKey = (
       <GamificationToast show={toastShow} message={toastMsg} />
       <style>{`
         .quick-word-clickable { cursor: pointer; }
+        /* Collapsed to zero height; the hide is delayed so the pointer can cross
+           the gap from the anchor row into the ghost without it closing. */
+        .quick-add-ghost {
+          max-height: 0; opacity: 0; overflow: hidden; cursor: text;
+          transition: max-height 0.15s ease 0.25s, opacity 0.15s ease 0.25s, padding 0.15s ease 0.25s;
+        }
+        .quick-add-anchor:hover + .quick-add-ghost,
+        .quick-add-ghost:hover,
+        .quick-add-ghost:focus-visible {
+          max-height: 2rem; opacity: 1; padding-top: 0.25rem; padding-bottom: 0.25rem;
+          transition-delay: 0s;
+        }
       `}</style>
 
       {/* Mobile bottom sheet */}
