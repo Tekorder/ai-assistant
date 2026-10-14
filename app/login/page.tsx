@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   loginWithEmail,
+  sendFirebaseReset,
   signInWithGoogle,
 } from '@/lib/auth';
 import { openTekOrderLogin } from '@/lib/tekorderSso';
@@ -714,19 +715,20 @@ export default function LoginPage() {
     setForgotError('');
     setForgotLoading(true);
     try {
-      const res = await fetch('/api/auth/send-reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: forgotEmail.trim().toLowerCase() }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || json?.ok === false) {
-        const base = json?.message || `Failed to send reset email (HTTP ${res.status}).`;
-        throw new Error(json?.detail ? `${base} (${json.detail})` : base);
-      }
+      await sendFirebaseReset(forgotEmail.trim().toLowerCase());
       setForgotSuccess(true);
     } catch (e) {
-      setForgotError(e instanceof Error ? e.message : 'Something went wrong.');
+      const code = (e as { code?: string })?.code;
+      // Don't reveal whether the email exists
+      if (code === 'auth/user-not-found') {
+        setForgotSuccess(true);
+      } else if (code === 'auth/invalid-email' || code === 'auth/missing-email') {
+        setForgotError('Enter a valid email address.');
+      } else if (code === 'auth/too-many-requests') {
+        setForgotError('Too many attempts. Please try again in a few minutes.');
+      } else {
+        setForgotError(code ? `Failed to send reset email (${code}).` : 'Failed to send reset email.');
+      }
     } finally {
       setForgotLoading(false);
     }
