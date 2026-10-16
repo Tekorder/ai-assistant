@@ -1162,7 +1162,7 @@ export default function App() {
                 style={dockSlotStyle(pivot.id, true, listsPanelWidth)}
               >
                 <div className={dockSlotInnerClass(pivot.id)}>
-                  {accordionBar(pivot.id, `Search: ${pivot.word}`)}
+                  {accordionBar(pivot.id, `${pivot.listId ? 'List' : 'Keyword'}: ${pivot.word}`)}
                   <PivotPanel
                     variant="dock"
                     open

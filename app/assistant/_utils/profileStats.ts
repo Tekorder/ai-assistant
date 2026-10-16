@@ -15,7 +15,6 @@ import {
 export type TaskRow = {
   id: string;
   done: boolean;
-  onHold: boolean;
   due?: string;
   created?: string;
   flag?: TaskFlagColor;
@@ -40,7 +39,6 @@ export type MonthStats = {
   completed: number;
   pending: number;
   overdue: number;
-  onHold: number;
   completionRate: number | null; // 0-1, null when nothing was due
   created: number;
   reminders: number;
@@ -71,7 +69,6 @@ export function collectTasks(projects: Project[]): TaskRow[] {
       rows.push({
         id: b.id,
         done: b.checked === true,
-        onHold: b.onHold === true,
         due: isValidDateYYYYMMDD(b.deadline) ? b.deadline : undefined,
         created: isValidDateYYYYMMDD(b.createdAt) ? b.createdAt : undefined,
         flag: getTaskFlag(b),
@@ -183,8 +180,7 @@ export function computeMonthStats(
   }
 
   const open = dueRows.filter(t => !t.done);
-  const onHold = open.filter(t => t.onHold).length;
-  const overdue = open.filter(t => !t.onHold && t.due! < today).length;
+  const overdue = open.filter(t => t.due! < today).length;
 
   const d = new Date(month.y, month.m, 1);
   return {
@@ -195,9 +191,8 @@ export function computeMonthStats(
     elapsedDays,
     due: dueRows.length,
     completed: doneRows.length,
-    pending: open.length - onHold - overdue,
+    pending: open.length - overdue,
     overdue,
-    onHold,
     completionRate: dueRows.length ? doneRows.length / dueRows.length : null,
     created: tasks.filter(t => inMonth(t.created)).length,
     reminders: reminders.filter(r => (r.title || '').trim() && inMonth(r.date)).length,

@@ -209,7 +209,6 @@ function QuickProgressBlock({
 export function ActionsPanel({
   dateMode, setDateMode, showCompleted, setShowCompleted,
   sortBy, setSortBy,
-  hideOnHold, setHideOnHold,
   taskFilter, setTaskFilter,
   searchQuery, setSearchQuery,
 }: {
@@ -218,7 +217,6 @@ export function ActionsPanel({
   dateMode: DateMode; setDateMode: (m: DateMode) => void;
   showCompleted: boolean; setShowCompleted: (v: boolean | ((p: boolean) => boolean)) => void;
   sortBy: SortBy; setSortBy: (v: SortBy) => void;
-  hideOnHold: boolean; setHideOnHold: (v: boolean | ((p: boolean) => boolean)) => void;
   taskFilter: TaskFilterTag; setTaskFilter: (v: TaskFilterTag) => void;
   /** @deprecated layout is always chips now */
   chips?: boolean;
@@ -317,13 +315,6 @@ export function ActionsPanel({
           >
             Hide Completed
           </button>
-          <button
-            type="button"
-            onClick={() => setHideOnHold(s => !s)}
-            className={pill(hideOnHold)}
-          >
-            Hide On Hold
-          </button>
         </div>
       </div>
     </div>
@@ -351,7 +342,6 @@ export default function Quick(props: QuickProps = {}) {
   const {
     dateMode, setDateMode,
     showCompleted, setShowCompleted,
-    hideOnHold, setHideOnHold,
     sortBy, setSortBy,
     taskFilter, setTaskFilter,
     searchQuery, setSearchQuery,
@@ -1219,18 +1209,6 @@ const handleKey = (
         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
       </svg>
     );
-    const holdIcon = (
-      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-        <circle cx="8" cy="8" r="6.2" />
-        <path strokeLinecap="round" d="M6.4 5.6v4.8M9.6 5.6v4.8" />
-      </svg>
-    );
-    const resumeIcon = (
-      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-        <circle cx="8" cy="8" r="6.2" />
-        <path strokeLinejoin="round" d="M6.6 5.4l4 2.6-4 2.6z" />
-      </svg>
-    );
     const noteIcon = (
       <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 2.5h7l3 3v8H3z" />
@@ -1254,7 +1232,6 @@ const handleKey = (
           const visibleTasks = tasks.filter(task =>
             !hiddenMap[task.id] && !hiddenByListMap[task.id] &&
             (showCompleted || task.checked !== true) &&
-            !(hideOnHold && task.onHold === true) &&
             !(viewTaskFilter === 'priority' && !getTaskFlag(task)) &&
             (!searching || listMatches || matchesSearch(task)),
           );
@@ -1407,15 +1384,12 @@ const handleKey = (
                             value={isValidDateYYYYMMDD(task.deadline) ? task.deadline : ''}
                             onChange={e => {
                               const v = e.target.value;
-                              handleUpdateBlock(task.id, { deadline: v ? v : undefined, onHold: false });
+                              handleUpdateBlock(task.id, { deadline: v ? v : undefined });
                               setEditingDateTaskId(null);
                             }}
                             onBlur={() => setEditingDateTaskId(null)}
                             onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setEditingDateTaskId(null); }}
                           />
-                        )}
-                        {task.onHold && (
-                          <span className={`shrink-0 mt-0.5 text-[11px] px-1.5 py-0.5 rounded-full ${classes.quickDatePillHold}`}>HOLD</span>
                         )}
                       </div>
                       {editingTaskId !== task.id && (
@@ -1432,29 +1406,6 @@ const handleKey = (
                           className={`shrink-0 h-5 w-5 flex items-center justify-center opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-all duration-150 ${classes.quickEditBtn}`}
                         >
                           {editIcon}
-                        </button>
-                      )}
-                      {editingTaskId !== task.id && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUpdateBlock(task.id, { onHold: !task.onHold });
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          aria-pressed={task.onHold === true}
-                          aria-label={task.onHold ? 'Remove hold' : 'Put on hold'}
-                          title={task.onHold ? 'Remove hold' : 'Put on hold'}
-                          // On-hold tasks keep the button visible (accent) so it's easy to resume
-                          className={[
-                            'shrink-0 h-5 w-5 flex items-center justify-center transition-all duration-150',
-                            task.onHold
-                              ? 'opacity-80 hover:opacity-100'
-                              : `opacity-0 group-hover:opacity-70 hover:!opacity-100 ${classes.quickEditBtn}`,
-                          ].join(' ')}
-                          style={task.onHold ? { color: 'var(--assistant-accent)' } : undefined}
-                        >
-                          {task.onHold ? resumeIcon : holdIcon}
                         </button>
                       )}
                       {editingTaskId !== task.id && (
@@ -1591,7 +1542,6 @@ const handleKey = (
   const actionsPanelProps = {
     dateMode, setDateMode, showCompleted, setShowCompleted,
     sortBy, setSortBy,
-    hideOnHold, setHideOnHold,
     taskFilter, setTaskFilter,
     searchQuery, setSearchQuery,
   };

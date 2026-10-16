@@ -674,17 +674,6 @@
   background: rgba(59,130,246,.30);
 }
 
-.quickDatePillHold {
-  background: rgba(148,163,184,.28);
-  color: color-mix(in srgb, #94a3b8 80%, var(--assistant-text));
-  font-weight: 700;
-  letter-spacing: .02em;
-}
-
-.quickDatePillHold:hover {
-  background: rgba(148,163,184,.38);
-}
-
 .quickDatePillInput {
   background: color-mix(in srgb, var(--assistant-accent) 16%, transparent);
   border: 1px solid color-mix(in srgb, var(--assistant-accent) 35%, transparent);

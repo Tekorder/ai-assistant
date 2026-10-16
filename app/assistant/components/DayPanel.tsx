@@ -19,7 +19,6 @@ import {
   type TaskFlagColor,
 } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
-import { HoldMenu } from './HoldMenu';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 type CalCard = {
@@ -30,7 +29,6 @@ type CalCard = {
   deadline: string;
   isHidden?: boolean;
   archived?: boolean;
-  onHold?: boolean;
   flag?: TaskFlagColor;
 };
 
@@ -105,7 +103,6 @@ export default function DayPanel({
 
   const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [holdMenu, setHoldMenu] = useState<{ cardId: string; x: number; y: number } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [newTaskListId, setNewTaskListId] = useState('');
   const [newTaskText, setNewTaskText] = useState('');
@@ -190,7 +187,6 @@ export default function DayPanel({
         deadline: b.deadline!,
         isHidden: b.isHidden === true,
         archived: b.archived,
-        onHold: b.onHold === true,
         flag: getTaskFlag(b),
       });
     }
@@ -261,17 +257,6 @@ export default function DayPanel({
       if (b.id !== cardId || b.indent !== 1) continue;
       b.deadline = newDeadline;
       if (b.isHidden === true) b.isHidden = false;
-      b.onHold = false;
-      break;
-    }
-    persist(next);
-  };
-
-  const handleSetHold = (cardId: string, onHold: boolean) => {
-    const next = blocks.map(x => ({ ...x }));
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      b.onHold = onHold;
       break;
     }
     persist(next);
@@ -458,23 +443,10 @@ export default function DayPanel({
                           <button
                             type="button"
                             onClick={() => openPicker(card.id)}
-                            onContextMenu={e => {
-                              e.preventDefault();
-                              setHoldMenu({ cardId: card.id, x: e.clientX, y: e.clientY });
-                            }}
-                            className={
-                              card.onHold
-                                ? 'text-[11px] font-bold tracking-wide px-1.5 py-0.5 rounded opacity-70 hover:opacity-100 transition-opacity'
-                                : 'text-[15px] opacity-40 hover:opacity-90 transition-opacity'
-                            }
-                            style={
-                              card.onHold
-                                ? { color: 'var(--assistant-text-faint)', background: 'var(--assistant-control-bg)' }
-                                : undefined
-                            }
-                            title={card.onHold ? 'On Hold — right-click for options' : 'Reschedule'}
+                            className="text-[15px] opacity-40 hover:opacity-90 transition-opacity"
+                            title="Reschedule"
                           >
-                            {card.onHold ? 'HOLD' : '📅'}
+                            📅
                           </button>
                           <input
                             ref={el => void (dateRefs.current[card.id] = el)}
@@ -639,18 +611,6 @@ export default function DayPanel({
         </div>
       )}
 
-      {holdMenu ? (
-        <HoldMenu
-          x={holdMenu.x}
-          y={holdMenu.y}
-          isOnHold={Boolean(groups.flatMap(g => g.cards).find(c => c.id === holdMenu.cardId)?.onHold)}
-          onToggleHold={() => {
-            const card = groups.flatMap(g => g.cards).find(c => c.id === holdMenu.cardId);
-            handleSetHold(holdMenu.cardId, !card?.onHold);
-          }}
-          onClose={() => setHoldMenu(null)}
-        />
-      ) : null}
     </>
   );
 

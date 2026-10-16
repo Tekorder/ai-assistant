@@ -311,15 +311,15 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
     <>
       <div className="flex h-[49px] shrink-0 items-center gap-2 px-4" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <span className="shrink-0 text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--assistant-accent)' }}>Search</span>
+          <span className="shrink-0 text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--assistant-accent)' }}>{pivotKind === 'list' ? 'List' : 'Keyword'}</span>
           <h2 className="min-w-0 truncate text-[16px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }} title={word}>&ldquo;{word}&rdquo;</h2>
         </div>
         <button
           type="button"
           onClick={onClose}
           className={`h-8 w-8 shrink-0 rounded-lg ${classes.panelCloseBtn}`}
-          aria-label="Close search"
-          title="Close search"
+          aria-label="Close keyword panel"
+          title="Close"
         >
           ✕
         </button>
@@ -426,7 +426,7 @@ export function PivotPanel({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={word ? `Search: ${word}` : 'Search'}
+        aria-label={word ? `Keyword: ${word}` : 'Keyword'}
         className={`flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
         style={{
           color: 'var(--assistant-text)',
@@ -470,7 +470,7 @@ export function PivotPanel({
         type="button"
         className="fixed inset-0 z-[200]"
         onClick={requestClose}
-        aria-label="Close search"
+        aria-label="Close keyword panel"
         style={{
           background: 'var(--assistant-overlay)',
           animation: isClosing
@@ -481,7 +481,7 @@ export function PivotPanel({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={word ? `Search: ${word}` : 'Search'}
+        aria-label={word ? `Keyword: ${word}` : 'Keyword'}
         className={`fixed left-3 top-3 z-[201] flex h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl ${classes.panelGlass} ${classes.panelOverlay}`}
         style={{
           color: 'var(--assistant-text)',

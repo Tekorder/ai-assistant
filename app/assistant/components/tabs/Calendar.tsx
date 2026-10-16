@@ -27,7 +27,6 @@ type CalCard = {
   deadline: string;
   isHidden?: boolean;
   archived?: boolean;
-  onHold?: boolean;
   flag?: TaskFlagColor;
 };
 
@@ -185,7 +184,6 @@ export default function CalendarView({
         deadline:  b.deadline!,
         isHidden:  b.isHidden === true,
         archived:  b.archived,
-        onHold:    b.onHold === true,
         flag: getTaskFlag(b),
       });
     }
