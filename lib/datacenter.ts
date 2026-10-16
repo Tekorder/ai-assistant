@@ -67,6 +67,8 @@ export type Block = {
   priority?: boolean;
   flag?: TaskFlagColor;
   listStatus?: ListStatus;
+  /** Free-text note on a task (indent > 0) */
+  note?: string;
 };
 
 export type Project = {
@@ -156,6 +158,7 @@ type RawBlock = {
   priority?: unknown;
   flag?: unknown;
   listStatus?: unknown;
+  note?: unknown;
 };
 
 type RawProject = {
@@ -243,14 +246,15 @@ export function dayDiffFromToday(yyyyMmDd?: string): number | null {
   return Math.round(ms / 86400000);
 }
 
+/** Date pill tone classes — colors live in globals.css (`.yt-pill-*`) with light-theme variants. */
 export function pillClass(deadline?: string, checked?: boolean): string {
-  if (checked) return 'bg-emerald-500/22 text-emerald-200 hover:bg-emerald-500/30';
+  if (checked) return 'yt-pill-done';
   const diff = dayDiffFromToday(deadline);
-  if (diff === null) return 'bg-white/[0.06] text-white/30 hover:text-white/50 hover:bg-white/10';
-  if (diff < 0)  return 'bg-red-500/20 text-red-200 hover:bg-red-500/28';
-  if (diff === 0) return 'bg-amber-500/20 text-amber-200 hover:bg-amber-500/28';
-  if (diff === 1) return 'bg-emerald-500/18 text-emerald-200 hover:bg-emerald-500/26';
-  return 'bg-sky-500/16 text-sky-200/80 hover:bg-sky-500/24';
+  if (diff === null) return 'yt-pill-none';
+  if (diff < 0)  return 'yt-pill-overdue';
+  if (diff === 0) return 'yt-pill-today';
+  if (diff === 1) return 'yt-pill-tomorrow';
+  return 'yt-pill-later';
 }
 
 export function labelForYMD(ymd: string): string {
@@ -425,6 +429,117 @@ export function makePersonalProject(
   };
 }
 
+/**
+ * Starter groups, seeded once per account (new and existing ones) — first and in
+ * this order — so people see groups are a thing. After that they're ordinary
+ * groups: renamable and deletable. Matched by title when seeding (an existing
+ * "Personal" keeps its id); missing ones get a fixed id.
+ */
+export const DEFAULT_GROUPS = [
+  { id: 'group_personal', title: 'Personal' },
+  { id: 'group_work', title: 'Work' },
+  { id: 'group_family', title: 'Family' },
+] as const;
+
+export function isDefaultGroup(project: Pick<Project, 'title'>): boolean {
+  const t = (project.title || '').trim().toLowerCase();
+  return DEFAULT_GROUPS.some(d => d.title.toLowerCase() === t);
+}
+
+export function ensureDefaultGroups(projects: Project[]): Project[] {
+  const rest = [...projects];
+  const defaults = DEFAULT_GROUPS.map(d => {
+    const i = rest.findIndex(p => (p.title || '').trim().toLowerCase() === d.title.toLowerCase());
+    if (i >= 0) {
+      const [p] = rest.splice(i, 1);
+      return p.title === d.title ? p : { ...p, title: d.title };
+    }
+    return { ...makePersonalProject(), project_id: d.id, title: d.title };
+  });
+  return [...defaults, ...rest];
+}
+
+const LS_KEY_GROUPS_SEEDED = 'youtask_groups_seeded';
+
+/** Adds the starter groups to this device's projects (and uploads, once synced). */
+function seedDefaultGroups(): void {
+  const payload = readProjectsLS();
+  const projects = ensureDefaultGroups(payload?.projects ?? []);
+  writeProjectsLS({ projects, selectedProjectId: payload?.selectedProjectId ?? projects[0].project_id });
+}
+
+/** No server to remember it (local mode / testuser) → this browser remembers instead. */
+function seedDefaultGroupsLocallyOnce(): void {
+  try {
+    if (localStorage.getItem(LS_KEY_GROUPS_SEEDED)) return;
+    seedDefaultGroups();
+    localStorage.setItem(LS_KEY_GROUPS_SEEDED, '1');
+  } catch {}
+}
+
+/**
+ * Move a list (and every task under it) into another group, placed before
+ * `beforeListId` in that group, or at the end when it's null.
+ */
+export function moveListToProject(
+  projects: Project[],
+  listId: string,
+  toProjectId: string,
+  beforeListId: string | null,
+): Project[] {
+  const fromIdx = projects.findIndex(p => (p.blocks ?? []).some(b => b.id === listId && b.indent === 0));
+  const toIdx = projects.findIndex(p => p.project_id === toProjectId);
+  if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return projects;
+  const from = projects[fromIdx];
+  const to = projects[toIdx];
+  const list = from.blocks.find(b => b.id === listId)!;
+  if (isUncTitleBlock(list)) return projects;
+
+  const moving = from.blocks.filter(b => b.id === listId || b.parentId === listId);
+  const movingIds = new Set(moving.map(b => b.id));
+
+  const roots = to.blocks
+    .filter(b => b.indent === 0 && !isUncTitleBlock(b))
+    .sort((a, b) => a.order - b.order);
+  const at = beforeListId ? roots.findIndex(r => r.id === beforeListId) : -1;
+  roots.splice(at < 0 ? roots.length : at, 0, list);
+  const orderById = new Map(roots.map((r, i) => [r.id, i]));
+  const toBlocks = [...to.blocks, ...moving].map(b =>
+    orderById.has(b.id) ? { ...b, order: orderById.get(b.id)! } : b,
+  );
+
+  // The list's per-list UI flags travel with it
+  const take = (src: Record<string, boolean> | undefined) => {
+    const { [listId]: value, ...rest } = src ?? {};
+    return { rest, carry: value === undefined ? {} : { [listId]: value } };
+  };
+  const col = take(from.collapsed);
+  const qcol = take(from.quickCollapsed);
+  const vis = take(from.visibleLists);
+
+  return projects.map((p, i) => {
+    if (i === fromIdx) {
+      return {
+        ...from,
+        blocks: moveUncToTop(ensureUncExists(from.blocks.filter(b => !movingIds.has(b.id)))),
+        collapsed: col.rest,
+        quickCollapsed: qcol.rest,
+        visibleLists: vis.rest,
+      };
+    }
+    if (i === toIdx) {
+      return {
+        ...to,
+        blocks: sortBlocksByOrder(moveUncToTop(ensureUncExists(toBlocks))),
+        collapsed: { ...to.collapsed, ...col.carry },
+        quickCollapsed: { ...to.quickCollapsed, ...qcol.carry },
+        visibleLists: { ...to.visibleLists, ...vis.carry },
+      };
+    }
+    return p;
+  });
+}
+
 /* ===================== Normalization ===================== */
 
 export function normalizeLoadedBlocks(raw: unknown): Block[] {
@@ -442,6 +557,7 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
     if (b.indent > 0) {
       b.checked = Boolean(x?.checked);
       if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline as string;
+      if (typeof x?.note === 'string' && x.note.trim() !== '') b.note = x.note;
     } else {
       const listStatus = parseListStatus(x?.listStatus);
       if (listStatus) b.listStatus = listStatus;
@@ -926,7 +1042,8 @@ function dbPost(path: SyncPath): void {
 
 function projectsPayloadHasData(payload: ProjectsPayload | null): boolean {
   if (!payload) return false;
-  if (payload.projects.length > 1) return true;
+  // Empty starter groups are boot state, not data — only a custom group counts
+  if (payload.projects.some(p => !isDefaultGroup(p))) return true;
   return payload.projects.some(p =>
     (p.blocks ?? []).some(b => !isUncTitleBlock(b) && (b.text ?? '').trim() !== ''),
   );
@@ -1043,11 +1160,12 @@ function hookHydrationRetry(): void {
 export async function loadFromDatabase(): Promise<void> {
   if (process.env.NEXT_PUBLIC_DATABASE_MODE === 'local') {
     syncLog('⏭ load from Postgres skipped — NEXT_PUBLIC_DATABASE_MODE=local (no database; data lives only in this browser)');
+    seedDefaultGroupsLocallyOnce();
     return;
   }
   const uid = getCurrentUid();
   if (!uid) { syncLog('⏭ load from Postgres skipped — no signed-in account'); return; }
-  if (uid === 'testuser') { syncLog('⏭ load from Postgres skipped — testuser'); return; }
+  if (uid === 'testuser') { syncLog('⏭ load from Postgres skipped — testuser'); seedDefaultGroupsLocallyOnce(); return; }
 
   // Local data must belong to this account before anything below can treat it
   // as "this device's data" (the empty-server migration uploads it).
@@ -1099,7 +1217,7 @@ export async function loadFromDatabase(): Promise<void> {
     logGetFailure('/api/data/checklists', checklistsRes);
 
     if (projectsRes?.ok) {
-      const data = await projectsRes.json() as { projects?: unknown[]; onboarded?: boolean };
+      const data = await projectsRes.json() as { projects?: unknown[]; onboarded?: boolean; groupsSeeded?: boolean };
       if (data.onboarded) {
         try { localStorage.setItem('youtask_occupation', 'skipped'); } catch {}
       }
@@ -1123,6 +1241,11 @@ export async function loadFromDatabase(): Promise<void> {
         } else {
           syncLog('⬇ Postgres is empty and so is this browser — fresh start', { account: uid });
         }
+      }
+      // Gate is open by now, so this write uploads — and the server flips groupsSeeded
+      if (data.groupsSeeded === false) {
+        syncLog('🌱 seeding starter groups (Personal, Work, Family) — first time for this account', { account: uid });
+        seedDefaultGroups();
       }
     }
 
@@ -1491,34 +1614,91 @@ export function removeTaskAndSubtasks(blocks: Block[], taskId: string): Block[] 
   return blocks.slice(0, i).concat(blocks.slice(end));
 }
 
+function applyPatch(b: Block, patch: Partial<Block>, focusDay?: string): Block {
+  if (patch.checked === true) {
+    return {
+      ...b,
+      ...patch,
+      deadline: isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD(),
+      isHidden: false,
+    };
+  }
+
+  if (patch.checked === false) {
+    return {
+      ...b,
+      ...patch,
+      isHidden: false,
+    };
+  }
+
+  return { ...b, ...patch };
+}
+
+/**
+ * Subtasks aren't linked by parentId (that stays the list); a task's subtasks are the
+ * siblings right below it, in order, with a deeper indent. Returns the target's
+ * descendants and its ancestor chain (nearest parent first).
+ */
+function taskFamily(blocks: Block[], id: string): { descendants: Block[]; ancestors: Block[] } {
+  const target = blocks.find(b => b.id === id);
+  if (!target || target.indent <= 0) return { descendants: [], ancestors: [] };
+  const siblings = blocks
+    .filter(b => b.indent > 0 && b.parentId === target.parentId && b.archived !== true)
+    .sort((a, b) => a.order - b.order);
+  const i = siblings.findIndex(b => b.id === id);
+  if (i < 0) return { descendants: [], ancestors: [] };
+
+  const descendants: Block[] = [];
+  for (let j = i + 1; j < siblings.length && siblings[j].indent > target.indent; j++) {
+    descendants.push(siblings[j]);
+  }
+
+  const ancestors: Block[] = [];
+  let level = target.indent;
+  for (let j = i - 1; j >= 0 && level > 1; j--) {
+    if (siblings[j].indent < level) {
+      ancestors.push(siblings[j]);
+      level = siblings[j].indent;
+    }
+  }
+  return { descendants, ancestors };
+}
+
+/** Delete a task along with its subtasks (same sibling/indent rule as the check cascade). */
+export function removeTaskWithSubtasks(blocks: Block[], taskId: string): Block[] {
+  const ids = new Set([taskId, ...taskFamily(blocks, taskId).descendants.map(d => d.id)]);
+  return blocks.filter(b => !ids.has(b.id));
+}
+
 export function updateBlock(
   blocks: Block[],
   id: string,
   patch: Partial<Block>,
   focusDay?: string,
 ): Block[] {
-  return blocks.map(b => {
-    if (b.id !== id) return b;
+  let next = blocks.map(b => (b.id === id ? applyPatch(b, patch, focusDay) : b));
+  if (typeof patch.checked !== 'boolean') return next;
 
-    if (patch.checked === true) {
-      return {
-        ...b,
-        ...patch,
-        deadline: isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD(),
-        isHidden: false,
-      };
+  // Checking/unchecking a task does the same to all its subtasks
+  const checked = patch.checked;
+  const setChecked = (ids: Set<string>) => {
+    if (ids.size === 0) return;
+    next = next.map(b => (ids.has(b.id) ? applyPatch(b, { checked }, focusDay) : b));
+  };
+  const { descendants, ancestors } = taskFamily(next, id);
+  setChecked(new Set(descendants.filter(d => Boolean(d.checked) !== checked).map(d => d.id)));
+
+  // …and walks up: a parent is done once all its subtasks are, and reopens when one isn't
+  for (const parent of ancestors) {
+    if (Boolean(parent.checked) === checked) break;
+    if (checked) {
+      const kids = taskFamily(next, parent.id).descendants;
+      if (!kids.every(k => k.checked === true)) break;
     }
-
-    if (patch.checked === false) {
-      return {
-        ...b,
-        ...patch,
-        isHidden: false,
-      };
-    }
-
-    return { ...b, ...patch };
-  });
+    setChecked(new Set([parent.id]));
+  }
+  return next;
 }
 
 export function addTaskUnderList(
@@ -2614,11 +2794,12 @@ export function moveChecklistItem(
  * confirmed it, so device and server never disagree about what's left.
  */
 export async function deleteAllData(): Promise<{ ok: true } | { ok: false; message: string }> {
-  const personal = makePersonalProject();
+  // Start over from the starter groups, like a new account
+  const fresh = ensureDefaultGroups([]);
   const datasets = [
     { label: 'lists & tasks', path: '/api/data/projects' as SyncPath,
-      body: { projects: [personal], selectedProjectId: personal.project_id } as ProjectsPayload,
-      clearLocal: () => writeProjectsLS({ projects: [personal], selectedProjectId: personal.project_id }) },
+      body: { projects: fresh, selectedProjectId: fresh[0].project_id } as ProjectsPayload,
+      clearLocal: () => writeProjectsLS({ projects: fresh, selectedProjectId: fresh[0].project_id }) },
     { label: 'habits', path: '/api/data/habits' as SyncPath,
       body: { habits: [] } as HabitsPayload,
       clearLocal: () => writeHabitsLS({ ...readHabitsLS(), habits: [] }) },

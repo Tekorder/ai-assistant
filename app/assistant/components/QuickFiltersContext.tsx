@@ -16,6 +16,9 @@ type QuickFiltersContextValue = {
   setSortBy: (v: SortBy) => void;
   taskFilter: TaskFilterTag;
   setTaskFilter: (v: TaskFilterTag) => void;
+  /** Live keyword filter for the workspace lists (not persisted) */
+  searchQuery: string;
+  setSearchQuery: (v: string) => void;
 };
 
 const QuickFiltersContext = createContext<QuickFiltersContextValue | null>(null);
@@ -36,6 +39,7 @@ export function QuickFiltersProvider({ children }: { children: React.ReactNode }
   const [hideOnHold, setHideOnHold] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>('dueDate');
   const [taskFilter, setTaskFilter] = useState<TaskFilterTag>('none');
+  const [searchQuery, setSearchQuery] = useState('');
   const [restored, setRestored] = useState(false);
 
   useEffect(() => {
@@ -74,6 +78,8 @@ export function QuickFiltersProvider({ children }: { children: React.ReactNode }
         setSortBy,
         taskFilter,
         setTaskFilter,
+        searchQuery,
+        setSearchQuery,
       }}
     >
       {children}

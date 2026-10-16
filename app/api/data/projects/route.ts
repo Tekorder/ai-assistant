@@ -2,7 +2,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import type { Block as PrismaBlock } from '@prisma/client';
-import { parseListStatus } from '@/lib/datacenter';
+import { isDefaultGroup, parseListStatus } from '@/lib/datacenter';
 
 function getUid(req: NextRequest) {
   return req.headers.get('X-Firebase-UID') ?? '';
@@ -47,11 +47,12 @@ export async function GET(req: NextRequest) {
   const projects = await prisma.project.findMany({
     where: { userId: user.id },
     include: { blocks: true },
-    orderBy: { rowCreatedAt: 'asc' },
+    orderBy: [{ position: 'asc' }, { rowCreatedAt: 'asc' }],
   });
 
   return NextResponse.json({
     onboarded: user.onboarded,
+    groupsSeeded: user.groupsSeeded,
     projects: projects.map(p => ({
       project_id: p.localId,
       title: p.title,
@@ -72,6 +73,7 @@ export async function GET(req: NextRequest) {
         ...(b.onHold ? { onHold: b.onHold } : {}),
         ...(b.flag ? { flag: b.flag } : {}),
         ...(b.listStatus ? { listStatus: b.listStatus } : {}),
+        ...(b.note ? { note: b.note } : {}),
       })),
     })),
     selectedProjectId: user.selectedProjectLocalId ?? undefined,
@@ -90,7 +92,8 @@ export async function POST(req: NextRequest) {
   // server data unless the client confirms it synced AFTER hydration.
   const hydrated = req.headers.get('X-Sync-Hydrated') === '1';
   if (!hydrated) {
-    const meaningful = projects.length > 1 || projects.some(p => {
+    // Devices boot with the starter groups, so only a custom group counts as data
+    const meaningful = projects.some(p => !isDefaultGroup({ title: String(p.title ?? '') })) || projects.some(p => {
       const blocks = Array.isArray(p.blocks) ? (p.blocks as Record<string, unknown>[]) : [];
       return blocks.some(b => {
         const text = typeof b.text === 'string' ? b.text.trim() : '';
@@ -105,7 +108,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  for (const rawProj of projects) {
+  for (const [position, rawProj] of projects.entries()) {
     const localId = typeof rawProj.project_id === 'string' ? rawProj.project_id : '';
     if (!localId) continue;
 
@@ -114,12 +117,14 @@ export async function POST(req: NextRequest) {
       create: {
         userId: user.id,
         localId,
+        position,
         title: typeof rawProj.title === 'string' ? rawProj.title : 'Project',
         collapsed:      (rawProj.collapsed as object)      ?? {},
         quickCollapsed: (rawProj.quickCollapsed as object) ?? {},
         visibleLists:   (rawProj.visibleLists as object)   ?? {},
       },
       update: {
+        position,
         title:          typeof rawProj.title === 'string' ? rawProj.title : 'Project',
         collapsed:      (rawProj.collapsed as object)      ?? {},
         quickCollapsed: (rawProj.quickCollapsed as object) ?? {},
@@ -157,6 +162,7 @@ export async function POST(req: NextRequest) {
           onHold:        Boolean(b.onHold ?? false),
           flag:          typeof b.flag === 'string' ? b.flag : null,
           listStatus:    indent === 0 ? (parseListStatus(b.listStatus) ?? null) : null,
+          note:          indent > 0 && typeof b.note === 'string' && b.note.trim() !== '' ? b.note : null,
         };
       })
       .filter((b): b is NonNullable<typeof b> => b !== null);
@@ -184,10 +190,16 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  if (typeof body.selectedProjectId === 'string') {
+  // A post-hydration upload means the client already ran its one-time starter
+  // group seeding (it seeds right after the first GET that says groupsSeeded=false)
+  const markSeeded = hydrated && !user.groupsSeeded;
+  if (typeof body.selectedProjectId === 'string' || markSeeded) {
     await prisma.user.update({
       where: { id: user.id },
-      data: { selectedProjectLocalId: body.selectedProjectId },
+      data: {
+        ...(typeof body.selectedProjectId === 'string' ? { selectedProjectLocalId: body.selectedProjectId } : {}),
+        ...(markSeeded ? { groupsSeeded: true } : {}),
+      },
     });
   }
 

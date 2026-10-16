@@ -7,7 +7,6 @@ import {
   LS_KEY_V1,
   isValidDateYYYYMMDD,
   startOfLocalDay,
-  todayYMD,
   parseYMD,
   readSelectedProject,
   writeSelectedProjectBlocks,
@@ -15,6 +14,7 @@ import {
   isUncTitleBlock,
   addTaskUnderList as addTaskUnderListArr,
   removeTaskAndSubtasks,
+  updateBlock,
   getTaskFlag,
   type TaskFlagColor,
 } from '@/lib/datacenter';
@@ -245,19 +245,9 @@ export default function DayPanel({
   };
 
   const handleToggleDone = (cardId: string) => {
-    const next = blocks.map(x => ({ ...x }));
-    const t = todayYMD();
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      const nextChecked = !Boolean(b.checked);
-      b.checked = nextChecked;
-      if (nextChecked) {
-        b.deadline = t;
-        b.isHidden = false;
-      }
-      break;
-    }
-    persist(next);
+    const card = blocks.find(b => b.id === cardId && b.indent === 1);
+    if (!card) return;
+    persist(updateBlock(blocks, cardId, { checked: !card.checked }));
   };
 
   const handleDelete = (cardId: string) => {

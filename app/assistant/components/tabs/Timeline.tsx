@@ -22,6 +22,7 @@ import {
   cycleTaskFlag,
   addTaskUnderList,
   removeTaskAndSubtasks,
+  updateBlock,
   type TaskFlagColor,
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from '../TaskFlag';
@@ -373,19 +374,10 @@ export default function Timeline() {
 
   /* ── Actions ── */
   const toggleDone = (cardId: string) => {
-    const next = blocks.map(x => ({ ...x }));
-    const t = todayYMD();
-
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      const nextChecked = !Boolean(b.checked);
-      b.checked = nextChecked;
-      if (nextChecked) {
-        b.deadline = t;
-        b.isHidden = false;
-      }
-      break;
-    }
+    // Tasks and subtasks alike; updateBlock cascades the check to parents/children
+    const card = blocks.find(b => b.id === cardId && b.indent > 0);
+    if (!card) return;
+    const next = updateBlock(blocks, cardId, { checked: !card.checked });
 
     writeSelectedProjectBlocks(projectId, next);
     setBlocks(next);
@@ -723,7 +715,20 @@ export default function Timeline() {
                               <div className="yt-subtasks">
                                 {card.subtasks.map(st => (
                                   <div key={st.id} className={['yt-subtask', st.checked ? 'is-done' : ''].join(' ')}>
-                                    <span className="yt-subdot">{st.checked ? '✓' : '•'}</span>
+                                    <button
+                                      type="button"
+                                      className={['yt-check yt-subcheck check-glow', st.checked ? 'is-on' : ''].join(' ')}
+                                      onClick={() => toggleDone(st.id)}
+                                      title={st.checked ? 'Mark as pending' : 'Mark as completed'}
+                                      aria-label={st.checked ? 'Completed' : 'Mark completed'}
+                                      aria-pressed={st.checked}
+                                    >
+                                      {st.checked ? (
+                                        <svg viewBox="0 0 12 12" width="8" height="8" fill="none" aria-hidden="true">
+                                          <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                      ) : null}
+                                    </button>
                                     <span className="yt-subtext">{st.text || '(subtask)'}</span>
                                   </div>
                                 ))}

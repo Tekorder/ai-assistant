@@ -134,14 +134,27 @@ export default function Menu({
   return (
     <>
       <style>{`
+        /* Mobile: slides in from the right (☰ is top-right). Desktop: from the left,
+           next to the sidebar's ☰. */
+        .menu-drawer {
+          --menu-from: 100%;
+          border-left: 1px solid color-mix(in srgb, var(--assistant-accent) 20%, transparent);
+        }
+        @media (min-width: 768px) {
+          .menu-drawer {
+            --menu-from: -100%;
+            border-left: none;
+            border-right: 1px solid color-mix(in srgb, var(--assistant-accent) 20%, transparent);
+          }
+        }
         @keyframes menuSlideIn {
-          from { transform: translateX(100%); opacity: 0; }
+          from { transform: translateX(var(--menu-from)); opacity: 0; }
           60% { opacity: 1; }
           to { transform: translateX(0); opacity: 1; }
         }
         @keyframes menuSlideOut {
           from { transform: translateX(0); opacity: 1; }
-          to { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(var(--menu-from)); opacity: 0; }
         }
         @keyframes menuOverlayIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes menuOverlayOut { from { opacity: 1; } to { opacity: 0; } }
@@ -158,11 +171,10 @@ export default function Menu({
       />
 
       <aside
-        className="fixed right-0 top-0 z-[301] flex h-full w-[86%] max-w-[360px] flex-col shadow-2xl"
+        className="menu-drawer fixed right-0 top-0 z-[301] flex h-full w-[86%] max-w-[360px] flex-col shadow-2xl md:left-0 md:right-auto"
         style={{
           background: 'var(--assistant-bg)',
           color: 'var(--assistant-text)',
-          borderLeft: '1px solid color-mix(in srgb, var(--assistant-accent) 20%, transparent)',
           animation: isClosing
             ? 'menuSlideOut 0.26s cubic-bezier(0.4, 0, 1, 1) both'
             : 'menuSlideIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both',

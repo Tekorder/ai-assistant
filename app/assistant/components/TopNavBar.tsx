@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { getProfile, hasSession, signOutAndClear, subscribeSessionChange } from '@/lib/session';
 import {
@@ -18,16 +19,8 @@ interface TopNavBarProps {
   setActiveView: (v: View) => void;
   onHome: () => void;
   onOpenMenu: () => void;
-  habitsOpen: boolean;
-  remindersOpen: boolean;
-  activityOpen: boolean;
-  listsOpen: boolean;
   timelineOpen?: boolean;
   calendarOpen?: boolean;
-  onToggleHabits: () => void;
-  onToggleReminders: () => void;
-  onToggleActivity: () => void;
-  onToggleLists: () => void;
   themeStyle?: 'light' | 'dark';
   onToggleTheme?: () => void;
 }
@@ -154,7 +147,7 @@ const SYNC_DOT_COLOR: Record<SyncState, string> = {
 };
 
 /** Green = sync is on and everything is saved to the server. Click retries when it isn't green. */
-function SyncDot() {
+function SyncDot({ tipSide }: { tipSide?: TipSide } = {}) {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   useEffect(() => {
     const update = () => setStatus(getSyncStatus());
@@ -164,12 +157,12 @@ function SyncDot() {
   }, []);
   if (!status) return null;
   const busy = status.state === 'syncing' || status.state === 'connecting';
-  return (
+  const dot = (
     <button
       type="button"
       onClick={() => { if (status.state !== 'synced') void loadFromDatabase(); }}
       className="flex h-7 w-5 items-center justify-center shrink-0"
-      title={status.message}
+      title={tipSide ? undefined : status.message}
       aria-label={status.message}
     >
       <span className="relative flex h-2.5 w-2.5">
@@ -186,40 +179,182 @@ function SyncDot() {
       </span>
     </button>
   );
+  return tipSide ? <IconTip label={status.message} side={tipSide}>{dot}</IconTip> : dot;
 }
 
-export default function TopNavBar({
-  activeView,
-  setActiveView,
+export type TipSide = 'right' | 'bottom' | 'bottom-start' | 'bottom-end' | 'top' | 'top-start' | 'top-end';
+
+/** Hover label for an icon button — says what it does. Pure CSS (no delay state). */
+export function IconTip({
+  label,
+  side = 'right',
+  children,
+}: {
+  label: React.ReactNode;
+  /** -start / -end hug the button's left / right edge — for buttons near a clipping edge */
+  side?: TipSide;
+  children: React.ReactNode;
+}) {
+  const pos = {
+    right: 'left-full top-1/2 ml-2 -translate-y-1/2',
+    bottom: 'left-1/2 top-full mt-1.5 -translate-x-1/2',
+    'bottom-start': 'left-0 top-full mt-1.5',
+    'bottom-end': 'right-0 top-full mt-1.5',
+    top: 'bottom-full left-1/2 mb-1.5 -translate-x-1/2',
+    'top-start': 'bottom-full left-0 mb-1.5',
+    'top-end': 'bottom-full right-0 mb-1.5',
+  }[side];
+  return (
+    <span className="group/tip relative inline-flex">
+      {children}
+      <span
+        role="tooltip"
+        className={`pointer-events-none absolute z-[200] w-max max-w-[220px] rounded-md px-2 py-1 text-[12px] font-medium leading-snug opacity-0 shadow-lg transition-opacity delay-150 duration-150 group-hover/tip:opacity-100 ${pos}`}
+        style={{ background: 'var(--assistant-panel-bg)', color: 'var(--assistant-text)', border: '1px solid var(--assistant-border-soft)' }}
+      >
+        {label}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Icon button that pops a small menu with the Check Lists / Habits / Reminders
+ * toggles (they used to sit in the header). The menu is portaled because the
+ * sidebar and the rail clip their content; it stays open so several can be toggled.
+ */
+export function PanelsMenuButton({
+  open,
+  onToggle,
+  side = 'below',
+}: {
+  open: Record<'lists' | 'habits' | 'reminders', boolean>;
+  onToggle: Record<'lists' | 'habits' | 'reminders', () => void>;
+  /** below: under the button (sidebar header) · right: beside it (closed-sidebar rail) */
+  side?: 'below' | 'right';
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [pos, setPos] = useState<React.CSSProperties>({});
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  const toggleMenu = () => {
+    if (!menuOpen && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos(side === 'right'
+        ? { left: r.right + 8, top: r.top }
+        : { left: Math.max(8, r.right - 200), top: r.bottom + 6 });
+    }
+    setMenuOpen(o => !o);
+  };
+
+  const anyOpen = open.lists || open.habits || open.reminders;
+  const btn = (
+    <button
+      ref={btnRef}
+      type="button"
+      onClick={toggleMenu}
+      className={`flex items-center justify-center rounded-md transition-colors ${side === 'right' ? 'h-9 w-9' : 'h-8 w-8'}`}
+      style={{ color: menuOpen || anyOpen ? 'var(--assistant-text)' : 'var(--assistant-text-muted)' }}
+      aria-haspopup="menu"
+      aria-expanded={menuOpen}
+      aria-label="Panels: Check Lists, Habits, Reminders"
+    >
+      <svg viewBox="0 0 16 16" className={side === 'right' ? 'h-6 w-6' : 'h-4 w-4'} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+        <rect x="2" y="2" width="5" height="5" rx="1.2" />
+        <rect x="9" y="2" width="5" height="5" rx="1.2" />
+        <rect x="2" y="9" width="5" height="5" rx="1.2" />
+        <rect x="9" y="9" width="5" height="5" rx="1.2" />
+      </svg>
+    </button>
+  );
+
+  return (
+    <>
+      {menuOpen ? btn : (
+        <IconTip label="Open Check Lists, Habits or Reminders" side={side === 'right' ? 'right' : 'bottom-end'}>
+          {btn}
+        </IconTip>
+      )}
+      {menuOpen && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          className="drop-in fixed z-[10060] w-[200px] rounded-xl p-1.5 shadow-2xl"
+          style={{ ...pos, background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
+        >
+          {CENTER_NAV.map(item => {
+            const isOn = open[item.id];
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={isOn}
+                onClick={onToggle[item.id]}
+                className={[
+                  'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors',
+                  isOn ? classes.topNavCenterActive : classes.topNavCenterInactive,
+                ].join(' ')}
+              >
+                {item.icon}
+                <span className="flex-1">{item.label}</span>
+                {isOn && (
+                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.2 8.4l3 3 6.6-7" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
+        </div>,
+        document.querySelector('[data-assistant-root]') ?? document.body,
+      )}
+    </>
+  );
+}
+
+type AccountActionsProps = {
+  /**
+   * top: header row (mobile) · footer: sidebar foot (desktop) · rail: vertical strip when
+   * the sidebar is closed · bell: just the reminders bell (sidebar header, desktop)
+   */
+  placement: 'top' | 'footer' | 'rail' | 'bell';
+  onOpenMenu: () => void;
+  themeStyle?: 'light' | 'dark';
+  onToggleTheme?: () => void;
+  dockLayout?: 'stack' | 'accordion';
+  onToggleDockLayout?: () => void;
+};
+
+/**
+ * Panel layout / theme / reminders bell / sync dot / profile. Lives in the mobile
+ * header and, on desktop, at the foot of the sidebar (ChatGPT-style).
+ */
+export function AccountActions({
+  placement,
   onOpenMenu,
-  habitsOpen,
-  remindersOpen,
-  listsOpen,
-  timelineOpen = false,
-  calendarOpen = false,
-  onToggleHabits,
-  onToggleReminders,
-  onToggleLists,
   themeStyle = 'light',
   onToggleTheme,
-}: Omit<TopNavBarProps, 'title' | 'onHome'> & { title?: string; onHome?: () => void }) {
-  const router = useRouter();
-
-  const enforcePrismaSession = useCallback(() => {
-    if (hasSession()) return;
-
-    // No session (e.g. logged out in another tab): sign out and go Home. Local
-    // data stays — it may hold edits that haven't reached Postgres yet.
-    void signOutAndClear({ keepLocalData: true });
-    router.replace('/');
-  }, [router]);
-
-  // ── Current user label ──
-  // Warm both logo variants so the light/dark toggle swaps instantly (no blank frame)
-  useEffect(() => {
-    for (const src of ['/logoblue.png', '/logowhite-clean.png']) new Image().src = src;
-  }, []);
-
+  dockLayout,
+  onToggleDockLayout,
+}: AccountActionsProps) {
   const [userName, setUserName] = useState('');
   const [userAvatar, setUserAvatar] = useState('');
   useEffect(() => {
@@ -233,21 +368,11 @@ export default function TopNavBar({
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [hydrated, setHydrated]   = useState(false);
   const [dropOpen, setDropOpen]   = useState(false);
+  const [dropPos, setDropPos]     = useState<React.CSSProperties>({});
   const dropRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const today = todayYMD();
-
-  // Enforce session on mount + when tab refocuses or storage changes
-  useEffect(() => {
-    enforcePrismaSession();
-
-    const unsubscribe = subscribeSessionChange(enforcePrismaSession);
-    const onFocus = () => enforcePrismaSession();
-    window.addEventListener('focus', onFocus);
-    return () => {
-      unsubscribe();
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [enforcePrismaSession]);
 
   const load = useCallback(() => {
     setReminders(readRemindersLS().reminders);
@@ -265,17 +390,30 @@ export default function TopNavBar({
     };
   }, [load]);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click (the menu is portaled, so check it too)
   useEffect(() => {
     if (!dropOpen) return;
     const handler = (e: MouseEvent) => {
-      if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
-        setDropOpen(false);
-      }
+      const t = e.target as Node;
+      if (dropRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setDropOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [dropOpen]);
+
+  const toggleDrop = () => {
+    if (!dropOpen && placement !== 'top' && bellRef.current) {
+      // Sidebar/rail are clipped containers → the menu is portaled and placed from the bell
+      const r = bellRef.current.getBoundingClientRect();
+      setDropPos(
+        placement === 'rail' ? { left: r.right + 8, bottom: window.innerHeight - r.bottom }
+        : placement === 'bell' ? { left: Math.max(8, r.right - 288), top: r.bottom + 6 }
+        : { left: Math.max(8, r.left - 120), bottom: window.innerHeight - r.top + 8 },
+      );
+    }
+    setDropOpen(o => !o);
+  };
 
   const todayReminders = hydrated
     ? reminders.filter(r => isReminderToday(r, today) && r.title.trim().length > 0)
@@ -296,6 +434,330 @@ export default function TopNavBar({
     writeRemindersLS({ reminders: next });
     setDropOpen(false);
   };
+
+  // The closed-sidebar rail has room to spare → bigger icons
+  const ic = placement === 'rail' ? 'h-6 w-6' : 'h-4 w-4';
+  // Rail buttons grow with their icons (the CSS-module button is 2rem)
+  const btnCls = placement === 'rail' ? `${classes.topNavIconBtn} !h-9 !w-9` : classes.topNavIconBtn;
+  // Hover labels on desktop placements (mobile keeps native titles)
+  const tipSide: TipSide | null =
+    placement === 'rail' ? 'right' : placement === 'footer' ? 'top-end' : placement === 'bell' ? 'bottom-end' : null;
+  const tip = (label: React.ReactNode, node: React.ReactNode) =>
+    tipSide ? <IconTip label={label} side={tipSide}>{node}</IconTip> : node;
+
+  const avatarSize = placement === 'rail' ? 'h-8 w-8' : 'h-7 w-7';
+  const avatar = userAvatar ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={userAvatar} alt="" className={`${avatarSize} rounded-full object-cover shrink-0`} />
+  ) : (
+    <span className={`${avatarSize} rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0 ${classes.topNavAvatarFallback}`}>
+      {(userName || 'U').slice(0, 1).toUpperCase()}
+    </span>
+  );
+
+  const layoutBtn = onToggleDockLayout ? (
+    // Like the moon/sun, the icon shows what a click switches to
+    <span className={placement === 'top' ? 'hidden md:inline-flex' : 'inline-flex'}>
+      {tip(
+        dockLayout === 'accordion' ? 'Show panels side by side' : 'Show panels as an accordion',
+        <button
+          type="button"
+          onClick={onToggleDockLayout}
+          className={btnCls}
+          aria-label={dockLayout === 'accordion' ? 'Show panels side by side' : 'Show panels as accordion'}
+        >
+          {dockLayout === 'accordion' ? (
+            <svg viewBox="0 0 16 16" className={ic} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <rect x="1.8" y="2.5" width="12.4" height="11" rx="1.5" />
+              <path d="M6 2.5v11M10 2.5v11" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 16 16" className={ic} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <rect x="1.8" y="2.5" width="12.4" height="11" rx="1.5" />
+              <path d="M1.8 5.5h12.4M1.8 8.5h12.4" />
+            </svg>
+          )}
+        </button>,
+      )}
+    </span>
+  ) : null;
+
+  const themeBtn = onToggleTheme ? tip(
+    themeStyle === 'light' ? 'Switch to dark mode' : 'Switch to light mode',
+    <button
+      type="button"
+      onClick={onToggleTheme}
+      className={btnCls}
+      aria-label={themeStyle === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+      title={tipSide ? undefined : themeStyle === 'light' ? 'Dark mode' : 'Light mode'}
+    >
+      {themeStyle === 'light' ? (
+        <svg viewBox="0 0 16 16" className={ic} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.2 9.4A5.5 5.5 0 0 1 6.6 2.8 5.6 5.6 0 1 0 13.2 9.4z" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 16 16" className={ic} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+          <circle cx="8" cy="8" r="3.2" />
+          <path strokeLinecap="round" d="M8 1.5v1.4M8 13.1v1.4M1.5 8h1.4M13.1 8h1.4M3.4 3.4l1 1M11.6 11.6l1 1M12.6 3.4l-1 1M4.4 11.6l-1 1" />
+        </svg>
+      )}
+    </button>,
+  ) : null;
+
+  const reminderMenu = (
+    <div
+      ref={menuRef}
+      className={[
+        'drop-in rounded-xl shadow-2xl overflow-hidden z-[10060] isolate',
+        placement === 'top'
+          ? 'fixed left-3 right-3 top-14 md:absolute md:left-auto md:right-0 md:top-10 md:w-72'
+          : 'fixed w-72',
+      ].join(' ')}
+      style={{
+        background: 'var(--assistant-panel-bg)',
+        border: '1px solid var(--assistant-border-soft)',
+        ...(placement === 'top' ? {} : dropPos),
+      }}
+    >
+      <div
+        className="flex items-center justify-between px-4 py-2.5 border-b"
+        style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
+      >
+        <span className="text-[13px] font-semibold tracking-wide" style={{ color: 'var(--assistant-text-soft)' }}>
+          Today&apos;s reminders
+        </span>
+        {hasPending && (
+          <button
+            onClick={dismissAll}
+            className="text-[12px] transition-colors"
+            style={{ color: 'var(--assistant-text-faint)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-accent)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-faint)')}
+          >
+            Dismiss all
+          </button>
+        )}
+      </div>
+
+      <div className="max-h-64 overflow-y-auto">
+        {todayReminders.length === 0 ? (
+          <div className="px-4 py-5 text-[13px] text-center" style={{ color: 'var(--assistant-text-faint)' }}>
+            No reminders for today
+          </div>
+        ) : (
+          todayReminders.map(r => {
+            const isDone = r.dismissedOn === today;
+            return (
+              <div
+                key={r.id}
+                className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 group"
+                style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
+              >
+                <span
+                  className="shrink-0 w-2 h-2 rounded-full mt-0.5"
+                  style={{ background: isDone ? 'rgba(52,211,153,.6)' : '#f87171' }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="text-[14px] font-medium leading-snug truncate"
+                    style={{
+                      color: isDone ? 'var(--assistant-text-faint)' : 'var(--assistant-text)',
+                      textDecoration: isDone ? 'line-through' : 'none',
+                    }}
+                  >
+                    <TaskFlagBadge source={r} inline />
+                    {r.title}
+                  </div>
+                  {(r.time || r.daily) && (
+                    <div className="text-[12px] mt-0.5" style={{ color: 'var(--assistant-text-faint)' }}>
+                      {r.time && <span>{r.time}</span>}
+                      {r.daily  && <span className="ml-1">· daily</span>}
+                    </div>
+                  )}
+                </div>
+                {!isDone ? (
+                  <button
+                    onClick={() => dismissOne(r.id)}
+                    className="shrink-0 opacity-0 group-hover:opacity-100 text-[12px] px-2 py-1 rounded-md transition-all"
+                    style={{ background: 'var(--assistant-control-bg)', color: 'var(--assistant-text-muted)' }}
+                  >
+                    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.2 8.4l3 3 6.6-7" />
+                    </svg>
+                  </button>
+                ) : (
+                  <span className="shrink-0" style={{ color: 'var(--assistant-tone-1)' }}>
+                    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.2 8.4l3 3 6.6-7" />
+                    </svg>
+                  </span>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {!hasPending && todayReminders.length > 0 && (
+        <div
+          className="px-4 py-2.5 border-t text-center text-[12px]"
+          style={{ borderTopColor: 'var(--assistant-border-soft)', color: 'var(--assistant-tone-1)' }}
+        >
+          All done for today
+        </div>
+      )}
+    </div>
+  );
+
+  const bellStatus =
+    !todayReminders.length ? 'No reminders today'
+    : hasPending ? `${pendingCount} reminder${pendingCount > 1 ? 's' : ''} pending`
+    : 'All reminders done today';
+  const bellButton = (
+      <button
+        ref={bellRef}
+        type="button"
+        onClick={toggleDrop}
+        title={tipSide ? undefined : bellStatus}
+        className={`relative ${btnCls}`}
+        aria-label="Notifications"
+      >
+        <span className={hasPending ? 'bell-ring inline-flex' : 'inline-flex'}>
+          <svg viewBox="0 0 16 16" className={ic} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+            <path strokeLinecap="round" d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 1.2v.8H2.8v-.8L4 9V6.5a4 4 0 0 1 4-4z" />
+            <path strokeLinecap="round" d="M6.3 12.5a1.8 1.8 0 0 0 3.4 0" />
+          </svg>
+        </span>
+        {hasPending && (
+          <span className={classes.topNavBellBadge}>
+            {pendingCount > 9 ? '9+' : pendingCount}
+          </span>
+        )}
+      </button>
+  );
+  const bell = hydrated ? (
+    <div ref={dropRef} className="relative">
+      {dropOpen ? bellButton : tip(<>Today&apos;s reminders · {bellStatus}</>, bellButton)}
+      {dropOpen && (placement === 'top'
+        ? reminderMenu
+        : createPortal(reminderMenu, document.querySelector('[data-assistant-root]') ?? document.body))}
+    </div>
+  ) : null;
+
+  // In the footer the dot is the left-most item → its label opens toward the inside
+  const syncDot = tipSide ? <SyncDot tipSide={placement === 'footer' ? 'top-start' : tipSide} /> : <SyncDot />;
+
+  if (placement === 'bell') return bell;
+
+  if (placement === 'rail') {
+    return (
+      <div className="flex flex-col items-center gap-1.5">
+        {layoutBtn}
+        {themeBtn}
+        {bell}
+        {syncDot}
+        {tip(
+          <>Menu &amp; account{userName ? ` · ${userName}` : ''}</>,
+          <button
+            type="button"
+            onClick={onOpenMenu}
+            className="rounded-full"
+            aria-label="Open menu"
+          >
+            {avatar}
+          </button>,
+        )}
+      </div>
+    );
+  }
+
+  const profileBtn = (
+    <button
+      type="button"
+      onClick={onOpenMenu}
+      className={[
+        'flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg transition-colors',
+        placement === 'footer' ? 'min-w-0 flex-1' : '',
+        classes.topNavProfile,
+      ].join(' ')}
+      aria-label="Open menu"
+      title={userName ? `Signed in as ${userName}` : 'Profile'}
+    >
+      {avatar}
+      <span className={`${placement === 'footer' ? 'min-w-0 flex-1 text-left' : 'hidden sm:inline max-w-[140px]'} truncate text-[14px] font-medium`}>
+        {userName || 'Account'}
+      </span>
+      {/* Menu icon — opens the drawer. In the sidebar it sits at the top instead. */}
+      {placement !== 'footer' && (
+        <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 opacity-80" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+          <path strokeLinecap="round" d="M2.75 4.25h10.5M2.75 8h10.5M2.75 11.75h10.5" />
+        </svg>
+      )}
+    </button>
+  );
+
+  if (placement === 'footer') {
+    // One row: sync status · who you are · quick toggles on the right.
+    // The bell lives in the sidebar header next to the panels menu.
+    return (
+      <div className="flex items-center gap-1">
+        {syncDot}
+        {profileBtn}
+        {layoutBtn}
+        {themeBtn}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1 md:gap-2 shrink-0">
+      {layoutBtn}
+      {themeBtn}
+      {bell}
+      <SyncDot />
+      {profileBtn}
+    </div>
+  );
+}
+
+export default function TopNavBar({
+  activeView,
+  setActiveView,
+  onOpenMenu,
+  timelineOpen = false,
+  calendarOpen = false,
+  themeStyle = 'light',
+  onToggleTheme,
+}: Omit<TopNavBarProps, 'title' | 'onHome'> & { title?: string; onHome?: () => void }) {
+  const router = useRouter();
+
+  const enforcePrismaSession = useCallback(() => {
+    if (hasSession()) return;
+
+    // No session (e.g. logged out in another tab): sign out and go Home. Local
+    // data stays — it may hold edits that haven't reached Postgres yet.
+    void signOutAndClear({ keepLocalData: true });
+    router.replace('/');
+  }, [router]);
+
+  // ── Current user label ──
+  // Warm both logo variants so the light/dark toggle swaps instantly (no blank frame)
+  useEffect(() => {
+    for (const src of ['/logoblue.png', '/logowhite-clean.png']) new Image().src = src;
+  }, []);
+
+  // Enforce session on mount + when tab refocuses or storage changes
+  useEffect(() => {
+    enforcePrismaSession();
+
+    const unsubscribe = subscribeSessionChange(enforcePrismaSession);
+    const onFocus = () => enforcePrismaSession();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [enforcePrismaSession]);
 
   // ── Navigation ──
   const handleSetActiveView = (v: View) => {
@@ -351,209 +813,18 @@ export default function TopNavBar({
           />
         </div>
 
-        {/* Center: Lists / Habits / Reminders */}
-        <nav className="hidden md:flex flex-1 items-center justify-center gap-2 min-w-0">
-          {CENTER_NAV.map(item => {
-            const isActive =
-              item.id === 'lists' ? listsOpen
-              : item.id === 'habits' ? habitsOpen
-              : remindersOpen;
-            const onClick =
-              item.id === 'lists' ? onToggleLists
-              : item.id === 'habits' ? onToggleHabits
-              : onToggleReminders;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={onClick}
-                className={[
-                  'flex items-center gap-1.5 text-[14px] whitespace-nowrap shrink-0 transition-colors',
-                  isActive ? classes.topNavCenterActive : classes.topNavCenterInactive,
-                ].join(' ')}
-                aria-pressed={isActive}
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        {/* Check Lists / Habits / Reminders moved to the sidebar's panels menu (PanelsMenuButton);
+            on mobile they're in the drawer */}
+        <div className="flex-1" />
 
-        {/* Mobile spacer */}
-        <div className="flex-1 md:hidden" />
-
-        {/* Right: moon / bell / profile */}
-        <div className="flex items-center gap-1 md:gap-2 shrink-0">
-          {onToggleTheme ? (
-            <button
-              type="button"
-              onClick={onToggleTheme}
-              className={classes.topNavIconBtn}
-              aria-label={themeStyle === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-              title={themeStyle === 'light' ? 'Dark mode' : 'Light mode'}
-            >
-              {themeStyle === 'light' ? (
-                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.2 9.4A5.5 5.5 0 0 1 6.6 2.8 5.6 5.6 0 1 0 13.2 9.4z" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-                  <circle cx="8" cy="8" r="3.2" />
-                  <path strokeLinecap="round" d="M8 1.5v1.4M8 13.1v1.4M1.5 8h1.4M13.1 8h1.4M3.4 3.4l1 1M11.6 11.6l1 1M12.6 3.4l-1 1M4.4 11.6l-1 1" />
-                </svg>
-              )}
-            </button>
-          ) : null}
-
-          {hydrated && (
-            <div ref={dropRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setDropOpen(o => !o)}
-                title={
-                  !todayReminders.length ? 'No reminders today'
-                  : hasPending ? `${pendingCount} reminder${pendingCount > 1 ? 's' : ''} pending`
-                  : 'All reminders done today'
-                }
-                className={`relative ${classes.topNavIconBtn}`}
-                aria-label="Notifications"
-              >
-                <span className={hasPending ? 'bell-ring inline-flex' : 'inline-flex'}>
-                  <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-                    <path strokeLinecap="round" d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 1.2v.8H2.8v-.8L4 9V6.5a4 4 0 0 1 4-4z" />
-                    <path strokeLinecap="round" d="M6.3 12.5a1.8 1.8 0 0 0 3.4 0" />
-                  </svg>
-                </span>
-                {hasPending && (
-                  <span className={classes.topNavBellBadge}>
-                    {pendingCount > 9 ? '9+' : pendingCount}
-                  </span>
-                )}
-              </button>
-
-              {dropOpen && (
-                <div
-                  className="drop-in fixed left-3 right-3 top-14 md:absolute md:left-auto md:right-0 md:top-10 md:w-72 rounded-xl shadow-2xl overflow-hidden z-[200] isolate"
-                  style={{ background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
-                >
-                  <div
-                    className="flex items-center justify-between px-4 py-2.5 border-b"
-                    style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
-                  >
-                    <span className="text-[13px] font-semibold tracking-wide" style={{ color: 'var(--assistant-text-soft)' }}>
-                      Today&apos;s reminders
-                    </span>
-                    {hasPending && (
-                      <button
-                        onClick={dismissAll}
-                        className="text-[12px] transition-colors"
-                        style={{ color: 'var(--assistant-text-faint)' }}
-                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-accent)')}
-                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-faint)')}
-                      >
-                        Dismiss all
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="max-h-64 overflow-y-auto">
-                    {todayReminders.length === 0 ? (
-                      <div className="px-4 py-5 text-[13px] text-center" style={{ color: 'var(--assistant-text-faint)' }}>
-                        No reminders for today
-                      </div>
-                    ) : (
-                      todayReminders.map(r => {
-                        const isDone = r.dismissedOn === today;
-                        return (
-                          <div
-                            key={r.id}
-                            className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 group"
-                            style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
-                          >
-                            <span
-                              className="shrink-0 w-2 h-2 rounded-full mt-0.5"
-                              style={{ background: isDone ? 'rgba(52,211,153,.6)' : '#f87171' }}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div
-                                className="text-[14px] font-medium leading-snug truncate"
-                                style={{
-                                  color: isDone ? 'var(--assistant-text-faint)' : 'var(--assistant-text)',
-                                  textDecoration: isDone ? 'line-through' : 'none',
-                                }}
-                              >
-                                <TaskFlagBadge source={r} inline />
-                                {r.title}
-                              </div>
-                              {(r.time || r.daily) && (
-                                <div className="text-[12px] mt-0.5" style={{ color: 'var(--assistant-text-faint)' }}>
-                                  {r.time && <span>{r.time}</span>}
-                                  {r.daily  && <span className="ml-1">· daily</span>}
-                                </div>
-                              )}
-                            </div>
-                            {!isDone ? (
-                              <button
-                                onClick={() => dismissOne(r.id)}
-                                className="shrink-0 opacity-0 group-hover:opacity-100 text-[12px] px-2 py-1 rounded-md transition-all"
-                                style={{ background: 'var(--assistant-control-bg)', color: 'var(--assistant-text-muted)' }}
-                              >
-                                <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.2 8.4l3 3 6.6-7" />
-                                </svg>
-                              </button>
-                            ) : (
-                              <span className="shrink-0" style={{ color: 'var(--assistant-tone-1)' }}>
-                                <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.2 8.4l3 3 6.6-7" />
-                                </svg>
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-
-                  {!hasPending && todayReminders.length > 0 && (
-                    <div
-                      className="px-4 py-2.5 border-t text-center text-[12px]"
-                      style={{ borderTopColor: 'var(--assistant-border-soft)', color: 'var(--assistant-tone-1)' }}
-                    >
-                      All done for today
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          <SyncDot />
-
-          <button
-            type="button"
-            onClick={onOpenMenu}
-            className={`flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg transition-colors ${classes.topNavProfile}`}
-            aria-label="Open menu"
-            title={userName ? `Signed in as ${userName}` : 'Profile'}
-          >
-            {userAvatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={userAvatar} alt="" className="h-7 w-7 rounded-full object-cover shrink-0" />
-            ) : (
-              <span className={`h-7 w-7 rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0 ${classes.topNavAvatarFallback}`}>
-                {(userName || 'U').slice(0, 1).toUpperCase()}
-              </span>
-            )}
-            <span className="hidden sm:inline max-w-[140px] truncate text-[14px] font-medium">
-              {userName || 'Account'}
-            </span>
-            {/* Menu icon — opens the drawer from the right */}
-            <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 opacity-80" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-              <path strokeLinecap="round" d="M2.75 4.25h10.5M2.75 8h10.5M2.75 11.75h10.5" />
-            </svg>
-          </button>
+        {/* Right: on mobile only — on desktop these live at the foot of the sidebar */}
+        <div className="md:hidden">
+          <AccountActions
+            placement="top"
+            onOpenMenu={onOpenMenu}
+            themeStyle={themeStyle}
+            onToggleTheme={onToggleTheme}
+          />
         </div>
       </header>
 

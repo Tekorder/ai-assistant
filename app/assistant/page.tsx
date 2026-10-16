@@ -9,7 +9,7 @@ import ChatBox from './components/Chatbox';
 import Timeline from './components/tabs/Timeline';
 import Quick from './components/tabs/Quick';
 import CalendarView from './components/tabs/Calendar';
-import TopNavBar, { NAV_ITEMS } from './components/TopNavBar';
+import TopNavBar, { AccountActions, IconTip, NAV_ITEMS, PanelsMenuButton } from './components/TopNavBar';
 import Menu from './components/Menu';
 import HabitsPanel from './components/HabitsPanel';
 import RemindersPanel from './components/RemindersPanel';
@@ -50,6 +50,7 @@ import { version as APP_VERSION } from '../../package.json';
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
 const LAYOUT_LS_KEY = 'youtask_workspace_layout_v1';
+const DOCK_LAYOUT_LS_KEY = 'youtask_dock_layout';
 const RESTORABLE_VIEWS: View[] = ['quick', 'timeline', 'calendar'];
 
 type SavedLayout = Partial<{
@@ -165,9 +166,38 @@ export default function App() {
     return () => mq.removeEventListener('change', apply);
   }, []);
 
-  // Right-dock panels stack in the order they were opened (newest at the end).
+  // Right-dock panels stack newest-first, right after the main panel. Reopening a
+  // panel that's already open restamps it to the front instead of duplicating it.
   // A panel keeps its slot while closing so its collapse doesn't reshuffle the others.
   // `seeded` holds keys restored from localStorage so their first appearance isn't restamped.
+  // How the right-dock panels lay out: side-by-side columns or one accordion column.
+  // A per-device preference.
+  const [dockLayout, setDockLayout] = useState<'stack' | 'accordion'>('stack');
+  // Accordion panels the user collapsed. Anything not in here is expanded, so new or
+  // re-requested panels open expanded; any number can be open, including none.
+  const [accordionCollapsed, setAccordionCollapsed] = useState<Set<string>>(() => new Set());
+  const setAccordionPanelOpen = useCallback((key: string, open: boolean) => {
+    setAccordionCollapsed((prev) => {
+      if (prev.has(key) === !open) return prev;
+      const next = new Set(prev);
+      if (open) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
+  const accordionColumnRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(DOCK_LAYOUT_LS_KEY) === 'accordion') setDockLayout('accordion');
+    } catch {}
+  }, []);
+  const toggleDockLayout = useCallback(() => {
+    setDockLayout((prev) => {
+      const next = prev === 'stack' ? 'accordion' : 'stack';
+      try { localStorage.setItem(DOCK_LAYOUT_LS_KEY, next); } catch {}
+      return next;
+    });
+  }, []);
+
   const dockSeqRef = useRef<{ n: number; map: Record<string, number>; open: Set<string>; seeded: Set<string> }>({
     n: 0,
     map: {},
@@ -293,20 +323,25 @@ export default function App() {
   }, []);
 
   /**
-   * Ease the deck toward its right edge for `ms`, re-reading the edge every frame.
-   * Dock panels (Lists/Habits/Reminders/Activity) grow their width from 0 over
-   * 420ms, so a one-shot scrollTo(scrollWidth) aims at the *old* edge and the new
-   * panel ends up off-screen. Following the edge keeps it in view as it grows.
+   * Ease the deck so the dock panel `key` is fully in view for `ms`, re-reading its
+   * box every frame. Dock panels (Lists/Habits/Reminders/Activity) grow their width
+   * from 0 over 420ms, so a one-shot scroll aims at the *old* box and the panel ends
+   * up clipped. Following it keeps it in view as it grows.
    */
   const followRafRef = useRef<number | null>(null);
-  const followDeckToEnd = useCallback((ms = 600) => {
+  const followDeckToPanel = useCallback((key: string, ms = 600) => {
     if (followRafRef.current !== null) cancelAnimationFrame(followRafRef.current);
     const until = performance.now() + ms;
     const step = () => {
       const el = deckScrollRef.current;
-      if (!el) { followRafRef.current = null; return; }
+      const panel = el?.querySelector<HTMLElement>(`[data-dock-key="${CSS.escape(key)}"]`);
+      if (!el || !panel) { followRafRef.current = null; return; }
+      const left = panel.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft;
+      const minLeft = left + panel.offsetWidth - el.clientWidth + 40;
+      // Scroll as little as possible: reveal the right edge without hiding the left one
+      const wanted = Math.min(Math.max(el.scrollLeft, minLeft), left - 12);
       // Same 95% cap clampDeckRightScroll enforces, so the two never fight
-      const target = Math.max(0, el.scrollWidth - el.clientWidth) * 0.95;
+      const target = Math.max(0, Math.min(wanted, Math.max(0, el.scrollWidth - el.clientWidth) * 0.95));
       const next = el.scrollLeft + (target - el.scrollLeft) * 0.22;
       el.scrollLeft = Math.abs(target - next) < 1 ? target : next;
       followRafRef.current = performance.now() < until ? requestAnimationFrame(step) : null;
@@ -329,6 +364,29 @@ export default function App() {
     updateDeckRightPad(el);
   }, [updateDeckRightPad]);
 
+  const pivotInstancesRef = useRef(pivotInstances);
+  pivotInstancesRef.current = pivotInstances;
+  const dayPanelInstancesRef = useRef(dayPanelInstances);
+  dayPanelInstancesRef.current = dayPanelInstances;
+
+  /**
+   * An already-open panel was requested again: restamp it to the front of the dock
+   * and move it to the end of its array (mobile overlays show the last instance).
+   */
+  const bringDockInstanceToFront = useCallback(
+    <T extends { id: string }>(
+      inst: T,
+      setInstances: React.Dispatch<React.SetStateAction<T[]>>,
+    ) => {
+      const seq = dockSeqRef.current;
+      seq.map[inst.id] = ++seq.n;
+      setAccordionPanelOpen(inst.id, true); // a re-requested panel opens expanded
+      setInstances((prev) => [...prev.filter((p) => p.id !== inst.id), inst]);
+      if (isDesktop === true) followDeckToPanel(inst.id);
+    },
+    [isDesktop, followDeckToPanel, setAccordionPanelOpen],
+  );
+
   const requestOpenPivot = useCallback(
     (detail: {
       word: string;
@@ -337,6 +395,8 @@ export default function App() {
       listId?: string | null;
     }) => {
       if (detail.listId) {
+        const existing = pivotInstancesRef.current.find((p) => p.listId === detail.listId);
+        if (existing) { bringDockInstanceToFront(existing, setPivotInstances); return; }
         const w = detail.word.trim() || 'List';
         const id = `list_${detail.listId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         setPivotInstances((prev) => [...prev, { id, word: w, listId: detail.listId! }]);
@@ -344,22 +404,23 @@ export default function App() {
       }
       const word = detail.word.trim();
       if (!word) return;
+      const existing = pivotInstancesRef.current.find(
+        (p) => !p.listId && p.word.toLowerCase() === word.toLowerCase(),
+      );
+      if (existing) { bringDockInstanceToFront(existing, setPivotInstances); return; }
       const id = `${word.toLowerCase()}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       setPivotInstances((prev) => [...prev, { id, word }]);
     },
-    [],
+    [bringDockInstanceToFront],
   );
 
   const requestOpenDayPanel = useCallback((ymd: string) => {
     if (!isValidDateYYYYMMDD(ymd)) return;
-    setDayPanelInstances((prev) => {
-      if (prev.some((p) => p.ymd === ymd)) return prev;
-      const id = `day_${ymd}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      return [...prev, { id, ymd }];
-    });
-    // Focus deck toward day panels even when ymd was already open (no-op push).
-    if (isDesktop === true) followDeckToEnd();
-  }, [isDesktop, followDeckToEnd]);
+    const existing = dayPanelInstancesRef.current.find((p) => p.ymd === ymd);
+    if (existing) { bringDockInstanceToFront(existing, setDayPanelInstances); return; }
+    const id = `day_${ymd}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    setDayPanelInstances((prev) => [...prev, { id, ymd }]);
+  }, [bringDockInstanceToFront]);
 
   const closeDayPanelInstance = useCallback((id: string) => {
     setDayPanelInstances((prev) => prev.filter((p) => p.id !== id));
@@ -412,7 +473,11 @@ export default function App() {
       if (sidebarAdded) {
         el.scrollTo({ left: 0, behavior: 'smooth' });
       } else if (rightPanelAdded) {
-        followDeckToEnd();
+        // The newest panel is the one with the highest stamp
+        const seq = dockSeqRef.current;
+        let newest: string | null = null;
+        for (const k of seq.open) if (newest === null || seq.map[k] > seq.map[newest]) newest = k;
+        if (newest) followDeckToPanel(newest);
       }
     }
 
@@ -434,7 +499,7 @@ export default function App() {
     listsOpen,
     pivotInstances.length,
     dayPanelInstances.length,
-    followDeckToEnd,
+    followDeckToPanel,
   ]);
 
   const [projectBlocks, setProjectBlocks] = useState<Block[]>([]);
@@ -601,12 +666,114 @@ export default function App() {
     }
     seq.open = new Set(openDockKeys);
   }
-  const dockOrder = (key: string) => dockSeqRef.current.map[key] ?? 1;
+  const dockStamp = (key: string) => dockSeqRef.current.map[key] ?? 1;
+  // Higher stamp → lower flex order, so the newest panel sits first. Stays positive
+  // so dock panels always come after the sidebar and main panel (order 0).
+  const dockOrder = (key: string) => 1_000_000_000 - dockStamp(key);
 
+  // Accordion mode: one column; each panel expands/collapses on its own
+  const newestDockKey = openDockKeys.reduce<string | null>(
+    (best, k) => (best === null || dockStamp(k) > dockStamp(best) ? k : best),
+    null,
+  );
+  const isAccordionExpanded = (key: string) => !accordionCollapsed.has(key);
+  const isAccordion = dockLayout === 'accordion';
+  const ACCORDION_BAR = '49px'; // = panel header height (h-[49px]) → only the title bar shows
+
+  const dockSlotStyle = (key: string, open: boolean, width: string): React.CSSProperties => {
+    const visible = open && isDesktop === true;
+    if (isAccordion) {
+      const expanded = visible && isAccordionExpanded(key);
+      return {
+        order: dockOrder(key),
+        width: '100%',
+        // Expanded: as tall as its content, one after another; collapsed: just the title bar
+        flex: '0 0 auto',
+        height: !visible ? 0 : expanded ? 'auto' : `calc(${ACCORDION_BAR} + 0.75rem)`,
+        opacity: visible ? 1 : 0,
+        overflow: 'hidden',
+        transition: 'opacity 260ms ease',
+      };
+    }
+    return {
+      order: dockOrder(key),
+      width: visible ? width : 0,
+      opacity: visible ? 1 : 0,
+      transform: visible ? 'translateX(0)' : 'translateX(10px)',
+      transition:
+        'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
+    };
+  };
+  // Stack: top margin + room for the bottom bar. Accordion: the column holds the bottom
+  // room; an expanded panel takes its content height, a collapsed one only its title bar.
+  const dockSlotInnerClass = (key: string) =>
+    !isAccordion
+      ? 'relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl'
+      // Accordion items are separated by a top rule (no rounded card) so they read as rows, not titles
+      : isAccordionExpanded(key)
+      ? 'relative mx-3 mt-3 box-border flex h-auto w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden border-t [border-top-color:var(--assistant-border-soft)]'
+      : 'relative mx-3 mt-3 box-border flex h-[calc(100%-0.75rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden border-t [border-top-color:var(--assistant-border-soft)]';
+  // Clicking a panel's title bar toggles it; the ✕ (right 3.5rem) stays clickable.
+  // The chevron sits in the header's left padding, just before the title.
+  const accordionBar = (key: string, label: string) => {
+    if (!isAccordion) return null;
+    const expanded = isAccordionExpanded(key);
+    return (
+      <button
+        type="button"
+        onClick={() => setAccordionPanelOpen(key, !expanded)}
+        className="absolute left-0 top-0 z-10 flex cursor-pointer items-center"
+        style={{ height: ACCORDION_BAR, right: '3.5rem', color: 'var(--assistant-text-muted)' }}
+        aria-expanded={expanded}
+        aria-label={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
+        title={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
+      >
+        <svg
+          viewBox="0 0 16 16"
+          className="ml-[2px] h-3 w-3 shrink-0 transition-transform duration-150"
+          style={{ transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
+        </svg>
+      </button>
+    );
+  };
+
+  // Entering accordion mode: the deck no longer scrolls sideways, so drop any offset
+  useEffect(() => {
+    if (isAccordion && deckScrollRef.current) deckScrollRef.current.scrollLeft = 0;
+  }, [isAccordion]);
+
+  // With ~25 bars the newest panel can sit below the fold — bring it into view
+  useEffect(() => {
+    if (!isAccordion || !newestDockKey) return;
+    const col = accordionColumnRef.current;
+    const slot = col?.querySelector<HTMLElement>(`[data-dock-key="${CSS.escape(newestDockKey)}"]`);
+    if (!col || !slot) return;
+    const top = slot.offsetTop; // column is `relative` → offset within its scroll content
+    if (top < col.scrollTop || top + slot.offsetHeight > col.scrollTop + col.clientHeight) {
+      col.scrollTo({ top: Math.max(0, top - 8), behavior: 'smooth' });
+    }
+  }, [isAccordion, newestDockKey]);
+
+  // Oldest → newest, so restoring replays the stamps in the same relative order
   const dockOrderSignature = openDockKeys
     .slice()
-    .sort((a, b) => dockOrder(a) - dockOrder(b))
+    .sort((a, b) => dockStamp(a) - dockStamp(b))
     .join('|');
+
+  // A closed panel forgets it was collapsed, so reopening it starts expanded
+  useEffect(() => {
+    const open = new Set(dockOrderSignature ? dockOrderSignature.split('|') : []);
+    setAccordionCollapsed((prev) => {
+      const next = new Set([...prev].filter((k) => open.has(k)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [dockOrderSignature]);
 
   useEffect(() => {
     if (!layoutRestored || isDesktop !== true) return;
@@ -638,6 +805,22 @@ export default function App() {
     dockOrderSignature,
   ]);
 
+  // Check Lists / Habits / Reminders toggles (sidebar header + closed-sidebar rail)
+  const panelsMenuProps = {
+    open: { lists: listsOpen, habits: habitsOpen, reminders: remindersOpen },
+    onToggle: { lists: toggleLists, habits: toggleHabits, reminders: toggleReminders },
+  };
+
+  // Shared by the sidebar foot and the closed-sidebar rail
+  const accountActionsProps = {
+    onOpenMenu: () => setMenuOpen(true),
+    themeStyle: theme.style,
+    // Stay in the same family, flip light <-> dark
+    onToggleTheme: () => handleSelectTheme(getThemeCounterpart(selectedTheme)),
+    dockLayout,
+    onToggleDockLayout: toggleDockLayout,
+  };
+
   const lastPivot = pivotInstances[pivotInstances.length - 1] ?? null;
   const lastDayPanel = dayPanelInstances[dayPanelInstances.length - 1] ?? null;
 
@@ -646,6 +829,7 @@ export default function App() {
     <QuickFiltersProvider>
       <div
         data-assistant-root
+        data-theme-style={theme.style}
         // `isolate` scopes the glow's z-index:-1 to this root: behind the UI, above the canvas
         className="relative isolate flex h-screen flex-col"
         style={{
@@ -661,16 +845,8 @@ export default function App() {
           setActiveView={handleSetActiveViewFromNav}
           onHome={() => setActiveView('quick')}
           onOpenMenu={() => setMenuOpen(true)}
-          habitsOpen={habitsOpen}
-          remindersOpen={remindersOpen}
-          activityOpen={activityOpen}
-          listsOpen={listsOpen}
           timelineOpen={activeView === 'timeline'}
           calendarOpen={activeView === 'calendar'}
-          onToggleHabits={toggleHabits}
-          onToggleReminders={toggleReminders}
-          onToggleActivity={toggleActivity}
-          onToggleLists={toggleLists}
           themeStyle={theme.style}
           onToggleTheme={() => {
             // Stay in the same family, flip light <-> dark
@@ -746,33 +922,72 @@ export default function App() {
           ref={deckScrollRef}
           onScroll={clampDeckRightScroll}
           // The dock's horizontal scrollbar is the one visible scrollbar in the app, pinned to the bottom
-          className="deck-scrollbar hidden min-h-0 flex-1 overflow-x-auto overflow-y-hidden touch-pan-x [-webkit-overflow-scrolling:touch] md:block"
+          // Accordion mode is three columns that fit the window (sidebar | main | accordion) → no horizontal scroll
+          className={`deck-scrollbar hidden min-h-0 flex-1 overflow-y-hidden md:block ${
+            isAccordion ? 'overflow-x-hidden' : 'overflow-x-auto touch-pan-x [-webkit-overflow-scrolling:touch]'
+          }`}
         >
           <div className="flex h-full min-h-0 min-w-full">
-          <div className="relative h-full w-[40px] shrink-0">
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              // Same offset as the collapse button inside the open panel (m-3 + top-3 / right-3)
-              className="absolute left-3 top-6 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-all"
-              style={{
-                color: 'var(--assistant-text-muted)',
-                opacity: sidebarVisualOpen ? 0 : 1,
-                pointerEvents: sidebarVisualOpen ? 'none' : 'auto',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
-              aria-label="Expand sidebar"
-              title="Expand sidebar"
+          {/* Rail: 80px while the sidebar is closed (big icons sit ~36px off the screen edge);
+              back to the original 40px gutter when it's open, so the open layout doesn't shift */}
+          <div
+            className="relative h-full shrink-0"
+            style={{
+              width: sidebarVisualOpen ? 40 : 80,
+              transition: 'width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
+            }}
+          >
+            {/* Rail (sidebar closed): menu, expand and panels stacked at the top, centered */}
+            <div
+              // Centered a touch right of the strip's middle → more air from the screen edge
+              className="absolute left-7 right-0 top-6 z-[120] flex flex-col items-center gap-1.5 transition-opacity"
+              style={{ opacity: sidebarVisualOpen ? 0 : 1, pointerEvents: sidebarVisualOpen ? 'none' : 'auto' }}
               aria-hidden={sidebarVisualOpen}
-              tabIndex={sidebarVisualOpen ? -1 : 0}
             >
-              {/* Closed state: divider hugs the left — the panel is collapsed */}
-              <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-                <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
-                <path d="M5.5 2.5v11" />
-              </svg>
-            </button>
+              <IconTip label="Menu: profile, settings, themes" side="right">
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(true)}
+                  className="flex h-9 w-9 items-center justify-center rounded-md transition-colors"
+                  style={{ color: 'var(--assistant-text-muted)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                  aria-label="Open menu"
+                  tabIndex={sidebarVisualOpen ? -1 : 0}
+                >
+                  <svg viewBox="0 0 16 16" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                    <path strokeLinecap="round" d="M2.75 4.25h10.5M2.75 8h10.5M2.75 11.75h10.5" />
+                  </svg>
+                </button>
+              </IconTip>
+              <IconTip label="Show sidebar" side="right">
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="flex h-9 w-9 items-center justify-center rounded-md transition-colors"
+                  style={{ color: 'var(--assistant-text-muted)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                  aria-label="Expand sidebar"
+                  tabIndex={sidebarVisualOpen ? -1 : 0}
+                >
+                  {/* Closed state: divider hugs the left — the panel is collapsed */}
+                  <svg viewBox="0 0 16 16" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                    <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+                    <path d="M5.5 2.5v11" />
+                  </svg>
+                </button>
+              </IconTip>
+              {isDesktop === true && <PanelsMenuButton {...panelsMenuProps} side="right" />}
+            </div>
+            {/* Sidebar closed → its footer controls stack here, level with the sidebar's foot */}
+            <div
+              className="absolute bottom-[4.75rem] left-7 right-0 z-[120] flex justify-center pb-2 transition-opacity"
+              style={{ opacity: sidebarVisualOpen ? 0 : 1, pointerEvents: sidebarVisualOpen ? 'none' : 'auto' }}
+              aria-hidden={sidebarVisualOpen}
+            >
+              {isDesktop === true && <AccountActions placement="rail" {...accountActionsProps} />}
+            </div>
           </div>
           <div
             className="h-full shrink-0"
@@ -786,39 +1001,76 @@ export default function App() {
             }}
           >
             <div
-              className="relative m-3 box-border h-[calc(100%-5.5rem)] overflow-hidden rounded-2xl"
+              className="relative m-3 box-border flex h-[calc(100%-5.5rem)] flex-col overflow-hidden rounded-2xl"
               style={{
                 width: `calc(${MIN_SIDEBAR}px - 1.5rem)`,
               }}
             >
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                className="absolute right-3 top-3 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-                style={{ color: 'var(--assistant-text-muted)' }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
-                aria-label="Collapse sidebar"
-                title="Collapse sidebar"
+              <div className="absolute right-3 top-3 z-[120]">
+                <IconTip label="Hide sidebar" side="bottom-end">
+                  <button
+                    type="button"
+                    onClick={toggleSidebar}
+                    className="flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                    style={{ color: 'var(--assistant-text-muted)' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                    aria-label="Collapse sidebar"
+                  >
+                    {/* Open state: divider sits right — the panel is wide */}
+                    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+                      <path d="M10.5 2.5v11" />
+                    </svg>
+                  </button>
+                </IconTip>
+              </div>
+              {/* Reminders bell + Check Lists / Habits / Reminders menu — left of the collapse button */}
+              <div className="absolute right-[3.25rem] top-3 z-[120] flex items-center gap-1">
+                {isDesktop === true && <AccountActions placement="bell" {...accountActionsProps} />}
+                <PanelsMenuButton {...panelsMenuProps} side="below" />
+              </div>
+              {/* Menu — top-left, opposite the collapse button */}
+              <div className="absolute left-3 top-3 z-[120]">
+                <IconTip label="Menu: profile, settings, themes" side="bottom-start">
+                  <button
+                    type="button"
+                    onClick={() => setMenuOpen(true)}
+                    className="flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                    style={{ color: 'var(--assistant-text-muted)' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                    aria-label="Open menu"
+                  >
+                    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                      <path strokeLinecap="round" d="M2.75 4.25h10.5M2.75 8h10.5M2.75 11.75h10.5" />
+                    </svg>
+                  </button>
+                </IconTip>
+              </div>
+              {/* Starts under the menu/collapse buttons; its top rule sits on the main panel's tab line */}
+              <div
+                className="mt-[48px] flex min-h-0 flex-1 flex-col"
+                style={{ borderTop: '1px solid var(--assistant-border-soft)' }}
               >
-                {/* Open state: divider sits right — the panel is wide */}
-                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-                  <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
-                  <path d="M10.5 2.5v11" />
-                </svg>
-              </button>
-              <Sidebar
-                onOpenPivot={requestOpenPivot}
-              />
+                <Sidebar
+                  onOpenPivot={requestOpenPivot}
+                />
+              </div>
+              {/* ChatGPT-style foot: profile + layout / theme / reminders / sync */}
+              <div className="shrink-0 px-2 py-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+                {isDesktop === true && <AccountActions placement="footer" {...accountActionsProps} />}
+              </div>
             </div>
           </div>
 
           <div
-            className="min-h-0 shrink-0 overflow-hidden flex flex-col"
+            // Accordion: the main panel takes whatever the sidebar and the accordion leave
+            className={`min-h-0 overflow-hidden flex flex-col ${isAccordion ? 'min-w-0 flex-1' : 'shrink-0'}`}
             style={{
-              minWidth: mainPanelWidth,
-              marginLeft: mainPanelSolo ? 'auto' : undefined,
-              marginRight: mainPanelSolo ? 'auto' : undefined,
+              minWidth: isAccordion ? 0 : mainPanelWidth,
+              marginLeft: mainPanelSolo && !isAccordion ? 'auto' : undefined,
+              marginRight: mainPanelSolo && !isAccordion ? 'auto' : undefined,
               transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
@@ -826,7 +1078,7 @@ export default function App() {
             <div
               className={`relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden ${classes.mainPanel}`}
               style={{
-                minWidth: `calc(${mainPanelWidth} - 1.5rem)`,
+                minWidth: isAccordion ? 0 : `calc(${mainPanelWidth} - 1.5rem)`,
                 transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             >
@@ -857,54 +1109,30 @@ export default function App() {
             </div>
           </div>
 
-          <div
-            className="h-full shrink-0"
-            style={{
-              order: dockOrder('habits'),
-              width: habitsOpen && isDesktop === true ? listsPanelWidth : 0,
-              opacity: habitsOpen && isDesktop === true ? 1 : 0,
-              transform: habitsOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
-              transition:
-                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
-            }}
-          >
-            <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
+          {(() => {
+          const dockPanels = (
+          <>
+          <div className="h-full shrink-0" data-dock-key="habits" style={dockSlotStyle('habits', habitsOpen, listsPanelWidth)}>
+            <div className={dockSlotInnerClass('habits')}>
+              {accordionBar('habits', 'Habits')}
               {isDesktop && habitsOpen && (
                 <HabitsPanel variant="dock" open onClose={() => setHabitsOpen(false)} />
               )}
             </div>
           </div>
 
-          <div
-            className="h-full shrink-0"
-            style={{
-              order: dockOrder('reminders'),
-              width: remindersOpen && isDesktop === true ? remindersPanelWidth : 0,
-              opacity: remindersOpen && isDesktop === true ? 1 : 0,
-              transform: remindersOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
-              transition:
-                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
-            }}
-          >
-            <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
+          <div className="h-full shrink-0" data-dock-key="reminders" style={dockSlotStyle('reminders', remindersOpen, remindersPanelWidth)}>
+            <div className={dockSlotInnerClass('reminders')}>
+              {accordionBar('reminders', 'Reminders')}
               {isDesktop && remindersOpen && (
                 <RemindersPanel variant="dock" open onClose={() => setRemindersOpen(false)} />
               )}
             </div>
           </div>
 
-          <div
-            className="h-full shrink-0"
-            style={{
-              order: dockOrder('activity'),
-              width: activityOpen && isDesktop === true ? listsPanelWidth : 0,
-              opacity: activityOpen && isDesktop === true ? 1 : 0,
-              transform: activityOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
-              transition:
-                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
-            }}
-          >
-            <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
+          <div className="h-full shrink-0" data-dock-key="activity" style={dockSlotStyle('activity', activityOpen, listsPanelWidth)}>
+            <div className={dockSlotInnerClass('activity')}>
+              {accordionBar('activity', 'Activity Log')}
               {isDesktop && activityOpen && (
                 <ActivityLogPanel
                   variant="dock"
@@ -916,19 +1144,9 @@ export default function App() {
             </div>
           </div>
 
-          <div
-            className="h-full shrink-0 overflow-hidden"
-            style={{
-              order: dockOrder('lists'),
-              width: listsOpen && isDesktop === true ? listsPanelWidth : 0,
-              opacity: listsOpen && isDesktop === true ? 1 : 0,
-              transform:
-                listsOpen && isDesktop === true ? 'translateX(0)' : 'translateX(10px)',
-              transition:
-                'width 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
-            }}
-          >
-            <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
+          <div className="h-full shrink-0 overflow-hidden" data-dock-key="lists" style={dockSlotStyle('lists', listsOpen, listsPanelWidth)}>
+            <div className={dockSlotInnerClass('lists')}>
+              {accordionBar('lists', 'Check Lists')}
               {isDesktop && listsOpen && (
                 <ChecklistsPanel variant="dock" open onClose={() => setListsOpen(false)} />
               )}
@@ -940,14 +1158,11 @@ export default function App() {
               <div
                 key={pivot.id}
                 className="h-full shrink-0"
-                style={{
-                  order: dockOrder(pivot.id),
-                  width: listsPanelWidth,
-                  opacity: 1,
-                  transform: 'translateX(0)',
-                }}
+                data-dock-key={pivot.id}
+                style={dockSlotStyle(pivot.id, true, listsPanelWidth)}
               >
-                <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
+                <div className={dockSlotInnerClass(pivot.id)}>
+                  {accordionBar(pivot.id, `Search: ${pivot.word}`)}
                   <PivotPanel
                     variant="dock"
                     open
@@ -969,14 +1184,11 @@ export default function App() {
               <div
                 key={day.id}
                 className="h-full shrink-0"
-                style={{
-                  order: dockOrder(day.id),
-                  width: listsPanelWidth,
-                  opacity: 1,
-                  transform: 'translateX(0)',
-                }}
+                data-dock-key={day.id}
+                style={dockSlotStyle(day.id, true, listsPanelWidth)}
               >
-                <div className="relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl">
+                <div className={dockSlotInnerClass(day.id)}>
+                  {accordionBar(day.id, day.ymd)}
                   <DayPanel
                     variant="dock"
                     open
@@ -987,7 +1199,33 @@ export default function App() {
                 </div>
               </div>
             ))}
-          <div className="h-full shrink-0" style={{ order: Number.MAX_SAFE_INTEGER, width: `${deckRightPad}px` }} aria-hidden="true" />
+          </>
+          );
+          if (!isAccordion) return dockPanels;
+          // One column right after the main panel; it holds the bottom room the
+          // stacked slots reserve individually
+          return (
+            <div
+              ref={accordionColumnRef}
+              // Scrolls vertically once the bars + the expanded panel outgrow the deck
+              className="deck-scrollbar relative flex h-full shrink-0 flex-col overflow-y-auto overflow-x-hidden"
+              style={{
+                order: 1,
+                width: openDockKeys.length && isDesktop === true
+                  ? (remindersOpen && isAccordionExpanded('reminders') ? remindersPanelWidth : listsPanelWidth)
+                  : 0,
+                // Push the first item down so its top rule lands on the main panel's tab line
+                // (main tabs bar: 0.75rem margin + 49px tall, line in its last px)
+                paddingTop: '48px',
+                paddingBottom: '4.75rem',
+                transition: 'width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
+              }}
+            >
+              {dockPanels}
+            </div>
+          );
+          })()}
+          <div className="h-full shrink-0" style={{ order: Number.MAX_SAFE_INTEGER, width: isAccordion ? 0 : `${deckRightPad}px` }} aria-hidden="true" />
           </div>
         </div>
 
@@ -1230,7 +1468,7 @@ export default function App() {
               />
             </span>
 
-            <svg viewBox="0 0 24 24" className="h-6 w-6 text-black" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg viewBox="0 0 24 24" className="h-6 w-6" style={{ color: 'var(--assistant-text)' }} fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 14h5" />

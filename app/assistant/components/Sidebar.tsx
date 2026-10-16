@@ -18,6 +18,8 @@ import {
   ensureUncExists,
   moveUncToTop,
   makePersonalProject,
+  ensureDefaultGroups,
+  moveListToProject,
   // Block mutations
   updateBlock as updateBlockArr,
   insertBlockAfter,
@@ -68,6 +70,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const groupDragRef = useRef<string | null>(null);
   const [groupDragOverId, setGroupDragOverId] = useState<string | null>(null);
+  const [deleteGroupConfirmId, setDeleteGroupConfirmId] = useState<string | null>(null);
+  const [renamingGroup, setRenamingGroup] = useState<{ id: string; draft: string } | null>(null);
+  // Group a dragged list is hovering when it's about to move to another group
+  const [listDropGroupId, setListDropGroupId] = useState<string | null>(null);
 
   /* ── Refs ── */
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -76,7 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const nudgeTimerRef = useRef<number | null>(null);
   const newTimerRef = useRef<number | null>(null);
 
-  const dragRef = useRef<{ id: string } | null>(null);
+  const dragRef = useRef<{ id: string; projectId: string } | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const lastWrittenRef = useRef<string>('');
@@ -183,25 +189,26 @@ const visibleLists = useMemo<Record<string, boolean>>(
       if (loadedBlocks) {
         const loadedCollapsed = buildAllCollapsedFromBlocks(loadedBlocks);
         const personal = makePersonalProject(loadedBlocks, loadedCollapsed);
-        setProjects([personal]);
+        const all = ensureDefaultGroups([personal]);
+        setProjects(all);
         setSelectedProjectId(personal.project_id);
-        const boot = { projects: [personal], selectedProjectId: personal.project_id };
+        const boot = { projects: all, selectedProjectId: personal.project_id };
         lastWrittenRef.current = JSON.stringify(boot);
         writeProjectsLS(boot);
         return;
       }
 
-      const personal = makePersonalProject();
-      setProjects([personal]);
-      setSelectedProjectId(personal.project_id);
-      const boot = { projects: [personal], selectedProjectId: personal.project_id };
+      const all = ensureDefaultGroups([]);
+      setProjects(all);
+      setSelectedProjectId(all[0].project_id);
+      const boot = { projects: all, selectedProjectId: all[0].project_id };
       lastWrittenRef.current = JSON.stringify(boot);
       writeProjectsLS(boot);
     } catch {
-      const personal = makePersonalProject();
-      setProjects([personal]);
-      setSelectedProjectId(personal.project_id);
-      const boot = { projects: [personal], selectedProjectId: personal.project_id };
+      const all = ensureDefaultGroups([]);
+      setProjects(all);
+      setSelectedProjectId(all[0].project_id);
+      const boot = { projects: all, selectedProjectId: all[0].project_id };
       lastWrittenRef.current = JSON.stringify(boot);
       writeProjectsLS(boot);
     }
@@ -377,8 +384,34 @@ const visibleLists = useMemo<Record<string, boolean>>(
   const closeGroupsModal = () => {
     setGroupsModalOpen(false);
     setNewProjectName('');
+    setDeleteGroupConfirmId(null);
+    setRenamingGroup(null);
     groupDragRef.current = null;
     setGroupDragOverId(null);
+  };
+
+  // There's always at least one group — the last one can't be deleted
+  const handleDeleteProject = (projectId: string) => {
+    setDeleteGroupConfirmId(null);
+    if (projects.length <= 1) return;
+    setProjects(prev => (prev.length <= 1 ? prev : prev.filter(p => p.project_id !== projectId)));
+    if (selectedProjectId === projectId) {
+      setSelectedProjectId(projects.find(p => p.project_id !== projectId)?.project_id ?? '');
+    }
+  };
+
+  const startRenameProject = (project: Project) => {
+    setDeleteGroupConfirmId(null);
+    setRenamingGroup({ id: project.project_id, draft: project.title });
+  };
+
+  // Blank names are ignored — the group keeps its old one
+  const commitRenameProject = () => {
+    if (!renamingGroup) return;
+    const title = renamingGroup.draft.trim();
+    setRenamingGroup(null);
+    if (!title) return;
+    setProjects(prev => prev.map(p => (p.project_id === renamingGroup.id && p.title !== title ? { ...p, title } : p)));
   };
 
   // Moves the dragged group into the target's slot (before it when dragging up, after when dragging down).
@@ -471,9 +504,9 @@ const visibleLists = useMemo<Record<string, boolean>>(
   };
 
   /* ===================== Drag & drop ===================== */
-  const onDragStartRow = (e: React.DragEvent, id: string) => {
+  const onDragStartRow = (e: React.DragEvent, id: string, projectId: string) => {
     e.stopPropagation();
-    dragRef.current = { id };
+    dragRef.current = { id, projectId };
     setDragOverId(id);
     e.dataTransfer.effectAllowed = 'move';
     try {
@@ -481,18 +514,50 @@ const visibleLists = useMemo<Record<string, boolean>>(
     } catch {}
   };
 
-  const onDragOverRow = (e: React.DragEvent, overId: string) => {
+  const onDragOverRow = (e: React.DragEvent, overId: string, overProjectId: string) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!dragRef.current) return;
     if (dragOverId !== overId) setDragOverId(overId);
+    const crossGroup = dragRef.current.projectId !== overProjectId ? overProjectId : null;
+    if (listDropGroupId !== crossGroup) setListDropGroupId(crossGroup);
   };
 
-  const onDropRow = (e: React.DragEvent, overId: string) => {
+  // Hovering a group (its header, empty area or gaps) while dragging a list from another one
+  const onDragOverGroup = (e: React.DragEvent, projectId: string) => {
+    if (!dragRef.current) return;
     e.preventDefault();
+    if (dragOverId !== null) setDragOverId(null);
+    const crossGroup = dragRef.current.projectId !== projectId ? projectId : null;
+    if (listDropGroupId !== crossGroup) setListDropGroupId(crossGroup);
+  };
+
+  /** Drop on a group outside any row → the list moves to the end of that group. */
+  const onDropGroup = (e: React.DragEvent, projectId: string) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    e.preventDefault();
+    dragRef.current = null;
+    setDragOverId(null);
+    setListDropGroupId(null);
+    if (drag.projectId === projectId) return;
+    setProjects(prev => moveListToProject(prev, drag.id, projectId, null));
+  };
+
+  const onDropRow = (e: React.DragEvent, overId: string, overProjectId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     const drag = dragRef.current;
     dragRef.current = null;
     setDragOverId(null);
+    setListDropGroupId(null);
     if (!drag || drag.id === overId) return;
+
+    // Into another group → lands right before the list it was dropped on
+    if (drag.projectId !== overProjectId) {
+      setProjects(prev => moveListToProject(prev, drag.id, overProjectId, overId));
+      return;
+    }
 
     setCurrentBlocks(prev => {
       const dragged = prev.find(b => b.id === drag.id);
@@ -527,6 +592,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
   const onDragEndRow = () => {
     dragRef.current = null;
     setDragOverId(null);
+    setListDropGroupId(null);
   };
 
   // Lives on the first group's title row (right-aligned)
@@ -560,7 +626,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
         className={`relative z-60 flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl ${classes.panelGlass}`}
       >
         {/* Scrollable content */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 pt-2 md:px-4 md:pb-4 md:pt-[4.25rem]">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 pt-2 md:px-4 md:pb-4 md:pt-3">
           <>
               <div className="space-y-4">
               {projects.map((project, projectIndex) => {
@@ -576,29 +642,51 @@ const visibleLists = useMemo<Record<string, boolean>>(
                   if ((e.target as HTMLElement).closest('[data-group-manage]')) return;
                   if (!isCurrent) setSelectedProjectId(project.project_id);
                 }}
+                onDragOver={e => onDragOverGroup(e, project.project_id)}
+                onDrop={e => onDropGroup(e, project.project_id)}
+                className={[
+                  'rounded-lg transition-colors',
+                  listDropGroupId === project.project_id ? classes.dragOver : '',
+                ].join(' ')}
               >
                 <div className="mb-1 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroupCollapsed(project.project_id)}
+                  <div
                     className="flex min-w-0 flex-1 items-center gap-1 px-1 text-left text-[12px] font-semibold uppercase tracking-wide"
                     style={{ color: 'var(--assistant-text-soft)' }}
-                    title={project.title}
-                    aria-expanded={!isGroupCollapsed}
                   >
-                    <svg
-                      viewBox="0 0 16 16"
-                      className="h-3 w-3 shrink-0 transition-transform duration-150"
-                      style={{ transform: isGroupCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      aria-hidden="true"
+                    {/* Only the chevron collapses — the name itself does nothing on click */}
+                    <button
+                      type="button"
+                      onClick={() => toggleGroupCollapsed(project.project_id)}
+                      className="shrink-0 flex h-4 w-4 items-center justify-center"
+                      title={isGroupCollapsed ? 'Expand group' : 'Collapse group'}
+                      aria-label={isGroupCollapsed ? `Expand ${project.title}` : `Collapse ${project.title}`}
+                      aria-expanded={!isGroupCollapsed}
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
-                    </svg>
-                    <span className="truncate">{project.title}</span>
-                  </button>
+                      <svg
+                        viewBox="0 0 16 16"
+                        className="h-3 w-3 shrink-0 transition-transform duration-150"
+                        style={{ transform: isGroupCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        aria-hidden="true"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
+                      </svg>
+                    </button>
+                    <span
+                      className={[
+                        'truncate cursor-default select-none',
+                        isCurrent ? 'font-bold underline underline-offset-[3px]' : '',
+                      ].join(' ')}
+                      style={isCurrent ? { color: 'var(--assistant-text)' } : undefined}
+                      title={project.title}
+                      aria-current={isCurrent ? 'true' : undefined}
+                    >
+                      {project.title}
+                    </span>
+                  </div>
                   {projectIndex === 0 ? manageGroupsButton : null}
                 </div>
 
@@ -616,8 +704,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     return (
                       <React.Fragment key={b.id}>
                         <div
-                          onDragOver={e => onDragOverRow(e, b.id)}
-                          onDrop={e => onDropRow(e, b.id)}
+                          onDragOver={e => onDragOverRow(e, b.id, project.project_id)}
+                          onDrop={e => onDropRow(e, b.id, project.project_id)}
                           className={[
                             'group flex items-center gap-1 px-0.5 py-1 rounded-md',
                             dragOverId === b.id && dragRef.current?.id !== b.id ? classes.dragOver : '',
@@ -627,7 +715,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                         >
                           <div
                             draggable
-                            onDragStart={e => onDragStartRow(e, b.id)}
+                            onDragStart={e => onDragStartRow(e, b.id, project.project_id)}
                             onDragEnd={onDragEndRow}
                             className="w-5 shrink-0 select-none flex items-center justify-center cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-100 transition-opacity"
                             style={{ color: 'var(--assistant-text-faint)' }}
@@ -656,18 +744,28 @@ const visibleLists = useMemo<Record<string, boolean>>(
                                 style={{color: 'var(--assistant-text)'}}
                             />
                           ) : (
-                            <span
-                              data-youtask-block={b.id}
-                              className="min-w-0 flex-1 cursor-default select-none truncate text-left text-[14px] md:text-sm font-semibold"
-                              style={{ color: 'var(--assistant-text)' }}
-                              onDoubleClick={(e) => {
-                                e.stopPropagation();
-                                setEditingListTitleId(b.id);
-                                requestAnimationFrame(() => inputRefs.current[b.id]?.focus());
-                              }}
-                            >
-                              {(b.text || '').trim() ? b.text : 'List…'}
-                            </span>
+                            <div className="min-w-0 flex-1 flex items-center gap-1">
+                              <span
+                                data-youtask-block={b.id}
+                                className="min-w-0 cursor-default select-none truncate text-left text-[14px] md:text-sm font-semibold"
+                                style={{ color: 'var(--assistant-text)' }}
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingListTitleId(b.id);
+                                  requestAnimationFrame(() => inputRefs.current[b.id]?.focus());
+                                }}
+                              >
+                                {(b.text || '').trim() ? b.text : 'List…'}
+                              </span>
+                              {(() => {
+                                const p = getListProgress(project.blocks ?? [], b.id);
+                                return (
+                                  <span className="shrink-0 text-[12px] font-medium tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
+                                    ({p.done}/{p.total})
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           )}
 
                           {/* mousedown on the group selects its project first, so the toggle hits the right one */}
@@ -858,10 +956,14 @@ const visibleLists = useMemo<Record<string, boolean>>(
               </form>
 
               <div className="mt-3 max-h-[50vh] space-y-1 overflow-y-auto">
-                {projects.map(project => (
+                {projects.map(project => {
+                  const confirming = deleteGroupConfirmId === project.project_id;
+                  const renaming = renamingGroup?.id === project.project_id;
+                  const canDelete = projects.length > 1;
+                  return (
                   <div
                     key={project.project_id}
-                    draggable
+                    draggable={!renaming}
                     onDragStart={e => {
                       groupDragRef.current = project.project_id;
                       e.dataTransfer.effectAllowed = 'move';
@@ -874,7 +976,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     onDrop={e => { e.preventDefault(); handleDropGroup(project.project_id); }}
                     onDragEnd={() => { groupDragRef.current = null; setGroupDragOverId(null); }}
                     className={[
-                      'group flex cursor-grab items-center gap-2 rounded-md px-1.5 py-1.5 active:cursor-grabbing',
+                      'group flex items-center gap-2 rounded-md px-1.5 py-1.5',
+                      renaming ? '' : 'cursor-grab active:cursor-grabbing',
                       groupDragOverId === project.project_id && groupDragRef.current !== project.project_id ? classes.dragOver : '',
                       groupDragRef.current === project.project_id ? 'opacity-60' : '',
                     ].join(' ')}
@@ -890,19 +993,88 @@ const visibleLists = useMemo<Record<string, boolean>>(
                         <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
                       </svg>
                     </span>
-                    <span
-                      className="min-w-0 flex-1 truncate text-[13px] font-semibold uppercase tracking-wide"
-                      style={{ color: 'var(--assistant-text-soft)' }}
-                      title={project.title}
-                    >
-                      {project.title}
-                    </span>
+                    {renaming ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        value={renamingGroup.draft}
+                        onChange={e => setRenamingGroup({ id: project.project_id, draft: e.target.value })}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.preventDefault(); commitRenameProject(); }
+                          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setRenamingGroup(null); }
+                        }}
+                        onBlur={commitRenameProject}
+                        onFocus={e => e.currentTarget.select()}
+                        className={`min-w-0 flex-1 rounded-md px-2 py-1 text-[13px] font-semibold ${classes.quickSearchInput}`}
+                        aria-label="Group name"
+                      />
+                    ) : (
+                      <span
+                        className="min-w-0 flex-1 truncate text-[13px] font-semibold uppercase tracking-wide"
+                        style={{ color: 'var(--assistant-text-soft)' }}
+                        title={confirming ? project.title : 'Double-click to rename'}
+                        onDoubleClick={() => { if (!confirming) startRenameProject(project); }}
+                      >
+                        {confirming ? `Delete ${project.title}?` : project.title}
+                      </span>
+                    )}
+                    {renaming ? null : !confirming ? (
+                      <button
+                        type="button"
+                        onClick={() => startRenameProject(project)}
+                        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-opacity"
+                        style={{ color: 'var(--assistant-text-faint)' }}
+                        title="Rename group"
+                        aria-label={`Rename group ${project.title}`}
+                      >
+                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
+                        </svg>
+                      </button>
+                    ) : null}
+                    {renaming || !canDelete ? null : confirming ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProject(project.project_id)}
+                          className="shrink-0 rounded-md px-2 py-1 text-[12px] bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 transition-colors"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteGroupConfirmId(null)}
+                          className={`${classes.panelBtn} shrink-0 rounded-md px-2 py-1 text-[12px]`}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteGroupConfirmId(project.project_id)}
+                        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-rose-400 transition-opacity"
+                        style={{ color: 'var(--assistant-text-faint)' }}
+                        title="Delete group"
+                        aria-label={`Delete group ${project.title}`}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M9.5 7V4.5h5V7M6 7l1 12.5h10L18 7M10 11v5M14 11v5" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
               <p className="mt-2 text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
-                Drag to reorder.
+                Drag to reorder. Double-click a name to rename it.
               </p>
+              {deleteGroupConfirmId ? (
+                <p className="mt-1 text-[12px] text-rose-300">
+                  Warning: deleting a group also deletes all its lists and tasks. This can&apos;t be undone.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>,
