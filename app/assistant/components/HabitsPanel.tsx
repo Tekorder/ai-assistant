@@ -211,7 +211,7 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
         }
       `}</style>
 
-      <div className="flex items-center justify-between px-4 py-3 shrink-0"
+      <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Habits</h2>
         <button type="button" onClick={requestClose} className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">

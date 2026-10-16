@@ -234,7 +234,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                 onClick={() => onPickDay?.(ymd)}
                 className={[
                   'h-7 rounded-md text-[12px] transition-colors',
-                  isToday ? classes.miniCalDayToday : classes.miniCalDayNormal,
+                  isToday ? `font-bold ${classes.miniCalDayToday}` : classes.miniCalDayNormal,
                 ].join(' ')}
                 title={ymd}
               >

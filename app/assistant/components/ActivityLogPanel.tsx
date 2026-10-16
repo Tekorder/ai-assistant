@@ -118,7 +118,7 @@ export default function ActivityLogPanel({ open, onClose, tasks, variant = 'over
 
   const body = (
     <>
-      <div className="flex items-center justify-between px-4 py-3 shrink-0"
+      <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Activity Log</h2>
         <button

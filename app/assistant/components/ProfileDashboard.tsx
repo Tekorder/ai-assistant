@@ -23,7 +23,6 @@ import classes from '@/app/assistant/_theme/themes.module.css';
 /* Status colors (fixed, never themed) — always shown with a text label */
 const STATUS = {
   overdue: '#d03b3b',
-  onHold: '#fab219',
 };
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -267,7 +266,6 @@ function StatusBar({ s }: { s: MonthStats }) {
     { key: 'done', label: 'Completed', value: s.completed, color: 'var(--assistant-accent)' },
     { key: 'pending', label: 'Pending', value: s.pending, color: 'color-mix(in srgb, var(--assistant-text-faint) 45%, transparent)' },
     { key: 'overdue', label: 'Overdue', value: s.overdue, color: STATUS.overdue },
-    { key: 'hold', label: 'On hold', value: s.onHold, color: STATUS.onHold },
   ];
   const total = s.due;
   return (

@@ -22,6 +22,7 @@ import {
   cycleTaskFlag,
   addTaskUnderList,
   removeTaskAndSubtasks,
+  updateBlock,
   type TaskFlagColor,
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from '../TaskFlag';
@@ -43,7 +44,6 @@ type Card = {
   subtasks: SubTask[];
   isHidden?: boolean;
   archived?: boolean;
-  onHold?: boolean;
   flag?: TaskFlagColor;
 };
 
@@ -89,17 +89,13 @@ function isDateWithinRange(ymd: string, fromYMD: string, toYMD: string): boolean
 function RowMenu({
   x,
   y,
-  isOnHold,
   onReschedule,
-  onToggleHold,
   onDelete,
   onClose,
 }: {
   x: number;
   y: number;
-  isOnHold: boolean;
   onReschedule: () => void;
-  onToggleHold: () => void;
   onDelete: () => void;
   onClose: () => void;
 }) {
@@ -150,7 +146,6 @@ function RowMenu({
   return (
     <div ref={ref} className="yt-menu" style={{ left: pos.left, top: pos.top }} role="menu">
       {item('Reschedule', onReschedule)}
-      {item(isOnHold ? 'Remove hold' : 'Put on hold', onToggleHold)}
       {item('Delete', onDelete, true)}
     </div>
   );
@@ -263,7 +258,6 @@ export default function Timeline() {
         subtasks,
         isHidden,
         archived: false,
-        onHold: b.onHold === true,
         flag: getTaskFlag(b),
       });
     }
@@ -373,19 +367,10 @@ export default function Timeline() {
 
   /* ── Actions ── */
   const toggleDone = (cardId: string) => {
-    const next = blocks.map(x => ({ ...x }));
-    const t = todayYMD();
-
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      const nextChecked = !Boolean(b.checked);
-      b.checked = nextChecked;
-      if (nextChecked) {
-        b.deadline = t;
-        b.isHidden = false;
-      }
-      break;
-    }
+    // Tasks and subtasks alike; updateBlock cascades the check to parents/children
+    const card = blocks.find(b => b.id === cardId && b.indent > 0);
+    if (!card) return;
+    const next = updateBlock(blocks, cardId, { checked: !card.checked });
 
     writeSelectedProjectBlocks(projectId, next);
     setBlocks(next);
@@ -415,21 +400,9 @@ export default function Timeline() {
       if (b.id !== cardId || b.indent !== 1) continue;
       b.deadline = newDeadline;
       if (b.isHidden === true) b.isHidden = false;
-      b.onHold = false;
       break;
     }
 
-    writeSelectedProjectBlocks(projectId, next);
-    setBlocks(next);
-  };
-
-  const setHold = (cardId: string, onHold: boolean) => {
-    const next = blocks.map(x => ({ ...x }));
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      b.onHold = onHold;
-      break;
-    }
     writeSelectedProjectBlocks(projectId, next);
     setBlocks(next);
   };
@@ -717,13 +690,25 @@ export default function Timeline() {
                               </div>
                             )}
 
-                            {card.onHold ? <div className="yt-row-meta">On hold</div> : null}
 
                             {card.subtasks.length > 0 ? (
                               <div className="yt-subtasks">
                                 {card.subtasks.map(st => (
                                   <div key={st.id} className={['yt-subtask', st.checked ? 'is-done' : ''].join(' ')}>
-                                    <span className="yt-subdot">{st.checked ? '✓' : '•'}</span>
+                                    <button
+                                      type="button"
+                                      className={['yt-check yt-subcheck check-glow', st.checked ? 'is-on' : ''].join(' ')}
+                                      onClick={() => toggleDone(st.id)}
+                                      title={st.checked ? 'Mark as pending' : 'Mark as completed'}
+                                      aria-label={st.checked ? 'Completed' : 'Mark completed'}
+                                      aria-pressed={st.checked}
+                                    >
+                                      {st.checked ? (
+                                        <svg viewBox="0 0 12 12" width="8" height="8" fill="none" aria-hidden="true">
+                                          <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                      ) : null}
+                                    </button>
                                     <span className="yt-subtext">{st.text || '(subtask)'}</span>
                                   </div>
                                 ))}
@@ -898,12 +883,7 @@ export default function Timeline() {
         <RowMenu
           x={rowMenu.x}
           y={rowMenu.y}
-          isOnHold={Boolean(cards.find(c => c.id === rowMenu.cardId)?.onHold)}
           onReschedule={() => setEditingDateCardId(rowMenu.cardId)}
-          onToggleHold={() => {
-            const card = cards.find(c => c.id === rowMenu.cardId);
-            setHold(rowMenu.cardId, !card?.onHold);
-          }}
           onDelete={() => setDeleteConfirmId(rowMenu.cardId)}
           onClose={() => setRowMenu(null)}
         />

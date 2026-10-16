@@ -29,6 +29,7 @@ import {
   removeBlock,
   removeListAndChildren,
   updateBlock as updateBlockArr,
+  removeTaskWithSubtasks,
   addTaskUnderList as addTaskUnderListArr,
   createList as createListArr,
   createBlankList,
@@ -45,7 +46,6 @@ import {
   buildListVisibilityHiddenMap,
   sortBlocksByOrder,
   getTaskFlag,
-  getListProgress,
   // Sync status
   isProjectsHydrated,
   PROJECTS_HYDRATED_EVENT,
@@ -63,7 +63,40 @@ import { FirstListWizard } from '../FirstListWizard';
 const wizardClosedThisLoad = new Set<string>();
 /** page.tsx mounts Quick twice (mobile + desktop containers) — this keeps both in step. */
 const WIZARD_CLOSED_EVENT = 'youtask_first_list_wizard_closed';
-import { ListStatusPill } from '../ListStatusPill';
+
+/**
+ * Sentence glue (English + Spanish) nobody wants a Search for — these words never
+ * arm on hover. Compared lowercase, after stripping surrounding punctuation.
+ */
+/** How many check toggles Ctrl+Z can step back through */
+const CHECK_UNDO_LIMIT = 30;
+
+const BANNED_SEARCH_WORDS = new Set([
+  // English
+  'a', 'an', 'the', 'and', 'or', 'but', 'nor', 'so', 'yet', 'if', 'then', 'than', 'because', 'as',
+  'of', 'to', 'in', 'on', 'at', 'by', 'for', 'from', 'with', 'without', 'about', 'into', 'onto',
+  'over', 'under', 'up', 'down', 'out', 'off', 'per', 'via',
+  'i', 'me', 'my', 'mine', 'you', 'your', 'yours', 'he', 'him', 'his', 'she', 'her', 'hers',
+  'it', 'its', 'we', 'us', 'our', 'ours', 'they', 'them', 'their', 'theirs',
+  'this', 'that', 'these', 'those', 'there', 'here',
+  'is', 'am', 'are', 'was', 'were', 'be', 'been', 'being',
+  'has', 'have', 'had', 'having', 'do', 'does', 'did', 'done',
+  'will', 'would', 'can', 'could', 'should', 'shall', 'may', 'might', 'must',
+  'what', 'which', 'who', 'whom', 'whose', 'why', 'how', 'when', 'where',
+  'not', 'no', 'yes', 'all', 'any', 'some', 'each', 'every', 'more', 'most', 'very',
+  'just', 'also', 'too', 'only', 'again', 'still', 'even',
+  // Spanish
+  'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'lo', 'al', 'del',
+  'y', 'e', 'o', 'u', 'ni', 'pero', 'sino', 'que', 'si', 'porque', 'pues', 'como',
+  'de', 'en', 'con', 'sin', 'por', 'para', 'a', 'ante', 'bajo', 'desde', 'hasta', 'hacia',
+  'entre', 'sobre', 'tras', 'según', 'segun',
+  'yo', 'tu', 'tú', 'él', 'ella', 'ello', 'nosotros', 'nosotras', 'ustedes', 'ellos', 'ellas',
+  'me', 'te', 'se', 'nos', 'le', 'les', 'mi', 'mis', 'tus', 'su', 'sus', 'nuestro', 'nuestra',
+  'este', 'esta', 'esto', 'estos', 'estas', 'ese', 'esa', 'eso', 'esos', 'esas',
+  'es', 'son', 'era', 'fue', 'ser', 'estar', 'está', 'están', 'hay', 'ha', 'han', 'he',
+  'qué', 'cuál', 'quién', 'cómo', 'cuándo', 'dónde',
+  'no', 'sí', 'muy', 'más', 'mas', 'ya', 'también', 'tambien', 'solo', 'sólo',
+]);
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { useQuickFilters, type TaskFilterTag } from '../QuickFiltersContext';
 
@@ -176,22 +209,18 @@ function QuickProgressBlock({
 export function ActionsPanel({
   dateMode, setDateMode, showCompleted, setShowCompleted,
   sortBy, setSortBy,
-  hideOnHold, setHideOnHold,
   taskFilter, setTaskFilter,
-  onSearch,
+  searchQuery, setSearchQuery,
 }: {
-  /** Enter in the keyword box — opens a pivot for the matching list or the word */
-  onSearch?: (query: string) => void;
+  /** Keyword box — live-filters the workspace lists (searches across all dates) */
+  searchQuery: string; setSearchQuery: (v: string) => void;
   dateMode: DateMode; setDateMode: (m: DateMode) => void;
   showCompleted: boolean; setShowCompleted: (v: boolean | ((p: boolean) => boolean)) => void;
   sortBy: SortBy; setSortBy: (v: SortBy) => void;
-  hideOnHold: boolean; setHideOnHold: (v: boolean | ((p: boolean) => boolean)) => void;
   taskFilter: TaskFilterTag; setTaskFilter: (v: TaskFilterTag) => void;
   /** @deprecated layout is always chips now */
   chips?: boolean;
 }) {
-  const [search, setSearch] = useState('');
-
   const pill = (active: boolean) =>
     ['text-[13px] px-3 py-1.5 rounded-full transition-all whitespace-nowrap',
       active ? classes.quickFilterActive : classes.quickFilterInactive,
@@ -221,21 +250,15 @@ export function ActionsPanel({
 
   return (
     <div className="space-y-4">
-      {onSearch && (
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              onSearch(search);
-            }
-          }}
-          placeholder="Search keyword"
-          className={`w-full rounded-xl px-3 py-2 text-[13px] ${classes.quickSearchInput}`}
-        />
-      )}
+      <input
+        type="search"
+        value={searchQuery}
+        onChange={e => setSearchQuery(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Escape') setSearchQuery(''); }}
+        placeholder="Search keyword"
+        aria-label="Filter tasks by keyword"
+        className={`w-full rounded-xl px-3 py-2 text-[13px] ${classes.quickSearchInput}`}
+      />
 
       {/* View by */}
       <div>
@@ -292,13 +315,6 @@ export function ActionsPanel({
           >
             Hide Completed
           </button>
-          <button
-            type="button"
-            onClick={() => setHideOnHold(s => !s)}
-            className={pill(hideOnHold)}
-          >
-            Hide On Hold
-          </button>
         </div>
       </div>
     </div>
@@ -326,10 +342,17 @@ export default function Quick(props: QuickProps = {}) {
   const {
     dateMode, setDateMode,
     showCompleted, setShowCompleted,
-    hideOnHold, setHideOnHold,
     sortBy, setSortBy,
     taskFilter, setTaskFilter,
+    searchQuery, setSearchQuery,
   } = useQuickFilters();
+  // While a keyword is typed the lists search everything, like the "All" chip
+  // (all dates, no extra filter, collapsed lists opened)
+  const searchTerm = searchQuery.trim().toLowerCase();
+  const searching = searchTerm !== '';
+  const viewDateMode: DateMode = searching ? 'all' : dateMode;
+  const viewTaskFilter: TaskFilterTag = searching ? 'none' : taskFilter;
+  const matchesSearch = (b: Block) => (b.text || '').toLowerCase().includes(searchTerm);
   const [focusDay, setFocusDay] = useState<string>(todayYMD());
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -385,6 +408,24 @@ export default function Quick(props: QuickProps = {}) {
   const audioDoneRef  = useRef<HTMLAudioElement | null>(null);
   const [pulseId, setPulseId] = useState<string | null>(null);
   const pulseTimerRef    = useRef<number | null>(null);
+  const [armedWordKey, setArmedWordKey] = useState<string | null>(null);
+  const armTimerRef      = useRef<number | null>(null);
+  const [armedDeleteTaskId, setArmedDeleteTaskId] = useState<string | null>(null);
+  // Tasks whose note editor is open under the row (UI-only)
+  const [openNoteIds, setOpenNoteIds] = useState<Set<string>>(() => new Set());
+  const toggleNoteOpen = (id: string) =>
+    setOpenNoteIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  const checkUndoRef = useRef<Array<Array<Pick<Block, 'id' | 'checked' | 'deadline' | 'isHidden'>>>>([]);
+  const undoLastCheckRef = useRef<() => boolean>(() => false);
+  const deleteArmTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (armTimerRef.current) window.clearTimeout(armTimerRef.current);
+    if (deleteArmTimerRef.current) window.clearTimeout(deleteArmTimerRef.current);
+  }, []);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiTimerRef = useRef<number | null>(null);
   const [toastShow, setToastShow] = useState(false);
@@ -575,9 +616,9 @@ export default function Quick(props: QuickProps = {}) {
 
   /* ── Memoized view data (via datacenter helpers) ── */
   const hiddenMap = useMemo(
-    () => buildHiddenMap(blocks, { collapsed, showHidden: false, dateMode, focusDay, sortBy }),
+    () => buildHiddenMap(blocks, { collapsed: searching ? {} : collapsed, showHidden: false, dateMode: viewDateMode, focusDay, sortBy }),
 
-    [blocks, collapsed, dateMode, focusDay, sortBy],
+    [blocks, collapsed, searching, viewDateMode, focusDay, sortBy],
   );
   const hiddenByListMap = useMemo(
     () => buildListVisibilityHiddenMap(blocks, visibleLists),
@@ -671,6 +712,21 @@ export default function Quick(props: QuickProps = {}) {
   const handleUpdateBlock = (id: string, patch: Partial<Block>) => {
     const isChecking = typeof patch.checked === 'boolean' && patch.checked === true;
 
+    // Remember what a check/uncheck changed (incl. the parent/subtask cascade) for Ctrl+Z
+    if (typeof patch.checked === 'boolean') {
+      const before = new Map(blocks.map(b => [b.id, b]));
+      const changed = updateBlockArr(blocks, id, patch, focusDay)
+        .filter(b => before.has(b.id) && Boolean(before.get(b.id)!.checked) !== Boolean(b.checked))
+        .map(b => {
+          const old = before.get(b.id)!;
+          return { id: b.id, checked: old.checked, deadline: old.deadline, isHidden: old.isHidden };
+        });
+      if (changed.length) {
+        checkUndoRef.current.push(changed);
+        if (checkUndoRef.current.length > CHECK_UNDO_LIMIT) checkUndoRef.current.shift();
+      }
+    }
+
     const willCompleteDay = isChecking && dateMode === 'today' && (() => {
       const tasksForDay = blocks.filter(
         b => b.indent > 0 && b.archived !== true && b.isHidden !== true
@@ -711,6 +767,29 @@ export default function Quick(props: QuickProps = {}) {
     });
   };
 
+  // Ctrl/Cmd+Z outside a text field restores the tasks the last check toggled.
+  // (Quick is mounted twice; only the instance that recorded the check has an entry.)
+  undoLastCheckRef.current = () => {
+    const entry = checkUndoRef.current.pop();
+    if (!entry) return false;
+    const byId = new Map(entry.map(e => [e.id, e]));
+    setCurrentBlocks(prev => prev.map(b => {
+      const e = byId.get(b.id);
+      return e ? { ...b, checked: e.checked, deadline: e.deadline, isHidden: e.isHidden } : b;
+    }));
+    return true;
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || t.closest('input, textarea, select'))) return;
+      if (undoLastCheckRef.current()) e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const handleInsertAfter = (id: string, block: Block) => {
     setCurrentBlocks(prev => insertBlockAfter(prev, id, block));
     focusBlock(block.id, false);
@@ -727,6 +806,19 @@ export default function Quick(props: QuickProps = {}) {
       if (target) focusBlock(target.id, true);
       return next;
     });
+  };
+
+  // Two clicks to delete: the first arms the button (turns red) for a moment,
+  // the second deletes the task and its subtasks
+  const requestDeleteTask = (taskId: string) => {
+    if (deleteArmTimerRef.current) window.clearTimeout(deleteArmTimerRef.current);
+    if (armedDeleteTaskId !== taskId) {
+      setArmedDeleteTaskId(taskId);
+      deleteArmTimerRef.current = window.setTimeout(() => setArmedDeleteTaskId(null), 2500);
+      return;
+    }
+    setArmedDeleteTaskId(null);
+    setCurrentBlocks(prev => removeTaskWithSubtasks(prev, taskId));
   };
 
   const handleConfirmDeleteList = (listId: string) => {
@@ -983,6 +1075,7 @@ const handleKey = (
   const isClickableWord = (token: string) => {
     const core = token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
     if (core.length < 2) return false;
+    if (BANNED_SEARCH_WORDS.has(core.toLowerCase())) return false;
     return /[\p{L}]/u.test(core);
   };
 
@@ -997,6 +1090,21 @@ const handleKey = (
     if (isUncTitleBlock(list)) return;
     const title = (list.text || '').trim() || 'List';
     onOpenPivot?.({ word: title, blockId: list.id, listId: list.id, origin: 'quick' });
+  };
+
+  // A word only turns into a Search link after resting the pointer on it for
+  // WORD_ARM_MS; until then a click edits the task like anywhere else on the text.
+  const WORD_ARM_MS = 1000;
+  const armWord = (key: string) => {
+    if (armTimerRef.current) window.clearTimeout(armTimerRef.current);
+    armTimerRef.current = window.setTimeout(() => {
+      armTimerRef.current = null;
+      setArmedWordKey(key);
+    }, WORD_ARM_MS);
+  };
+  const disarmWord = () => {
+    if (armTimerRef.current) { window.clearTimeout(armTimerRef.current); armTimerRef.current = null; }
+    setArmedWordKey(null);
   };
 
   const renderTaskTextWithWordHover = (b: Block) => {
@@ -1015,7 +1123,9 @@ const handleKey = (
           onFocus={() => setEditingTaskId(b.id)}
           onBlur={() => setEditingTaskId(prev => (prev === b.id ? null : prev))}
           className={[
-            'bg-transparent outline-none p-0 text-[14px] md:text-sm resize-none overflow-hidden w-full min-w-0 transition-opacity duration-150',
+            // block: an inline-block textarea sits on the text baseline and gains a few px
+            // below it, which made the row (items-center) shift the text up while editing
+            'block m-0 border-0 bg-transparent outline-none p-0 text-[14px] md:text-sm resize-none overflow-hidden w-full min-w-0 transition-opacity duration-150',
             isEditing ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none absolute inset-0',
           ].join(' ')}
           style={{
@@ -1039,18 +1149,23 @@ const handleKey = (
             {tokens.map((token, idx) => {
               if (/^\s+$/.test(token)) return <React.Fragment key={`${b.id}-ws-${idx}`}>{token}</React.Fragment>;
               const clickable = isClickableWord(token);
+              const wordKey = `${b.id}-tk-${idx}`;
+              const armed = clickable && armedWordKey === wordKey;
               return (
                 <span
-                  key={`${b.id}-tk-${idx}`}
+                  key={wordKey}
                   className={
-                    clickable
-                      ? 'hover:underline decoration-[var(--assistant-accent)] underline-offset-[3px]'
+                    armed
+                      ? 'cursor-pointer rounded-sm underline decoration-[var(--assistant-accent)] underline-offset-[3px] bg-[color-mix(in_srgb,var(--assistant-accent)_18%,transparent)]'
                       : ''
                   }
+                  onMouseEnter={clickable ? () => armWord(wordKey) : undefined}
+                  onMouseLeave={clickable ? disarmWord : undefined}
                   onClick={
-                    clickable
+                    armed
                       ? (e) => {
                           e.stopPropagation();
+                          disarmWord();
                           openPivotForWord(b.id, token);
                         }
                       : undefined
@@ -1094,6 +1209,17 @@ const handleKey = (
         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
       </svg>
     );
+    const noteIcon = (
+      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 2.5h7l3 3v8H3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10 2.5v3h3M5.5 8.5h5M5.5 11h3.5" />
+      </svg>
+    );
+    const deleteIcon = (
+      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M9.5 7V4.5h5V7M6 7l1 12.5h10L18 7M10 11v5M14 11v5" />
+      </svg>
+    );
 
     return (
       <div className="space-y-1 quick-rows">
@@ -1101,12 +1227,15 @@ const handleKey = (
           if (hiddenByListMap[listBlock.id]) return null;
           const isUncList = isUncTitleBlock(listBlock);
           const tasks = tasksByParent.get(listBlock.id) ?? [];
+          // A list whose title matches shows all its tasks; otherwise only matching tasks
+          const listMatches = searching && !isUncList && matchesSearch(listBlock);
           const visibleTasks = tasks.filter(task =>
             !hiddenMap[task.id] && !hiddenByListMap[task.id] &&
             (showCompleted || task.checked !== true) &&
-            !(hideOnHold && task.onHold === true) &&
-            !(taskFilter === 'priority' && !getTaskFlag(task)),
+            !(viewTaskFilter === 'priority' && !getTaskFlag(task)) &&
+            (!searching || listMatches || matchesSearch(task)),
           );
+          if (searching && !listMatches && visibleTasks.length === 0) return null;
           // Hovering the last visible task (or the header of an empty list) reveals a
           // ghost "Task…" row right below it; clicking it adds a task to this list.
           // Only offered once the last task is committed (has text, not being edited),
@@ -1191,16 +1320,6 @@ const handleKey = (
                         {(listBlock.text || '').trim() ? listBlock.text : 'List…'}
                       </span>
                     )}
-                    <span className="text-[12px] font-medium shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>
-                      ({tasks.filter(t => t.checked).length}/{tasks.length})
-                    </span>
-                    <span className="ml-1 inline-flex">
-                      <ListStatusPill
-                        status={getListProgress(blocks, listBlock.id).status}
-                        current={listBlock.listStatus}
-                        onChange={(next) => handleUpdateBlock(listBlock.id, { listStatus: next })}
-                      />
-                    </span>
                   </div>
                   <button
                     type="button"
@@ -1265,15 +1384,12 @@ const handleKey = (
                             value={isValidDateYYYYMMDD(task.deadline) ? task.deadline : ''}
                             onChange={e => {
                               const v = e.target.value;
-                              handleUpdateBlock(task.id, { deadline: v ? v : undefined, onHold: false });
+                              handleUpdateBlock(task.id, { deadline: v ? v : undefined });
                               setEditingDateTaskId(null);
                             }}
                             onBlur={() => setEditingDateTaskId(null)}
                             onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setEditingDateTaskId(null); }}
                           />
-                        )}
-                        {task.onHold && (
-                          <span className={`shrink-0 mt-0.5 text-[11px] px-1.5 py-0.5 rounded-full ${classes.quickDatePillHold}`}>HOLD</span>
                         )}
                       </div>
                       {editingTaskId !== task.id && (
@@ -1290,6 +1406,49 @@ const handleKey = (
                           className={`shrink-0 h-5 w-5 flex items-center justify-center opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-all duration-150 ${classes.quickEditBtn}`}
                         >
                           {editIcon}
+                        </button>
+                      )}
+                      {editingTaskId !== task.id && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleNoteOpen(task.id);
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          aria-label={task.note ? 'Edit note' : 'Add note'}
+                          aria-expanded={openNoteIds.has(task.id)}
+                          title={task.note ? 'Edit note' : 'Add note'}
+                          // A task with a note keeps the icon visible (accent) so the note isn't hidden
+                          className={[
+                            'shrink-0 h-5 w-5 flex items-center justify-center transition-all duration-150',
+                            task.note || openNoteIds.has(task.id)
+                              ? 'opacity-80 hover:opacity-100'
+                              : `opacity-0 group-hover:opacity-70 hover:!opacity-100 ${classes.quickEditBtn}`,
+                          ].join(' ')}
+                          style={task.note || openNoteIds.has(task.id) ? { color: 'var(--assistant-accent)' } : undefined}
+                        >
+                          {noteIcon}
+                        </button>
+                      )}
+                      {editingTaskId !== task.id && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            requestDeleteTask(task.id);
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          aria-label={armedDeleteTaskId === task.id ? 'Click again to delete task' : 'Delete task'}
+                          title={armedDeleteTaskId === task.id ? 'Click again to delete' : 'Delete task'}
+                          className={[
+                            'shrink-0 h-5 w-5 flex items-center justify-center transition-all duration-150',
+                            armedDeleteTaskId === task.id
+                              ? 'opacity-100 text-rose-400'
+                              : `opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-rose-400 ${classes.quickEditBtn}`,
+                          ].join(' ')}
+                        >
+                          {deleteIcon}
                         </button>
                       )}
                       {editingDateTaskId !== task.id && (
@@ -1328,6 +1487,30 @@ const handleKey = (
                         onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
                       />
                     </div>
+                    {openNoteIds.has(task.id) && (
+                      // Lines up under the task text (handle + spacer + checkbox ≈ 52px)
+                      <div className="pb-1 pr-2" style={{ paddingLeft: (isUncList ? 6 : 8 + task.indent * 16) + 52 }}>
+                        <textarea
+                          autoFocus
+                          value={task.note ?? ''}
+                          placeholder="Add a note…"
+                          onChange={e => {
+                            handleUpdateBlock(task.id, { note: e.target.value.trim() ? e.target.value : undefined });
+                            resizeTextarea(e.currentTarget);
+                          }}
+                          onFocus={e => resizeTextarea(e.currentTarget)}
+                          onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); toggleNoteOpen(task.id); } }}
+                          rows={2}
+                          className="block w-full resize-none overflow-hidden rounded-md px-2 py-1.5 text-[13px] leading-[1.45] outline-none"
+                          style={{
+                            color: 'var(--assistant-text-soft)',
+                            background: 'color-mix(in srgb, var(--assistant-text) 5%, transparent)',
+                            border: '1px solid var(--assistant-border-soft)',
+                          }}
+                          aria-label={`Note for ${task.text || 'task'}`}
+                        />
+                      </div>
+                    )}
                   </React.Fragment>
                 );
               })}
@@ -1356,32 +1539,11 @@ const handleKey = (
     );
   };
 
-  // Keyword search: a list whose words match (any order, case-insensitive) opens
-  // that list's pivot; anything else opens a pivot for the word itself.
-  const listTitleSignature = (value: string) =>
-    value.trim().split(/\s+/).filter(Boolean).map(part => part.toLocaleLowerCase()).sort().join(' ');
-
-  const openPivotFromSearch = (rawValue: string) => {
-    const query = rawValue.trim();
-    if (!query) return;
-    const querySignature = listTitleSignature(query);
-    const matchedList = blocks.find(b =>
-      b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true &&
-      (b.text || '').trim() !== '' && listTitleSignature(b.text || '') === querySignature,
-    );
-    if (matchedList) {
-      openPivotForList(matchedList);
-      return;
-    }
-    onOpenPivot?.({ word: query, blockId: null, origin: 'quick' });
-  };
-
   const actionsPanelProps = {
     dateMode, setDateMode, showCompleted, setShowCompleted,
     sortBy, setSortBy,
-    hideOnHold, setHideOnHold,
     taskFilter, setTaskFilter,
-    onSearch: openPivotFromSearch,
+    searchQuery, setSearchQuery,
   };
 
   const progressLabel =
@@ -1546,6 +1708,16 @@ const handleKey = (
                     >
                       ›
                     </button>
+
+                    {currentProject?.title ? (
+                      <span
+                        className="min-w-0 truncate rounded-full px-2 py-0.5 text-[11px] md:text-[12px] font-semibold uppercase tracking-wide"
+                        style={{ color: 'var(--assistant-text-soft)', border: '1px solid var(--assistant-border-soft)' }}
+                        title={`Group: ${currentProject.title}`}
+                      >
+                        {currentProject.title}
+                      </span>
+                    ) : null}
                   </div>
 
                   {/* Right: New List */}

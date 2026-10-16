@@ -16,6 +16,8 @@ model User {
   timezone               String     @default("America/Tegucigalpa")
   selectedProjectLocalId String?
   onboarded              Boolean    @default(false)
+  /// Starter groups (Personal, Work, Family) were added once; after that they're the user's to rename/delete
+  groupsSeeded           Boolean    @default(false)
   // free | paid | perpetual. "paid" is active only while paidUntil is in the future.
   plan                   String     @default("free")
   paidUntil              DateTime?
@@ -38,6 +40,8 @@ model Project {
   collapsed      Json     @default("{}")
   quickCollapsed Json     @default("{}")
   visibleLists   Json     @default("{}")
+  /// Group order in the sidebar (the client's array index)
+  position       Int      @default(0)
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   blocks         Block[]
   rowCreatedAt   DateTime @default(now())
@@ -45,6 +49,7 @@ model Project {
 
   @@unique([userId, localId])
   @@index([userId])
+  @@index([userId, position])
 }
 
 model Block {
@@ -64,6 +69,8 @@ model Block {
   flag          String?
   priority      Boolean  @default(false)
   listStatus    String?
+  /// Free-text note on a task
+  note          String?
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   rowCreatedAt  DateTime @default(now())
   rowUpdatedAt  DateTime @updatedAt
