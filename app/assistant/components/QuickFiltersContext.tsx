@@ -1,6 +1,6 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import type { DateMode, SortBy } from '@/lib/datacenter';
+import { addDaysYMD, isValidDateYYYYMMDD, todayYMD, type DateMode, type DateRange, type SortBy } from '@/lib/datacenter';
 
 /** Extra task filters beyond date range (UI; priority is wired). */
 export type TaskFilterTag = 'none' | 'priority' | 'someday' | 'scheduled';
@@ -8,8 +8,14 @@ export type TaskFilterTag = 'none' | 'priority' | 'someday' | 'scheduled';
 type QuickFiltersContextValue = {
   dateMode: DateMode;
   setDateMode: (m: DateMode) => void;
+  /** Custom from/to used when dateMode is 'range' */
+  dateRange: DateRange;
+  setDateRange: (r: DateRange) => void;
   showCompleted: boolean;
   setShowCompleted: (v: boolean | ((p: boolean) => boolean)) => void;
+  /** Hide tasks with no due date ("Someday") */
+  hideSomeday: boolean;
+  setHideSomeday: (v: boolean | ((p: boolean) => boolean)) => void;
   sortBy: SortBy;
   setSortBy: (v: SortBy) => void;
   taskFilter: TaskFilterTag;
@@ -25,15 +31,19 @@ const LS_KEY_QUICK_FILTERS = 'youtask_quick_filters_v1';
 
 type SavedFilters = Partial<{
   dateMode: DateMode;
+  dateRange: DateRange;
   showCompleted: boolean;
+  hideSomeday: boolean;
   sortBy: SortBy;
   taskFilter: TaskFilterTag;
 }>;
 
 export function QuickFiltersProvider({ children }: { children: React.ReactNode }) {
   const [dateMode, setDateMode] = useState<DateMode>('all');
+  const [dateRange, setDateRange] = useState<DateRange>(() => ({ from: addDaysYMD(todayYMD(), -6), to: todayYMD() }));
   const [showCompleted, setShowCompleted] = useState(true);
-  const [sortBy, setSortBy] = useState<SortBy>('dueDate');
+  const [hideSomeday, setHideSomeday] = useState(false);
+  const [sortBy, setSortBy] = useState<SortBy>('createdAt');
   const [taskFilter, setTaskFilter] = useState<TaskFilterTag>('none');
   const [searchQuery, setSearchQuery] = useState('');
   const [restored, setRestored] = useState(false);
@@ -43,9 +53,13 @@ export function QuickFiltersProvider({ children }: { children: React.ReactNode }
       const raw = localStorage.getItem(LS_KEY_QUICK_FILTERS);
       if (raw) {
         const saved = JSON.parse(raw) as SavedFilters;
-        if (saved.dateMode) setDateMode(saved.dateMode);
+        const r = saved.dateRange;
+        const validRange = !!r && isValidDateYYYYMMDD(r.from) && isValidDateYYYYMMDD(r.to) && r.from <= r.to;
+        if (validRange) setDateRange(r);
+        if (saved.dateMode && (saved.dateMode !== 'range' || validRange)) setDateMode(saved.dateMode);
         if (typeof saved.showCompleted === 'boolean') setShowCompleted(saved.showCompleted);
-        if (saved.sortBy) setSortBy(saved.sortBy);
+        if (typeof saved.hideSomeday === 'boolean') setHideSomeday(saved.hideSomeday);
+        // sortBy is not restored: every session starts on "Created Date"
         if (saved.taskFilter) setTaskFilter(saved.taskFilter);
       }
     } catch {}
@@ -55,18 +69,22 @@ export function QuickFiltersProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!restored) return;
     try {
-      const data: SavedFilters = { dateMode, showCompleted, sortBy, taskFilter };
+      const data: SavedFilters = { dateMode, dateRange, showCompleted, hideSomeday, sortBy, taskFilter };
       localStorage.setItem(LS_KEY_QUICK_FILTERS, JSON.stringify(data));
     } catch {}
-  }, [restored, dateMode, showCompleted, sortBy, taskFilter]);
+  }, [restored, dateMode, dateRange, showCompleted, hideSomeday, sortBy, taskFilter]);
 
   return (
     <QuickFiltersContext.Provider
       value={{
         dateMode,
         setDateMode,
+        dateRange,
+        setDateRange,
         showCompleted,
         setShowCompleted,
+        hideSomeday,
+        setHideSomeday,
         sortBy,
         setSortBy,
         taskFilter,

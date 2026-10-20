@@ -85,7 +85,9 @@ export type ListSection = {
   tasks: Block[];
 };
 
-export type DateMode = 'today' | 'week' | 'month' | 'all';
+export type DateMode = 'today' | 'week' | 'month' | 'all' | 'range';
+/** Inclusive custom range for the "Ranges" filter (YYYY-MM-DD, from <= to) */
+export type DateRange = { from: string; to: string };
 export type SortBy = 'dueDate' | 'createdAt';
 
 export type ProjectsPayload = {
@@ -403,7 +405,8 @@ export function makeTaskBlock(
     parentId: null,
     order: 0,
     checked: false,
-    deadline: isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD(),
+    // No due date unless the caller passes one (not every task has a deadline)
+    deadline: isValidDateYYYYMMDD(focusDay) ? focusDay : undefined,
     createdAt: todayYMD(),
     isHidden: undefined,
     archived: undefined,
@@ -536,6 +539,55 @@ export function moveListToProject(
         visibleLists: { ...to.visibleLists, ...vis.carry },
       };
     }
+    return p;
+  });
+}
+
+/** Tasks still to do in these lists: unchecked, not archived, with text. */
+export function openTasksOf(blocks: Block[], listIds: Iterable<string>): Block[] {
+  const ids = new Set(listIds);
+  return sortBlocksByOrder(blocks).filter(b =>
+    b.indent > 0 && b.parentId != null && ids.has(b.parentId) &&
+    b.checked !== true && b.archived !== true && (b.text || '').trim() !== '',
+  );
+}
+
+/**
+ * Move the open tasks of `fromListIds` (in group `fromProjectId`) to the end of list
+ * `toListId` in group `toProjectId` — same or another group. Done and empty tasks stay
+ * behind; the caller deletes the source list(s) right after.
+ */
+export function moveOpenTasksToList(
+  projects: Project[],
+  fromProjectId: string,
+  fromListIds: string[],
+  toProjectId: string,
+  toListId: string,
+): Project[] {
+  const fromIdx = projects.findIndex(p => p.project_id === fromProjectId);
+  const toIdx = projects.findIndex(p => p.project_id === toProjectId);
+  if (fromIdx < 0 || toIdx < 0) return projects;
+  if (!(projects[toIdx].blocks ?? []).some(b => b.id === toListId && b.indent === 0)) return projects;
+
+  const moving = openTasksOf(projects[fromIdx].blocks ?? [], fromListIds);
+  if (!moving.length) return projects;
+  const movingIds = new Set(moving.map(b => b.id));
+
+  const fromBlocks = (projects[fromIdx].blocks ?? []).filter(b => !movingIds.has(b.id));
+  const toBase = fromIdx === toIdx ? fromBlocks : (projects[toIdx].blocks ?? []);
+  const startOrder = nextOrderInParent(toBase, toListId);
+  // A subtask whose parent stayed behind (done) can sit at most one level under the task above it
+  let prevIndent = 0;
+  const moved = moving.map((b, k) => {
+    const indent = Math.min(b.indent, prevIndent + 1);
+    prevIndent = indent;
+    return { ...b, indent, parentId: toListId, order: startOrder + k };
+  });
+  const toBlocks = sortBlocksByOrder(moveUncToTop(ensureUncExists([...toBase, ...moved])));
+
+  return projects.map((p, i) => {
+    if (i === toIdx) return { ...p, blocks: toBlocks };
+    if (i === fromIdx) return { ...p, blocks: fromBlocks };
     return p;
   });
 }
@@ -1388,13 +1440,15 @@ export function writeProjectsLS(payload: ProjectsPayload): void {
 
 /* ===================== Filter helpers ===================== */
 
+/** Under "Due Date", a task without one is treated as due on its creation day. */
 export function getFilterDate(b: Block, sortBy: SortBy): string | undefined {
-  return sortBy === 'createdAt' ? b.createdAt : b.deadline;
+  if (sortBy === 'createdAt') return b.createdAt;
+  return isValidDateYYYYMMDD(b.deadline) ? b.deadline : b.createdAt;
 }
 
 export function passesDateFilter(
   b: Block,
-  opts: { sortBy: SortBy; dateMode: DateMode; focusDay: string },
+  opts: { sortBy: SortBy; dateMode: DateMode; focusDay: string; range?: DateRange },
 ): boolean {
   if (!(b.indent > 0)) return true;
   const date = getFilterDate(b, opts.sortBy);
@@ -1402,15 +1456,34 @@ export function passesDateFilter(
   if (opts.dateMode === 'all')   return true;
   if (opts.dateMode === 'today') return date === opts.focusDay;
   if (opts.dateMode === 'week')  return inWeekRange(date, opts.focusDay);
+  if (opts.dateMode === 'range') return !!opts.range && date >= opts.range.from && date <= opts.range.to;
   return inMonthRange(date, opts.focusDay);
 }
 
+/** Days in a range, inclusive (both ends YYYY-MM-DD). */
+export function daysInRange(range: DateRange): number {
+  const [fy, fm, fd] = range.from.split('-').map(Number);
+  const [ty, tm, td] = range.to.split('-').map(Number);
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000) + 1;
+}
+
+/** "Oct 1 – Oct 15"; with years once the range leaves the current year */
+export function getRangeLabel(range: DateRange): string {
+  const year = todayYMD().slice(0, 4);
+  const fmt = range.from.slice(0, 4) === year && range.to.slice(0, 4) === year ? formatPill : fullDateLabel;
+  return range.from === range.to ? fmt(range.from) : `${fmt(range.from)} – ${fmt(range.to)}`;
+}
+
 export function buildSplitDays(
-  opts: { dateMode: DateMode; focusDay: string; blocks: Block[]; showHidden: boolean; sortBy: SortBy },
+  opts: { dateMode: DateMode; focusDay: string; blocks: Block[]; showHidden: boolean; sortBy: SortBy; range?: DateRange },
 ): string[] {
-  const { dateMode, focusDay, blocks, showHidden, sortBy } = opts;
+  const { dateMode, focusDay, blocks, showHidden, sortBy, range } = opts;
 
   if (dateMode === 'today') return [focusDay];
+
+  if (dateMode === 'range' && range) {
+    return Array.from({ length: daysInRange(range) }).map((_, i) => addDaysYMD(range.from, i));
+  }
 
   if (dateMode === 'week') {
     const monday = getMonday(focusDay);
@@ -1442,9 +1515,10 @@ export function buildHiddenMap(
     dateMode: DateMode;
     focusDay: string;
     sortBy: SortBy;
+    range?: DateRange;
   },
 ): Record<string, boolean> {
-  const { collapsed, showHidden, dateMode, focusDay, sortBy } = opts;
+  const { collapsed, showHidden, dateMode, focusDay, sortBy, range } = opts;
   const hidden: Record<string, boolean> = {};
   let currentListId: string | null = null;
 
@@ -1464,7 +1538,7 @@ export function buildHiddenMap(
       continue;
     }
 
-    if (b.indent > 0 && !passesDateFilter(b, { sortBy, dateMode, focusDay })) {
+    if (b.indent > 0 && !passesDateFilter(b, { sortBy, dateMode, focusDay, range })) {
       hidden[b.id] = true;
       continue;
     }
@@ -1709,12 +1783,13 @@ export function addTaskUnderList(
   const newTaskId = uid();
   const base = moveUncToTop(ensureUncExists(blocks));
 
+  // focusDay doubles as the due date; omit both to create a task with no due date
   const defaultDeadline =
     opts.deadline && isValidDateYYYYMMDD(opts.deadline)
       ? opts.deadline
       : isValidDateYYYYMMDD(opts.focusDay)
       ? opts.focusDay!
-      : todayYMD();
+      : undefined;
 
   const validListIndex =
     typeof listId === 'string' && listId.trim()
