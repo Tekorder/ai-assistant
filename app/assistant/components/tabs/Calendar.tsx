@@ -14,8 +14,12 @@ import {
   getTaskFlag,
   highestTaskFlag,
   type TaskFlagColor,
+  type DateRange,
+  addDaysYMD,
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from '../TaskFlag';
+import { DateRangeDialog } from '../DateRangeDialog';
+import { RangeTasksDialog } from '../RangeTasksDialog';
 
 /* ===================== Local types ===================== */
 
@@ -130,6 +134,10 @@ export default function CalendarView({
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth()); // 0-based
 
   const openDaySet = useMemo(() => new Set(openDayYmids), [openDayYmids]);
+
+  // "Select range": pick the dates, then list the tasks due / created in them
+  const [range, setRange] = useState<DateRange>(() => ({ from: addDaysYMD(todayYMD(), -6), to: todayYMD() }));
+  const [rangeStep, setRangeStep] = useState<'pick' | 'results' | null>(null);
 
   /* ── Load & sync ── */
   useEffect(() => {
@@ -326,6 +334,14 @@ export default function CalendarView({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRangeStep('pick')}
+              className="text-[12px] px-3 py-1.5 rounded-xl transition-colors"
+              style={{ color: 'var(--assistant-text-soft)', border: '1px solid var(--assistant-border-soft)' }}
+            >
+              Select range
+            </button>
             <button
               type="button"
               onClick={goToday}
@@ -568,6 +584,24 @@ export default function CalendarView({
         </div>
 
       </div>
+
+      {rangeStep === 'pick' && (
+        <DateRangeDialog
+          initial={range}
+          onCancel={() => setRangeStep(null)}
+          onApply={r => { setRange(r); setRangeStep('results'); }}
+        />
+      )}
+      {rangeStep === 'results' && (
+        <RangeTasksDialog
+          range={range}
+          blocks={blocks}
+          visibleLists={visibleLists}
+          projectTitle={projectTitle}
+          onChangeRange={() => setRangeStep('pick')}
+          onClose={() => setRangeStep(null)}
+        />
+      )}
     </div>
   );
 }

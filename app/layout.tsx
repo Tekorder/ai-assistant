@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { UpdateChecker } from "@/components/UpdateChecker";
 
 
 
@@ -38,6 +39,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${thicccboi.variable} font-sans antialiased`}>
         {children}
+        <UpdateChecker />
       </body>
     </html>
   );

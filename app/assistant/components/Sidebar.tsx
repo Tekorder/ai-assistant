@@ -25,6 +25,8 @@ import {
   insertBlockAfter,
   removeBlock as removeBlockArr,
   removeListAndChildren,
+  openTasksOf,
+  moveOpenTasksToList,
   getListProgress,
   sortBlocksByOrder,
   // Projects persistence
@@ -33,6 +35,8 @@ import {
   writeProjectsLS,
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
+import { useQuickFilters } from './QuickFiltersContext';
+import { DeleteWithOpenTasksDialog, buildMoveTargets } from './DeleteWithOpenTasksDialog';
 
 const LS_KEY_COLLAPSED_GROUPS = 'youtask_sidebar_collapsed_groups';
 
@@ -46,6 +50,8 @@ type SidebarProps = {
 };
 
 export const Sidebar: React.FC<SidebarProps> = () => {
+  const { sortBy, hideSomeday } = useQuickFilters();
+
   const buildAllCollapsedFromBlocks = (listBlocks: Block[]): Record<string, boolean> => {
     const next: Record<string, boolean> = {};
     for (const b of listBlocks) {
@@ -71,6 +77,8 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const groupDragRef = useRef<string | null>(null);
   const [groupDragOverId, setGroupDragOverId] = useState<string | null>(null);
   const [deleteGroupConfirmId, setDeleteGroupConfirmId] = useState<string | null>(null);
+  // Group being deleted while it still has unchecked tasks (move-or-delete dialog)
+  const [deleteGroupDialogId, setDeleteGroupDialogId] = useState<string | null>(null);
   const [renamingGroup, setRenamingGroup] = useState<{ id: string; draft: string } | null>(null);
   // Group a dragged list is hovering when it's about to move to another group
   const [listDropGroupId, setListDropGroupId] = useState<string | null>(null);
@@ -371,6 +379,14 @@ const visibleLists = useMemo<Record<string, boolean>>(
     handleDeleteList(listId);
   };
 
+  // Rescue the list's unchecked tasks into another list (any group), then delete it
+  const handleMoveAndDeleteList = (listId: string, toProjectId: string, toListId: string) => {
+    const fromProjectId = currentProject?.project_id;
+    if (!fromProjectId) return;
+    setProjects(prev => moveOpenTasksToList(prev, fromProjectId, [listId], toProjectId, toListId));
+    handleConfirmDeleteList(listId);
+  };
+
 
   const handleAddNewProject = (rawTitle: string) => {
     const title = rawTitle.trim();
@@ -385,6 +401,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
     setGroupsModalOpen(false);
     setNewProjectName('');
     setDeleteGroupConfirmId(null);
+    setDeleteGroupDialogId(null);
     setRenamingGroup(null);
     groupDragRef.current = null;
     setGroupDragOverId(null);
@@ -393,11 +410,29 @@ const visibleLists = useMemo<Record<string, boolean>>(
   // There's always at least one group — the last one can't be deleted
   const handleDeleteProject = (projectId: string) => {
     setDeleteGroupConfirmId(null);
+    setDeleteGroupDialogId(null);
     if (projects.length <= 1) return;
     setProjects(prev => (prev.length <= 1 ? prev : prev.filter(p => p.project_id !== projectId)));
     if (selectedProjectId === projectId) {
       setSelectedProjectId(projects.find(p => p.project_id !== projectId)?.project_id ?? '');
     }
+  };
+
+  const groupOpenTasks = (project: Project) =>
+    openTasksOf(project.blocks ?? [], (project.blocks ?? []).filter(b => b.indent === 0).map(b => b.id));
+
+  // A group with unchecked tasks asks where they go (dialog); otherwise the inline confirm
+  const requestDeleteProject = (project: Project) => {
+    if (groupOpenTasks(project).length > 0) setDeleteGroupDialogId(project.project_id);
+    else setDeleteGroupConfirmId(project.project_id);
+  };
+
+  const handleMoveAndDeleteProject = (projectId: string, toProjectId: string, toListId: string) => {
+    const project = projects.find(p => p.project_id === projectId);
+    if (!project) return;
+    const listIds = (project.blocks ?? []).filter(b => b.indent === 0).map(b => b.id);
+    setProjects(prev => moveOpenTasksToList(prev, projectId, listIds, toProjectId, toListId));
+    handleDeleteProject(projectId);
   };
 
   const startRenameProject = (project: Project) => {
@@ -461,7 +496,9 @@ const visibleLists = useMemo<Record<string, boolean>>(
         parentId: nextIndent === 0 ? null : (b.indent === 0 ? b.id : b.parentId),
         order: b.order + 1,
         checked: nextIndent > 0 ? false : undefined,
-        deadline: nextIndent > 0 ? todayYMD() : undefined,
+        // Due date only while viewing by Due Date or hiding Someday; the creation date is always set
+        deadline: nextIndent > 0 && (sortBy === 'dueDate' || hideSomeday) ? todayYMD() : undefined,
+        createdAt: todayYMD(),
         isHidden: undefined,
         archived: undefined,
       });
@@ -1052,7 +1089,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setDeleteGroupConfirmId(project.project_id)}
+                        onClick={() => requestDeleteProject(project)}
                         className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-rose-400 transition-opacity"
                         style={{ color: 'var(--assistant-text-faint)' }}
                         title="Delete group"
@@ -1082,61 +1119,39 @@ const visibleLists = useMemo<Record<string, boolean>>(
       ) : null}
 
       {deleteListConfirmId ? createPortal(
-        <div className="fixed inset-0 z-[10050] flex items-center justify-center">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/60"
-            onClick={() => {
-              setDeleteListConfirmId(null);
-              armedDeleteListRef.current = null;
-            }}
-            aria-label="Close"
-          />
-            <div
-              className="relative w-[92vw] max-w-md rounded-2xl shadow-2xl"
-              style={{
-                border: '1px solid var(--assistant-border-soft)',
-                background: 'var(--assistant-panel-bg)',
-              }}>
-            <div
-              className="px-4 py-3"
-              style={{
-                borderBottom: '1px solid var(--assistant-border-soft)',
-              }}
-            >
-              <div className="text-sm font-semibold"   style={{ color: 'var(--assistant-text)' }}>Delete list</div>
-              <p className="text-[13px]  mt-2 leading-relaxed" style={{ color: 'var(--assistant-text-muted)' }}>
-                Caution: deleting a list will delete all its tasks. This can&apos;t be undone.
-              </p>
-              {(() => {
-                const t = blocks.find(x => x.id === deleteListConfirmId)?.text?.trim();
-                if (!t) return null;
-                return <div className="text-[12px]  mt-2 truncate" title={t} style={{ color: 'var(--assistant-text-faint)' }}>List: {t}</div>;
-              })()}
-            </div>
-            <div className="px-4 py-3  flex items-center justify-end gap-2"  style={{borderTop: '1px solid var(--assistant-border-soft)'}}>
-              <button
-                type="button"
-                onClick={() => {
-                  setDeleteListConfirmId(null);
-                  armedDeleteListRef.current = null;
-                }}
-                className={`${classes.modalSecondaryButton} text-[13px] px-3 py-2 rounded-md`}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (deleteListConfirmId) handleConfirmDeleteList(deleteListConfirmId);
-                }}
-                className="text-[13px] font-semibold px-3 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors"
-              >
-                Delete list
-              </button>
-            </div>
-          </div>
-        </div>,
+        <DeleteWithOpenTasksDialog
+          key={deleteListConfirmId}
+          kind="list"
+          name={blocks.find(x => x.id === deleteListConfirmId)?.text?.trim()}
+          openCount={openTasksOf(blocks, [deleteListConfirmId]).length}
+          targets={buildMoveTargets(projects, { listIds: [deleteListConfirmId] })}
+          defaultProjectId={currentProject?.project_id}
+          zIndex={10050}
+          onCancel={() => { setDeleteListConfirmId(null); armedDeleteListRef.current = null; }}
+          onDelete={() => handleConfirmDeleteList(deleteListConfirmId)}
+          onMoveAndDelete={(toProjectId, toListId) => handleMoveAndDeleteList(deleteListConfirmId, toProjectId, toListId)}
+        />,
+        document.querySelector('[data-assistant-root]') ?? document.body,
+      ) : null}
+
+      {deleteGroupDialogId ? createPortal(
+        (() => {
+          const project = projects.find(p => p.project_id === deleteGroupDialogId);
+          if (!project) return null;
+          return (
+            <DeleteWithOpenTasksDialog
+              key={deleteGroupDialogId}
+              kind="group"
+              name={project.title}
+              openCount={groupOpenTasks(project).length}
+              targets={buildMoveTargets(projects, { projectId: deleteGroupDialogId })}
+              zIndex={10060}
+              onCancel={() => setDeleteGroupDialogId(null)}
+              onDelete={() => handleDeleteProject(deleteGroupDialogId)}
+              onMoveAndDelete={(toProjectId, toListId) => handleMoveAndDeleteProject(deleteGroupDialogId, toProjectId, toListId)}
+            />
+          );
+        })(),
         document.querySelector('[data-assistant-root]') ?? document.body,
       ) : null}
 

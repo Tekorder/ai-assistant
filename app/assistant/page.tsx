@@ -105,6 +105,7 @@ export default function App() {
   >([]);
 
   const MIN_SIDEBAR = 360;
+  const DECK_RIGHT_PAD = 120;
   const PANEL_WIDTH = 320;
 
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
@@ -173,16 +174,11 @@ export default function App() {
   // How the right-dock panels lay out: side-by-side columns or one accordion column.
   // A per-device preference.
   const [dockLayout, setDockLayout] = useState<'stack' | 'accordion'>('stack');
-  // Accordion panels the user collapsed. Anything not in here is expanded, so new or
-  // re-requested panels open expanded; any number can be open, including none.
-  const [accordionCollapsed, setAccordionCollapsed] = useState<Set<string>>(() => new Set());
+  // The one expanded accordion panel (or none). Expanding another collapses it, and
+  // a new or re-requested panel takes over as the expanded one.
+  const [accordionOpenKey, setAccordionOpenKey] = useState<string | null>(null);
   const setAccordionPanelOpen = useCallback((key: string, open: boolean) => {
-    setAccordionCollapsed((prev) => {
-      if (prev.has(key) === !open) return prev;
-      const next = new Set(prev);
-      if (open) next.delete(key); else next.add(key);
-      return next;
-    });
+    setAccordionOpenKey((prev) => (open ? key : prev === key ? null : prev));
   }, []);
   const accordionColumnRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -263,7 +259,6 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatClosing, setChatClosing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [deckRightPad, setDeckRightPad] = useState(40);
   const deckScrollRef = useRef<HTMLDivElement | null>(null);
   const sidebarCloseTimerRef = useRef<number | null>(null);
   const chatCloseTimerRef = useRef<number | null>(null);
@@ -310,23 +305,15 @@ export default function App() {
       if (sidebarCloseTimerRef.current !== null) window.clearTimeout(sidebarCloseTimerRef.current);
     };
   }, []);
-  const updateDeckRightPad = useCallback((el: HTMLDivElement) => {
-    const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
-    if (maxLeft <= 0) {
-      setDeckRightPad(40);
-      return;
-    }
-    const rightCap = maxLeft * 0.95;
-    const progress = rightCap > 0 ? Math.min(1, Math.max(0, el.scrollLeft / rightCap)) : 0;
-    const nextPad = Math.round(40 + progress * 80);
-    setDeckRightPad((prev) => (prev === nextPad ? prev : nextPad));
-  }, []);
+  // Stack-mode carousel after the main panel: dock panels three per page
+  const [carouselPage, setCarouselPage] = useState(0);
 
   /**
    * Ease the deck so the dock panel `key` is fully in view for `ms`, re-reading its
    * box every frame. Dock panels (Lists/Habits/Reminders/Activity) grow their width
    * from 0 over 420ms, so a one-shot scroll aims at the *old* box and the panel ends
-   * up clipped. Following it keeps it in view as it grows.
+   * up clipped. Following it keeps it in view as it grows. In stack mode the panel
+   * lives in the carousel, so the carousel box is what gets revealed.
    */
   const followRafRef = useRef<number | null>(null);
   const followDeckToPanel = useCallback((key: string, ms = 600) => {
@@ -334,14 +321,15 @@ export default function App() {
     const until = performance.now() + ms;
     const step = () => {
       const el = deckScrollRef.current;
-      const panel = el?.querySelector<HTMLElement>(`[data-dock-key="${CSS.escape(key)}"]`);
+      const panel =
+        el?.querySelector<HTMLElement>('[data-deck-carousel]') ??
+        el?.querySelector<HTMLElement>(`[data-dock-key="${CSS.escape(key)}"]`);
       if (!el || !panel) { followRafRef.current = null; return; }
       const left = panel.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft;
       const minLeft = left + panel.offsetWidth - el.clientWidth + 40;
       // Scroll as little as possible: reveal the right edge without hiding the left one
       const wanted = Math.min(Math.max(el.scrollLeft, minLeft), left - 12);
-      // Same 95% cap clampDeckRightScroll enforces, so the two never fight
-      const target = Math.max(0, Math.min(wanted, Math.max(0, el.scrollWidth - el.clientWidth) * 0.95));
+      const target = Math.max(0, Math.min(wanted, Math.max(0, el.scrollWidth - el.clientWidth)));
       const next = el.scrollLeft + (target - el.scrollLeft) * 0.22;
       el.scrollLeft = Math.abs(target - next) < 1 ? target : next;
       followRafRef.current = performance.now() < until ? requestAnimationFrame(step) : null;
@@ -352,17 +340,6 @@ export default function App() {
   useEffect(() => () => {
     if (followRafRef.current !== null) cancelAnimationFrame(followRafRef.current);
   }, []);
-
-  const clampDeckRightScroll = useCallback(() => {
-    const el = deckScrollRef.current;
-    if (!el) return;
-    const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
-    const rightCap = maxLeft * 0.95;
-    if (el.scrollLeft > rightCap) {
-      el.scrollLeft = rightCap;
-    }
-    updateDeckRightPad(el);
-  }, [updateDeckRightPad]);
 
   const pivotInstancesRef = useRef(pivotInstances);
   pivotInstancesRef.current = pivotInstances;
@@ -676,9 +653,36 @@ export default function App() {
     (best, k) => (best === null || dockStamp(k) > dockStamp(best) ? k : best),
     null,
   );
-  const isAccordionExpanded = (key: string) => !accordionCollapsed.has(key);
+  // The newest panel changed (opened, re-requested, or the newest one closed) → it
+  // becomes the expanded one. Set during render so the old panel never flashes open.
+  const [accordionSeenNewest, setAccordionSeenNewest] = useState<string | null>(null);
+  if (newestDockKey !== accordionSeenNewest) {
+    setAccordionSeenNewest(newestDockKey);
+    setAccordionOpenKey(newestDockKey);
+  }
+  const isAccordionExpanded = (key: string) => accordionOpenKey === key;
   const isAccordion = dockLayout === 'accordion';
   const ACCORDION_BAR = '49px'; // = panel header height (h-[49px]) → only the title bar shows
+
+  // Stack-mode carousel: open dock panels in visual order (newest first), three per
+  // page. The carousel is as wide as the current page and slides between pages.
+  const CAROUSEL_PAGE_SIZE = 3;
+  const carouselPages: string[][] = [];
+  {
+    const visual = [...openDockKeys].sort((a, b) => dockOrder(a) - dockOrder(b));
+    for (let i = 0; i < visual.length; i += CAROUSEL_PAGE_SIZE) carouselPages.push(visual.slice(i, i + CAROUSEL_PAGE_SIZE));
+  }
+  // A new or re-requested panel sits first → show the first page
+  const [carouselSeenNewest, setCarouselSeenNewest] = useState<string | null>(null);
+  if (newestDockKey !== carouselSeenNewest) {
+    setCarouselSeenNewest(newestDockKey);
+    setCarouselPage(0);
+  }
+  const activeCarouselPage = Math.min(carouselPage, Math.max(0, carouselPages.length - 1));
+  const dockWidthOf = (key: string) => (key === 'reminders' ? remindersPanelWidth : listsPanelWidth);
+  const sumWidths = (keys: string[]) => (keys.length ? `calc(${keys.map(dockWidthOf).join(' + ')})` : '0px');
+  const carouselWidth = sumWidths(carouselPages[activeCarouselPage] ?? []);
+  const carouselShift = sumWidths(carouselPages.slice(0, activeCarouselPage).flat());
 
   const dockSlotStyle = (key: string, open: boolean, width: string): React.CSSProperties => {
     const visible = open && isDesktop === true;
@@ -765,15 +769,6 @@ export default function App() {
     .slice()
     .sort((a, b) => dockStamp(a) - dockStamp(b))
     .join('|');
-
-  // A closed panel forgets it was collapsed, so reopening it starts expanded
-  useEffect(() => {
-    const open = new Set(dockOrderSignature ? dockOrderSignature.split('|') : []);
-    setAccordionCollapsed((prev) => {
-      const next = new Set([...prev].filter((k) => open.has(k)));
-      return next.size === prev.size ? prev : next;
-    });
-  }, [dockOrderSignature]);
 
   useEffect(() => {
     if (!layoutRestored || isDesktop !== true) return;
@@ -920,7 +915,6 @@ export default function App() {
 
         <div
           ref={deckScrollRef}
-          onScroll={clampDeckRightScroll}
           // The dock's horizontal scrollbar is the one visible scrollbar in the app, pinned to the bottom
           // Accordion mode is three columns that fit the window (sidebar | main | accordion) → no horizontal scroll
           className={`deck-scrollbar hidden min-h-0 flex-1 overflow-y-hidden md:block ${
@@ -1201,7 +1195,83 @@ export default function App() {
             ))}
           </>
           );
-          if (!isAccordion) return dockPanels;
+          if (!isAccordion) {
+            const go = (page: number) => setCarouselPage(Math.max(0, Math.min(page, carouselPages.length - 1)));
+            const pageBtn = 'grid size-6 place-items-center rounded-full text-[16px] leading-none transition-opacity disabled:opacity-30';
+            // Carousel right after the main panel: as wide as the current page of three;
+            // the row of panels slides underneath it
+            return (
+              <div
+                data-deck-carousel
+                className="relative h-full shrink-0 overflow-hidden"
+                style={{ order: 1, width: carouselWidth, transition: 'width 420ms cubic-bezier(0.22, 1, 0.36, 1)' }}
+              >
+                <div
+                  className="flex h-full"
+                  style={{
+                    transform: `translateX(calc(-1 * ${carouselShift}))`,
+                    transition: 'transform 420ms cubic-bezier(0.22, 1, 0.36, 1)',
+                  }}
+                >
+                  {dockPanels}
+                </div>
+                {/* Bullets in the room the panels leave at the bottom */}
+                {carouselPages.length > 1 && (
+                  <nav
+                    aria-label="Panel pages"
+                    className="absolute bottom-5 left-1/2 z-[150] flex -translate-x-1/2 items-center gap-1 rounded-full px-1.5 py-1"
+                    style={{ border: '1px solid var(--assistant-border-soft)' }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => go(activeCarouselPage - 1)}
+                      disabled={activeCarouselPage === 0}
+                      className={pageBtn}
+                      style={{ color: 'var(--assistant-text-muted)' }}
+                      aria-label="Previous panels"
+                    >
+                      ‹
+                    </button>
+                    {carouselPages.map((page, i) => {
+                      const label = `Panels ${i * CAROUSEL_PAGE_SIZE + 1}–${i * CAROUSEL_PAGE_SIZE + page.length}`;
+                      const active = i === activeCarouselPage;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => go(i)}
+                          className="grid h-6 place-items-center px-0.5"
+                          aria-label={label}
+                          aria-current={active ? 'page' : undefined}
+                          title={label}
+                        >
+                          <span
+                            className="block h-2 rounded-full transition-all duration-300"
+                            style={{
+                              width: active ? 20 : 8,
+                              background: active
+                                ? 'var(--assistant-accent)'
+                                : 'color-mix(in srgb, var(--assistant-text) 28%, transparent)',
+                            }}
+                          />
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => go(activeCarouselPage + 1)}
+                      disabled={activeCarouselPage === carouselPages.length - 1}
+                      className={pageBtn}
+                      style={{ color: 'var(--assistant-text-muted)' }}
+                      aria-label="Next panels"
+                    >
+                      ›
+                    </button>
+                  </nav>
+                )}
+              </div>
+            );
+          }
           // One column right after the main panel; it holds the bottom room the
           // stacked slots reserve individually
           return (
@@ -1225,7 +1295,8 @@ export default function App() {
             </div>
           );
           })()}
-          <div className="h-full shrink-0" style={{ order: Number.MAX_SAFE_INTEGER, width: isAccordion ? 0 : `${deckRightPad}px` }} aria-hidden="true" />
+          {/* Fixed tail room so the last panel scrolls fully clear of the window edge */}
+          <div className="h-full shrink-0" style={{ order: Number.MAX_SAFE_INTEGER, width: isAccordion ? 0 : DECK_RIGHT_PAD }} aria-hidden="true" />
           </div>
         </div>
 

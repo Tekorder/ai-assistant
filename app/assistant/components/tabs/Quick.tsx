@@ -1,7 +1,7 @@
 // app/components/Quick.tsx
 'use client';
 // Note we may want to rename this component in the future as 'quick' is a bit confusing
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import MiniCalendar from '../Minicalendar';
 //also hi
 import {
@@ -10,6 +10,7 @@ import {
   type Project,
   type DateMode,
   type SortBy,
+  type DateRange,
   type ProjectsPayload,
   // Constants
   LS_KEY_V2,
@@ -28,6 +29,8 @@ import {
   insertBlockAfter,
   removeBlock,
   removeListAndChildren,
+  openTasksOf,
+  moveOpenTasksToList,
   updateBlock as updateBlockArr,
   removeTaskWithSubtasks,
   addTaskUnderList as addTaskUnderListArr,
@@ -38,6 +41,8 @@ import {
   labelForYMD,
   getWeekRangeLabel,
   getMonthRangeLabel,
+  getRangeLabel,
+  daysInRange,
   todayYMD,
   isValidDateYYYYMMDD,
   addDaysYMD,
@@ -54,6 +59,8 @@ import { getCurrentUid } from '@/lib/session';
 import { TaskFlagButton } from '../TaskFlag';
 import { TaskReminderButton } from '../TaskReminder';
 import { FirstListWizard } from '../FirstListWizard';
+import { DeleteWithOpenTasksDialog, buildMoveTargets } from '../DeleteWithOpenTasksDialog';
+import { DateRangeDialog } from '../DateRangeDialog';
 
 /**
  * Uids that closed the first-list wizard during this page load. Module memory on
@@ -170,6 +177,7 @@ const PROGRESS_LABELS: Record<DateMode | Exclude<TaskFilterTag, 'none'>, string>
   today: "Today's progress",
   week: "This week's progress",
   month: "This month's progress",
+  range: 'Range progress',
   priority: 'High priority progress',
   someday: 'Someday progress',
   scheduled: 'Scheduled progress',
@@ -208,14 +216,19 @@ function QuickProgressBlock({
 /* ===================== Actions Panel ===================== */
 export function ActionsPanel({
   dateMode, setDateMode, showCompleted, setShowCompleted,
+  hideSomeday, setHideSomeday,
   sortBy, setSortBy,
   taskFilter, setTaskFilter,
   searchQuery, setSearchQuery,
+  onOpenRange,
 }: {
+  /** Opens the "Ranges" calendar popup (applying it switches dateMode to 'range') */
+  onOpenRange: () => void;
   /** Keyword box — live-filters the workspace lists (searches across all dates) */
   searchQuery: string; setSearchQuery: (v: string) => void;
   dateMode: DateMode; setDateMode: (m: DateMode) => void;
   showCompleted: boolean; setShowCompleted: (v: boolean | ((p: boolean) => boolean)) => void;
+  hideSomeday: boolean; setHideSomeday: (v: boolean | ((p: boolean) => boolean)) => void;
   sortBy: SortBy; setSortBy: (v: SortBy) => void;
   taskFilter: TaskFilterTag; setTaskFilter: (v: TaskFilterTag) => void;
   /** @deprecated layout is always chips now */
@@ -291,6 +304,13 @@ export function ActionsPanel({
               {label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={onOpenRange}
+            className={pill(taskFilter === 'none' && dateMode === 'range')}
+          >
+            Ranges
+          </button>
           {extraFilters.map(({ tag, label }) => (
             <button
               key={tag}
@@ -314,6 +334,13 @@ export function ActionsPanel({
             className={pill(!showCompleted)}
           >
             Hide Completed
+          </button>
+          <button
+            type="button"
+            onClick={() => setHideSomeday(s => !s)}
+            className={pill(hideSomeday)}
+          >
+            Hide Someday
           </button>
         </div>
       </div>
@@ -341,7 +368,9 @@ export default function Quick(props: QuickProps = {}) {
 
   const {
     dateMode, setDateMode,
+    dateRange, setDateRange,
     showCompleted, setShowCompleted,
+    hideSomeday, setHideSomeday,
     sortBy, setSortBy,
     taskFilter, setTaskFilter,
     searchQuery, setSearchQuery,
@@ -350,10 +379,33 @@ export default function Quick(props: QuickProps = {}) {
   // (all dates, no extra filter, collapsed lists opened)
   const searchTerm = searchQuery.trim().toLowerCase();
   const searching = searchTerm !== '';
-  const viewDateMode: DateMode = searching ? 'all' : dateMode;
   const viewTaskFilter: TaskFilterTag = searching ? 'none' : taskFilter;
+  // Someday = tasks with no due date, whatever their creation date
+  const viewDateMode: DateMode = searching || viewTaskFilter === 'someday' ? 'all' : dateMode;
+  // "Hide Someday" never applies under the Someday filter itself (it would empty the view)
+  const hidingSomeday = hideSomeday && !searching && viewTaskFilter !== 'someday';
+  const passesTaskFilter = useCallback((b: Block) =>
+    (!hidingSomeday || isValidDateYYYYMMDD(b.deadline)) && (
+      viewTaskFilter === 'priority' ? Boolean(getTaskFlag(b))
+      : viewTaskFilter === 'someday' ? !isValidDateYYYYMMDD(b.deadline)
+      : true
+    ), [hidingSomeday, viewTaskFilter]);
   const matchesSearch = (b: Block) => (b.text || '').toLowerCase().includes(searchTerm);
   const [focusDay, setFocusDay] = useState<string>(todayYMD());
+  // New tasks only get a due date (the focused day) while viewing by Due Date or hiding
+  // Someday — otherwise they'd vanish right away — and never under the Someday filter
+  // Under Ranges the "focused day" is today when it's inside the range, else the range's first day
+  const dueAnchor = dateMode === 'range' && taskFilter === 'none'
+    ? (todayYMD() >= dateRange.from && todayYMD() <= dateRange.to ? todayYMD() : dateRange.from)
+    : focusDay;
+  const newTaskDue = (sortBy === 'dueDate' || hideSomeday) && taskFilter !== 'someday' && isValidDateYYYYMMDD(dueAnchor) ? dueAnchor : undefined;
+  const [rangeDialogOpen, setRangeDialogOpen] = useState(false);
+  const applyRange = (range: DateRange) => {
+    setDateRange(range);
+    setTaskFilter('none');
+    setDateMode('range');
+    setRangeDialogOpen(false);
+  };
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerClosing, setDrawerClosing] = useState(false);
@@ -576,8 +628,14 @@ export default function Quick(props: QuickProps = {}) {
   };
 
   /* ── Date navigation ── */
+  // Ranges step by their own length (a 10-day range moves 10 days)
+  const shiftRange = (dir: 1 | -1) => {
+    const step = daysInRange(dateRange) * dir;
+    setDateRange({ from: addDaysYMD(dateRange.from, step), to: addDaysYMD(dateRange.to, step) });
+  };
   const navigatePrev = () => {
-    if (dateMode === 'today') setFocusDay(d => addDaysYMD(d, -1));
+    if (dateMode === 'range') shiftRange(-1);
+    else if (dateMode === 'today') setFocusDay(d => addDaysYMD(d, -1));
     else if (dateMode === 'week') setFocusDay(d => addDaysYMD(d, -7));
     else if (dateMode === 'month') setFocusDay(d => {
       if (!isValidDateYYYYMMDD(d)) return d;
@@ -587,7 +645,8 @@ export default function Quick(props: QuickProps = {}) {
     });
   };
   const navigateNext = () => {
-    if (dateMode === 'today') setFocusDay(d => addDaysYMD(d, +1));
+    if (dateMode === 'range') shiftRange(1);
+    else if (dateMode === 'today') setFocusDay(d => addDaysYMD(d, +1));
     else if (dateMode === 'week') setFocusDay(d => addDaysYMD(d, +7));
     else if (dateMode === 'month') setFocusDay(d => {
       if (!isValidDateYYYYMMDD(d)) return d;
@@ -616,9 +675,9 @@ export default function Quick(props: QuickProps = {}) {
 
   /* ── Memoized view data (via datacenter helpers) ── */
   const hiddenMap = useMemo(
-    () => buildHiddenMap(blocks, { collapsed: searching ? {} : collapsed, showHidden: false, dateMode: viewDateMode, focusDay, sortBy }),
+    () => buildHiddenMap(blocks, { collapsed: searching ? {} : collapsed, showHidden: false, dateMode: viewDateMode, focusDay, sortBy, range: dateRange }),
 
-    [blocks, collapsed, searching, viewDateMode, focusDay, sortBy],
+    [blocks, collapsed, searching, viewDateMode, focusDay, sortBy, dateRange],
   );
   const hiddenByListMap = useMemo(
     () => buildListVisibilityHiddenMap(blocks, visibleLists),
@@ -632,14 +691,15 @@ export default function Quick(props: QuickProps = {}) {
       b.archived !== true &&
       (showCompleted || b.checked !== true) &&
       !hiddenMap[b.id] &&
-      !hiddenByListMap[b.id],
+      !hiddenByListMap[b.id] &&
+      passesTaskFilter(b),
     );
     const total = visibleTasks.length;
     const done = visibleTasks.filter(t => t.checked === true).length;
     const remaining = Math.max(0, total - done);
     const pct = total > 0 ? done / total : 0;
     return { total, done, remaining, pct };
-  }, [blocks, hiddenMap, hiddenByListMap, showCompleted]);
+  }, [blocks, hiddenMap, hiddenByListMap, showCompleted, passesTaskFilter]);
 
   const isBrandNewEmpty = useMemo(
     () => blocks.length === 1 && isUncTitleBlock(blocks[0]),
@@ -680,11 +740,11 @@ export default function Quick(props: QuickProps = {}) {
     let newListId = '';
     setCurrentBlocks(prev => {
       // createList seeds the list with one empty task — fill it with the first one
-      const created = createListArr(prev, listName, { focusDay });
+      const created = createListArr(prev, listName, { focusDay: newTaskDue });
       newListId = created.newListId;
       let next = updateBlockArr(created.blocks, created.newTaskId, { text: taskTexts[0] });
       for (const text of taskTexts.slice(1)) {
-        next = addTaskUnderListArr(next, created.newListId, { focusDay, text }).blocks;
+        next = addTaskUnderListArr(next, created.newListId, { focusDay: newTaskDue, text }).blocks;
       }
       return next;
     });
@@ -837,12 +897,20 @@ export default function Quick(props: QuickProps = {}) {
     });
   };
 
-  const handleAddTaskUnderList = (listId: string, deadlineOverride?: string) => {
+  // Rescue the list's unchecked tasks into another list (any group), then delete it
+  const handleMoveAndDeleteList = (listId: string, toProjectId: string, toListId: string) => {
+    const fromProjectId = currentProject?.project_id;
+    if (!fromProjectId) return;
+    setProjects(prev => moveOpenTasksToList(prev, fromProjectId, [listId], toProjectId, toListId));
+    handleConfirmDeleteList(listId);
+  };
+
+  const handleAddTaskUnderList =(listId: string, deadlineOverride?: string) => {
     let newTaskId = '';
     setCurrentBlocks(prev => {
       const result = addTaskUnderListArr(prev, listId, {
         deadline: deadlineOverride,
-        focusDay,
+        focusDay: newTaskDue,
       });
       newTaskId = result.newTaskId;
       return result.blocks;
@@ -859,7 +927,7 @@ export default function Quick(props: QuickProps = {}) {
   const handleCreateBlankList = () => {
     let newListId = '';
     setCurrentBlocks(prev => {
-      const result = createBlankList(prev, { focusDay });
+      const result = createBlankList(prev, { focusDay: newTaskDue });
       newListId = result.newListId;
       return result.blocks;
     });
@@ -876,7 +944,7 @@ export default function Quick(props: QuickProps = {}) {
   const handleCreateList = (listText: string) => {
     let ids = { newListId: '', newTaskId: '' };
     setCurrentBlocks(prev => {
-      const result = createListArr(prev, listText, { focusDay });
+      const result = createListArr(prev, listText, { focusDay: newTaskDue });
       ids = { newListId: result.newListId, newTaskId: result.newTaskId };
       if (result.existed) {
         setCurrentCollapsed(c => ({ ...c, [result.newListId]: false }));
@@ -916,14 +984,11 @@ const handleKey = (
         focusBlock(reuseId, false);
         return;
       }
-      handleAddTaskUnderList(b.id, isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD());
+      handleAddTaskUnderList(b.id, newTaskDue);
     } else {
       handleInsertAfter(
         b.id,
-        makeTaskBlock(
-          { id: uid(), indent: b.indent, deadline: isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD() },
-          focusDay,
-        ),
+        makeTaskBlock({ id: uid(), indent: b.indent }, newTaskDue),
       );
     }
     return;
@@ -1232,7 +1297,7 @@ const handleKey = (
           const visibleTasks = tasks.filter(task =>
             !hiddenMap[task.id] && !hiddenByListMap[task.id] &&
             (showCompleted || task.checked !== true) &&
-            !(viewTaskFilter === 'priority' && !getTaskFlag(task)) &&
+            passesTaskFilter(task) &&
             (!searching || listMatches || matchesSearch(task)),
           );
           if (searching && !listMatches && visibleTasks.length === 0) return null;
@@ -1334,7 +1399,7 @@ const handleKey = (
               )}
               {/* ── Tasks belonging to this list ── */}
               {visibleTasks.map(task => {
-                // someday / scheduled: layout only for now
+                // scheduled: layout only for now
                 const tDragOver = dragOverId === task.id && dragRef.current?.id !== task.id;
                 const tDragMe   = dragRef.current?.id === task.id;
                 return (
@@ -1541,9 +1606,11 @@ const handleKey = (
 
   const actionsPanelProps = {
     dateMode, setDateMode, showCompleted, setShowCompleted,
+    hideSomeday, setHideSomeday,
     sortBy, setSortBy,
     taskFilter, setTaskFilter,
     searchQuery, setSearchQuery,
+    onOpenRange: () => setRangeDialogOpen(true),
   };
 
   const progressLabel =
@@ -1698,6 +1765,15 @@ const handleKey = (
                       {dateMode === 'all' && (
                         <span style={{ color: 'var(--assistant-text-soft)' }}>All dated tasks</span>
                       )}
+
+                      {dateMode === 'range' && (
+                        <button type="button" onClick={() => setRangeDialogOpen(true)} title="Change range" className="font-semibold">
+                          Range{' '}
+                          <span style={{ color: 'var(--assistant-text-faint)', fontWeight: 500 }}>
+                            {getRangeLabel(dateRange)}
+                          </span>
+                        </button>
+                      )}
                     </div>
 
                     <button
@@ -1825,47 +1901,26 @@ const handleKey = (
           </div>
         ) : null}
 
+        {rangeDialogOpen ? (
+          <DateRangeDialog
+            initial={dateRange}
+            onCancel={() => setRangeDialogOpen(false)}
+            onApply={applyRange}
+          />
+        ) : null}
+
         {deleteListConfirmId ? (
-          <div className="fixed inset-0 z-[999] flex items-center justify-center">
-            <button
-              type="button"
-              className="absolute inset-0 bg-black/60"
-              onClick={() => { setDeleteListConfirmId(null); armedDeleteListRef.current = null; }}
-              aria-label="Close"
-            />
-            <div className={`relative w-[92vw] max-w-md rounded-2xl shadow-2xl ${classes.quickModal}`}>
-              <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-                <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Delete list?</div>
-                <p className="text-[13px] mt-2 leading-relaxed" style={{ color: 'var(--assistant-text-soft)' }}>
-                  Are you sure you want to delete this list and all its child tasks?
-                </p>
-                <p className="text-[12px] text-rose-200/90 mt-2">
-                  If you choose Yes, every task in this list is removed permanently.
-                </p>
-                {(() => {
-                  const t = blocks.find(x => x.id === deleteListConfirmId)?.text?.trim();
-                  if (!t) return null;
-                  return <div className="text-[12px] mt-2 truncate" title={t} style={{ color: 'var(--assistant-text-faint)' }}>List: {t}</div>;
-                })()}
-              </div>
-              <div className="px-4 py-3 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
-                <button
-                  type="button"
-                  onClick={() => { setDeleteListConfirmId(null); armedDeleteListRef.current = null; }}
-                  className={`text-[13px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { if (deleteListConfirmId) handleConfirmDeleteList(deleteListConfirmId); }}
-                  className="text-[13px] px-3 py-2 rounded-md bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
-                >
-                  Yes, delete
-                </button>
-              </div>
-            </div>
-          </div>
+          <DeleteWithOpenTasksDialog
+            key={deleteListConfirmId}
+            kind="list"
+            name={blocks.find(x => x.id === deleteListConfirmId)?.text?.trim()}
+            openCount={openTasksOf(blocks, [deleteListConfirmId]).length}
+            targets={buildMoveTargets(projects, { listIds: [deleteListConfirmId] })}
+            defaultProjectId={currentProject?.project_id}
+            onCancel={() => { setDeleteListConfirmId(null); armedDeleteListRef.current = null; }}
+            onDelete={() => handleConfirmDeleteList(deleteListConfirmId)}
+            onMoveAndDelete={(toProjectId, toListId) => handleMoveAndDeleteList(deleteListConfirmId, toProjectId, toListId)}
+          />
         ) : null}
 
       {/* Only once the server has confirmed the workspace really has no tasks */}
