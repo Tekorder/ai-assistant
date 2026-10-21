@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSpeechRecognition } from '../_hook/useSpeechRecognition';
 import MicrophoneIcon from '../_icons/MicrophoneIcon';
 import { Message } from '../_types/Message';
-import { WRITING } from '../../_constants/chatbot.cons';
 import TaskTableMessage from './TaskTableMessage';
 
 interface ChatSectionProps {
@@ -12,6 +11,25 @@ interface ChatSectionProps {
   isLoading: boolean;
   onSendMessage: (message: string) => void;
   onToggleTaskRow?: (messageId: number, rowId: string, checked: boolean) => void;
+}
+
+/**
+ * Octo hopping while a reply is on its way. One loop = two big flips, the first
+ * clockwise and the second counter-clockwise; each time it mounts it starts on a
+ * random half so it doesn't always spin the same way first.
+ */
+function OctoThinking() {
+  const [startDelay] = useState(() => (Math.random() < 0.5 ? '0s' : '-1.9s'));
+  return (
+    <span className="relative flex h-10 w-9 shrink-0 items-end justify-center" aria-hidden>
+      <span
+        className="octo-shadow absolute bottom-0 h-1 w-6 rounded-full"
+        style={{ background: 'var(--assistant-text-muted)', animationDelay: startDelay }}
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/octo-thinking.png" alt="" className="octo-hop relative mb-0.5 h-8 w-8" style={{ animationDelay: startDelay }} />
+    </span>
+  );
 }
 
 const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMessage, onToggleTaskRow }) => {
@@ -95,6 +113,40 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
       style={{ borderTop: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-bg)' }}
     >
       <style>{`
+          /* Two hop cycles per loop: the 1st big flip spins 0→360, the 2nd spins back 360→0 */
+          @keyframes octoHop {
+            0%    { transform: translateY(0)     rotate(0deg)   scale(1.12, .86); }
+            4%    { transform: translateY(-2px)  rotate(0deg)   scale(.94, 1.08); }
+            11%   { transform: translateY(-9px)  rotate(0deg)   scale(1, 1); }
+            18%   { transform: translateY(0)     rotate(0deg)   scale(1.12, .86); }
+            22%   { transform: translateY(-3px)  rotate(0deg)   scale(.92, 1.1); }
+            33%   { transform: translateY(-18px) rotate(200deg) scale(1, 1); }
+            43%   { transform: translateY(0)     rotate(360deg) scale(1.14, .84); }
+            46.5% { transform: translateY(-2px)  rotate(360deg) scale(.97, 1.04); }
+            50%   { transform: translateY(0)     rotate(360deg) scale(1.12, .86); }
+            54%   { transform: translateY(-2px)  rotate(360deg) scale(.94, 1.08); }
+            61%   { transform: translateY(-9px)  rotate(360deg) scale(1, 1); }
+            68%   { transform: translateY(0)     rotate(360deg) scale(1.12, .86); }
+            72%   { transform: translateY(-3px)  rotate(360deg) scale(.92, 1.1); }
+            83%   { transform: translateY(-18px) rotate(160deg) scale(1, 1); }
+            93%   { transform: translateY(0)     rotate(0deg)   scale(1.14, .84); }
+            96.5% { transform: translateY(-2px)  rotate(0deg)   scale(.97, 1.04); }
+            100%  { transform: translateY(0)     rotate(0deg)   scale(1.12, .86); }
+          }
+          @keyframes octoShadow {
+            0%, 18%, 43%, 50%, 68%, 93%, 100% { transform: scaleX(1);   opacity: .35; }
+            11%, 61%                          { transform: scaleX(.7);  opacity: .2; }
+            33%, 83%                          { transform: scaleX(.45); opacity: .12; }
+          }
+          .octo-hop {
+            transform-origin: 50% 60%;
+            animation: octoHop 3.8s cubic-bezier(.45, 0, .55, 1) infinite;
+            filter: drop-shadow(0 2px 3px rgba(124, 58, 237, .35));
+          }
+          .octo-shadow { animation: octoShadow 3.8s cubic-bezier(.45, 0, .55, 1) infinite; }
+          @media (prefers-reduced-motion: reduce) {
+            .octo-hop, .octo-shadow { animation: none; }
+          }
           @keyframes dot {
             0%, 80%, 100% { transform: translateY(0); opacity: .35 }
             40% { transform: translateY(-4px); opacity: 1 }
@@ -188,8 +240,9 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
                 color: 'var(--assistant-text-soft)',
               }}
             >
-              <div className="flex items-center gap-2">
-                <span className="text-sm opacity-80">{WRITING}</span>
+              <div className="flex items-center gap-2.5">
+                <OctoThinking />
+                <span className="text-sm opacity-80">Thinking</span>
                 <span className="flex items-center gap-1">
                   <span style={{ animation: 'dot 1s infinite', background: 'var(--assistant-text-muted)' }} className="w-1.5 h-1.5 rounded-full" />
                   <span style={{ animation: 'dot 1s infinite .12s', background: 'var(--assistant-text-muted)' }} className="w-1.5 h-1.5 rounded-full" />

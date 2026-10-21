@@ -19,6 +19,8 @@ interface TopNavBarProps {
   setActiveView: (v: View) => void;
   onHome: () => void;
   onOpenMenu: () => void;
+  /** Header search: opens a keyword panel, same as clicking a keyword */
+  onSearchKeyword?: (word: string) => void;
   timelineOpen?: boolean;
   calendarOpen?: boolean;
   themeStyle?: 'light' | 'dark';
@@ -720,10 +722,67 @@ export function AccountActions({
   );
 }
 
+/** Magnifier icon that expands into an input; Enter opens the keyword panel. */
+function HeaderSearch({ onSearch }: { onSearch: (word: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+
+  const close = () => { setOpen(false); setValue(''); };
+
+  if (!open) {
+    return (
+      <IconTip label="Search keyword" side="bottom-end">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={classes.topNavIconBtn}
+          aria-label="Search keyword"
+        >
+          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+            <circle cx="7" cy="7" r="4.5" />
+            <path strokeLinecap="round" d="M10.4 10.4L14 14" />
+          </svg>
+        </button>
+      </IconTip>
+    );
+  }
+
+  return (
+    <div
+      className="flex h-8 w-[min(240px,60vw)] items-center gap-2 rounded-lg px-2.5"
+      style={{ background: 'var(--assistant-control-bg)', border: '1px solid var(--assistant-border-soft)' }}
+    >
+      <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" style={{ color: 'var(--assistant-text-muted)' }} aria-hidden>
+        <circle cx="7" cy="7" r="4.5" />
+        <path strokeLinecap="round" d="M10.4 10.4L14 14" />
+      </svg>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && value.trim()) { onSearch(value.trim()); close(); }
+          else if (e.key === 'Escape') close();
+        }}
+        onBlur={() => { if (!value.trim()) close(); }}
+        placeholder="Search keyword"
+        aria-label="Search keyword"
+        className="min-w-0 flex-1 bg-transparent text-[14px] outline-none"
+        style={{ color: 'var(--assistant-text)' }}
+      />
+    </div>
+  );
+}
+
 export default function TopNavBar({
   activeView,
   setActiveView,
   onOpenMenu,
+  onSearchKeyword,
   timelineOpen = false,
   calendarOpen = false,
   themeStyle = 'light',
@@ -816,6 +875,12 @@ export default function TopNavBar({
         {/* Check Lists / Habits / Reminders moved to the sidebar's panels menu (PanelsMenuButton);
             on mobile they're in the drawer */}
         <div className="flex-1" />
+
+        {onSearchKeyword && (
+          <div className="flex items-center shrink-0 md:mr-0 mr-1">
+            <HeaderSearch onSearch={onSearchKeyword} />
+          </div>
+        )}
 
         {/* Right: on mobile only — on desktop these live at the foot of the sidebar */}
         <div className="md:hidden">

@@ -368,7 +368,7 @@ export default function App() {
     (detail: {
       word: string;
       blockId: string | null;
-      origin: 'quick' | 'sidebar';
+      origin: 'quick' | 'sidebar' | 'header';
       listId?: string | null;
     }) => {
       if (detail.listId) {
@@ -840,6 +840,7 @@ export default function App() {
           setActiveView={handleSetActiveViewFromNav}
           onHome={() => setActiveView('quick')}
           onOpenMenu={() => setMenuOpen(true)}
+          onSearchKeyword={(word) => requestOpenPivot({ word, blockId: null, origin: 'header' })}
           timelineOpen={activeView === 'timeline'}
           calendarOpen={activeView === 'calendar'}
           themeStyle={theme.style}
@@ -1424,21 +1425,26 @@ export default function App() {
                 className="flex shrink-0 items-center justify-between border-b px-4 py-3"
                 style={{ borderColor: 'var(--assistant-border-soft)', background: 'var(--assistant-panel-bg)' }}
               >
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
+                <div className="flex min-w-0 items-center gap-3">
+                  {/* Avatar with online dot */}
+                  <span className="relative h-10 w-10 shrink-0">
+                    <span className="absolute inset-0 overflow-hidden rounded-full">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/waldy-octopus.png" alt="" className="h-full w-full scale-[1.12] object-cover" />
+                    </span>
                     <span
-                      className="absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping"
-                      style={{ background: 'var(--assistant-tone-1)' }}
-                    />
-                    <span
-                      className="relative inline-flex h-2 w-2 rounded-full"
-                      style={{
-                        background: 'var(--assistant-tone-1)',
-                        boxShadow: '0 0 10px color-mix(in srgb, var(--assistant-tone-1) 80%, transparent)',
-                      }}
+                      className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-[#22c55e]"
+                      style={{ border: '2px solid var(--assistant-panel-bg)' }}
                     />
                   </span>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Chat with Waldy</span>
+                  <div className="min-w-0 leading-tight">
+                    <div className="truncate text-[15px] font-semibold" style={{ color: 'var(--assistant-text)' }}>
+                      Chat with Octo Bahama
+                    </div>
+                    <div className="truncate text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>
+                      AI assistant · Online
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1">
                   <button
@@ -1524,26 +1530,24 @@ export default function App() {
           <button
             type="button"
             onClick={openChatOverlay}
-            className="hidden md:flex fixed md:bottom-5 right-5 z-[9999] h-14 w-14 items-center justify-center rounded-full bg-white/10 shadow-2xl backdrop-blur-md transition-all duration-200 hover:bg-white/15 active:scale-95"
+            className="hidden md:flex fixed md:bottom-5 right-5 z-[9999] h-14 w-14 items-center justify-center rounded-full shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95"
             aria-label="Open AI chat"
-            title="AI Assistant"
+            title="Chat with Octo Bahama"
           >
-            <span className="pointer-events-none absolute -right-1 -top-1">
-              <span
-                className="absolute inline-flex h-3 w-3 rounded-full opacity-75 animate-ping"
-                style={{ background: 'var(--assistant-tone-1)' }}
-              />
-              <span
-                className="relative inline-flex h-3 w-3 rounded-full border border-black/30"
-                style={{ background: 'var(--assistant-tone-1)' }}
-              />
+            {/* Octo avatar — scaled up a bit so the circle crops the image's dark corners */}
+            <span className="absolute inset-0 overflow-hidden rounded-full">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/waldy-octopus.png" alt="" className="h-full w-full scale-[1.12] object-cover" />
             </span>
 
-            <svg viewBox="0 0 24 24" className="h-6 w-6" style={{ color: 'var(--assistant-text)' }} fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 14h5" />
-            </svg>
+            {/* Online dot */}
+            <span className="pointer-events-none absolute bottom-0 right-0 flex h-4 w-4">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-[#22c55e] opacity-60 animate-ping" />
+              <span
+                className="relative inline-flex h-4 w-4 rounded-full bg-[#22c55e]"
+                style={{ border: '2.5px solid var(--assistant-bg)' }}
+              />
+            </span>
           </button>
         )}
 
