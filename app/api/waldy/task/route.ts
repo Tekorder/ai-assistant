@@ -5,7 +5,8 @@ import Anthropic from '@anthropic-ai/sdk';
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5';
 
 const WALDY_PERSONA =
-  'Your name is Waldy. If asked your name, say you are Waldy. ' +
+  'Your name is Octo, a friendly octopus; your full name is Octo Bahama. If asked your name, say you are Octo ' +
+  '(Octo Bahama if they ask for your full name). ' +
   'You must respond only in English, strictly and exclusively — never in Spanish or any other ' +
   'language, regardless of what language the user writes in.';
 
@@ -115,7 +116,7 @@ async function callClaude(message: string, lists: unknown, history: unknown): Pr
   });
 
   if (response.stop_reason === 'refusal') {
-    return NextResponse.json({ error: 'Waldy declined to respond to that message.' }, { status: 502 });
+    return NextResponse.json({ error: 'Octo declined to respond to that message.' }, { status: 502 });
   }
 
   const textBlock = response.content.find(b => b.type === 'text');

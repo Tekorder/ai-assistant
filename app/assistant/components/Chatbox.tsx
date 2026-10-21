@@ -143,6 +143,8 @@ function buildTaskTableRows(
   }));
 }
 
+const MIN_THINKING_MS = 5000;
+
 export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProps) {
   const {
     messages,
@@ -166,6 +168,8 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
 
     addUserMessage(messageToSend);
     setIsLoading(true);
+    // Octo's thinking animation always plays for at least this long before the reply lands
+    const minThinking = new Promise<void>(resolve => setTimeout(resolve, MIN_THINKING_MS));
 
     try {
       const { blocks } = readSelectedProject();
@@ -187,6 +191,7 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
       });
 
       const data: WaldyTaskResponse = await res.json();
+      await minThinking;
 
       if (!res.ok || data.error) {
         throw new Error(data.error || `HTTP ${res.status}`);
@@ -212,7 +217,8 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
       setPendingTask(null);
     } catch (err) {
       console.error(err);
-      addBotMessage("I couldn't reach Waldy 😅");
+      await minThinking;
+      addBotMessage("I couldn't reach Octo 😅");
     } finally {
       setIsLoading(false);
     }
