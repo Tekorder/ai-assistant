@@ -24,21 +24,40 @@ type ReminderSource = {
 /** Clock button next to a task's flag — opens a modal to save that task as a reminder. */
 export function TaskReminderButton({ task }: { task: ReminderSource }) {
   const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        onMouseDown={(e) => e.stopPropagation()}
+        aria-label="Set reminder"
+        title="Set reminder"
+        className="relative z-10 shrink-0 h-4 w-4 flex items-center justify-center select-none opacity-0 group-hover:opacity-40 hover:!opacity-80 hover:scale-110 transition-all duration-150"
+        style={{ color: 'var(--assistant-text)' }}
+      >
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.2" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 4.6V8l2.3 1.5" />
+        </svg>
+      </button>
+
+      {open ? <TaskReminderModal task={task} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
+/** Modal that saves a task as a reminder at a chosen hour (mount it to open it). */
+export function TaskReminderModal({ task, onClose }: { task: ReminderSource; onClose: () => void }) {
   const [time, setTime] = useState('11:00');
   // Date comes from the task's due date (today when it has none) — the modal only asks for the hour
   const date = isValidDateYYYYMMDD(task.deadline) ? task.deadline! : todayYMD();
 
-  const openModal = () => {
-    setTime('11:00');
-    setOpen(true);
-  };
-
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [onClose]);
 
   const handleSave = () => {
     if (!isValidTimeHHMM(time) || !isValidDateYYYYMMDD(date)) return;
@@ -58,32 +77,15 @@ export function TaskReminderButton({ task }: { task: ReminderSource }) {
         },
       ],
     });
-    setOpen(false);
+    onClose();
   };
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); openModal(); }}
-        onMouseDown={(e) => e.stopPropagation()}
-        aria-label="Set reminder"
-        title="Set reminder"
-        className="relative z-10 shrink-0 h-4 w-4 flex items-center justify-center select-none opacity-0 group-hover:opacity-40 hover:!opacity-80 hover:scale-110 transition-all duration-150"
-        style={{ color: 'var(--assistant-text)' }}
-      >
-        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-          <circle cx="8" cy="8" r="6.2" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8 4.6V8l2.3 1.5" />
-        </svg>
-      </button>
-
-      {open ? createPortal(
+  return createPortal(
         <div className="fixed inset-0 z-[10050] flex items-center justify-center">
           <button
             type="button"
             className="absolute inset-0 bg-black/60"
-            onClick={() => setOpen(false)}
+            onClick={onClose}
             aria-label="Close"
           />
           <form
@@ -121,7 +123,7 @@ export function TaskReminderButton({ task }: { task: ReminderSource }) {
             <div className="px-4 py-3 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={onClose}
                 className={`${classes.modalSecondaryButton} text-[13px] px-3 py-2 rounded-md`}
               >
                 Cancel
@@ -138,7 +140,5 @@ export function TaskReminderButton({ task }: { task: ReminderSource }) {
           </form>
         </div>,
         document.querySelector('[data-assistant-root]') ?? document.body,
-      ) : null}
-    </>
   );
 }

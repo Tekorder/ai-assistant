@@ -1282,9 +1282,8 @@ export default function App() {
               className="deck-scrollbar relative flex h-full shrink-0 flex-col overflow-y-auto overflow-x-hidden"
               style={{
                 order: 1,
-                width: openDockKeys.length && isDesktop === true
-                  ? (remindersOpen && isAccordionExpanded('reminders') ? remindersPanelWidth : listsPanelWidth)
-                  : 0,
+                // Fixed at 75% of the Reminders width, so expanding a different panel never resizes the column
+                width: openDockKeys.length && isDesktop === true ? `calc(${remindersPanelWidth} * 0.75)` : 0,
                 // Push the first item down so its top rule lands on the main panel's tab line
                 // (main tabs bar: 0.75rem margin + 49px tall, line in its last px)
                 paddingTop: '48px',

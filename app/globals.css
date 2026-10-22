@@ -621,7 +621,7 @@ input[type="checkbox"]:not(:disabled):hover {
 }
 
 .yt-col-header {
-  padding: 18px 16px 6px;
+  padding: 18px 12px 6px;
   display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
 }
 .yt-col-title { font-weight: 700; color: var(--assistant-text); font-size: 17px; }
@@ -629,17 +629,41 @@ input[type="checkbox"]:not(:disabled):hover {
 .yt-col-when { font-size: 12px; font-weight: 500; color: var(--assistant-text-muted); white-space: nowrap; }
 .yt-col-when.is-overdue { color: #f26b6b; }
 
-.yt-col-body { padding: 0 16px 16px; overflow-y: auto; height: 100%; transition: background .12s ease; }
+.yt-col-body { padding: 0 12px 12px; overflow-y: auto; height: 100%; transition: background .12s ease; }
 .yt-col-body.is-dragover {
   background: color-mix(in srgb, var(--assistant-tone-1) 6%, transparent);
 }
 
 .yt-empty { color: var(--assistant-text-faint); font-size: 15px; padding: 14px 0; }
 
+/* ===== Sidebar ghost "List…" row (revealed by hovering the list above it) ===== */
+.side-add-ghost {
+  max-height: 0; opacity: 0; overflow: hidden; cursor: text;
+  transition: max-height .15s ease .25s, opacity .15s ease .25s, padding .15s ease .25s;
+}
+.side-add-anchor:hover + .side-add-ghost,
+.side-add-ghost:hover,
+.side-add-ghost:focus-visible {
+  max-height: 2rem; opacity: 1; padding-top: .25rem; padding-bottom: .25rem;
+  transition-delay: 0s;
+}
+
+/* ===== List groups inside a column (list title, thin line, tasks indented) ===== */
+.yt-group + .yt-group { margin-top: 14px; }
+.yt-group-title {
+  padding: 10px 0 6px;
+  border-bottom: 1px solid var(--assistant-border-soft);
+  font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--assistant-text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.yt-group .yt-row { padding-left: 4px; }
+
 /* ===== Rows (list, one line between items) ===== */
 .yt-row {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 14px 0;
+  position: relative;
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 12px 0;
   border-bottom: 1px solid var(--assistant-row-divider);
 }
 .yt-row.is-dragging { opacity: .35; }
@@ -688,10 +712,22 @@ input[type="checkbox"]:not(:disabled):hover {
 
 .yt-row-meta { margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--assistant-text-muted); }
 
+/* Actions float over the row's right edge on hover (fading the text under them),
+   so the title gets the full width the rest of the time */
 .yt-row-actions {
-  flex-shrink: 0;
-  display: flex; align-items: center; gap: 4px;
+  position: absolute; right: 0; top: 9px;
+  display: flex; align-items: center; gap: 2px;
+  padding-left: 22px;
+  background: linear-gradient(to right, transparent, var(--assistant-column-bg) 18px);
+  opacity: 0; pointer-events: none;
+  transition: opacity .15s ease;
 }
+.yt-row:hover .yt-row-actions,
+.yt-row.is-menu-open .yt-row-actions,
+.yt-row-actions:focus-within { opacity: 1; pointer-events: auto; }
+/* A set flag stays visible next to the title */
+.yt-row-flag { display: inline-flex; vertical-align: -2px; margin-left: 6px; }
+.yt-row-flag img { width: 13px; height: 13px; }
 .yt-row-iconbtn {
   width: 20px; height: 20px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -906,8 +942,9 @@ input[type="checkbox"]:not(:disabled):hover {
     height: auto;
     max-height: none;
   }
-  /* No hover on touch — keep row actions visible */
+  /* No hover on touch — keep row actions visible, in the row's flow */
   .yt-row-iconbtn { opacity: 1; }
+  .yt-row-actions { position: static; padding-left: 0; background: none; opacity: 1; pointer-events: auto; }
 }
 
 /* ===== Confetti ===== */

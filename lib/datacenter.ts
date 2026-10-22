@@ -1868,6 +1868,22 @@ export function createBlankList(
   return { blocks: next, newListId, newTaskId };
 }
 
+/** New untitled list right after `afterListId` (after its tasks too), with root orders renumbered to match. */
+export function insertListAfter(blocks: Block[], afterListId: string, newListId: string = uid()): Block[] {
+  const i = blocks.findIndex(b => b.id === afterListId && b.indent === 0);
+  if (i < 0) return blocks;
+  let end = i + 1;
+  while (end < blocks.length && blocks[end].indent !== 0) end++;
+  const next = blocks.slice();
+  next.splice(end, 0, { id: newListId, text: '', indent: 0, parentId: null, order: 0, createdAt: todayYMD() });
+  let order = 0;
+  return next.map(b => {
+    if (b.indent !== 0) return b;
+    const o = order++;
+    return b.order === o ? b : { ...b, order: o };
+  });
+}
+
 /* ===================== Block mutations — Sidebar extras ===================== */
 
 export function archiveTask(blocks: Block[], taskId: string): Block[] {
@@ -2269,6 +2285,127 @@ export function writeSelectedProjectBlocks(
     window.dispatchEvent(new Event('youtask_blocks_updated'));
     dbSyncProjects();
   } catch {}
+}
+
+/* ===================== Show all (every group at once) ===================== */
+
+/*
+ * Global view filters — Workspace, Calendar, Timeline and the day panel all obey them:
+ *  - "Show all": every group at once, hidden lists included
+ *  - Focused list: only one list (clicked in the Sidebar)
+ * They're mutually exclusive: turning one on clears the other.
+ */
+export const LS_KEY_SHOW_ALL_GROUPS = 'youtask_show_all_groups';
+export const LS_KEY_FOCUSED_LIST = 'youtask_focused_list';
+export const VIEW_FILTER_EVENT = 'youtask_view_filter_changed';
+
+export type FocusedList = { projectId: string; listId: string };
+
+export function readShowAllGroups(): boolean {
+  try {
+    return localStorage.getItem(LS_KEY_SHOW_ALL_GROUPS) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function writeShowAllGroups(on: boolean): void {
+  try {
+    if (on) {
+      localStorage.setItem(LS_KEY_SHOW_ALL_GROUPS, '1');
+      localStorage.removeItem(LS_KEY_FOCUSED_LIST);
+    } else {
+      localStorage.removeItem(LS_KEY_SHOW_ALL_GROUPS);
+    }
+  } catch {}
+  window.dispatchEvent(new Event(VIEW_FILTER_EVENT));
+}
+
+export function readFocusedList(): FocusedList | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY_FOCUSED_LIST);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as Partial<FocusedList>;
+    return typeof v?.projectId === 'string' && typeof v?.listId === 'string'
+      ? { projectId: v.projectId, listId: v.listId }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeFocusedList(focus: FocusedList | null): void {
+  try {
+    if (focus) {
+      localStorage.setItem(LS_KEY_FOCUSED_LIST, JSON.stringify(focus));
+      localStorage.removeItem(LS_KEY_SHOW_ALL_GROUPS);
+    } else {
+      localStorage.removeItem(LS_KEY_FOCUSED_LIST);
+    }
+  } catch {}
+  window.dispatchEvent(new Event(VIEW_FILTER_EVENT));
+}
+
+/** Hides every list of `blocks` except `listId` (for the focused-list filter). */
+export function onlyListVisible(blocks: Block[], listId: string): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const b of blocks) if (b.indent === 0 && b.id !== listId) out[b.id] = false;
+  return out;
+}
+
+/** One group's data as the views read it. */
+export type ViewSource = {
+  project_id: string | null;
+  title: string;
+  /** Always the group's full blocks (edits are saved from them); filters only touch visibleLists */
+  blocks: Block[];
+  visibleLists: Record<string, boolean>;
+  /** Set while the focused-list filter is on */
+  focusListTitle?: string;
+};
+
+/**
+ * What the views should show: the selected group; every group under "Show all"
+ * (hidden lists too); or just the focused list.
+ */
+export function readViewSources(): ViewSource[] {
+  const focus = readFocusedList();
+  if (focus) {
+    const payload = readProjectsLS();
+    // Only while its group is the selected one (as Workspace sees it)
+    const p = payload?.selectedProjectId === focus.projectId
+      ? payload.projects.find(x => x.project_id === focus.projectId)
+      : undefined;
+    const list = p?.blocks.find(b => b.id === focus.listId && b.indent === 0);
+    // A deleted list or group just falls back to the normal view
+    if (p && list) {
+      return [{
+        project_id: p.project_id,
+        title: (p.title || 'Project').trim() || 'Project',
+        blocks: p.blocks ?? [],
+        visibleLists: onlyListVisible(p.blocks ?? [], list.id),
+        focusListTitle: (list.text || '').trim() || 'List',
+      }];
+    }
+  }
+  if (readShowAllGroups()) {
+    const payload = readProjectsLS();
+    if (payload?.projects.length) {
+      return payload.projects.map(p => ({
+        project_id: p.project_id,
+        title: (p.title || 'Project').trim() || 'Project',
+        blocks: p.blocks ?? [],
+        visibleLists: {},
+      }));
+    }
+  }
+  const snap = readSelectedProject();
+  return [{
+    project_id: snap.project_id,
+    title: snap.projectTitle,
+    blocks: snap.blocks,
+    visibleLists: snap.visibleLists,
+  }];
 }
 
 export function writeSelectedProject(

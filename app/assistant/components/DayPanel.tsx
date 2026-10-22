@@ -8,7 +8,9 @@ import {
   isValidDateYYYYMMDD,
   startOfLocalDay,
   parseYMD,
-  readSelectedProject,
+  readViewSources,
+  VIEW_FILTER_EVENT,
+  type ViewSource,
   writeSelectedProjectBlocks,
   isListVisible,
   isUncTitleBlock,
@@ -19,6 +21,8 @@ import {
   type TaskFlagColor,
 } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
+import { useShowAllGroups } from '../_hook/useShowAllGroups';
+import { useQuickFilters } from './QuickFiltersContext';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 type CalCard = {
@@ -27,6 +31,8 @@ type CalCard = {
   text: string;
   checked: boolean;
   deadline: string;
+  /** The day the task sits on: its due date, or its creation date under "View by: Created" */
+  day: string;
   isHidden?: boolean;
   archived?: boolean;
   flag?: TaskFlagColor;
@@ -96,10 +102,13 @@ export default function DayPanel({
   const [isClosing, setIsClosing] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
 
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [projectTitle, setProjectTitle] = useState('Group');
-  const [visibleLists, setVisibleLists] = useState<Record<string, boolean>>({});
+  // One entry per group shown: the selected group, or every group under "Show all"
+  const [sources, setSources] = useState<ViewSource[]>([]);
+  const [showAll] = useShowAllGroups();
+  const blocks = useMemo(() => sources.flatMap(s => s.blocks), [sources]);
+  // Same "View by" as Workspace and the Calendar: due date or creation date
+  const { sortBy } = useQuickFilters();
+  const byCreated = sortBy === 'createdAt';
 
   const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -109,23 +118,19 @@ export default function DayPanel({
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const load = () => {
-      const snap = readSelectedProject();
-      setBlocks(snap.blocks);
-      setProjectTitle(snap.projectTitle);
-      setProjectId(snap.project_id);
-      setVisibleLists(snap.visibleLists);
-    };
+    const load = () => setSources(readViewSources());
     load();
     const onStorage = (e: StorageEvent) => {
       if (e.key === LS_KEY_V2 || e.key === LS_KEY_V1) load();
     };
     window.addEventListener('youtask_projects_updated', load);
     window.addEventListener('youtask_blocks_updated', load);
+    window.addEventListener(VIEW_FILTER_EVENT, load);
     window.addEventListener('storage', onStorage);
     return () => {
       window.removeEventListener('youtask_projects_updated', load);
       window.removeEventListener('youtask_blocks_updated', load);
+      window.removeEventListener(VIEW_FILTER_EVENT, load);
       window.removeEventListener('storage', onStorage);
     };
   }, []);
@@ -163,38 +168,42 @@ export default function DayPanel({
 
   const allCards = useMemo<CalCard[]>(() => {
     const out: CalCard[] = [];
-    let currentListTitle = '';
-    let currentListId: string | null = null;
-    let currentListVisible = true;
+    for (const { blocks: groupBlocks, visibleLists, title: groupTitle } of sources) {
+      let currentListTitle = '';
+      let currentListId: string | null = null;
+      let currentListVisible = true;
 
-    for (let i = 0; i < blocks.length; i++) {
-      const b = blocks[i];
-      if (b.indent === 0) {
-        currentListTitle = (b.text || '').trim();
-        currentListId = b.id;
-        currentListVisible = isListVisible(visibleLists, b.id);
-        continue;
+      for (const b of groupBlocks) {
+        if (b.indent === 0) {
+          currentListTitle = (b.text || '').trim();
+          currentListId = b.id;
+          currentListVisible = isListVisible(visibleLists, b.id);
+          continue;
+        }
+        if (b.indent !== 1) continue;
+        if (currentListId && !currentListVisible) continue;
+        if (b.archived) continue;
+        if (!isValidDateYYYYMMDD(byCreated ? b.createdAt : b.deadline)) continue;
+        const listTitle = currentListTitle || groupTitle || 'General';
+        out.push({
+          id: b.id,
+          // Under "Show all" the group name leads, so same-named lists in different groups stay apart
+          listTitle: showAll ? `${groupTitle} · ${listTitle}` : listTitle,
+          text: b.text || '',
+          checked: Boolean(b.checked),
+          deadline: b.deadline ?? '',
+          day: (byCreated ? b.createdAt : b.deadline)!,
+          isHidden: b.isHidden === true,
+          archived: b.archived,
+          flag: getTaskFlag(b),
+        });
       }
-      if (b.indent !== 1) continue;
-      if (currentListId && !currentListVisible) continue;
-      if (b.archived) continue;
-      if (!isValidDateYYYYMMDD(b.deadline)) continue;
-      out.push({
-        id: b.id,
-        listTitle: currentListTitle || projectTitle || 'General',
-        text: b.text || '',
-        checked: Boolean(b.checked),
-        deadline: b.deadline!,
-        isHidden: b.isHidden === true,
-        archived: b.archived,
-        flag: getTaskFlag(b),
-      });
     }
     return out;
-  }, [blocks, projectTitle, visibleLists]);
+  }, [sources, showAll, byCreated]);
 
   const groups = useMemo<DayGroup[]>(() => {
-    const cards = allCards.filter(c => c.deadline === ymd);
+    const cards = allCards.filter(c => c.day === ymd);
     const byList: Record<string, { title: string; cards: CalCard[] }> = {};
     const order: string[] = [];
     for (const c of cards) {
@@ -214,19 +223,24 @@ export default function DayPanel({
   }, [allCards, ymd]);
 
   const listOptions = useMemo<ListOption[]>(() => {
-    const seen = new Set<string>();
     const out: ListOption[] = [];
-    for (const b of blocks) {
-      if (b.indent !== 0 || isUncTitleBlock(b) || b.archived) continue;
-      const text = (b.text || '').trim();
-      if (!text) continue;
-      const key = text.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ id: b.id, text });
+    for (const s of sources) {
+      // Same-named lists dedupe within a group; across groups they're labeled by group
+      const seen = new Set<string>();
+      for (const b of s.blocks) {
+        if (b.indent !== 0 || isUncTitleBlock(b) || b.archived) continue;
+        // While a list is focused, new tasks can only go into that list
+        if (s.focusListTitle && !isListVisible(s.visibleLists, b.id)) continue;
+        const text = (b.text || '').trim();
+        if (!text) continue;
+        const key = text.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ id: b.id, text: showAll ? `${s.title} · ${text}` : text });
+      }
     }
     return out;
-  }, [blocks]);
+  }, [sources, showAll]);
 
   useEffect(() => {
     if (!addOpen) return;
@@ -235,38 +249,37 @@ export default function DayPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addOpen]);
 
-  const persist = (next: Block[]) => {
-    writeSelectedProjectBlocks(projectId, next);
-    setBlocks(next);
+  /** Applies `fn` to the group holding `blockId`, saves that group and updates the view. */
+  const mutateHolding = (blockId: string, fn: (groupBlocks: Block[]) => Block[]) => {
+    const src = sources.find(s => s.blocks.some(b => b.id === blockId));
+    if (!src) return;
+    const nextBlocks = fn(src.blocks);
+    writeSelectedProjectBlocks(src.project_id, nextBlocks);
+    setSources(prev => prev.map(s => (s === src ? { ...s, blocks: nextBlocks } : s)));
   };
 
   const handleToggleDone = (cardId: string) => {
     const card = blocks.find(b => b.id === cardId && b.indent === 1);
     if (!card) return;
-    persist(updateBlock(blocks, cardId, { checked: !card.checked }));
+    mutateHolding(cardId, bl => updateBlock(bl, cardId, { checked: !card.checked }));
   };
 
   const handleDelete = (cardId: string) => {
-    persist(removeTaskAndSubtasks(blocks, cardId));
+    mutateHolding(cardId, bl => removeTaskAndSubtasks(bl, cardId));
   };
 
   const handleReschedule = (cardId: string, newDeadline: string) => {
     if (!isValidDateYYYYMMDD(newDeadline)) return;
-    const next = blocks.map(x => ({ ...x }));
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      b.deadline = newDeadline;
-      if (b.isHidden === true) b.isHidden = false;
-      break;
-    }
-    persist(next);
+    // Rescheduling also un-hides the task
+    mutateHolding(cardId, bl => bl.map(b => (
+      b.id === cardId && b.indent === 1 ? { ...b, deadline: newDeadline, isHidden: false } : b
+    )));
   };
 
   const handleAddTask = (listId: string, text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    const result = addTaskUnderListArr(blocks, listId, { text: trimmed, deadline: ymd });
-    persist(result.blocks);
+    mutateHolding(listId, bl => addTaskUnderListArr(bl, listId, { text: trimmed, deadline: ymd }).blocks);
   };
 
   const submitNewTask = () => {

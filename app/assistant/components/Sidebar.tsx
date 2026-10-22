@@ -23,6 +23,7 @@ import {
   // Block mutations
   updateBlock as updateBlockArr,
   insertBlockAfter,
+  insertListAfter,
   removeBlock as removeBlockArr,
   removeListAndChildren,
   openTasksOf,
@@ -36,6 +37,7 @@ import {
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { useQuickFilters } from './QuickFiltersContext';
+import { useShowAllGroups, useFocusedList } from '../_hook/useShowAllGroups';
 import { DeleteWithOpenTasksDialog, buildMoveTargets } from './DeleteWithOpenTasksDialog';
 
 const LS_KEY_COLLAPSED_GROUPS = 'youtask_sidebar_collapsed_groups';
@@ -97,6 +99,16 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const applyingExternalRef = useRef(false);
   const armedDeleteListRef = useRef<{ id: string; t: number } | null>(null);
 
+  const [showAllGroups, setShowAllGroups] = useShowAllGroups();
+  const [focusedList, setFocusedList] = useFocusedList();
+  const toggleFocusedList = (projectId: string, listId: string) =>
+    setFocusedList(focusedList?.listId === listId ? null : { projectId, listId });
+  // Back to the plain view of the selected group
+  const clearViewFilters = () => {
+    if (showAllGroups) setShowAllGroups(false);
+    if (focusedList) setFocusedList(null);
+  };
+
   /* ── Derived state ── */
   const currentProjectIndex = useMemo(
     () => Math.max(0, projects.findIndex(p => p.project_id === selectedProjectId)),
@@ -109,6 +121,12 @@ const visibleLists = useMemo<Record<string, boolean>>(
   () => currentProject?.visibleLists ?? {},
   [currentProject?.visibleLists],
 );
+
+  // Selecting another group drops a focused list from the previous one
+  useEffect(() => {
+    if (!selectedProjectId || !focusedList) return;
+    if (focusedList.projectId !== selectedProjectId) setFocusedList(null);
+  }, [selectedProjectId, focusedList, setFocusedList]);
 
   /* ===================== setCurrentBlocks / setCurrentCollapsed ===================== */
   const setCurrentBlocks = (nextFn: Block[] | ((prev: Block[]) => Block[])) => {
@@ -484,8 +502,29 @@ const visibleLists = useMemo<Record<string, boolean>>(
   const toggleListVisibility = (listId: string) =>
     setCurrentVisibleLists(prev => ({ ...prev, [listId]: prev[listId] === false }));
 
+  // New list right below another one (like Workspace's "Task…" row), title ready to type
+  const handleAddListAfter = (listId: string) => {
+    const newListId = uid();
+    setCurrentBlocks(prev => insertListAfter(prev, listId, newListId));
+    setEditingListTitleId(newListId);
+    requestAnimationFrame(() => inputRefs.current[newListId]?.focus());
+  };
+
+  // Leaving a brand-new list without a name (and with no tasks) drops it
+  const handleListTitleBlur = (b: Block) => {
+    setEditingListTitleId(prev => (prev === b.id ? null : prev));
+    if ((b.text || '').trim()) return;
+    setCurrentBlocks(prev => (prev.some(x => x.parentId === b.id) ? prev : prev.filter(x => x.id !== b.id)));
+  };
+
   /* ── Keyboard (tasks) ── */
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, b: Block) => {
+    if (e.key === 'Enter' && b.indent === 0) {
+      // On a list title: Enter starts the next list
+      e.preventDefault();
+      if ((b.text || '').trim()) handleAddListAfter(b.id);
+      return;
+    }
     if (e.key === 'Enter') {
       e.preventDefault();
       const nextIndent = b.indent === 0 ? 1 : b.indent;
@@ -665,6 +704,41 @@ const visibleLists = useMemo<Record<string, boolean>>(
         {/* Scrollable content */}
         <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 pt-2 md:px-4 md:pb-4 md:pt-3">
           <>
+              {/* Workspace, Calendar and Timeline show every group (hidden lists too) while on */}
+              {/* Looks and behaves like a list row: click to show everything, click again (or any list/group) to leave */}
+              <div
+                role="button"
+                tabIndex={0}
+                aria-pressed={showAllGroups}
+                onClick={() => setShowAllGroups(!showAllGroups)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowAllGroups(!showAllGroups); }
+                }}
+                title={showAllGroups ? 'Showing every group and list — click to go back to the selected group' : 'Show every group and list'}
+                className="mb-3 flex cursor-pointer select-none items-center gap-1 rounded-md px-0.5 py-1"
+                style={{ paddingLeft: 2 }}
+              >
+                <div className="w-5 shrink-0 flex items-center justify-center" style={{ color: showAllGroups ? 'var(--assistant-accent)' : 'var(--assistant-text-faint)' }}>
+                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                    <rect x="2" y="2" width="5" height="5" rx="1.2" />
+                    <rect x="9" y="2" width="5" height="5" rx="1.2" />
+                    <rect x="2" y="9" width="5" height="5" rx="1.2" />
+                    <rect x="9" y="9" width="5" height="5" rx="1.2" />
+                  </svg>
+                </div>
+                <span
+                  className={[
+                    'min-w-0 truncate text-left text-[14px] md:text-sm font-semibold',
+                    showAllGroups ? 'underline decoration-2 underline-offset-[3px]' : '',
+                  ].join(' ')}
+                  style={{
+                    color: 'var(--assistant-text)',
+                    textDecorationColor: showAllGroups ? 'var(--assistant-accent)' : undefined,
+                  }}
+                >
+                  Show all
+                </span>
+              </div>
               <div className="space-y-4">
               {projects.map((project, projectIndex) => {
                 const isCurrent = project.project_id === currentProject?.project_id;
@@ -691,7 +765,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     className="flex min-w-0 flex-1 items-center gap-1 px-1 text-left text-[12px] font-semibold uppercase tracking-wide"
                     style={{ color: 'var(--assistant-text-soft)' }}
                   >
-                    {/* Only the chevron collapses — the name itself does nothing on click */}
+                    {/* The chevron collapses; clicking the name selects the group and clears any view filter */}
                     <button
                       type="button"
                       onClick={() => toggleGroupCollapsed(project.project_id)}
@@ -713,13 +787,23 @@ const visibleLists = useMemo<Record<string, boolean>>(
                       </svg>
                     </button>
                     <span
+                      role="button"
+                      tabIndex={0}
                       className={[
-                        'truncate cursor-default select-none',
+                        'truncate cursor-pointer select-none',
                         isCurrent ? 'font-bold underline underline-offset-[3px]' : '',
                       ].join(' ')}
                       style={isCurrent ? { color: 'var(--assistant-text)' } : undefined}
                       title={project.title}
                       aria-current={isCurrent ? 'true' : undefined}
+                      onClick={clearViewFilters}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedProjectId(project.project_id);
+                          clearViewFilters();
+                        }
+                      }}
                     >
                       {project.title}
                     </span>
@@ -738,6 +822,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     );
                   }
                   return listBlocks.map((b) => {
+                    const hasTitle = (b.text || '').trim() !== '';
+                    const typingThis = editingListTitleId === b.id;
                     return (
                       <React.Fragment key={b.id}>
                         <div
@@ -747,6 +833,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                             'group flex items-center gap-1 px-0.5 py-1 rounded-md',
                             dragOverId === b.id && dragRef.current?.id !== b.id ? classes.dragOver : '',
                             dragRef.current?.id === b.id ? 'opacity-60' : '',
+                            hasTitle && !typingThis ? 'side-add-anchor' : '',
                           ].join(' ')}
                           style={{ paddingLeft: 2 }}
                         >
@@ -774,7 +861,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                               placeholder="List…"
                               onChange={e => handleUpdateBlock(b.id, { text: e.target.value })}
                               onKeyDown={e => handleKey(e, b)}
-                              onBlur={() => setEditingListTitleId(null)}
+                              onBlur={() => handleListTitleBlur(b)}
                               className={[
                                 'w-full cursor-text bg-transparent text-[14px] md:text-sm font-semibold outline-none transition-opacity duration-150',
                               ].join(' ')}
@@ -784,8 +871,29 @@ const visibleLists = useMemo<Record<string, boolean>>(
                             <div className="min-w-0 flex-1 flex items-center gap-1">
                               <span
                                 data-youtask-block={b.id}
-                                className="min-w-0 cursor-default select-none truncate text-left text-[14px] md:text-sm font-semibold"
-                                style={{ color: 'var(--assistant-text)' }}
+                                role="button"
+                                tabIndex={0}
+                                aria-pressed={focusedList?.listId === b.id}
+                                title={focusedList?.listId === b.id ? 'Showing only this list — click to show all lists' : 'Show only this list'}
+                                className={[
+                                  'min-w-0 cursor-pointer select-none truncate text-left text-[14px] md:text-sm font-semibold',
+                                  focusedList?.listId === b.id ? 'underline decoration-2 underline-offset-[3px]' : '',
+                                ].join(' ')}
+                                style={{
+                                  color: 'var(--assistant-text)',
+                                  textDecorationColor: focusedList?.listId === b.id ? 'var(--assistant-accent)' : undefined,
+                                }}
+                                // Global filter: Workspace, Calendar and Timeline show only this list (click again to undo)
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFocusedList(project.project_id, b.id);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    toggleFocusedList(project.project_id, b.id);
+                                  }
+                                }}
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setEditingListTitleId(b.id);
@@ -854,6 +962,20 @@ const visibleLists = useMemo<Record<string, boolean>>(
                             </svg>
                           </button>
                         </div>
+                        {/* Ghost "List…" row — on hover under a named list, never while its title is being typed.
+                            Must directly follow the row: CSS reveals it via .side-add-anchor:hover + .side-add-ghost */}
+                        {hasTitle && !typingThis && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddListAfter(b.id)}
+                            aria-label="Add list"
+                            className="side-add-ghost flex w-full items-center gap-1 text-left"
+                            style={{ paddingLeft: 2 }}
+                          >
+                            <span className="w-5 shrink-0 text-center text-[14px] leading-none" style={{ color: 'var(--assistant-text-faint)' }}>+</span>
+                            <span className="text-[14px] md:text-sm font-semibold" style={{ color: 'var(--assistant-text-faint)' }}>List…</span>
+                          </button>
+                        )}
                       </React.Fragment>
                     );
                   });
@@ -923,7 +1045,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                   setDeleteListConfirmId(listId);
                   setListMenu(null);
                 }}
-                className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:text-rose-400"
+                className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:!text-rose-400"
                 style={{ color: 'var(--assistant-text-faint)' }}
                 title="Delete list"
                 aria-label="Delete list"
@@ -1090,7 +1212,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                       <button
                         type="button"
                         onClick={() => requestDeleteProject(project)}
-                        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-rose-400 transition-opacity"
+                        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:!text-rose-400 transition-[opacity,color]"
                         style={{ color: 'var(--assistant-text-faint)' }}
                         title="Delete group"
                         aria-label={`Delete group ${project.title}`}

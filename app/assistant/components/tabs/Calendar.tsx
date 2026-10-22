@@ -2,24 +2,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import {
-  type Block,
   LS_KEY_V2,
   LS_KEY_V1,
   isValidDateYYYYMMDD,
   startOfLocalDay,
   todayYMD,
   parseYMD,
-  readSelectedProject,
+  readViewSources,
+  VIEW_FILTER_EVENT,
+  type ViewSource,
   isListVisible,
   getTaskFlag,
   highestTaskFlag,
   type TaskFlagColor,
-  type DateRange,
-  addDaysYMD,
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from '../TaskFlag';
-import { DateRangeDialog } from '../DateRangeDialog';
-import { RangeTasksDialog } from '../RangeTasksDialog';
+import { useQuickFilters } from '../QuickFiltersContext';
+import { useShowAllGroups } from '../../_hook/useShowAllGroups';
 
 /* ===================== Local types ===================== */
 
@@ -123,10 +122,16 @@ export default function CalendarView({
   onOpenDayPanel?: (ymd: string) => void;
   openDayYmids?: string[];
 }) {
-  const [blocks, setBlocks]             = useState<Block[]>([]);
-  const [hydrated, setHydrated]         = useState(false);
-  const [projectTitle, setProjectTitle] = useState<string>('Group');
-  const [visibleLists, setVisibleLists] = useState<Record<string, boolean>>({});
+  // One entry per group shown: the selected group, or every group under "Show all"
+  const [sources, setSources]   = useState<ViewSource[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+  const [showAll]               = useShowAllGroups();
+  // Same "View by" as Workspace: tasks sit on their due date or their creation date
+  const { sortBy, setSortBy }   = useQuickFilters();
+  const byCreated               = sortBy === 'createdAt';
+  const projectTitle            = sources[0]?.focusListTitle
+    ? `${sources[0].title} › ${sources[0].focusListTitle}`
+    : showAll ? 'All groups' : (sources[0]?.title || 'Group');
 
   // Calendar nav
   const today = todayYMD();
@@ -135,17 +140,10 @@ export default function CalendarView({
 
   const openDaySet = useMemo(() => new Set(openDayYmids), [openDayYmids]);
 
-  // "Select range": pick the dates, then list the tasks due / created in them
-  const [range, setRange] = useState<DateRange>(() => ({ from: addDaysYMD(todayYMD(), -6), to: todayYMD() }));
-  const [rangeStep, setRangeStep] = useState<'pick' | 'results' | null>(null);
-
   /* ── Load & sync ── */
   useEffect(() => {
     const load = () => {
-      const snap = readSelectedProject();
-      setBlocks(snap.blocks);
-      setProjectTitle(snap.projectTitle);
-      setVisibleLists(snap.visibleLists);
+      setSources(readViewSources());
       setHydrated(true);
     };
     load();
@@ -154,10 +152,12 @@ export default function CalendarView({
     };
     window.addEventListener('youtask_projects_updated', load);
     window.addEventListener('youtask_blocks_updated', load);
+    window.addEventListener(VIEW_FILTER_EVENT, load);
     window.addEventListener('storage', onStorage);
     return () => {
       window.removeEventListener('youtask_projects_updated', load);
       window.removeEventListener('youtask_blocks_updated', load);
+      window.removeEventListener(VIEW_FILTER_EVENT, load);
       window.removeEventListener('storage', onStorage);
     };
   }, []);
@@ -165,6 +165,7 @@ export default function CalendarView({
   /* ── Build cards from blocks ── */
   const allCards = useMemo<CalCard[]>(() => {
     const out: CalCard[] = [];
+    for (const { blocks, visibleLists, title: groupTitle } of sources) {
     let currentListTitle = '';
     let currentListId: string | null = null;
     let currentListVisible = true;
@@ -182,22 +183,27 @@ export default function CalendarView({
       if (b.indent !== 1) continue;
       if (currentListId && !currentListVisible) continue;
       if (b.archived) continue; // 👈 ocultar archivados
-      if (!isValidDateYYYYMMDD(b.deadline)) continue;
+      const day = byCreated ? b.createdAt : b.deadline;
+      if (!isValidDateYYYYMMDD(day)) continue;
 
+      const listTitle = currentListTitle || groupTitle || 'General';
       out.push({
         id:        b.id,
-        listTitle: currentListTitle || projectTitle || 'General',
+        // Under "Show all" the group name leads, so same-named lists in different groups stay apart
+        listTitle: showAll ? `${groupTitle} · ${listTitle}` : listTitle,
         text:      b.text || '',
         checked:   Boolean(b.checked),
-        deadline:  b.deadline!,
+        // The day the task sits on (due or created, per "View by")
+        deadline:  day!,
         isHidden:  b.isHidden === true,
         archived:  b.archived,
         flag: getTaskFlag(b),
       });
     }
+    }
 
     return out;
-  }, [blocks, projectTitle, visibleLists]);
+  }, [sources, showAll, byCreated]);
 
   /* ── Cards by date ── */
   const cardsByDate = useMemo(() => {
@@ -318,7 +324,8 @@ export default function CalendarView({
 
   return (
     <div className="relative h-full w-full overflow-y-auto bg-transparent" style={{ color: 'var(--assistant-text)' }}>
-      <div className="mx-auto max-w-6xl px-3 pt-3 pb-20 md:px-8 md:py-8">
+      {/* Fills the tab's height so the month grid can stretch down (desktop) */}
+      <div className="mx-auto flex min-h-full max-w-6xl flex-col px-3 pt-3 pb-20 md:px-8 md:py-8">
 
         {/* ── Header / nav bar ── */}
         <div
@@ -334,14 +341,32 @@ export default function CalendarView({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setRangeStep('pick')}
-              className="text-[12px] px-3 py-1.5 rounded-xl transition-colors"
-              style={{ color: 'var(--assistant-text-soft)', border: '1px solid var(--assistant-border-soft)' }}
+            {/* View by: due date or creation date (shared with Workspace's "View by") */}
+            <div
+              role="radiogroup"
+              aria-label="Place tasks by"
+              className="flex items-center rounded-xl p-0.5"
+              style={{ border: '1px solid var(--assistant-border-soft)' }}
             >
-              Select range
-            </button>
+              {([['dueDate', 'Due date'], ['createdAt', 'Created']] as const).map(([value, label]) => {
+                const on = sortBy === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setSortBy(value)}
+                    className="rounded-[10px] px-2.5 py-1 text-[12px] transition-colors"
+                    style={on
+                      ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)', fontWeight: 600 }
+                      : { color: 'var(--assistant-text-soft)' }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
             <button
               type="button"
               onClick={goToday}
@@ -384,14 +409,16 @@ export default function CalendarView({
         </div>
 
         {/* ── Desktop: 7-col grid ── */}
-        <div className="hidden md:grid grid-cols-7 gap-[3px] rounded-2xl overflow-hidden p-[3px] bg-transparent">
+        {/* Weeks share the leftover height evenly (never shorter than a cell's content; scrolls if the window is too short) */}
+        <div className="hidden md:grid flex-1 grid-cols-7 auto-rows-fr gap-[3px] rounded-2xl overflow-hidden p-[3px] bg-transparent">
           {grid.map((ymd, idx) => {
             const isToday    = ymd === today;
             const isSelected = ymd ? openDaySet.has(ymd) : false;
             const dayCards   = ymd ? (cardsByDate[ymd] ?? []) : [];
             const hasCards   = dayCards.length > 0;
             const isPast     = ymd ? dayDiff(ymd) < 0 : false;
-            const isOverdue  = isPast && hasCards && dayCards.some(c => !c.checked);
+            // "Overdue" only means something when placing by due date
+            const isOverdue  = !byCreated && isPast && hasCards && dayCards.some(c => !c.checked);
             const [,, dayNum] = ymd ? ymd.split('-') : ['', '', ''];
 
             return (
@@ -485,7 +512,7 @@ export default function CalendarView({
             const weekday    = new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
             const hasAnyTask = groups.length > 0;
             const isPast     = dayDiff(ymd) < 0;
-            const isOverdue  = isPast && hasAnyTask && groups.flatMap(g => g.cards).some(c => !c.checked);
+            const isOverdue  = !byCreated && isPast && hasAnyTask && groups.flatMap(g => g.cards).some(c => !c.checked);
 
             return (
               <div
@@ -585,23 +612,6 @@ export default function CalendarView({
 
       </div>
 
-      {rangeStep === 'pick' && (
-        <DateRangeDialog
-          initial={range}
-          onCancel={() => setRangeStep(null)}
-          onApply={r => { setRange(r); setRangeStep('results'); }}
-        />
-      )}
-      {rangeStep === 'results' && (
-        <RangeTasksDialog
-          range={range}
-          blocks={blocks}
-          visibleLists={visibleLists}
-          projectTitle={projectTitle}
-          onChangeRange={() => setRangeStep('pick')}
-          onClose={() => setRangeStep(null)}
-        />
-      )}
     </div>
   );
 }
