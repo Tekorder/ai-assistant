@@ -49,6 +49,7 @@ import {
   // Filter / view helpers
   buildHiddenMap,
   buildListVisibilityHiddenMap,
+  onlyListVisible,
   sortBlocksByOrder,
   getTaskFlag,
   // Sync status
@@ -57,7 +58,9 @@ import {
 } from '@/lib/datacenter';
 import { getCurrentUid } from '@/lib/session';
 import { TaskFlagButton } from '../TaskFlag';
-import { TaskReminderButton } from '../TaskReminder';
+import { TaskReminderModal } from '../TaskReminder';
+import { TaskNoteButton, TaskNoteModal } from '../TaskNote';
+import { TaskRowMenu } from '../TaskRowMenu';
 import { FirstListWizard } from '../FirstListWizard';
 import { DeleteWithOpenTasksDialog, buildMoveTargets } from '../DeleteWithOpenTasksDialog';
 import { DateRangeDialog } from '../DateRangeDialog';
@@ -106,6 +109,7 @@ const BANNED_SEARCH_WORDS = new Set([
 ]);
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { useQuickFilters, type TaskFilterTag } from '../QuickFiltersContext';
+import { useShowAllGroups, useFocusedList } from '../../_hook/useShowAllGroups';
 
 /** First incomplete task under this list with empty text (for Enter → focus instead of duplicating). */
 function findFirstEmptyTaskUnderList(blocks: Block[], listId: string): string | null {
@@ -219,13 +223,13 @@ export function ActionsPanel({
   hideSomeday, setHideSomeday,
   sortBy, setSortBy,
   taskFilter, setTaskFilter,
-  searchQuery, setSearchQuery,
+  focusDay, setFocusDay,
   onOpenRange,
 }: {
   /** Opens the "Ranges" calendar popup (applying it switches dateMode to 'range') */
   onOpenRange: () => void;
-  /** Keyword box — live-filters the workspace lists (searches across all dates) */
-  searchQuery: string; setSearchQuery: (v: string) => void;
+  /** The day shown in single-day mode (dateMode 'today'), e.g. one picked in the mini calendar */
+  focusDay: string; setFocusDay: (ymd: string) => void;
   dateMode: DateMode; setDateMode: (m: DateMode) => void;
   showCompleted: boolean; setShowCompleted: (v: boolean | ((p: boolean) => boolean)) => void;
   hideSomeday: boolean; setHideSomeday: (v: boolean | ((p: boolean) => boolean)) => void;
@@ -242,7 +246,12 @@ export function ActionsPanel({
   const selectDate = (mode: DateMode) => {
     setTaskFilter('none');
     setDateMode(mode);
+    // "Today" always means today, even after picking another day in the mini calendar
+    if (mode === 'today') setFocusDay(todayYMD());
   };
+  // Single-day mode on another day (picked in the mini calendar) isn't "Today"
+  const isDateChipOn = (mode: DateMode) =>
+    taskFilter === 'none' && dateMode === mode && (mode !== 'today' || focusDay === todayYMD());
 
   const selectExtra = (tag: Exclude<TaskFilterTag, 'none'>) => {
     setTaskFilter(tag);
@@ -263,16 +272,6 @@ export function ActionsPanel({
 
   return (
     <div className="space-y-4">
-      <input
-        type="search"
-        value={searchQuery}
-        onChange={e => setSearchQuery(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Escape') setSearchQuery(''); }}
-        placeholder="Search keyword"
-        aria-label="Filter tasks by keyword"
-        className={`w-full rounded-xl px-3 py-2 text-[13px] ${classes.quickSearchInput}`}
-      />
-
       {/* View by */}
       <div>
         <div className={`text-[14px] font-semibold mb-2 ${classes.primaryText}`}>View by</div>
@@ -299,7 +298,7 @@ export function ActionsPanel({
               key={mode}
               type="button"
               onClick={() => selectDate(mode)}
-              className={pill(taskFilter === 'none' && dateMode === mode)}
+              className={pill(isDateChipOn(mode))}
             >
               {label}
             </button>
@@ -375,6 +374,8 @@ export default function Quick(props: QuickProps = {}) {
     taskFilter, setTaskFilter,
     searchQuery, setSearchQuery,
   } = useQuickFilters();
+  const [showAllGroups] = useShowAllGroups();
+  const [focusedList, setFocusedList] = useFocusedList();
   // While a keyword is typed the lists search everything, like the "All" chip
   // (all dates, no extra filter, collapsed lists opened)
   const searchTerm = searchQuery.trim().toLowerCase();
@@ -400,6 +401,19 @@ export default function Quick(props: QuickProps = {}) {
     : focusDay;
   const newTaskDue = (sortBy === 'dueDate' || hideSomeday) && taskFilter !== 'someday' && isValidDateYYYYMMDD(dueAnchor) ? dueAnchor : undefined;
   const [rangeDialogOpen, setRangeDialogOpen] = useState(false);
+  // "/" anywhere (outside a text field) jumps to the keyword search
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return;
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const applyRange = (range: DateRange) => {
     setDateRange(range);
     setTaskFilter('none');
@@ -462,21 +476,15 @@ export default function Quick(props: QuickProps = {}) {
   const pulseTimerRef    = useRef<number | null>(null);
   const [armedWordKey, setArmedWordKey] = useState<string | null>(null);
   const armTimerRef      = useRef<number | null>(null);
-  const [armedDeleteTaskId, setArmedDeleteTaskId] = useState<string | null>(null);
-  // Tasks whose note editor is open under the row (UI-only)
-  const [openNoteIds, setOpenNoteIds] = useState<Set<string>>(() => new Set());
-  const toggleNoteOpen = (id: string) =>
-    setOpenNoteIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+  // A task's ⋮ menu (anchored to the button) and the modals it opens
+  const [taskMenu, setTaskMenu] = useState<{ taskId: string; x: number; y: number } | null>(null);
+  const closeTaskMenu = useCallback(() => setTaskMenu(null), []);
+  const [noteModalTaskId, setNoteModalTaskId] = useState<string | null>(null);
+  const [reminderModalTaskId, setReminderModalTaskId] = useState<string | null>(null);
   const checkUndoRef = useRef<Array<Array<Pick<Block, 'id' | 'checked' | 'deadline' | 'isHidden'>>>>([]);
   const undoLastCheckRef = useRef<() => boolean>(() => false);
-  const deleteArmTimerRef = useRef<number | null>(null);
   useEffect(() => () => {
     if (armTimerRef.current) window.clearTimeout(armTimerRef.current);
-    if (deleteArmTimerRef.current) window.clearTimeout(deleteArmTimerRef.current);
   }, []);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiTimerRef = useRef<number | null>(null);
@@ -679,27 +687,40 @@ export default function Quick(props: QuickProps = {}) {
 
     [blocks, collapsed, searching, viewDateMode, focusDay, sortBy, dateRange],
   );
+  // The focused list (clicked in the Sidebar) when it belongs to this group and still exists
+  const focusList = focusedList && focusedList.projectId === currentProject?.project_id
+    ? blocks.find(b => b.id === focusedList.listId && b.indent === 0) ?? null
+    : null;
+  // "Show all" shows hidden lists too; a focused list hides every other list
   const hiddenByListMap = useMemo(
-    () => buildListVisibilityHiddenMap(blocks, visibleLists),
-    [blocks, visibleLists],
+    () => (showAllGroups
+      ? {}
+      : focusList
+        ? buildListVisibilityHiddenMap(blocks, onlyListVisible(blocks, focusList.id))
+        : buildListVisibilityHiddenMap(blocks, visibleLists)),
+    [blocks, visibleLists, showAllGroups, focusList],
   );
 
-  /** Progress block — scoped to tasks currently visible with active filters */
+  /** Progress block — scoped to tasks currently visible with active filters (every group under "Show all") */
   const progress = useMemo(() => {
-    const visibleTasks = blocks.filter(b =>
+    const visibleIn = (pBlocks: Block[], pHidden: Record<string, boolean>) => pBlocks.filter(b =>
       b.indent > 0 &&
       b.archived !== true &&
       (showCompleted || b.checked !== true) &&
-      !hiddenMap[b.id] &&
-      !hiddenByListMap[b.id] &&
+      !pHidden[b.id] &&
       passesTaskFilter(b),
     );
+    const visibleTasks = showAllGroups
+      ? projects.flatMap(p => p.project_id === currentProject?.project_id
+          ? visibleIn(blocks, hiddenMap)
+          : visibleIn(p.blocks ?? [], buildHiddenMap(p.blocks ?? [], { collapsed: searching ? {} : p.quickCollapsed ?? {}, showHidden: false, dateMode: viewDateMode, focusDay, sortBy, range: dateRange })))
+      : visibleIn(blocks, { ...hiddenMap, ...hiddenByListMap });
     const total = visibleTasks.length;
     const done = visibleTasks.filter(t => t.checked === true).length;
     const remaining = Math.max(0, total - done);
     const pct = total > 0 ? done / total : 0;
     return { total, done, remaining, pct };
-  }, [blocks, hiddenMap, hiddenByListMap, showCompleted, passesTaskFilter]);
+  }, [blocks, hiddenMap, hiddenByListMap, showCompleted, passesTaskFilter, showAllGroups, projects, currentProject?.project_id, searching, viewDateMode, focusDay, sortBy, dateRange]);
 
   const isBrandNewEmpty = useMemo(
     () => blocks.length === 1 && isUncTitleBlock(blocks[0]),
@@ -870,14 +891,8 @@ export default function Quick(props: QuickProps = {}) {
 
   // Two clicks to delete: the first arms the button (turns red) for a moment,
   // the second deletes the task and its subtasks
-  const requestDeleteTask = (taskId: string) => {
-    if (deleteArmTimerRef.current) window.clearTimeout(deleteArmTimerRef.current);
-    if (armedDeleteTaskId !== taskId) {
-      setArmedDeleteTaskId(taskId);
-      deleteArmTimerRef.current = window.setTimeout(() => setArmedDeleteTaskId(null), 2500);
-      return;
-    }
-    setArmedDeleteTaskId(null);
+  // One click deletes the task (and its subtasks)
+  const deleteTask = (taskId: string) => {
     setCurrentBlocks(prev => removeTaskWithSubtasks(prev, taskId));
   };
 
@@ -922,6 +937,24 @@ export default function Quick(props: QuickProps = {}) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.focus(); el.setSelectionRange(0, 0);
     });
+  };
+
+  // New sibling right below a task (after its subtasks), so tasks can be added mid-list
+  const handleAddTaskAfter = (taskId: string) => {
+    const newTaskId = uid();
+    setCurrentBlocks(prev => {
+      const i = prev.findIndex(b => b.id === taskId);
+      if (i < 0) return prev;
+      const task = prev[i];
+      let end = i;
+      while (end + 1 < prev.length && prev[end + 1].indent > task.indent) end++;
+      return insertBlockAfter(
+        prev,
+        prev[end].id,
+        makeTaskBlock({ id: newTaskId, indent: task.indent, parentId: task.parentId }, newTaskDue),
+      );
+    });
+    focusBlock(newTaskId, false);
   };
 
   const handleCreateBlankList = () => {
@@ -1247,11 +1280,22 @@ const handleKey = (
   };
 
   /* ── Render helpers ── */
-  const renderNormalList = () => {
+  // Renders one group's lists (the selected group unless `project` says otherwise)
+  const renderNormalList = (project?: Project) => {
+    const isCurrent = !project || project.project_id === currentProject?.project_id;
+    const pBlocks = isCurrent ? blocks : project.blocks ?? [];
+    const pCollapsed = isCurrent ? collapsed : project.quickCollapsed ?? {};
+    const pHiddenMap = isCurrent
+      ? hiddenMap
+      : buildHiddenMap(pBlocks, { collapsed: searching ? {} : pCollapsed, showHidden: false, dateMode: viewDateMode, focusDay, sortBy, range: dateRange });
+    // "Show all" shows hidden lists too
+    const pHiddenByList: Record<string, boolean> = showAllGroups
+      ? {}
+      : isCurrent ? hiddenByListMap : buildListVisibilityHiddenMap(pBlocks, project.visibleLists ?? {});
     // Group by parentId, sort each group by order
     const listBlocks: Block[] = [];
     const tasksByParent = new Map<string | null, Block[]>();
-    for (const b of blocks) {
+    for (const b of pBlocks) {
       if (b.indent === 0) {
         listBlocks.push(b);
       } else {
@@ -1274,42 +1318,50 @@ const handleKey = (
         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
       </svg>
     );
-    const noteIcon = (
-      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 2.5h7l3 3v8H3z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M10 2.5v3h3M5.5 8.5h5M5.5 11h3.5" />
-      </svg>
-    );
-    const deleteIcon = (
-      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M9.5 7V4.5h5V7M6 7l1 12.5h10L18 7M10 11v5M14 11v5" />
-      </svg>
+    // Ghost "Task…" row; revealed by hovering the row right before it (.quick-add-anchor),
+    // or always shown (`visible`) under the task being typed
+    const addGhost = (onClick: () => void, paddingLeft: number, visible = false) => (
+      <button
+        type="button"
+        onClick={onClick}
+        // Keep the focus in the task being typed until the click lands (blur would hide the ghost)
+        onMouseDown={e => e.preventDefault()}
+        aria-label="Add task"
+        className={['quick-add-ghost w-full flex items-center px-0.5 gap-1 text-left', visible ? 'is-visible' : ''].join(' ')}
+        style={{ paddingLeft, marginTop: 0, marginBottom: 0 }}
+      >
+        <div className="w-3 shrink-0" />
+        <div className="w-3 shrink-0" />
+        <span className="h-4 w-4 shrink-0 flex items-center justify-center">
+          <span className="h-3.5 w-3.5 rounded-full border border-dashed" style={{ borderColor: 'var(--assistant-text-faint)' }} />
+        </span>
+        <span className="text-[14px] md:text-sm leading-[1.45]" style={{ color: 'var(--assistant-text-faint)' }}>
+          Task…
+        </span>
+      </button>
     );
 
     return (
       <div className="space-y-1 quick-rows">
         {listBlocks.map(listBlock => {
-          if (hiddenByListMap[listBlock.id]) return null;
+          if (pHiddenByList[listBlock.id]) return null;
           const isUncList = isUncTitleBlock(listBlock);
           const tasks = tasksByParent.get(listBlock.id) ?? [];
           // A list whose title matches shows all its tasks; otherwise only matching tasks
           const listMatches = searching && !isUncList && matchesSearch(listBlock);
           const visibleTasks = tasks.filter(task =>
-            !hiddenMap[task.id] && !hiddenByListMap[task.id] &&
+            !pHiddenMap[task.id] && !pHiddenByList[task.id] &&
             (showCompleted || task.checked !== true) &&
             passesTaskFilter(task) &&
             (!searching || listMatches || matchesSearch(task)),
           );
           if (searching && !listMatches && visibleTasks.length === 0) return null;
-          // Hovering the last visible task (or the header of an empty list) reveals a
-          // ghost "Task…" row right below it; clicking it adds a task to this list.
-          // Only offered once the last task is committed (has text, not being edited),
-          // so a task still being typed never gets another suggested under it.
-          const lastVisibleTask = visibleTasks.length > 0 ? visibleTasks[visibleTasks.length - 1] : null;
-          const lastVisibleTaskId = lastVisibleTask?.id ?? null;
-          const lastTaskCommitted = !lastVisibleTask ||
-            ((lastVisibleTask.text || '').trim() !== '' && editingTaskId !== lastVisibleTask.id);
-          const showAddGhost = !collapsed[listBlock.id] && (visibleTasks.length > 0 || !isUncList) && lastTaskCommitted;
+          // Hovering any task reveals a ghost "Task…" row right below it that inserts a task
+          // there; an empty list gets one under its header. Only offered under committed
+          // tasks (has text, not being edited), so a task being typed never gets one.
+          const lastVisibleTaskId = visibleTasks.length > 0 ? visibleTasks[visibleTasks.length - 1].id : null;
+          const isCommitted = (t: Block) => (t.text || '').trim() !== '' && editingTaskId !== t.id;
+          const showHeaderGhost = !pCollapsed[listBlock.id] && !isUncList && !lastVisibleTaskId;
           const lDragOver = dragOverId === listBlock.id && dragRef.current?.id !== listBlock.id;
           const lDragMe   = dragRef.current?.id === listBlock.id;
 
@@ -1323,15 +1375,16 @@ const handleKey = (
                   onDragOver={e => onDragOverRow(e, listBlock.id)}
                   onDrop={e => onDropRow(e, listBlock.id)}
                   onDragEnd={onDragEndRow}
-                  className={['group flex items-center px-0.5 py-1 gap-2', lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : '', showAddGhost && !lastVisibleTaskId ? 'quick-add-anchor' : ''].join(' ')}
-                  style={{ paddingLeft: 2 }}>
+                  className={['group flex items-center px-0.5 py-1 gap-2', lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : '', showHeaderGhost ? 'quick-add-anchor' : ''].join(' ')}
+                  // Thin divider under the list title
+                  style={{ paddingLeft: 2, borderBottom: '1px solid var(--assistant-border-soft)' }}>
                   <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
                     {dragDots}
                   </div>
-                  <button type="button" onClick={() => toggleList(listBlock.id)} className={`w-3 shrink-0 transition-colors ${classes.quickCollapseBtn}`} title={collapsed[listBlock.id] ? 'Expand' : 'Collapse'}>
+                  <button type="button" onClick={() => toggleList(listBlock.id)} className={`w-3 shrink-0 transition-colors ${classes.quickCollapseBtn}`} title={pCollapsed[listBlock.id] ? 'Expand' : 'Collapse'}>
                     <svg
                       viewBox="0 0 16 16"
-                      className={`h-3 w-3 transition-transform ${collapsed[listBlock.id] ? '-rotate-90' : ''}`}
+                      className={`h-3 w-3 transition-transform ${pCollapsed[listBlock.id] ? '-rotate-90' : ''}`}
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="1.8"
@@ -1410,7 +1463,7 @@ const handleKey = (
                       onDragOver={e => onDragOverRow(e, task.id)}
                       onDrop={e => onDropRow(e, task.id)}
                       onDragEnd={onDragEndRow}
-                      className={['group flex items-center px-0.5 py-1 gap-1', tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', showAddGhost && task.id === lastVisibleTaskId ? 'quick-add-anchor' : ''].join(' ')}
+                      className={['group flex items-center px-0.5 py-1 gap-1', tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) ? 'quick-add-anchor' : ''].join(' ')}
                       style={{ paddingLeft: isUncList ? 6 : 8 + task.indent * 16 }}>
                       <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
                         {dragDots}
@@ -1457,146 +1510,74 @@ const handleKey = (
                           />
                         )}
                       </div>
-                      {editingTaskId !== task.id && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingTaskId(task.id);
-                            focusBlock(task.id, true);
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          aria-label="Edit task"
-                          title="Edit task"
-                          className={`shrink-0 h-5 w-5 flex items-center justify-center opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-all duration-150 ${classes.quickEditBtn}`}
-                        >
-                          {editIcon}
-                        </button>
-                      )}
-                      {editingTaskId !== task.id && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleNoteOpen(task.id);
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          aria-label={task.note ? 'Edit note' : 'Add note'}
-                          aria-expanded={openNoteIds.has(task.id)}
-                          title={task.note ? 'Edit note' : 'Add note'}
-                          // A task with a note keeps the icon visible (accent) so the note isn't hidden
-                          className={[
-                            'shrink-0 h-5 w-5 flex items-center justify-center transition-all duration-150',
-                            task.note || openNoteIds.has(task.id)
-                              ? 'opacity-80 hover:opacity-100'
-                              : `opacity-0 group-hover:opacity-70 hover:!opacity-100 ${classes.quickEditBtn}`,
-                          ].join(' ')}
-                          style={task.note || openNoteIds.has(task.id) ? { color: 'var(--assistant-accent)' } : undefined}
-                        >
-                          {noteIcon}
-                        </button>
-                      )}
-                      {editingTaskId !== task.id && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            requestDeleteTask(task.id);
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          aria-label={armedDeleteTaskId === task.id ? 'Click again to delete task' : 'Delete task'}
-                          title={armedDeleteTaskId === task.id ? 'Click again to delete' : 'Delete task'}
-                          className={[
-                            'shrink-0 h-5 w-5 flex items-center justify-center transition-all duration-150',
-                            armedDeleteTaskId === task.id
-                              ? 'opacity-100 text-rose-400'
-                              : `opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:text-rose-400 ${classes.quickEditBtn}`,
-                          ].join(' ')}
-                        >
-                          {deleteIcon}
-                        </button>
-                      )}
-                      {editingDateTaskId !== task.id && (
+                      {/* Pinned (only when set): due date, note, flag — everything else lives in the ⋮ menu */}
+                      {editingDateTaskId !== task.id && isValidDateYYYYMMDD(task.deadline) && (
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); setEditingDateTaskId(task.id); }}
                           onMouseDown={(e) => e.stopPropagation()}
-                          aria-label={task.deadline ? 'Change due date' : 'Set due date'}
-                          title={task.deadline ? 'Change due date' : 'Set due date'}
-                          className={[
-                            'shrink-0 h-5 flex items-center justify-center text-[12px] transition-all duration-150 opacity-0',
-                            isValidDateYYYYMMDD(task.deadline)
-                              ? 'rounded-full px-2 group-hover:opacity-100 hover:brightness-125'
-                              : `rounded-md px-1 group-hover:opacity-70 hover:!opacity-100 ${classes.quickEditBtn}`,
-                          ].join(' ')}
-                          style={isValidDateYYYYMMDD(task.deadline) ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' } : undefined}
+                          aria-label="Change due date"
+                          title="Change due date"
+                          className="shrink-0 h-5 flex items-center justify-center rounded-full px-2 text-[12px] transition-all duration-150 hover:brightness-125"
+                          style={{ background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }}
                         >
-                          {isValidDateYYYYMMDD(task.deadline) ? (
-                            <span className="inline-flex items-center gap-1">
-                              {formatPill(task.deadline)}
-                              <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
-                              </svg>
-                            </span>
-                          ) : (
-                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                              <rect x="1.8" y="2.6" width="12.4" height="11" rx="2" />
-                              <path strokeLinecap="round" d="M1.8 6.3h12.4M5.2 1.8v2.2M10.8 1.8v2.2" />
+                          <span className="inline-flex items-center gap-1">
+                            {formatPill(task.deadline)}
+                            <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
                             </svg>
-                          )}
+                          </span>
                         </button>
                       )}
-                      <TaskReminderButton task={task} />
-                      <TaskFlagButton
-                        source={task}
-                        onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
-                      />
-                    </div>
-                    {openNoteIds.has(task.id) && (
-                      // Lines up under the task text (handle + spacer + checkbox ≈ 52px)
-                      <div className="pb-1 pr-2" style={{ paddingLeft: (isUncList ? 6 : 8 + task.indent * 16) + 52 }}>
-                        <textarea
-                          autoFocus
-                          value={task.note ?? ''}
-                          placeholder="Add a note…"
-                          onChange={e => {
-                            handleUpdateBlock(task.id, { note: e.target.value.trim() ? e.target.value : undefined });
-                            resizeTextarea(e.currentTarget);
-                          }}
-                          onFocus={e => resizeTextarea(e.currentTarget)}
-                          onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); toggleNoteOpen(task.id); } }}
-                          rows={2}
-                          className="block w-full resize-none overflow-hidden rounded-md px-2 py-1.5 text-[13px] leading-[1.45] outline-none"
-                          style={{
-                            color: 'var(--assistant-text-soft)',
-                            background: 'color-mix(in srgb, var(--assistant-text) 5%, transparent)',
-                            border: '1px solid var(--assistant-border-soft)',
-                          }}
-                          aria-label={`Note for ${task.text || 'task'}`}
+                      {(task.note || '').trim() ? (
+                        <TaskNoteButton
+                          task={task}
+                          onChange={(note) => handleUpdateBlock(task.id, { note })}
                         />
-                      </div>
+                      ) : null}
+                      {getTaskFlag(task) ? (
+                        <TaskFlagButton
+                          source={task}
+                          onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
+                        />
+                      ) : null}
+                      {/* ⋮ shows on hover (and stays while its menu is open) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setTaskMenu(prev => (prev?.taskId === task.id ? null : { taskId: task.id, x: r.right, y: r.bottom + 4 }));
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        aria-label="Task options"
+                        title="Task options"
+                        aria-haspopup="menu"
+                        aria-expanded={taskMenu?.taskId === task.id}
+                        className={[
+                          'shrink-0 h-5 w-5 flex items-center justify-center rounded transition-opacity duration-150',
+                          taskMenu?.taskId === task.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-70 hover:!opacity-100 focus-visible:opacity-100',
+                          classes.quickEditBtn,
+                        ].join(' ')}
+                      >
+                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
+                          <circle cx="8" cy="3.2" r="1.3" />
+                          <circle cx="8" cy="8" r="1.3" />
+                          <circle cx="8" cy="12.8" r="1.3" />
+                        </svg>
+                      </button>
+                    </div>
+                    {/* Must directly follow the row: CSS reveals it via .quick-add-anchor:hover + .quick-add-ghost */}
+                    {/* Committed tasks: on hover. The task being typed (once it has text): always, suggesting the next one */}
+                    {(isCommitted(task) || (editingTaskId === task.id && (task.text || '').trim() !== '')) && addGhost(
+                      () => handleAddTaskAfter(task.id),
+                      isUncList ? 6 : 8 + task.indent * 16,
+                      editingTaskId === task.id,
                     )}
                   </React.Fragment>
                 );
               })}
-              {showAddGhost && (
-                <button
-                  type="button"
-                  onClick={() => handleAddTaskUnderList(listBlock.id)}
-                  aria-label="Add task"
-                  className="quick-add-ghost w-full flex items-center px-0.5 gap-1 text-left"
-                  style={{ paddingLeft: isUncList ? 6 : 24, marginTop: 0, marginBottom: 0 }}
-                >
-                  <div className="w-3 shrink-0" />
-                  <div className="w-3 shrink-0" />
-                  <span className="h-4 w-4 shrink-0 flex items-center justify-center">
-                    <span className="h-3.5 w-3.5 rounded-full border border-dashed" style={{ borderColor: 'var(--assistant-text-faint)' }} />
-                  </span>
-                  <span className="text-[14px] md:text-sm leading-[1.45]" style={{ color: 'var(--assistant-text-faint)' }}>
-                    Task…
-                  </span>
-                </button>
-              )}
+              {showHeaderGhost && addGhost(() => handleAddTaskUnderList(listBlock.id), 24)}
             </React.Fragment>
           );
         })}
@@ -1609,7 +1590,7 @@ const handleKey = (
     hideSomeday, setHideSomeday,
     sortBy, setSortBy,
     taskFilter, setTaskFilter,
-    searchQuery, setSearchQuery,
+    focusDay, setFocusDay,
     onOpenRange: () => setRangeDialogOpen(true),
   };
 
@@ -1652,11 +1633,21 @@ const handleKey = (
         .quick-word-clickable { cursor: pointer; }
         /* Collapsed to zero height; the hide is delayed so the pointer can cross
            the gap from the anchor row into the ghost without it closing. */
+        .quick-search {
+          border-bottom: 1px solid var(--assistant-border-soft);
+          transition: border-color 0.15s ease;
+        }
+        .quick-search:hover { border-bottom-color: color-mix(in srgb, var(--assistant-text) 25%, transparent); }
+        .quick-search:focus-within { border-bottom-color: var(--assistant-accent); }
+        .quick-search-icon { color: var(--assistant-text-faint); transition: color 0.15s ease; }
+        .quick-search:focus-within .quick-search-icon { color: var(--assistant-accent); }
+        .quick-search input::placeholder { color: var(--assistant-text-faint); }
         .quick-add-ghost {
           max-height: 0; opacity: 0; overflow: hidden; cursor: text;
           transition: max-height 0.15s ease 0.25s, opacity 0.15s ease 0.25s, padding 0.15s ease 0.25s;
         }
         .quick-add-anchor:hover + .quick-add-ghost,
+        .quick-add-ghost.is-visible,
         .quick-add-ghost:hover,
         .quick-add-ghost:focus-visible {
           max-height: 2rem; opacity: 1; padding-top: 0.25rem; padding-bottom: 0.25rem;
@@ -1763,7 +1754,7 @@ const handleKey = (
                       )}
 
                       {dateMode === 'all' && (
-                        <span style={{ color: 'var(--assistant-text-soft)' }}>All dated tasks</span>
+                        <span style={{ color: 'var(--assistant-text-soft)' }}>All tasks</span>
                       )}
 
                       {dateMode === 'range' && (
@@ -1785,13 +1776,31 @@ const handleKey = (
                       ›
                     </button>
 
-                    {currentProject?.title ? (
+                    {focusList ? (
+                      // Focused-list filter: name it and offer a way out
+                      <span
+                        className="flex min-w-0 items-center gap-1 rounded-full py-0.5 pl-2 pr-1 text-[11px] md:text-[12px] font-semibold uppercase tracking-wide"
+                        style={{ color: 'var(--assistant-text)', border: '1px solid var(--assistant-accent)' }}
+                        title={`Showing only ${currentProject?.title} › ${focusList.text}`}
+                      >
+                        <span className="truncate">{currentProject?.title} › {(focusList.text || '').trim() || 'List'}</span>
+                        <button
+                          type="button"
+                          onClick={() => setFocusedList(null)}
+                          className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[13px] leading-none opacity-60 transition-opacity hover:opacity-100"
+                          title="Show every list"
+                          aria-label="Clear list filter"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ) : showAllGroups || currentProject?.title ? (
                       <span
                         className="min-w-0 truncate rounded-full px-2 py-0.5 text-[11px] md:text-[12px] font-semibold uppercase tracking-wide"
                         style={{ color: 'var(--assistant-text-soft)', border: '1px solid var(--assistant-border-soft)' }}
-                        title={`Group: ${currentProject.title}`}
+                        title={showAllGroups ? 'Showing every group' : `Group: ${currentProject?.title}`}
                       >
-                        {currentProject.title}
+                        {showAllGroups ? 'All groups' : currentProject?.title}
                       </span>
                     ) : null}
                   </div>
@@ -1820,6 +1829,47 @@ const handleKey = (
                     </button>
                   </div>
                 </div>
+
+                {/* Keyword box — live-filters the lists (searches across all dates); "/" focuses it */}
+                <div className="px-3 pt-2">
+                  <label className="quick-search flex items-center gap-2 px-1">
+                    <svg viewBox="0 0 16 16" className="quick-search-icon h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <circle cx="7" cy="7" r="4.5" />
+                      <path strokeLinecap="round" d="M10.4 10.4L14 14" />
+                    </svg>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Escape') { setSearchQuery(''); e.currentTarget.blur(); } }}
+                      placeholder="Search tasks"
+                      aria-label="Filter tasks by keyword"
+                      className="min-w-0 flex-1 bg-transparent py-1.5 text-[13px] outline-none"
+                      style={{ color: 'var(--assistant-text)' }}
+                    />
+                    {searchQuery ? (
+                      <button
+                        type="button"
+                        onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
+                        className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[14px] leading-none opacity-50 transition-opacity hover:opacity-100"
+                        style={{ color: 'var(--assistant-text)' }}
+                        aria-label="Clear search"
+                        title="Clear"
+                      >
+                        ×
+                      </button>
+                    ) : (
+                      <kbd
+                        className="hidden md:grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded px-1 font-sans text-[10px] font-semibold"
+                        style={{ color: 'var(--assistant-text-faint)', border: '1px solid var(--assistant-border-soft)' }}
+                        title="Press / to search"
+                      >
+                        /
+                      </kbd>
+                    )}
+                  </label>
+                </div>
               </div>
 
               {/* Scrollable content — only the tasks scroll */}
@@ -1837,6 +1887,26 @@ const handleKey = (
                       + New List
                     </button>
                     <div className="text-[12px] mt-3" style={{ color: 'var(--assistant-text-faint)' }}>Hint: after you create a list, you&apos;ll always see an <span style={{ color: 'var(--assistant-text-muted)' }}>+ task</span> button right below it.</div>
+                  </div>
+                ) : showAllGroups ? (
+                  // Every group, one after another. Edits act on the selected group, so pointer
+                  // or focus inside a group selects it first (the Sidebar works the same way).
+                  <div className="space-y-5">
+                    {projects.map(p => (
+                      <div
+                        key={p.project_id}
+                        onMouseDownCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
+                        onFocusCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
+                      >
+                        <div
+                          className="mb-1 px-1 text-[11px] font-bold uppercase tracking-[0.14em]"
+                          style={{ color: 'var(--assistant-accent)' }}
+                        >
+                          {p.title}
+                        </div>
+                        {renderNormalList(p)}
+                      </div>
+                    ))}
                   </div>
                 ) : renderNormalList()}
               </div>
@@ -1908,6 +1978,43 @@ const handleKey = (
             onApply={applyRange}
           />
         ) : null}
+
+        {/* Task ⋮ menu + the modals it opens (the task lives in the selected group) */}
+        {(() => {
+          const menuTask = taskMenu ? blocks.find(b => b.id === taskMenu.taskId) : undefined;
+          if (!taskMenu || !menuTask) return null;
+          return (
+            <TaskRowMenu
+              x={taskMenu.x}
+              y={taskMenu.y}
+              createdAt={menuTask.createdAt}
+              flag={getTaskFlag(menuTask)}
+              hasNote={Boolean((menuTask.note || '').trim())}
+              hasDueDate={isValidDateYYYYMMDD(menuTask.deadline)}
+              onEdit={() => { setEditingTaskId(menuTask.id); focusBlock(menuTask.id, true); }}
+              onDueDate={() => setEditingDateTaskId(menuTask.id)}
+              onFlag={(flag) => handleUpdateBlock(menuTask.id, { flag, priority: undefined })}
+              onNote={() => setNoteModalTaskId(menuTask.id)}
+              onReminder={() => setReminderModalTaskId(menuTask.id)}
+              onDelete={() => deleteTask(menuTask.id)}
+              onClose={closeTaskMenu}
+            />
+          );
+        })()}
+        {(() => {
+          const t = noteModalTaskId ? blocks.find(b => b.id === noteModalTaskId) : undefined;
+          return t ? (
+            <TaskNoteModal
+              task={t}
+              onChange={(note) => handleUpdateBlock(t.id, { note })}
+              onClose={() => setNoteModalTaskId(null)}
+            />
+          ) : null;
+        })()}
+        {(() => {
+          const t = reminderModalTaskId ? blocks.find(b => b.id === reminderModalTaskId) : undefined;
+          return t ? <TaskReminderModal task={t} onClose={() => setReminderModalTaskId(null)} /> : null;
+        })()}
 
         {deleteListConfirmId ? (
           <DeleteWithOpenTasksDialog

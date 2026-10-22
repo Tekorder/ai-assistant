@@ -15,7 +15,9 @@ import {
   parseYMD,
   fmtColTitle,
   // Persistence
-  readSelectedProject,
+  readViewSources,
+  VIEW_FILTER_EVENT,
+  type ViewSource,
   writeSelectedProjectBlocks,
   isListVisible,
   getTaskFlag,
@@ -26,6 +28,8 @@ import {
   type TaskFlagColor,
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from '../TaskFlag';
+import { DatePickerModal } from '../DatePickerModal';
+import { useShowAllGroups } from '../../_hook/useShowAllGroups';
 
 /* ===================== Local UI types (no van a datacenter) ===================== */
 
@@ -37,6 +41,7 @@ type SubTask = {
 
 type Card = {
   id: string;
+  listId: string | null;
   projectTitle: string;
   text: string;
   checked: boolean;
@@ -82,6 +87,17 @@ function monthLabel(date: Date): string {
 
 function isDateWithinRange(ymd: string, fromYMD: string, toYMD: string): boolean {
   return ymd >= fromYMD && ymd <= toYMD;
+}
+
+/** Splits a column's (list-sorted) cards into consecutive runs of the same list. */
+function groupByList(cards: Card[]): { listId: string | null; title: string; cards: Card[] }[] {
+  const groups: { listId: string | null; title: string; cards: Card[] }[] = [];
+  for (const c of cards) {
+    const last = groups[groups.length - 1];
+    if (last && last.listId === c.listId) last.cards.push(c);
+    else groups.push({ listId: c.listId, title: c.projectTitle, cards: [c] });
+  }
+  return groups;
 }
 
 /* ===================== Row menu (⋮) ===================== */
@@ -154,33 +170,27 @@ function RowMenu({
 /* ===================== Component ===================== */
 
 export default function Timeline() {
-  const [blocks, setBlocks] = useState<Block[]>([]);
+  // One entry per group shown: the selected group, or every group under "Show all"
+  const [sources, setSources] = useState<ViewSource[]>([]);
   const [hydrated, setHydrated] = useState(false);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [projectTitle, setProjectTitle] = useState<string>('Group');
+  const [showAll] = useShowAllGroups();
   const [showCompleted, setShowCompleted] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => monthStart(new Date()));
-  const [editingDateCardId, setEditingDateCardId] = useState<string | null>(null);
+  const [rescheduleCardId, setRescheduleCardId] = useState<string | null>(null);
   const [rowMenu, setRowMenu] = useState<{ cardId: string; x: number; y: number } | null>(null);
-  const [visibleLists, setVisibleLists] = useState<Record<string, boolean>>({});
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [editingTextCardId, setEditingTextCardId] = useState<string | null>(null);
   const [draftText, setDraftText] = useState('');
-  const [pickListOpen, setPickListOpen] = useState(false);
+  const [newTask, setNewTask] = useState<{ text: string; listId: string; deadline: string } | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const inlineDateRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const inlineTextRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   /* ── Load & sync ── */
   useEffect(() => {
     const load = () => {
-      const snap = readSelectedProject();
-      setBlocks(snap.blocks);
-      setProjectTitle(snap.projectTitle);
-      setProjectId(snap.project_id);
-      setVisibleLists(snap.visibleLists);
+      setSources(readViewSources());
       setHydrated(true);
     };
 
@@ -192,14 +202,30 @@ export default function Timeline() {
 
     window.addEventListener('youtask_projects_updated', load);
     window.addEventListener('youtask_blocks_updated', load);
+    window.addEventListener(VIEW_FILTER_EVENT, load);
     window.addEventListener('storage', onStorage);
 
     return () => {
       window.removeEventListener('youtask_projects_updated', load);
       window.removeEventListener('youtask_blocks_updated', load);
+      window.removeEventListener(VIEW_FILTER_EVENT, load);
       window.removeEventListener('storage', onStorage);
     };
   }, []);
+
+  const blocks = useMemo(() => sources.flatMap(s => s.blocks), [sources]);
+  const headerTitle = sources[0]?.focusListTitle
+    ? `${sources[0].title} › ${sources[0].focusListTitle}`
+    : showAll ? 'All groups' : (sources[0]?.title || 'Group');
+
+  /** Applies `fn` to the group holding `blockId`, saves that group and updates the view. */
+  const mutateHolding = (blockId: string, fn: (groupBlocks: Block[]) => Block[]) => {
+    const src = sources.find(s => s.blocks.some(b => b.id === blockId));
+    if (!src) return;
+    const nextBlocks = fn(src.blocks);
+    writeSelectedProjectBlocks(src.project_id, nextBlocks);
+    setSources(prev => prev.map(s => (s === src ? { ...s, blocks: nextBlocks } : s)));
+  };
 
   /* ── Cuando entras a Show Completed, cae al mes actual ── */
   useEffect(() => {
@@ -211,6 +237,7 @@ export default function Timeline() {
   /* ── Build cards ── */
   const cards = useMemo<Card[]>(() => {
     const out: Card[] = [];
+    for (const { blocks, visibleLists, title: projectTitle } of sources) {
     let currentSectionTitle = '';
     let currentSectionId: string | null = null;
     let currentSectionVisible = true;
@@ -249,9 +276,12 @@ export default function Timeline() {
         j++;
       }
 
+      const listTitle = currentSectionTitle || projectTitle || 'General';
       out.push({
         id: b.id,
-        projectTitle: currentSectionTitle || projectTitle || 'General',
+        listId: currentSectionId,
+        // Under "Show all" the group name leads, so same-named lists in different groups read apart
+        projectTitle: showAll ? `${projectTitle} · ${listTitle}` : listTitle,
         text: b.text || '',
         checked,
         deadline: b.deadline!,
@@ -261,9 +291,10 @@ export default function Timeline() {
         flag: getTaskFlag(b),
       });
     }
+    }
 
     return out;
-  }, [blocks, showCompleted, projectTitle, visibleLists]);
+  }, [sources, showCompleted, showAll]);
 
   /* ── Range normal (modo timeline clásico) ── */
   const normalRange = useMemo(() => {
@@ -310,17 +341,17 @@ export default function Timeline() {
       map[key].push(c);
     }
 
+    // Always grouped by list (title, then id so same-named lists stay apart);
+    // inside a list: overdue by date, Show Completed puts done tasks last
     for (const k of Object.keys(map)) {
-      if (!showCompleted && k === OVERDUE_KEY) {
-        map[k].sort(
-          (a, b) => parseYMD(a.deadline).getTime() - parseYMD(b.deadline).getTime(),
-        );
-      } else {
-        map[k].sort((a, b) => {
-          if (showCompleted && a.checked !== b.checked) return a.checked ? 1 : -1;
-          return (a.projectTitle || '').localeCompare(b.projectTitle || '');
-        });
-      }
+      map[k].sort((a, b) => {
+        const byList = (a.projectTitle || '').localeCompare(b.projectTitle || '')
+          || (a.listId || '').localeCompare(b.listId || '');
+        if (byList) return byList;
+        if (!showCompleted && k === OVERDUE_KEY) return a.deadline.localeCompare(b.deadline);
+        if (showCompleted && a.checked !== b.checked) return a.checked ? 1 : -1;
+        return 0;
+      });
     }
 
     return map;
@@ -351,10 +382,16 @@ export default function Timeline() {
 
   const listOptions = useMemo(
     () =>
-      blocks
-        .filter(b => b.indent === 0 && b.archived !== true)
-        .map(b => ({ id: b.id, title: (b.text || '').trim() || 'Uncategorized' })),
-    [blocks],
+      sources.flatMap(s =>
+        s.blocks
+          // While a list is focused, new tasks can only go into that list
+          .filter(b => b.indent === 0 && b.archived !== true && (!s.focusListTitle || isListVisible(s.visibleLists, b.id)))
+          .map(b => {
+            const title = (b.text || '').trim() || 'Uncategorized';
+            return { id: b.id, title: showAll ? `${s.title} · ${title}` : title };
+          }),
+      ),
+    [sources, showAll],
   );
 
   const nowMonth = useMemo(() => monthStart(new Date()), []);
@@ -370,83 +407,44 @@ export default function Timeline() {
     // Tasks and subtasks alike; updateBlock cascades the check to parents/children
     const card = blocks.find(b => b.id === cardId && b.indent > 0);
     if (!card) return;
-    const next = updateBlock(blocks, cardId, { checked: !card.checked });
-
-    writeSelectedProjectBlocks(projectId, next);
-    setBlocks(next);
+    mutateHolding(cardId, bl => updateBlock(bl, cardId, { checked: !card.checked }));
   };
 
-  useEffect(() => {
-    if (!editingDateCardId) return;
-    const input = inlineDateRefs.current[editingDateCardId];
-    if (!input) return;
-    requestAnimationFrame(() => {
-      input.focus();
-      try {
-        const picker = input as HTMLInputElement & { showPicker?: () => void };
-        if (typeof picker.showPicker === 'function') picker.showPicker();
-        else input.click();
-      } catch {
-        input.click();
-      }
-    });
-  }, [editingDateCardId]);
+  const patchTask = (cardId: string, patch: Partial<Block>) =>
+    mutateHolding(cardId, bl => bl.map(b => (b.id === cardId && b.indent === 1 ? { ...b, ...patch } : b)));
 
   const rescheduleDeadline = (cardId: string, newDeadline: string) => {
     if (!isValidDateYYYYMMDD(newDeadline)) return;
-
-    const next = blocks.map(x => ({ ...x }));
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      b.deadline = newDeadline;
-      if (b.isHidden === true) b.isHidden = false;
-      break;
-    }
-
-    writeSelectedProjectBlocks(projectId, next);
-    setBlocks(next);
+    // Rescheduling also un-hides the task
+    patchTask(cardId, { deadline: newDeadline, isHidden: false });
   };
 
-  const setFlag = (cardId: string, flag: TaskFlagColor | undefined) => {
-    const next = blocks.map(x => ({ ...x }));
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      b.flag = flag;
-      b.priority = undefined;
-      break;
-    }
-    writeSelectedProjectBlocks(projectId, next);
-    setBlocks(next);
-  };
+  const setFlag = (cardId: string, flag: TaskFlagColor | undefined) =>
+    patchTask(cardId, { flag, priority: undefined });
 
-  const deleteTask = (cardId: string) => {
-    const next = removeTaskAndSubtasks(blocks, cardId);
-    writeSelectedProjectBlocks(projectId, next);
-    setBlocks(next);
-  };
+  const deleteTask = (cardId: string) =>
+    mutateHolding(cardId, bl => removeTaskAndSubtasks(bl, cardId));
 
-  const renameTask = (cardId: string, text: string) => {
-    const next = blocks.map(x => ({ ...x }));
-    for (const b of next) {
-      if (b.id !== cardId || b.indent !== 1) continue;
-      b.text = text;
-      break;
-    }
-    writeSelectedProjectBlocks(projectId, next);
-    setBlocks(next);
-  };
+  const renameTask = (cardId: string, text: string) => patchTask(cardId, { text });
 
   const handleCreateTask = () => {
-    setPickListOpen(true);
+    setNewTask({ text: '', listId: listOptions[0]?.id ?? '', deadline: todayYMD() });
   };
 
-  const handleCreateTaskInList = (listId: string | null) => {
-    const result = addTaskUnderList(blocks, listId, { deadline: todayYMD() });
-    writeSelectedProjectBlocks(projectId, result.blocks);
-    setBlocks(result.blocks);
-    setDraftText('');
-    setPickListOpen(false);
-    setEditingTextCardId(result.newTaskId);
+  const submitNewTask = () => {
+    if (!newTask || !newTask.text.trim() || !isValidDateYYYYMMDD(newTask.deadline)) return;
+    const { listId, deadline, text } = newTask;
+    const add = (bl: Block[]) => addTaskUnderList(bl, listId || null, { deadline, text }).blocks;
+    if (listId) {
+      mutateHolding(listId, add);
+    } else if (sources[0]) {
+      // No lists anywhere → Uncategorized of the first group shown
+      const src = sources[0];
+      const nextBlocks = add(src.blocks);
+      writeSelectedProjectBlocks(src.project_id, nextBlocks);
+      setSources(prev => prev.map(s => (s === src ? { ...s, blocks: nextBlocks } : s)));
+    }
+    setNewTask(null);
   };
 
   useEffect(() => {
@@ -513,7 +511,7 @@ export default function Timeline() {
 
           {!showCompleted ? (
             <span className="youtask-timeline-sub">
-              {' '}· {projectTitle || 'Group'}
+              {' '}· {headerTitle}
               {!normalRange
                 ? ' · (sin deadlines)'
                 : ` · Overdue (${overdueCount}) · ${columns.filter(k => k !== OVERDUE_KEY).length} column${columns.filter(k => k !== OVERDUE_KEY).length === 1 ? '' : 's'}`}
@@ -633,7 +631,10 @@ export default function Timeline() {
                   {list.length === 0 ? (
                     <div className="yt-empty">—</div>
                   ) : (
-                    list.map(card => {
+                    groupByList(list).map(group => (
+                      <div key={group.listId ?? group.title} className="yt-group">
+                        <div className="yt-group-title" title={group.title}>{group.title}</div>
+                        {group.cards.map(card => {
                       const overdueDays = isOverdueCol
                         ? Math.max(0, -dayDiffFromToday(card.deadline))
                         : 0;
@@ -687,6 +688,11 @@ export default function Timeline() {
                                 onDoubleClick={() => { setDraftText(card.text); setEditingTextCardId(card.id); }}
                               >
                                 {card.text || '(sin texto)'}
+                                {card.flag ? (
+                                  <span className="yt-row-flag" title={`${card.flag[0].toUpperCase()}${card.flag.slice(1)} flag`}>
+                                    <TaskFlagIcon color={card.flag} className="h-[13px] w-[13px]" />
+                                  </span>
+                                ) : null}
                               </div>
                             )}
 
@@ -760,26 +766,12 @@ export default function Timeline() {
                                 <circle cx="8" cy="12.8" r="1.2" />
                               </svg>
                             </button>
-
-                            <input
-                              ref={el => { inlineDateRefs.current[card.id] = el; }}
-                              type="date"
-                              className="fixed opacity-0 pointer-events-none -z-10"
-                              tabIndex={-1}
-                              value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
-                              onChange={e => {
-                                if (e.target.value) rescheduleDeadline(card.id, e.target.value);
-                                setEditingDateCardId(null);
-                              }}
-                              onBlur={() => setEditingDateCardId(null)}
-                              onKeyDown={e => {
-                                if (e.key === 'Escape' || e.key === 'Enter') setEditingDateCardId(null);
-                              }}
-                            />
                           </div>
                         </div>
                       );
-                    })
+                        })}
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
@@ -788,53 +780,95 @@ export default function Timeline() {
         </div>
       )}
 
-      {pickListOpen && (
+      {newTask && (
         <div className="fixed inset-0 z-[10050] flex items-center justify-center p-5">
           <button
             type="button"
             className="fixed inset-0"
             style={{ background: 'var(--assistant-overlay)' }}
-            onClick={() => setPickListOpen(false)}
+            onClick={() => setNewTask(null)}
             aria-label="Cancel"
           />
-          <div
-            className="relative z-10 w-full max-w-[320px] rounded-2xl p-4 shadow-2xl"
+          <form
+            role="dialog"
+            aria-label="New task"
+            className="relative z-10 w-full max-w-[360px] rounded-2xl p-4 shadow-2xl"
             style={{
               background: 'var(--assistant-bg)',
               color: 'var(--assistant-text)',
               border: '1px solid var(--assistant-border-soft)',
             }}
+            onSubmit={e => { e.preventDefault(); submitNewTask(); }}
+            onKeyDown={e => { if (e.key === 'Escape') setNewTask(null); }}
           >
-            <h3 className="text-[15px] font-semibold mb-3">Add task to which list?</h3>
-            <div className="flex flex-col gap-1.5 max-h-[50vh] overflow-y-auto">
-              {listOptions.length === 0 ? (
-                <div className="text-[14px]" style={{ color: 'var(--assistant-text-soft)' }}>
-                  No lists yet.
-                </div>
-              ) : (
-                listOptions.map(opt => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => handleCreateTaskInList(opt.id)}
-                    className="w-full rounded-lg px-3 py-2 text-left text-[14px] transition-colors"
-                    style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-control-bg)' }}
-                  >
-                    {opt.title}
-                  </button>
-                ))
-              )}
+            <h3 className="text-[15px] font-semibold mb-3">New task</h3>
+
+            <input
+              autoFocus
+              value={newTask.text}
+              onChange={e => setNewTask({ ...newTask, text: e.target.value })}
+              placeholder="Task name"
+              className="w-full rounded-lg px-3 py-2 text-[14px] outline-none"
+              style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-control-bg)', color: 'var(--assistant-text)' }}
+            />
+
+            <label className="mt-3 block text-[12px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>
+              Due date
+              <input
+                type="date"
+                lang="en-US"
+                value={newTask.deadline}
+                onChange={e => setNewTask({ ...newTask, deadline: e.target.value })}
+                className="mt-1 block w-full rounded-lg px-3 py-2 text-[14px] outline-none"
+                style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-control-bg)', color: 'var(--assistant-text)' }}
+              />
+            </label>
+
+            <label className="mt-3 block text-[12px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>
+              List
+              <select
+                value={newTask.listId}
+                onChange={e => setNewTask({ ...newTask, listId: e.target.value })}
+                className="mt-1 block w-full rounded-lg px-3 py-2 text-[14px] outline-none"
+                style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-control-bg)', color: 'var(--assistant-text)' }}
+              >
+                {listOptions.length === 0 ? <option value="">Uncategorized</option> : null}
+                {listOptions.map(opt => (
+                  <option key={opt.id} value={opt.id}>{opt.title}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setNewTask(null)}
+                className="text-[13px] px-3 py-2 rounded-lg"
+                style={{ color: 'var(--assistant-text-muted)' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!newTask.text.trim() || !isValidDateYYYYMMDD(newTask.deadline)}
+                className="text-[13px] font-semibold px-3 py-2 rounded-lg transition-opacity hover:opacity-90 disabled:opacity-40"
+                style={{ background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }}
+              >
+                Add task
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setPickListOpen(false)}
-              className="mt-3 w-full rounded-lg px-3 py-2 text-[14px]"
-              style={{ color: 'var(--assistant-text-muted)' }}
-            >
-              Cancel
-            </button>
-          </div>
+          </form>
         </div>
+      )}
+
+      {rescheduleCardId && (
+        <DatePickerModal
+          title="Reschedule"
+          subtitle={cards.find(c => c.id === rescheduleCardId)?.text}
+          value={cards.find(c => c.id === rescheduleCardId)?.deadline}
+          onPick={ymd => rescheduleDeadline(rescheduleCardId, ymd)}
+          onClose={() => setRescheduleCardId(null)}
+        />
       )}
 
       {deleteConfirmId && (
@@ -883,7 +917,7 @@ export default function Timeline() {
         <RowMenu
           x={rowMenu.x}
           y={rowMenu.y}
-          onReschedule={() => setEditingDateCardId(rowMenu.cardId)}
+          onReschedule={() => setRescheduleCardId(rowMenu.cardId)}
           onDelete={() => setDeleteConfirmId(rowMenu.cardId)}
           onClose={() => setRowMenu(null)}
         />
