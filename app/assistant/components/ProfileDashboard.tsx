@@ -135,9 +135,9 @@ function KpiTile({ label, value, sub }: { label: string; value: string; sub?: Re
       className="flex min-w-0 flex-col gap-1 rounded-xl px-4 py-3.5"
       style={{ background: 'var(--assistant-surface)', border: '1px solid var(--assistant-border-soft)' }}
     >
-      <div className="truncate text-[12px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>{label}</div>
+      <div className="break-words text-[12px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>{label}</div>
       <div className="text-[28px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }}>{value}</div>
-      {sub ? <div className="truncate text-[12px]">{sub}</div> : null}
+      {sub ? <div className="break-words text-[12px]">{sub}</div> : null}
     </div>
   );
 }
@@ -307,8 +307,8 @@ function BreakdownBars({ rows, empty }: { rows: BreakdownRow[]; empty: string })
       {rows.map(r => (
         <div key={r.id} title={`${r.title}: ${r.done} of ${r.total} done`}>
           <div className="mb-1 flex items-baseline gap-2 text-[13px]">
-            <span className="min-w-0 truncate font-medium" style={{ color: 'var(--assistant-text)' }}>{r.title}</span>
-            {r.sub ? <span className="shrink-0 truncate text-[11px] uppercase tracking-wide" style={{ color: 'var(--assistant-text-faint)' }}>{r.sub}</span> : null}
+            <span className="min-w-0 break-words font-medium" style={{ color: 'var(--assistant-text)' }}>{r.title}</span>
+            {r.sub ? <span className="shrink-0 break-words text-[11px] uppercase tracking-wide" style={{ color: 'var(--assistant-text-faint)' }}>{r.sub}</span> : null}
             <span className="ml-auto shrink-0 tabular-nums" style={{ color: 'var(--assistant-text-soft)' }}>
               <span className="font-semibold" style={{ color: 'var(--assistant-text)' }}>{r.done}</span>/{r.total}
             </span>

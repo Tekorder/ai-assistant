@@ -260,11 +260,11 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
         <div className="mb-3 flex items-center justify-between rounded-xl px-2.5 py-2 md:px-3 md:py-2.5"
           style={{ border: '1px solid color-mix(in srgb, var(--assistant-accent) 12%, transparent)', background: 'transparent', boxShadow: 'inset 0 1px 0 var(--assistant-highlight)' }}>
           <div className="min-w-0">
-            <h1 className="text-[16px] md:text-[18px] font-bold leading-tight truncate" style={{ color: 'var(--assistant-text)' }}>
+            <h1 className="text-[16px] md:text-[18px] font-bold leading-tight break-words" style={{ color: 'var(--assistant-text)' }}>
               {MONTH_NAMES[viewMonth]}{' '}
               <span style={{ color: 'var(--assistant-accent)' }}>{viewYear}</span>
             </h1>
-            <p className="text-[11px] mt-0.5 truncate" style={{ color: 'var(--assistant-text-faint)' }}>{projectTitle}</p>
+            <p className="text-[11px] mt-0.5 break-words" style={{ color: 'var(--assistant-text-faint)' }}>{projectTitle}</p>
           </div>
 
           <div className="flex shrink-0 items-center gap-1">

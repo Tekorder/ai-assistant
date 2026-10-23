@@ -94,7 +94,7 @@ export function DeleteWithOpenTasksDialog({
             </div>
           )}
           {name ? (
-            <div className="text-[12px] mt-2 truncate" title={name} style={{ color: 'var(--assistant-text-faint)' }}>
+            <div className="text-[12px] mt-2 break-words" title={name} style={{ color: 'var(--assistant-text-faint)' }}>
               {kind === 'list' ? 'List' : 'Group'}: {name}
             </div>
           ) : null}

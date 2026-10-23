@@ -24,6 +24,7 @@ import { TaskFlagBadge } from './TaskFlag';
 import { useShowAllGroups } from '../_hook/useShowAllGroups';
 import { useQuickFilters } from './QuickFiltersContext';
 import classes from '@/app/assistant/_theme/themes.module.css';
+import { TaskCheckmark } from './TaskCheckmark';
 
 type CalCard = {
   id: string;
@@ -422,20 +423,10 @@ export default function DayPanel({
                           <button
                             type="button"
                             onClick={() => handleToggleDone(card.id)}
-                            className="check-glow relative mt-0.5 h-4 w-4 shrink-0 flex items-center justify-center rounded group-hover:scale-[1.06] transition-[transform,box-shadow]"
+                            className="check-glow relative mt-0.5 h-4 w-4 shrink-0 flex items-center justify-center rounded-full group-hover:scale-[1.06] transition-[transform,box-shadow]"
                             title={card.checked ? 'Mark pending' : 'Mark done'}
                           >
-                            {card.checked ? (
-                              <span className="relative flex h-3 w-3 items-center justify-center">
-                                <span className="absolute h-2.5 w-2.5 rounded-full bg-[#d5fc43]/85 blur-[2px]" />
-                                <span className="absolute h-1.5 w-1.5 rounded-full bg-[#d5fc43]" />
-                              </span>
-                            ) : (
-                              <span
-                                className="h-3 w-3 rounded transition-colors"
-                                style={{ border: '1px solid var(--assistant-border-soft)' }}
-                              />
-                            )}
+                            <TaskCheckmark checked={Boolean(card.checked)} />
                           </button>
                         )}
 

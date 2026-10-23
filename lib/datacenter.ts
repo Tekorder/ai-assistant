@@ -1362,8 +1362,11 @@ export async function loadFromDatabase(): Promise<void> {
 
 
 /** Elimina tareas vacías — solo se ejecuta una vez por carga de página */
+/** Drops tasks with no text — except an empty one that still holds subtasks (deeper rows right after it). */
 export function cleanupEmptyTasks(blocks: Block[]): Block[] {
-  return blocks.filter(b => b.indent === 0 || (b.text || '').trim() !== '');
+  return blocks.filter((b, i) =>
+    b.indent === 0 || (b.text || '').trim() !== '' || (blocks[i + 1]?.indent ?? 0) > b.indent,
+  );
 }
 
 export function readProjectsLS(): ProjectsPayload | null {
@@ -1778,9 +1781,10 @@ export function updateBlock(
 export function addTaskUnderList(
   blocks: Block[],
   listId?: string | null,
-  opts: { deadline?: string; focusDay?: string; text?: string } = {},
+  // id: pass one when the caller must know it before the state updater runs (e.g. to focus the new task)
+  opts: { deadline?: string; focusDay?: string; text?: string; id?: string } = {},
 ): { blocks: Block[]; newTaskId: string; targetListId: string | null } {
-  const newTaskId = uid();
+  const newTaskId = opts.id ?? uid();
   const base = moveUncToTop(ensureUncExists(blocks));
 
   // focusDay doubles as the due date; omit both to create a task with no due date
@@ -1824,18 +1828,19 @@ export function addTaskUnderList(
 export function createList(
   blocks: Block[],
   listText: string,
-  opts: { focusDay?: string } = {},
+  // listId / taskId: pass them when the caller must know the ids before the state updater runs
+  opts: { focusDay?: string; listId?: string; taskId?: string } = {},
 ): { blocks: Block[]; newListId: string; newTaskId: string; existed: boolean } {
   const name      = (listText || '').trim() || 'New List';
-  const newListId = uid();
-  const newTaskId = uid();
+  const newListId = opts.listId ?? uid();
+  const newTaskId = opts.taskId ?? uid();
 
   const existingId = blocks.find(
     b => b.indent === 0 && !isUncTitleBlock(b) && (b.text || '').trim().toLowerCase() === name.toLowerCase(),
   )?.id;
 
   if (existingId) {
-    const result = addTaskUnderList(blocks, existingId, { focusDay: opts.focusDay });
+    const result = addTaskUnderList(blocks, existingId, { focusDay: opts.focusDay, id: newTaskId });
     return { blocks: result.blocks, newListId: existingId, newTaskId: result.newTaskId, existed: true };
   }
 
@@ -1854,10 +1859,10 @@ export function createList(
 /** New list with empty title + one empty task (no duplicate merge on empty name). */
 export function createBlankList(
   blocks: Block[],
-  opts: { focusDay?: string } = {},
+  opts: { focusDay?: string; listId?: string; taskId?: string } = {},
 ): { blocks: Block[]; newListId: string; newTaskId: string } {
-  const newListId = uid();
-  const newTaskId = uid();
+  const newListId = opts.listId ?? uid();
+  const newTaskId = opts.taskId ?? uid();
   const base = moveUncToTop(ensureUncExists(blocks));
   const { end: uncEnd } = findUncRange(base);
   const insertAt = Math.max(uncEnd, base.length);

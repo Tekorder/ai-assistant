@@ -20,6 +20,7 @@ import {
   makePersonalProject,
   // Persistence
   readProjectsLS,
+  cleanupEmptyTasks,
   writeProjectsLS,
   // Array structure
   moveUncToTop,
@@ -64,6 +65,8 @@ import { TaskRowMenu } from '../TaskRowMenu';
 import { FirstListWizard } from '../FirstListWizard';
 import { DeleteWithOpenTasksDialog, buildMoveTargets } from '../DeleteWithOpenTasksDialog';
 import { DateRangeDialog } from '../DateRangeDialog';
+import { NewTaskDialog, type NewTaskListOption, type NewTaskTarget } from '../NewTaskDialog';
+import { TaskCheckmark } from '../TaskCheckmark';
 
 /**
  * Uids that closed the first-list wizard during this page load. Module memory on
@@ -199,7 +202,7 @@ function QuickProgressBlock({
   return (
     <div className={`px-1 py-2 ${className}`}>
       <div className="flex items-center justify-between gap-3">
-        <div className={`truncate text-[15px] font-semibold ${classes.quickProgressLabel}`}>
+        <div className={`break-words text-[15px] font-semibold ${classes.quickProgressLabel}`}>
           {label}
         </div>
         <div className={`shrink-0 text-[15px] font-semibold tabular-nums ${classes.quickProgressLabel}`}>
@@ -389,17 +392,19 @@ export default function Quick(props: QuickProps = {}) {
     (!hidingSomeday || isValidDateYYYYMMDD(b.deadline)) && (
       viewTaskFilter === 'priority' ? Boolean(getTaskFlag(b))
       : viewTaskFilter === 'someday' ? !isValidDateYYYYMMDD(b.deadline)
+      // Scheduled = only tasks with a due date
+      : viewTaskFilter === 'scheduled' ? isValidDateYYYYMMDD(b.deadline)
       : true
     ), [hidingSomeday, viewTaskFilter]);
   const matchesSearch = (b: Block) => (b.text || '').toLowerCase().includes(searchTerm);
   const [focusDay, setFocusDay] = useState<string>(todayYMD());
-  // New tasks only get a due date (the focused day) while viewing by Due Date or hiding
-  // Someday — otherwise they'd vanish right away — and never under the Someday filter
+  // New tasks only get a due date (the focused day) while viewing by Due Date, hiding
+  // Someday or under Scheduled — otherwise they'd vanish right away — and never under Someday
   // Under Ranges the "focused day" is today when it's inside the range, else the range's first day
   const dueAnchor = dateMode === 'range' && taskFilter === 'none'
     ? (todayYMD() >= dateRange.from && todayYMD() <= dateRange.to ? todayYMD() : dateRange.from)
     : focusDay;
-  const newTaskDue = (sortBy === 'dueDate' || hideSomeday) && taskFilter !== 'someday' && isValidDateYYYYMMDD(dueAnchor) ? dueAnchor : undefined;
+  const newTaskDue = (sortBy === 'dueDate' || hideSomeday || taskFilter === 'scheduled') && taskFilter !== 'someday' && isValidDateYYYYMMDD(dueAnchor) ? dueAnchor : undefined;
   const [rangeDialogOpen, setRangeDialogOpen] = useState(false);
   // "/" anywhere (outside a text field) jumps to the keyword search
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -566,7 +571,10 @@ export default function Quick(props: QuickProps = {}) {
     try {
       const payload = readProjectsLS();
       if (payload) {
-        setProjects(payload.projects);
+        // Empty tasks left behind (abandoned elsewhere, or from older versions) are dropped on load;
+        // lastWrittenRef keeps the raw version so the persist effect writes the cleaned one back
+        const projects = payload.projects.map(p => (p.blocks ? { ...p, blocks: cleanupEmptyTasks(p.blocks) } : p));
+        setProjects(projects);
         setSelectedProjectId(payload.selectedProjectId || payload.projects[0]?.project_id || '');
         lastWrittenRef.current = JSON.stringify({ projects: payload.projects, selectedProjectId: payload.selectedProjectId });
         setHydrated(true);
@@ -772,22 +780,17 @@ export default function Quick(props: QuickProps = {}) {
     setCurrentCollapsed(prev => ({ ...prev, [newListId]: false }));
   };
 
-  const listTitlesRaw = useMemo(
-    () => blocks
-      .filter(b => b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true)
-      .map(b => ({ id: b.id, text: (b.text || '').trim() }))
-      .filter(t => t.text.length > 0),
-    [blocks],
-  );
-
-  const listTitles = useMemo(() => {
-    const seen = new Set<string>();
-    return listTitlesRaw.filter(t => {
-      const k = t.text.toLowerCase();
-      if (seen.has(k)) return false;
-      seen.add(k); return true;
-    });
-  }, [listTitlesRaw]);
+  // Every named list, in every group (the selected group first) — for the New task picker
+  const taskDialogLists = useMemo<NewTaskListOption[]>(() => {
+    const ordered = [
+      ...projects.filter(p => p.project_id === currentProject?.project_id),
+      ...projects.filter(p => p.project_id !== currentProject?.project_id),
+    ];
+    return ordered.flatMap(p => (p.blocks ?? [])
+      .filter(b => b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true && (b.text || '').trim())
+      .sort((a, b) => a.order - b.order)
+      .map(b => ({ projectId: p.project_id, projectTitle: p.title, listId: b.id, title: (b.text || '').trim() })));
+  }, [projects, currentProject?.project_id]);
 
   /* ── Block action wrappers ── */
   const handleUpdateBlock = (id: string, patch: Partial<Block>) => {
@@ -921,15 +924,14 @@ export default function Quick(props: QuickProps = {}) {
   };
 
   const handleAddTaskUnderList =(listId: string, deadlineOverride?: string) => {
-    let newTaskId = '';
-    setCurrentBlocks(prev => {
-      const result = addTaskUnderListArr(prev, listId, {
-        deadline: deadlineOverride,
-        focusDay: newTaskDue,
-      });
-      newTaskId = result.newTaskId;
-      return result.blocks;
-    });
+    // Id picked up front: an updater may run twice (StrictMode) or later, so an id captured
+    // inside it can miss the task that's actually rendered — and the focus with it
+    const newTaskId = uid();
+    setCurrentBlocks(prev => addTaskUnderListArr(prev, listId, {
+      deadline: deadlineOverride,
+      focusDay: newTaskDue,
+      id: newTaskId,
+    }).blocks);
     setCurrentCollapsed(prev => ({ ...prev, [listId]: false }));
     requestAnimationFrame(() => {
       const el = inputRefs.current[newTaskId];
@@ -958,13 +960,11 @@ export default function Quick(props: QuickProps = {}) {
   };
 
   const handleCreateBlankList = () => {
-    let newListId = '';
-    setCurrentBlocks(prev => {
-      const result = createBlankList(prev, { focusDay: newTaskDue });
-      newListId = result.newListId;
-      return result.blocks;
-    });
+    const newListId = uid();
+    setCurrentBlocks(prev => createBlankList(prev, { focusDay: newTaskDue, listId: newListId }).blocks);
     setCurrentCollapsed(prev => ({ ...prev, [newListId]: false }));
+    // The title input only renders while it's being edited
+    setEditingListTitleId(newListId);
     requestAnimationFrame(() => {
       const el = inputRefs.current[newListId];
       if (!el) return;
@@ -972,27 +972,6 @@ export default function Quick(props: QuickProps = {}) {
       el.focus();
       el.setSelectionRange(0, 0);
     });
-  };
-
-  const handleCreateList = (listText: string) => {
-    let ids = { newListId: '', newTaskId: '' };
-    setCurrentBlocks(prev => {
-      const result = createListArr(prev, listText, { focusDay: newTaskDue });
-      ids = { newListId: result.newListId, newTaskId: result.newTaskId };
-      if (result.existed) {
-        setCurrentCollapsed(c => ({ ...c, [result.newListId]: false }));
-      } else {
-        setCurrentCollapsed(c => ({ ...c, [result.newListId]: false }));
-      }
-      return result.blocks;
-    });
-    requestAnimationFrame(() => {
-      const el = inputRefs.current[ids.newTaskId];
-      if (!el) return;
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.focus(); el.setSelectionRange(0, 0);
-    });
-    return ids;
   };
 
   const toggleList = (listId: string) =>
@@ -1003,13 +982,15 @@ const handleKey = (
   e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
   b: Block,
 ) => {
+  // Enter / Ctrl+Enter on an empty task or untitled list does nothing — no empty rows
   if (e.key === 'Enter' && e.ctrlKey) {
     e.preventDefault();
-    handleCreateBlankList();
+    if ((b.text || '').trim()) handleCreateBlankList();
     return;
   }
   if (e.key === 'Enter') {
     e.preventDefault();
+    if (!(b.text || '').trim()) return;
     if (b.indent === 0) {
       const reuseId = findFirstEmptyTaskUnderList(blocks, b.id);
       if (reuseId) {
@@ -1133,26 +1114,64 @@ const handleKey = (
   };
   const onDragEndRow = () => { dragRef.current = null; setDragOverId(null); };
 
-  /* ── List modal ── */
-  const [listModalOpen, setListModalOpen] = useState(false);
-  const [listPickId, setListPickId]       = useState<string>('');
-  const [listNewText, setListNewText]     = useState<string>('');
+  /* ── New task dialog ── */
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [deleteListConfirmId, setDeleteListConfirmId] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingListTitleId, setEditingListTitleId] = useState<string | null>(null);
-  const confirmListModal = () => {
-    const newName = listNewText.trim();
-    if (newName) { handleCreateList(newName); setListModalOpen(false); return; }
-    let pickId = listPickId;
-    if (!pickId) {
-      const el = document.querySelector<HTMLInputElement>('input[name="listPick"]:checked');
-      if (el?.value) pickId = el.value;
-    }
-    if (pickId) { handleAddTaskUnderList(pickId); setListModalOpen(false); return; }
-    setListModalOpen(false);
+  const typingAny = editingTaskId !== null || editingListTitleId !== null;
+
+  // Empty tasks are never kept: leaving one without text drops it (unless it holds subtasks)
+  const handleTaskBlur = (id: string) => {
+    setEditingTaskId(prev => (prev === id ? null : prev));
+    setCurrentBlocks(prev => {
+      const i = prev.findIndex(b => b.id === id);
+      if (i < 0 || prev[i].indent === 0 || (prev[i].text || '').trim()) return prev;
+      if (prev[i + 1] && prev[i + 1].indent > prev[i].indent) return prev;
+      return prev.filter(b => b.id !== id);
+    });
   };
 
-  const openNewListModal = () => { setListModalOpen(true); setListPickId(''); setListNewText(''); };
+  // Same for lists: leaving an untitled list with no written tasks drops it
+  const handleListTitleBlur = (id: string) => {
+    setEditingListTitleId(prev => (prev === id ? null : prev));
+    setCurrentBlocks(prev => {
+      const i = prev.findIndex(b => b.id === id);
+      if (i < 0 || (prev[i].text || '').trim()) return prev;
+      const hasWrittenTask = prev.some(b => b.parentId === id && b.indent > 0 && (b.text || '').trim());
+      return hasWrittenTask ? prev : removeListAndChildren(prev, id);
+    });
+  };
+
+  // The task arrives with its text, so nothing empty is ever created
+  const handleDialogAddTask = (text: string, target: NewTaskTarget) => {
+    setTaskDialogOpen(false);
+    if (target.kind === 'new') {
+      // New list in the selected group; createList seeds one task — fill it
+      let newListId = '';
+      setCurrentBlocks(prev => {
+        const created = createListArr(prev, target.newListName, { focusDay: newTaskDue });
+        newListId = created.newListId;
+        return updateBlockArr(created.blocks, created.newTaskId, { text });
+      });
+      setCurrentCollapsed(prev => (newListId ? { ...prev, [newListId]: false } : prev));
+      return;
+    }
+    const add = (blocks: Block[]) =>
+      sortBlocksByOrder(addTaskUnderListArr(blocks, target.listId, { focusDay: newTaskDue, text }).blocks);
+    if (target.projectId === currentProject?.project_id) {
+      setCurrentBlocks(add);
+      setCurrentCollapsed(prev => ({ ...prev, [target.listId]: false }));
+    } else {
+      setProjects(prev => prev.map(p => (
+        p.project_id === target.projectId
+          ? { ...p, blocks: add(p.blocks ?? []), quickCollapsed: { ...(p.quickCollapsed ?? {}), [target.listId]: false } }
+          : p
+      )));
+    }
+  };
+
+  const openNewTaskDialog = () => setTaskDialogOpen(true);
 
 
   /* ── Text measurement ── */
@@ -1219,7 +1238,7 @@ const handleKey = (
           onKeyDown={e => handleKey(e, b)}
           onInput={e => resizeTextarea(e.currentTarget)}
           onFocus={() => setEditingTaskId(b.id)}
-          onBlur={() => setEditingTaskId(prev => (prev === b.id ? null : prev))}
+          onBlur={() => handleTaskBlur(b.id)}
           className={[
             // block: an inline-block textarea sits on the text baseline and gains a few px
             // below it, which made the row (items-center) shift the text up while editing
@@ -1318,16 +1337,13 @@ const handleKey = (
         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
       </svg>
     );
-    // Ghost "Task…" row; revealed by hovering the row right before it (.quick-add-anchor),
-    // or always shown (`visible`) under the task being typed
-    const addGhost = (onClick: () => void, paddingLeft: number, visible = false) => (
+    // Ghost "Task…" row; revealed by hovering the row right before it (.quick-add-anchor)
+    const addGhost = (onClick: () => void, paddingLeft: number) => (
       <button
         type="button"
         onClick={onClick}
-        // Keep the focus in the task being typed until the click lands (blur would hide the ghost)
-        onMouseDown={e => e.preventDefault()}
         aria-label="Add task"
-        className={['quick-add-ghost w-full flex items-center px-0.5 gap-1 text-left', visible ? 'is-visible' : ''].join(' ')}
+        className="quick-add-ghost w-full flex items-center px-0.5 gap-1 text-left"
         style={{ paddingLeft, marginTop: 0, marginBottom: 0 }}
       >
         <div className="w-3 shrink-0" />
@@ -1341,9 +1357,7 @@ const handleKey = (
       </button>
     );
 
-    return (
-      <div className="space-y-1 quick-rows">
-        {listBlocks.map(listBlock => {
+    const rows = listBlocks.map(listBlock => {
           if (pHiddenByList[listBlock.id]) return null;
           const isUncList = isUncTitleBlock(listBlock);
           const tasks = tasksByParent.get(listBlock.id) ?? [];
@@ -1355,13 +1369,14 @@ const handleKey = (
             passesTaskFilter(task) &&
             (!searching || listMatches || matchesSearch(task)),
           );
-          if (searching && !listMatches && visibleTasks.length === 0) return null;
+          // A list with no tasks to show isn't shown at all — unless its title is being typed
+          if (visibleTasks.length === 0 && editingListTitleId !== listBlock.id) return null;
           // Hovering any task reveals a ghost "Task…" row right below it that inserts a task
           // there; an empty list gets one under its header. Only offered under committed
-          // tasks (has text, not being edited), so a task being typed never gets one.
+          // tasks (has text), and never while a task or list title is being typed.
           const lastVisibleTaskId = visibleTasks.length > 0 ? visibleTasks[visibleTasks.length - 1].id : null;
-          const isCommitted = (t: Block) => (t.text || '').trim() !== '' && editingTaskId !== t.id;
-          const showHeaderGhost = !pCollapsed[listBlock.id] && !isUncList && !lastVisibleTaskId;
+          const isCommitted = (t: Block) => (t.text || '').trim() !== '' && !typingAny;
+          const showHeaderGhost = !pCollapsed[listBlock.id] && !isUncList && !lastVisibleTaskId && !typingAny;
           const lDragOver = dragOverId === listBlock.id && dragRef.current?.id !== listBlock.id;
           const lDragMe   = dragRef.current?.id === listBlock.id;
 
@@ -1421,7 +1436,7 @@ const handleKey = (
                         placeholder="List…"
                         onChange={e => handleUpdateBlock(listBlock.id, { text: e.target.value })}
                         onKeyDown={e => handleKey(e, listBlock)}
-                        onBlur={() => setEditingListTitleId(null)}
+                        onBlur={() => handleListTitleBlur(listBlock.id)}
                         className="flex-none bg-transparent text-[14px] md:text-sm font-semibold outline-none"
                         style={{ width: `${inputWidthPx(listBlock.text)}px`, maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
                       />
@@ -1429,7 +1444,7 @@ const handleKey = (
                       <span
                         role="button"
                         tabIndex={0}
-                        className="quick-word-clickable flex-none truncate text-[14px] md:text-sm font-semibold"
+                        className="quick-word-clickable min-w-0 break-words text-[14px] md:text-sm font-semibold"
                         style={{ maxWidth: 'calc(100% - 48px)', color: 'var(--assistant-text)' }}
                         onClick={(e) => { e.stopPropagation(); openPivotForList(listBlock); }}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPivotForList(listBlock); } }}
@@ -1439,15 +1454,6 @@ const handleKey = (
                       </span>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleAddTaskUnderList(listBlock.id)}
-                    aria-label="Add task"
-                    title="Add task"
-                    className={`ml-auto shrink-0 flex items-center justify-center text-[19px] leading-none font-semibold transition-opacity hover:opacity-70 ${classes.quickAddTaskBtn}`}
-                  >
-                    +
-                  </button>
                 </div>
               )}
               {/* ── Tasks belonging to this list ── */}
@@ -1480,15 +1486,7 @@ const handleKey = (
                             <span className={`absolute -inset-2 rounded-full blur-sm ${classes.quickPulseGlow}`} />
                           </>
                         ) : null}
-                        {task.checked ? (
-                          <span className={`flex h-3.5 w-3.5 items-center justify-center ${classes.quickCheckboxDone}`}>
-                            <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.4">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.2 8.4l3 3 6.6-7" />
-                            </svg>
-                          </span>
-                        ) : (
-                          <span className={`h-3.5 w-3.5 ${classes.quickCheckbox}`} />
-                        )}
+                        <TaskCheckmark checked={task.checked === true} />
                       </button>
                       <div className="min-w-0 flex-1 flex items-center gap-1.5">
                         {renderTaskTextWithWordHover(task)}
@@ -1510,7 +1508,13 @@ const handleKey = (
                           />
                         )}
                       </div>
-                      {/* Pinned (only when set): due date, note, flag — everything else lives in the ⋮ menu */}
+                      {/* Pinned (only when set): flag, due date, note — everything else lives in the ⋮ menu */}
+                      {getTaskFlag(task) ? (
+                        <TaskFlagButton
+                          source={task}
+                          onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
+                        />
+                      ) : null}
                       {editingDateTaskId !== task.id && isValidDateYYYYMMDD(task.deadline) && (
                         <button
                           type="button"
@@ -1535,12 +1539,6 @@ const handleKey = (
                           onChange={(note) => handleUpdateBlock(task.id, { note })}
                         />
                       ) : null}
-                      {getTaskFlag(task) ? (
-                        <TaskFlagButton
-                          source={task}
-                          onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
-                        />
-                      ) : null}
                       {/* ⋮ shows on hover (and stays while its menu is open) */}
                       <button
                         type="button"
@@ -1556,9 +1554,10 @@ const handleKey = (
                         aria-expanded={taskMenu?.taskId === task.id}
                         className={[
                           'shrink-0 h-5 w-5 flex items-center justify-center rounded transition-opacity duration-150',
-                          taskMenu?.taskId === task.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-70 hover:!opacity-100 focus-visible:opacity-100',
-                          classes.quickEditBtn,
+                          taskMenu?.taskId === task.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
                         ].join(' ')}
+                        // Full theme text color — the muted tone was too faint to spot
+                        style={{ color: 'var(--assistant-text)' }}
                       >
                         <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
                           <circle cx="8" cy="3.2" r="1.3" />
@@ -1568,11 +1567,9 @@ const handleKey = (
                       </button>
                     </div>
                     {/* Must directly follow the row: CSS reveals it via .quick-add-anchor:hover + .quick-add-ghost */}
-                    {/* Committed tasks: on hover. The task being typed (once it has text): always, suggesting the next one */}
-                    {(isCommitted(task) || (editingTaskId === task.id && (task.text || '').trim() !== '')) && addGhost(
+                    {isCommitted(task) && addGhost(
                       () => handleAddTaskAfter(task.id),
                       isUncList ? 6 : 8 + task.indent * 16,
-                      editingTaskId === task.id,
                     )}
                   </React.Fragment>
                 );
@@ -1580,9 +1577,11 @@ const handleKey = (
               {showHeaderGhost && addGhost(() => handleAddTaskUnderList(listBlock.id), 24)}
             </React.Fragment>
           );
-        })}
-      </div>
-    );
+        }).filter(Boolean);
+
+    // Nothing to show → render nothing, so "All groups" can drop the group's heading too
+    if (rows.length === 0) return null;
+    return <div className="space-y-1 quick-rows">{rows}</div>;
   };
 
   const actionsPanelProps = {
@@ -1647,7 +1646,6 @@ const handleKey = (
           transition: max-height 0.15s ease 0.25s, opacity 0.15s ease 0.25s, padding 0.15s ease 0.25s;
         }
         .quick-add-anchor:hover + .quick-add-ghost,
-        .quick-add-ghost.is-visible,
         .quick-add-ghost:hover,
         .quick-add-ghost:focus-visible {
           max-height: 2rem; opacity: 1; padding-top: 0.25rem; padding-bottom: 0.25rem;
@@ -1655,9 +1653,9 @@ const handleKey = (
         }
       `}</style>
 
-      {/* Mobile bottom sheet */}
+      {/* Filters bottom sheet — mobile, or a desktop main panel too narrow for the filters column */}
       {(drawerOpen || drawerClosing) && (
-        <div className="md:hidden fixed inset-0 z-40">
+        <div className="fixed inset-0 z-40">
           <style>{`
             @keyframes quickSheetOverlayIn { from { opacity: 0; } to { opacity: 1; } }
             @keyframes quickSheetOverlayOut { from { opacity: 1; } to { opacity: 0; } }
@@ -1700,7 +1698,8 @@ const handleKey = (
               <button type="button" onClick={closeDrawer} className={`flex h-7 w-7 items-center justify-center rounded-md ${classes.quickDrawerCloseBtn}`}>✕</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3">
-              <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />
+              {/* Hide Completed on → no progress bar */}
+              {showCompleted && <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />}
               <div className="mb-3 overflow-hidden rounded-2xl">
                 <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact />
               </div>
@@ -1710,9 +1709,11 @@ const handleKey = (
         </div>
       )}
 
-      <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 pt-2 pb-0 md:px-8 md:py-8">
-          <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
+      {/* @container: the filters column follows this panel's own width, not the window's —
+          docked panels can leave the main panel narrow on a wide screen */}
+      <div className="@container flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 pt-2 pb-0 @2xl:px-8 @2xl:py-8">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 @2xl:flex-row">
             <div className="min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden">
 
               {/* Date pagination header — fixed above the scroll area, never overlapped by the tasks */}
@@ -1783,7 +1784,7 @@ const handleKey = (
                         style={{ color: 'var(--assistant-text)', border: '1px solid var(--assistant-accent)' }}
                         title={`Showing only ${currentProject?.title} › ${focusList.text}`}
                       >
-                        <span className="truncate">{currentProject?.title} › {(focusList.text || '').trim() || 'List'}</span>
+                        <span className="break-words">{currentProject?.title} › {(focusList.text || '').trim() || 'List'}</span>
                         <button
                           type="button"
                           onClick={() => setFocusedList(null)}
@@ -1796,7 +1797,7 @@ const handleKey = (
                       </span>
                     ) : showAllGroups || currentProject?.title ? (
                       <span
-                        className="min-w-0 truncate rounded-full px-2 py-0.5 text-[11px] md:text-[12px] font-semibold uppercase tracking-wide"
+                        className="min-w-0 break-words rounded-full px-2 py-0.5 text-[11px] md:text-[12px] font-semibold uppercase tracking-wide"
                         style={{ color: 'var(--assistant-text-soft)', border: '1px solid var(--assistant-border-soft)' }}
                         title={showAllGroups ? 'Showing every group' : `Group: ${currentProject?.title}`}
                       >
@@ -1805,24 +1806,24 @@ const handleKey = (
                     ) : null}
                   </div>
 
-                  {/* Right: New List */}
+                  {/* Right: New Task */}
                   <div className="flex items-center justify-end gap-2 shrink-0">
                     <button
                       type="button"
-                      onClick={openNewListModal}
+                      onClick={openNewTaskDialog}
                       className={`hidden md:flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-all hover:scale-105 ${classes.quickNewListBtn}`}
                     >
                       <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
                         <path strokeLinecap="round" d="M8 3v10M3 8h10" />
                       </svg>
-                      <span>New List</span>
+                      <span>New Task</span>
                     </button>
 
                     {/* Mobile settings */}
                     <button
                       type="button"
                       onClick={() => setDrawerOpen(true)}
-                      className={`md:hidden flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition ${classes.quickMobileSettings}`}
+                      className={`@2xl:hidden flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-medium transition ${classes.quickMobileSettings}`}
                     >
                       <span>⚙</span>
                       <span className="capitalize">{dateMode}</span>
@@ -1848,7 +1849,7 @@ const handleKey = (
                       className="min-w-0 flex-1 bg-transparent py-1.5 text-[13px] outline-none"
                       style={{ color: 'var(--assistant-text)' }}
                     />
-                    {searchQuery ? (
+                    {searchQuery && (
                       <button
                         type="button"
                         onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
@@ -1859,14 +1860,6 @@ const handleKey = (
                       >
                         ×
                       </button>
-                    ) : (
-                      <kbd
-                        className="hidden md:grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded px-1 font-sans text-[10px] font-semibold"
-                        style={{ color: 'var(--assistant-text-faint)', border: '1px solid var(--assistant-border-soft)' }}
-                        title="Press / to search"
-                      >
-                        /
-                      </kbd>
                     )}
                   </label>
                 </div>
@@ -1878,46 +1871,56 @@ const handleKey = (
                 {isBrandNewEmpty ? (
                   <div className={`rounded-2xl p-5 ${classes.quickEmptyState}`}>
                     <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Start here</div>
-                    <div className="text-[13px] mt-1" style={{ color: 'var(--assistant-text-muted)' }}>Create your first list and then add tasks under it.</div>
+                    <div className="text-[13px] mt-1" style={{ color: 'var(--assistant-text-muted)' }}>Add your first task and the list it belongs to.</div>
                     <button
                       type="button"
-                      onClick={openNewListModal}
+                      onClick={openNewTaskDialog}
                       className={`mt-4 max-w-[260px] w-full text-left text-[14px] px-4 py-3 rounded-2xl transition-colors wobble-loop ${classes.quickCtaBtn}`}
                     >
-                      + New List
+                      + New Task
                     </button>
-                    <div className="text-[12px] mt-3" style={{ color: 'var(--assistant-text-faint)' }}>Hint: after you create a list, you&apos;ll always see an <span style={{ color: 'var(--assistant-text-muted)' }}>+ task</span> button right below it.</div>
+                    <div className="text-[12px] mt-3" style={{ color: 'var(--assistant-text-faint)' }}>Hint: type a list name that doesn&apos;t exist yet and it&apos;s created for you.</div>
                   </div>
                 ) : showAllGroups ? (
                   // Every group, one after another. Edits act on the selected group, so pointer
                   // or focus inside a group selects it first (the Sidebar works the same way).
                   <div className="space-y-5">
-                    {projects.map(p => (
-                      <div
-                        key={p.project_id}
-                        onMouseDownCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
-                        onFocusCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
-                      >
+                    {projects.map(p => {
+                      const lists = renderNormalList(p);
+                      // A group with no list to show is left out entirely
+                      if (!lists) return null;
+                      return (
                         <div
-                          className="mb-1 px-1 text-[11px] font-bold uppercase tracking-[0.14em]"
-                          style={{ color: 'var(--assistant-accent)' }}
+                          key={p.project_id}
+                          onMouseDownCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
+                          onFocusCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
                         >
-                          {p.title}
+                          <div
+                            className="mb-1 px-1 text-[11px] font-bold uppercase tracking-[0.14em]"
+                            style={{ color: 'var(--assistant-accent)' }}
+                          >
+                            {p.title}
+                          </div>
+                          {lists}
                         </div>
-                        {renderNormalList(p)}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                ) : renderNormalList()}
+                ) : renderNormalList() ?? (
+                  <div className="px-1 py-6 text-center text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>
+                    No tasks to show here.
+                  </div>
+                )}
               </div>
               </div>
             </div>
 
             {/* Desktop sidebar — outside main scroll: stays fixed while lists scroll */}
-            <div className="hidden max-h-[77vh] min-h-0 w-[270px] shrink-0 flex-col md:flex">
+            <div className="hidden max-h-[77vh] min-h-0 w-[270px] shrink-0 flex-col @2xl:flex">
               <div className={`flex max-h-full min-h-0 flex-1 flex-col overflow-hidden rounded-2xl ${classes.quickSidePanel}`}>
                 <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-                  <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />
+                  {/* Hide Completed on → no progress bar */}
+                  {showCompleted && <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />}
                   <div className="mb-3 overflow-hidden rounded-2xl">
                     <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact />
                   </div>
@@ -1930,45 +1933,13 @@ const handleKey = (
         </div>
       </div>
 
-        {/* List Modal */}
-        {listModalOpen ? (
-          <div className="fixed inset-0 z-[999] flex items-center justify-center">
-            <button type="button" className="absolute inset-0 bg-black/60" onClick={() => setListModalOpen(false)} aria-label="Close" />
-            <div className={`relative w-[92vw] max-w-md rounded-2xl shadow-2xl ${classes.quickModal}`}>
-              <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-                <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Select or create List</div>
-                <div className="text-[12px] mt-0.5" style={{ color: 'var(--assistant-text-muted)' }}>Pick an existing list to add a task under it, or type a new one.</div>
-              </div>
-              <div className="px-4 py-3">
-                <div className="mb-3">
-                  <div className="text-[12px] mb-1" style={{ color: 'var(--assistant-text-muted)' }}>Create new</div>
-                  <input value={listNewText} onChange={e => setListNewText(e.target.value)} placeholder="Type a new list name…"
-                    className={`w-full rounded-md text-[13px] px-3 py-2 ${classes.quickSearchInput}`}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmListModal(); } if (e.key === 'Escape') setListModalOpen(false); }} />
-                  <div className="text-[12px] mt-1" style={{ color: 'var(--assistant-text-faint)' }}>If that list already exists, it will not create a duplicate — it just adds a task under it.</div>
-                </div>
-                <div>
-                  <div className="text-[12px] mb-1" style={{ color: 'var(--assistant-text-muted)' }}>Or select existing</div>
-                  <div className="max-h-56 overflow-auto rounded-xl" style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-surface)' }}>
-                    {listTitles.length ? (
-                      <div className="p-2 space-y-1">
-                        {listTitles.map(t => (
-                          <label key={t.id} className={`flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors ${classes.quickModalListItem}`}>
-                            <input type="radio" name="listPick" value={t.id} checked={listPickId === t.id} onChange={e => setListPickId(e.target.value)} onClick={e => { const v = (e.currentTarget as HTMLInputElement).value; if (v) setListPickId(v); }} />
-                            <span className="text-[13px]" style={{ color: 'var(--assistant-text-soft)' }}>{t.text}</span>
-                          </label>
-                        ))}
-                      </div>
-                    ) : <div className="p-3 text-[13px]" style={{ color: 'var(--assistant-text-muted)' }}>No lists yet.</div>}
-                  </div>
-                </div>
-              </div>
-              <div className="px-4 py-3 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
-                <button type="button" onClick={() => setListModalOpen(false)} className={`text-[13px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}>Cancel</button>
-                <button type="button" onClick={confirmListModal} className={`text-[13px] px-3 py-2 rounded-md ${classes.quickModalPrimary}`}>Select</button>
-              </div>
-            </div>
-          </div>
+        {taskDialogOpen ? (
+          <NewTaskDialog
+            lists={taskDialogLists}
+            defaultListId={focusList?.id}
+            onCancel={() => setTaskDialogOpen(false)}
+            onSubmit={handleDialogAddTask}
+          />
         ) : null}
 
         {rangeDialogOpen ? (

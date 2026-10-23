@@ -261,7 +261,7 @@ export default function Entities({
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[14px] text-white/85 font-semibold truncate">
+                    <div className="text-[14px] text-white/85 font-semibold break-words">
                       {e.label}
                     </div>
                     <div className="text-[12px] text-white/45">
@@ -284,7 +284,7 @@ export default function Entities({
                 {e.examples.length ? (
                   <div className="mt-2 space-y-1">
                     {e.examples.map((x) => (
-                      <div key={x.blockId} className="text-[12px] text-white/45 truncate">
+                      <div key={x.blockId} className="text-[12px] text-white/45 break-words">
                         {x.text}
                       </div>
                     ))}

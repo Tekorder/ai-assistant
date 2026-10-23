@@ -235,7 +235,7 @@ export function FirstListWizard({ onFinish, onClose }: Props) {
                         style={{ border: '1.5px solid var(--assistant-text)' }}
                         aria-hidden="true"
                       />
-                      <span className="min-w-0 flex-1 truncate text-[14px]">{t}</span>
+                      <span className="min-w-0 flex-1 break-words text-[14px]">{t}</span>
                       <button
                         type="button"
                         onClick={() => setTasks(prev => prev.filter((_, j) => j !== i))}

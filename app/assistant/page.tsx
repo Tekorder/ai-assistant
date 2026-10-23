@@ -929,7 +929,7 @@ export default function App() {
             className="relative h-full shrink-0"
             style={{
               width: sidebarVisualOpen ? 40 : 80,
-              transition: 'width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
+              transition: 'width 420ms cubic-bezier(0.32, 0.72, 0, 1)',
             }}
           >
             {/* Rail (sidebar closed): menu, expand and panels stacked at the top, centered */}
@@ -984,19 +984,17 @@ export default function App() {
               {isDesktop === true && <AccountActions placement="rail" {...accountActionsProps} />}
             </div>
           </div>
+          {/* Drawer: the panel is pinned to the slot's right edge, so as the slot narrows the
+              panel slides out to the left (and back in) — no fade, it stays solid the whole way */}
           <div
-            className="h-full shrink-0"
+            className="flex h-full shrink-0 justify-end overflow-hidden"
             style={{
               width: sidebarVisualOpen ? MIN_SIDEBAR : 0,
-              opacity: sidebarVisualOpen ? 1 : 0,
-              transform: sidebarVisualOpen ? 'translateX(0)' : 'translateX(-10px)',
-              transition: sidebarVisualOpen
-                ? 'width 420ms cubic-bezier(0.22, 1, 0.36, 1) 0ms, opacity 300ms ease 200ms, transform 400ms cubic-bezier(0.22, 1, 0.36, 1) 200ms'
-                : 'width 420ms cubic-bezier(0.22, 1, 0.36, 1) 200ms, opacity 180ms ease 0ms, transform 220ms cubic-bezier(0.22, 1, 0.36, 1) 0ms',
+              transition: 'width 420ms cubic-bezier(0.32, 0.72, 0, 1)',
             }}
           >
             <div
-              className="relative m-3 box-border flex h-[calc(100%-5.5rem)] flex-col overflow-hidden rounded-2xl"
+              className="relative m-3 box-border flex h-[calc(100%-5.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl"
               style={{
                 width: `calc(${MIN_SIDEBAR}px - 1.5rem)`,
               }}
@@ -1063,7 +1061,8 @@ export default function App() {
             // Accordion: the main panel takes whatever the sidebar and the accordion leave
             className={`min-h-0 overflow-hidden flex flex-col ${isAccordion ? 'min-w-0 flex-1' : 'shrink-0'}`}
             style={{
-              minWidth: isAccordion ? 0 : mainPanelWidth,
+              // Accordion: keep a usable floor — the accordion column gives way instead
+              minWidth: isAccordion ? 'min(560px, 50vw)' : mainPanelWidth,
               marginLeft: mainPanelSolo && !isAccordion ? 'auto' : undefined,
               marginRight: mainPanelSolo && !isAccordion ? 'auto' : undefined,
               transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
@@ -1279,11 +1278,13 @@ export default function App() {
             <div
               ref={accordionColumnRef}
               // Scrolls vertically once the bars + the expanded panel outgrow the deck
-              className="deck-scrollbar relative flex h-full shrink-0 flex-col overflow-y-auto overflow-x-hidden"
+              className="deck-scrollbar relative flex h-full shrink flex-col overflow-y-auto overflow-x-hidden"
               style={{
                 order: 1,
-                // Fixed at 75% of the Reminders width, so expanding a different panel never resizes the column
-                width: openDockKeys.length && isDesktop === true ? `calc(${remindersPanelWidth} * 0.75)` : 0,
+                // ~64% of the Reminders width (75% less 15%), so expanding a different panel never resizes
+                // the column; shrinks (down to 240px) when the window can't also fit the main panel's floor
+                width: openDockKeys.length && isDesktop === true ? `calc(${remindersPanelWidth} * 0.6375)` : 0,
+                minWidth: openDockKeys.length && isDesktop === true ? 240 : 0,
                 // Push the first item down so its top rule lands on the main panel's tab line
                 // (main tabs bar: 0.75rem margin + 49px tall, line in its last px)
                 paddingTop: '48px',
@@ -1437,10 +1438,10 @@ export default function App() {
                     />
                   </span>
                   <div className="min-w-0 leading-tight">
-                    <div className="truncate text-[15px] font-semibold" style={{ color: 'var(--assistant-text)' }}>
+                    <div className="break-words text-[15px] font-semibold" style={{ color: 'var(--assistant-text)' }}>
                       Chat with Octo Bahama
                     </div>
-                    <div className="truncate text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>
+                    <div className="break-words text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>
                       AI assistant · Online
                     </div>
                   </div>
