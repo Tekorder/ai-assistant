@@ -18,6 +18,7 @@ import {
   moveChecklistItem as moveChecklistItemArr,
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
+import { TaskCheckmark } from './TaskCheckmark';
 
 type Props = {
   open: boolean;
@@ -264,7 +265,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                   style={{ color: 'var(--assistant-text)' }}
                 />
               ) : (
-                <span className="truncate max-w-40">{l.name || 'List'}</span>
+                <span className="break-words max-w-40">{l.name || 'List'}</span>
               )}
               {isActive && !isEditing && (
                 <span className="text-[11px] tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
@@ -311,7 +312,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
             +
           </button>
           <button type="button" onClick={() => startTabRename(activeList)}
-            className={`text-[13px] truncate ${classes.panelEmptyAddBtn}`} title="Rename list">
+            className={`text-[13px] break-words ${classes.panelEmptyAddBtn}`} title="Rename list">
             Rename
           </button>
         </div>
@@ -369,11 +370,11 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                   <button
                     type="button"
                     onClick={() => handleUpdateItem(activeList.id, item.id, { checked: !item.checked })}
-                    className={`check-glow h-4 w-4 rounded flex items-center justify-center shrink-0 transition-[transform,background-color,box-shadow] duration-150 ease-out group-hover:scale-[1.06] ${item.checked ? classes.panelCheckboxChecked : classes.panelCheckboxUnchecked}`}
+                    className="check-glow h-4 w-4 rounded-full flex items-center justify-center shrink-0 transition-[transform,box-shadow] duration-150 ease-out group-hover:scale-[1.06]"
                     aria-pressed={item.checked}
                     aria-label={item.checked ? 'Mark as not done' : 'Mark as done'}
                   >
-                    {item.checked ? <span className="text-xs" style={{ color: 'var(--assistant-accent)' }}>✓</span> : null}
+                    <TaskCheckmark checked={Boolean(item.checked)} />
                   </button>
                   <input
                     ref={el => void (itemInputRefs.current[item.id] = el)}

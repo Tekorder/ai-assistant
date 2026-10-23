@@ -310,10 +310,8 @@ export function PanelsMenuButton({
                 role="menuitemcheckbox"
                 aria-checked={isOn}
                 onClick={onToggle[item.id]}
-                className={[
-                  'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors',
-                  isOn ? classes.topNavCenterActive : classes.topNavCenterInactive,
-                ].join(' ')}
+                // On/off is shown by the checkmark alone — no active highlight
+                className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors ${classes.topNavCenterInactive}`}
               >
                 {item.icon}
                 <span className="flex-1">{item.label}</span>
@@ -561,7 +559,7 @@ export function AccountActions({
                 />
                 <div className="flex-1 min-w-0">
                   <div
-                    className="text-[14px] font-medium leading-snug truncate"
+                    className="text-[14px] font-medium leading-snug break-words"
                     style={{
                       color: isDone ? 'var(--assistant-text-faint)' : 'var(--assistant-text)',
                       textDecoration: isDone ? 'line-through' : 'none',
@@ -686,7 +684,7 @@ export function AccountActions({
       title={userName ? `Signed in as ${userName}` : 'Profile'}
     >
       {avatar}
-      <span className={`${placement === 'footer' ? 'min-w-0 flex-1 text-left' : 'hidden sm:inline max-w-[140px]'} truncate text-[14px] font-medium`}>
+      <span className={`${placement === 'footer' ? 'min-w-0 flex-1 text-left' : 'hidden sm:inline max-w-[140px]'} break-words text-[14px] font-medium`}>
         {userName || 'Account'}
       </span>
       {/* Menu icon — opens the drawer. In the sidebar it sits at the top instead. */}
@@ -868,7 +866,7 @@ export default function TopNavBar({
           <img
             src={themeStyle === 'dark' ? '/logowhite-clean.png' : '/logoblue.png'}
             alt="youtask"
-            className="h-7 w-auto shrink-0"
+            className="h-[35px] w-auto shrink-0"
           />
         </div>
 

@@ -117,10 +117,6 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const currentProject = projects[currentProjectIndex];
   const blocks: Block[] = currentProject?.blocks
     ?? moveUncToTop(ensureUncExists([]));
-const visibleLists = useMemo<Record<string, boolean>>(
-  () => currentProject?.visibleLists ?? {},
-  [currentProject?.visibleLists],
-);
 
   // Selecting another group drops a focused list from the previous one
   useEffect(() => {
@@ -513,8 +509,11 @@ const visibleLists = useMemo<Record<string, boolean>>(
   // Leaving a brand-new list without a name (and with no tasks) drops it
   const handleListTitleBlur = (b: Block) => {
     setEditingListTitleId(prev => (prev === b.id ? null : prev));
-    if ((b.text || '').trim()) return;
-    setCurrentBlocks(prev => (prev.some(x => x.parentId === b.id) ? prev : prev.filter(x => x.id !== b.id)));
+    setCurrentBlocks(prev => {
+      const cur = prev.find(x => x.id === b.id);
+      if (!cur || (cur.text || '').trim()) return prev;
+      return prev.some(x => x.parentId === b.id) ? prev : prev.filter(x => x.id !== b.id);
+    });
   };
 
   /* ── Keyboard (tasks) ── */
@@ -671,11 +670,12 @@ const visibleLists = useMemo<Record<string, boolean>>(
     setListDropGroupId(null);
   };
 
-  // Lives on the first group's title row (right-aligned)
+  // Lives on the "Show all" row (right-aligned); stopPropagation keeps it from toggling Show all
   const manageGroupsButton = (
     <button
       type="button"
-      onClick={() => setGroupsModalOpen(true)}
+      onClick={(e) => { e.stopPropagation(); setGroupsModalOpen(true); }}
+      onKeyDown={(e) => e.stopPropagation()}
       data-group-manage
       className={`${classes.panelCloseBtn} flex h-7 w-7 shrink-0 items-center justify-center rounded-md`}
       // Theme text color: navy on light themes, white on dark (icon keeps its .72 opacity)
@@ -718,17 +718,9 @@ const visibleLists = useMemo<Record<string, boolean>>(
                 className="mb-3 flex cursor-pointer select-none items-center gap-1 rounded-md px-0.5 py-1"
                 style={{ paddingLeft: 2 }}
               >
-                <div className="w-5 shrink-0 flex items-center justify-center" style={{ color: showAllGroups ? 'var(--assistant-accent)' : 'var(--assistant-text-faint)' }}>
-                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                    <rect x="2" y="2" width="5" height="5" rx="1.2" />
-                    <rect x="9" y="2" width="5" height="5" rx="1.2" />
-                    <rect x="2" y="9" width="5" height="5" rx="1.2" />
-                    <rect x="9" y="9" width="5" height="5" rx="1.2" />
-                  </svg>
-                </div>
                 <span
                   className={[
-                    'min-w-0 truncate text-left text-[14px] md:text-sm font-semibold',
+                    'min-w-0 break-words text-left text-[14px] md:text-sm font-semibold',
                     showAllGroups ? 'underline decoration-2 underline-offset-[3px]' : '',
                   ].join(' ')}
                   style={{
@@ -736,11 +728,12 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     textDecorationColor: showAllGroups ? 'var(--assistant-accent)' : undefined,
                   }}
                 >
-                  Show all
+                  All lists
                 </span>
+                <span className="ml-auto">{manageGroupsButton}</span>
               </div>
               <div className="space-y-4">
-              {projects.map((project, projectIndex) => {
+              {projects.map((project) => {
                 const isCurrent = project.project_id === currentProject?.project_id;
                 const isGroupCollapsed = collapsedGroups[project.project_id] === true;
                 const listBlocks = (project.blocks ?? []).filter(b => b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true);
@@ -762,36 +755,26 @@ const visibleLists = useMemo<Record<string, boolean>>(
               >
                 <div className="mb-1 flex items-center gap-2">
                   <div
-                    className="flex min-w-0 flex-1 items-center gap-1 px-1 text-left text-[12px] font-semibold uppercase tracking-wide"
+                    // Same type as the list titles below (14px semibold, normal case)
+                    className="flex min-w-0 flex-1 items-center gap-1 px-1 text-left text-[14px] md:text-sm font-semibold"
                     style={{ color: 'var(--assistant-text-soft)' }}
                   >
-                    {/* The chevron collapses; clicking the name selects the group and clears any view filter */}
-                    <button
-                      type="button"
-                      onClick={() => toggleGroupCollapsed(project.project_id)}
-                      className="shrink-0 flex h-4 w-4 items-center justify-center"
-                      title={isGroupCollapsed ? 'Expand group' : 'Collapse group'}
-                      aria-label={isGroupCollapsed ? `Expand ${project.title}` : `Collapse ${project.title}`}
-                      aria-expanded={!isGroupCollapsed}
-                    >
-                      <svg
-                        viewBox="0 0 16 16"
-                        className="h-3 w-3 shrink-0 transition-transform duration-150"
-                        style={{ transform: isGroupCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        aria-hidden="true"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
+                    {/* Folder · name · chevron at the end. Clicking the name selects the group and
+                        clears any view filter; the chevron collapses it */}
+                    <span className="w-5 shrink-0 flex items-center justify-center" aria-hidden="true">
+                      {/* Stacked rectangles (receding cards behind the front one) */}
+                      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true">
+                        <rect x="1.75" y="6.25" width="12.5" height="8" rx="1.5" />
+                        <path d="M3.25 4.25h9.5" />
+                        <path d="M4.75 2.25h6.5" />
                       </svg>
-                    </button>
+                    </span>
                     <span
                       role="button"
                       tabIndex={0}
                       className={[
-                        'truncate cursor-pointer select-none',
-                        isCurrent ? 'font-bold underline underline-offset-[3px]' : '',
+                        'break-words cursor-pointer select-none',
+                        isCurrent ? 'underline underline-offset-[3px]' : '',
                       ].join(' ')}
                       style={isCurrent ? { color: 'var(--assistant-text)' } : undefined}
                       title={project.title}
@@ -807,8 +790,28 @@ const visibleLists = useMemo<Record<string, boolean>>(
                     >
                       {project.title}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => toggleGroupCollapsed(project.project_id)}
+                      className="ml-auto shrink-0 flex h-7 w-7 items-center justify-center rounded-md"
+                      style={{ color: 'var(--assistant-accent)' }}
+                      title={isGroupCollapsed ? 'Expand group' : 'Collapse group'}
+                      aria-label={isGroupCollapsed ? `Expand ${project.title}` : `Collapse ${project.title}`}
+                      aria-expanded={!isGroupCollapsed}
+                    >
+                      <svg
+                        viewBox="0 0 16 16"
+                        className="h-3.5 w-3.5 shrink-0 transition-transform duration-150"
+                        style={{ transform: isGroupCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        aria-hidden="true"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
+                      </svg>
+                    </button>
                   </div>
-                  {projectIndex === 0 ? manageGroupsButton : null}
                 </div>
 
               {isGroupCollapsed ? null : (
@@ -823,7 +826,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
                   }
                   return listBlocks.map((b) => {
                     const hasTitle = (b.text || '').trim() !== '';
-                    const typingThis = editingListTitleId === b.id;
+                    // While any list title is being typed, no "List…" ghost anywhere
+                    const typing = editingListTitleId !== null;
                     return (
                       <React.Fragment key={b.id}>
                         <div
@@ -833,7 +837,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                             'group flex items-center gap-1 px-0.5 py-1 rounded-md',
                             dragOverId === b.id && dragRef.current?.id !== b.id ? classes.dragOver : '',
                             dragRef.current?.id === b.id ? 'opacity-60' : '',
-                            hasTitle && !typingThis ? 'side-add-anchor' : '',
+                            hasTitle && !typing ? 'side-add-anchor' : '',
                           ].join(' ')}
                           style={{ paddingLeft: 2 }}
                         >
@@ -841,15 +845,17 @@ const visibleLists = useMemo<Record<string, boolean>>(
                             draggable
                             onDragStart={e => onDragStartRow(e, b.id, project.project_id)}
                             onDragEnd={onDragEndRow}
-                            className="w-5 shrink-0 select-none flex items-center justify-center cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-100 transition-opacity"
-                            style={{ color: 'var(--assistant-text-faint)' }}
+                            // List badge (round, accent) — doubles as the drag handle
+                            className="h-5 w-5 shrink-0 select-none flex items-center justify-center rounded-full cursor-grab active:cursor-grabbing"
+                            style={{ background: 'var(--assistant-accent)', color: '#fff' }}
                             title="Drag to reorder"
                             aria-label="Drag to reorder"
                           >
-                            <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
-                              <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-                              <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
-                              <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
+                            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                              <circle cx="3" cy="4" r="1" fill="currentColor" stroke="none" />
+                              <circle cx="3" cy="8" r="1" fill="currentColor" stroke="none" />
+                              <circle cx="3" cy="12" r="1" fill="currentColor" stroke="none" />
+                              <path strokeLinecap="round" d="M6 4h7M6 8h7M6 12h7" />
                             </svg>
                           </div>
 
@@ -876,8 +882,9 @@ const visibleLists = useMemo<Record<string, boolean>>(
                                 aria-pressed={focusedList?.listId === b.id}
                                 title={focusedList?.listId === b.id ? 'Showing only this list — click to show all lists' : 'Show only this list'}
                                 className={[
-                                  'min-w-0 cursor-pointer select-none truncate text-left text-[14px] md:text-sm font-semibold',
-                                  focusedList?.listId === b.id ? 'underline decoration-2 underline-offset-[3px]' : '',
+                                  'min-w-0 cursor-pointer select-none break-words text-left text-[14px] md:text-sm font-semibold',
+                                  // Selected list: double underline (a selected group gets a single one)
+                                  focusedList?.listId === b.id ? 'underline decoration-double underline-offset-[3px]' : '',
                                 ].join(' ')}
                                 style={{
                                   color: 'var(--assistant-text)',
@@ -905,7 +912,8 @@ const visibleLists = useMemo<Record<string, boolean>>(
                               {(() => {
                                 const p = getListProgress(project.blocks ?? [], b.id);
                                 return (
-                                  <span className="shrink-0 text-[12px] font-medium tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
+                                  // ml-auto: pinned to the row's right edge, however short the title
+                                  <span className="ml-auto shrink-0 pl-2 text-[12px] font-medium tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
                                     ({p.done}/{p.total})
                                   </span>
                                 );
@@ -947,9 +955,10 @@ const visibleLists = useMemo<Record<string, boolean>>(
                             }}
                             className={[
                               'shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-opacity',
-                              listMenu?.listId === b.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-70 hover:!opacity-100',
+                              listMenu?.listId === b.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
                             ].join(' ')}
-                            style={{ color: 'var(--assistant-text-faint)' }}
+                            // Full theme text color — the faint tone was too hard to spot
+                            style={{ color: 'var(--assistant-text)' }}
                             title="List options"
                             aria-label="List options"
                             aria-haspopup="menu"
@@ -962,9 +971,9 @@ const visibleLists = useMemo<Record<string, boolean>>(
                             </svg>
                           </button>
                         </div>
-                        {/* Ghost "List…" row — on hover under a named list, never while its title is being typed.
+                        {/* Ghost "List…" row — on hover under a named list, never while a title is being typed.
                             Must directly follow the row: CSS reveals it via .side-add-anchor:hover + .side-add-ghost */}
-                        {hasTitle && !typingThis && (
+                        {hasTitle && !typing && (
                           <button
                             type="button"
                             onClick={() => handleAddListAfter(b.id)}
@@ -994,8 +1003,6 @@ const visibleLists = useMemo<Record<string, boolean>>(
       {listMenu ? createPortal(
         (() => {
           const listId = listMenu.listId;
-          const p = getListProgress(blocks, listId);
-          const isVisible = visibleLists[listId] !== false;
           return (
             <div
               role="menu"
@@ -1009,34 +1016,27 @@ const visibleLists = useMemo<Record<string, boolean>>(
               }}
               onMouseDown={e => e.stopPropagation()}
             >
-              <span className="shrink-0 text-[12px] tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
-                ({p.done}/{p.total})
-              </span>
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  toggleListVisibility(listId);
+                  setListMenu(null);
+                  setEditingListTitleId(listId);
+                  requestAnimationFrame(() => {
+                    const el = inputRefs.current[listId];
+                    if (!el) return;
+                    el.focus();
+                    el.setSelectionRange(el.value.length, el.value.length);
+                  });
                 }}
-                className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors"
-                style={{ color: isVisible ? 'var(--assistant-accent)' : 'var(--assistant-text-faint)' }}
-                title={isVisible ? 'Hide list' : 'Show list'}
-                aria-label={isVisible ? 'Hide list' : 'Show list'}
-                aria-pressed={isVisible}
+                className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:!text-[var(--assistant-text)]"
+                style={{ color: 'var(--assistant-text-faint)' }}
+                title="Rename list"
+                aria-label="Rename list"
               >
-                {isVisible ? (
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
-                    <circle cx="12" cy="12" r="2.75" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.6 10.7a2.75 2.75 0 0 0 3.7 3.7" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.9 5.6A10.4 10.4 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16.6 16.6 0 0 1-3.2 3.6" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.1 6.2A16.7 16.7 0 0 0 2.5 12S6 18.5 12 18.5c1.1 0 2.1-.2 3.1-.5" />
-                  </svg>
-                )}
+                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
+                </svg>
               </button>
               <button
                 type="button"
@@ -1169,7 +1169,7 @@ const visibleLists = useMemo<Record<string, boolean>>(
                       />
                     ) : (
                       <span
-                        className="min-w-0 flex-1 truncate text-[13px] font-semibold uppercase tracking-wide"
+                        className="min-w-0 flex-1 break-words text-[13px] font-semibold uppercase tracking-wide"
                         style={{ color: 'var(--assistant-text-soft)' }}
                         title={confirming ? project.title : 'Double-click to rename'}
                         onDoubleClick={() => { if (!confirming) startRenameProject(project); }}

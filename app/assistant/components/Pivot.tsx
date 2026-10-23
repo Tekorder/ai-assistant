@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getTaskFlag, type TaskFlagColor } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
+import { TaskCheckmark } from './TaskCheckmark';
 
 export type PivotTreeRow = {
   key: string;
@@ -254,14 +255,12 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
                 onToggleTask?.(r.blockId, !Boolean(r.checked));
               }}
               className={[
-                'flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border transition-shadow',
+                'flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-shadow',
                 onToggleTask ? 'check-glow cursor-pointer' : 'cursor-default',
-                r.checked ? 'border-emerald-400/70 bg-emerald-500/15' : '',
               ].join(' ')}
-              style={r.checked ? undefined : { borderColor: 'var(--assistant-border-soft)' }}
               title={r.checked ? 'Completed' : 'Not completed'}
             >
-              {r.checked ? <span className="text-xs text-emerald-300">✓</span> : null}
+              <TaskCheckmark checked={Boolean(r.checked)} />
             </button>
           )}
 
@@ -312,7 +311,7 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
       <div className="flex h-[49px] shrink-0 items-center gap-2 px-4" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           <span className="shrink-0 text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--assistant-accent)' }}>{pivotKind === 'list' ? 'List' : 'Keyword'}</span>
-          <h2 className="min-w-0 truncate text-[16px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }} title={word}>&ldquo;{word}&rdquo;</h2>
+          <h2 className="min-w-0 break-words text-[16px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }} title={word}>&ldquo;{word}&rdquo;</h2>
         </div>
         <button
           type="button"

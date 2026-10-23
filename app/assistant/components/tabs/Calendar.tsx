@@ -288,7 +288,7 @@ export default function CalendarView({
             >
               {/* Label row */}
               <div className="flex items-center justify-between gap-1 leading-none mb-[4px]">
-                <span className="text-[10px] md:text-[11px] font-medium truncate">
+                <span className="text-[10px] md:text-[11px] font-medium break-words">
                   <span className="hidden md:inline">{g.listTitle}</span>
                   <span className="md:hidden">{g.listTitle.slice(0, 8)}</span>
                 </span>
@@ -585,8 +585,8 @@ export default function CalendarView({
                           className={`relative overflow-hidden rounded-md border px-1.5 pt-[3px] pb-[5px] ${pillColorForCalendarCell(colorIdx, isLight)}`}
                           title={`${g.listTitle}: ${done}/${total}`}
                         >
-                          <div className="flex items-center justify-between gap-1 leading-none mb-[4px]">
-                            <span className="text-[10px] font-medium truncate">{g.listTitle.slice(0, 10)}</span>
+                          <div className="flex items-start justify-between gap-1 leading-tight mb-[4px]">
+                            <span className="min-w-0 text-[10px] font-medium break-words">{g.listTitle}</span>
                             <span className="text-[9px] opacity-60 shrink-0">{pillDone ? '✓' : `${done}/${total}`}</span>
                           </div>
                           <div className="h-[3px] w-full rounded-full overflow-hidden" style={{ background: 'var(--assistant-control-bg)' }}>

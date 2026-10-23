@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import ProfileDashboard from './ProfileDashboard';
+import CompletedReport from './CompletedReport';
 import { getProfile } from '@/lib/session';
 
 type ProfilePanelProps = {
@@ -15,6 +16,7 @@ export default function ProfilePanel({ open, onClose }: ProfilePanelProps) {
   const [isClosing, setIsClosing] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [tab, setTab] = useState<'dashboard' | 'completed'>('dashboard');
 
   useEffect(() => {
     if (open) {
@@ -96,8 +98,8 @@ export default function ProfilePanel({ open, onClose }: ProfilePanelProps) {
                 {initial}
               </div>
               <div className="min-w-0">
-                <div className="truncate text-[16px] font-semibold">{displayName}</div>
-                <div className="truncate text-[14px]" style={{ color: 'var(--assistant-text-soft)' }}>
+                <div className="break-words text-[16px] font-semibold">{displayName}</div>
+                <div className="break-words text-[14px]" style={{ color: 'var(--assistant-text-soft)' }}>
                   {email}
                 </div>
               </div>
@@ -126,7 +128,26 @@ export default function ProfilePanel({ open, onClose }: ProfilePanelProps) {
 
             <div style={{ borderTop: '1px solid var(--assistant-border-soft)' }} />
 
-            <ProfileDashboard />
+            {/* Reports: Dashboard (monthly stats) · Completed (what was finished, day by day) */}
+            <div className="flex gap-1" role="tablist" aria-label="Reports">
+              {([['dashboard', 'Dashboard'], ['completed', 'Completed']] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === id}
+                  onClick={() => setTab(id)}
+                  className="rounded-lg px-3 py-1.5 text-[14px] font-medium transition-colors"
+                  style={tab === id
+                    ? { background: 'var(--assistant-control-bg)', color: 'var(--assistant-text)' }
+                    : { color: 'var(--assistant-text-muted)' }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {tab === 'dashboard' ? <ProfileDashboard /> : <CompletedReport />}
           </div>
         </div>
       </div>

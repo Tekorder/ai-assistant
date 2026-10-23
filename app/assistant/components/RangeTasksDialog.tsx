@@ -11,6 +11,7 @@ import {
   isValidDateYYYYMMDD,
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from './TaskFlag';
+import { TaskCheckmark } from './TaskCheckmark';
 
 type RangeTask = { id: string; text: string; listTitle: string; checked: boolean; block: Block };
 
@@ -112,26 +113,18 @@ export function RangeTasksDialog({
                         className="flex items-center gap-2 rounded-lg px-2.5 py-1.5"
                         style={{ background: 'var(--assistant-control-bg)', border: '1px solid var(--assistant-border-soft)' }}
                       >
-                        <span
-                          className="grid size-4 shrink-0 place-items-center rounded text-[10px]"
-                          style={{
-                            border: '1px solid var(--assistant-border-soft)',
-                            background: t.checked ? 'var(--assistant-accent)' : undefined,
-                            color: 'var(--assistant-contrast-text, #fff)',
-                          }}
-                          aria-label={t.checked ? 'Done' : 'Open'}
-                        >
-                          {t.checked ? '✓' : ''}
+                        <span className="grid size-4 shrink-0 place-items-center" aria-label={t.checked ? 'Done' : 'Open'}>
+                          <TaskCheckmark checked={Boolean(t.checked)} />
                         </span>
                         <span
-                          className={`min-w-0 flex-1 truncate text-[13px] ${t.checked ? 'line-through opacity-60' : ''}`}
+                          className={`min-w-0 flex-1 break-words text-[13px] ${t.checked ? 'line-through opacity-60' : ''}`}
                           style={{ color: 'var(--assistant-text)' }}
                           title={t.text}
                         >
                           {t.text || 'Untitled'}
                         </span>
                         {flag && <TaskFlagIcon color={flag} className="h-3.5 w-3.5 shrink-0" />}
-                        <span className="max-w-[40%] shrink-0 truncate text-[11px]" style={{ color: 'var(--assistant-text-faint)' }} title={t.listTitle}>
+                        <span className="max-w-[40%] shrink-0 break-words text-[11px]" style={{ color: 'var(--assistant-text-faint)' }} title={t.listTitle}>
                           {t.listTitle}
                         </span>
                       </li>

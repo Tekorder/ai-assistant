@@ -17,6 +17,7 @@ import {
   updateHabit as updateHabitArr,
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
+import { TaskCheckmark } from './TaskCheckmark';
 
 type Props = {
   open: boolean;
@@ -265,9 +266,9 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
                 <button
                   type="button"
                   onClick={() => handleUpdateHabit(h.id, { checked: !h.checked })}
-                  className={`check-glow h-4 w-4 rounded flex items-center justify-center shrink-0 transition-[transform,background-color,box-shadow] duration-150 ease-out group-hover:scale-[1.06] ${h.checked ? classes.panelCheckboxChecked : classes.panelCheckboxUnchecked}`}
+                  className="check-glow h-4 w-4 rounded-full flex items-center justify-center shrink-0 transition-[transform,box-shadow] duration-150 ease-out group-hover:scale-[1.06]"
                 >
-                  {h.checked ? <span className="text-xs" style={{ color: 'var(--assistant-accent)' }}>✓</span> : null}
+                  <TaskCheckmark checked={Boolean(h.checked)} />
                 </button>
                 <input
                   ref={el => void (habitInputRefs.current[h.id] = el)}

@@ -101,7 +101,7 @@ export function TaskReminderModal({ task, onClose }: { task: ReminderSource; onC
             <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
               <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Set reminder</div>
               {(task.text || '').trim() ? (
-                <div className="mt-1 truncate text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} title={task.text}>
+                <div className="mt-1 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} title={task.text}>
                   {task.text}
                 </div>
               ) : null}

@@ -85,7 +85,7 @@ export function DatePickerModal({
         <div className="px-4 pt-4 pb-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
           <div className="text-[15px] font-semibold">{title}</div>
           {subtitle ? (
-            <div className="mt-0.5 truncate text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} title={subtitle}>
+            <div className="mt-0.5 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} title={subtitle}>
               {subtitle}
             </div>
           ) : null}

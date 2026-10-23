@@ -30,6 +30,7 @@ import {
 import { TaskFlagIcon } from '../TaskFlag';
 import { DatePickerModal } from '../DatePickerModal';
 import { useShowAllGroups } from '../../_hook/useShowAllGroups';
+import { TaskCheckmark } from '../TaskCheckmark';
 
 /* ===================== Local UI types (no van a datacenter) ===================== */
 
@@ -661,11 +662,7 @@ export default function Timeline() {
                             aria-label={card.checked ? 'Completed' : 'Mark completed'}
                             aria-pressed={card.checked}
                           >
-                            {card.checked ? (
-                              <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden="true">
-                                <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            ) : null}
+                            <TaskCheckmark checked={Boolean(card.checked)} />
                           </button>
 
                           <div className="yt-row-main">
@@ -709,11 +706,7 @@ export default function Timeline() {
                                       aria-label={st.checked ? 'Completed' : 'Mark completed'}
                                       aria-pressed={st.checked}
                                     >
-                                      {st.checked ? (
-                                        <svg viewBox="0 0 12 12" width="8" height="8" fill="none" aria-hidden="true">
-                                          <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                      ) : null}
+                                      <TaskCheckmark checked={Boolean(st.checked)} size="sm" />
                                     </button>
                                     <span className="yt-subtext">{st.text || '(subtask)'}</span>
                                   </div>
