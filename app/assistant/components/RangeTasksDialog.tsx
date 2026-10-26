@@ -9,6 +9,8 @@ import {
   getTaskFlag,
   isListVisible,
   isValidDateYYYYMMDD,
+  formatPill,
+  weekdayLabel,
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from './TaskFlag';
 import { TaskCheckmark } from './TaskCheckmark';
@@ -102,7 +104,7 @@ export function RangeTasksDialog({
             days.map(({ ymd, tasks }) => (
               <div key={ymd} className="mb-4 last:mb-0">
                 <div className="mb-1.5 text-[12px] font-semibold uppercase tracking-wide" style={{ color: 'var(--assistant-text-soft)' }}>
-                  {new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {weekdayLabel(ymd)}, {formatPill(ymd)}
                 </div>
                 <ul className="space-y-1">
                   {tasks.map(t => {

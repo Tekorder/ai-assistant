@@ -2,12 +2,15 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import classes from '@/app/assistant/_theme/themes.module.css';
+import { TaskCheckmark } from './TaskCheckmark';
 import {
   type Project,
   LS_KEY_V2,
   readProjectsLS,
   isValidDateYYYYMMDD,
   isUncTitleBlock,
+  formatPill,
+  weekdayLabel,
 } from '@/lib/datacenter';
 
 type DoneTask = { id: string; text: string; day: string; group: string; list: string };
@@ -18,9 +21,7 @@ function monthLabel(key: string) {
 }
 
 function dayLabel(ymd: string) {
-  const [y, m, d] = ymd.split('-').map(Number);
-  return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
-    .format(new Date(y, m - 1, d));
+  return `${weekdayLabel(ymd)}, ${formatPill(ymd)}`;
 }
 
 const escapeHtml = (s: string) =>
@@ -187,27 +188,33 @@ export default function CompletedReport() {
         <div className="space-y-5">
           {current.days.map(d => (
             <div key={d.day}>
+              {/* Same type as Workspace: day = list header (14px semibold + rule), rows = task rows */}
               <div
-                className="mb-1.5 flex items-baseline gap-2 pb-1 text-[14px] font-semibold"
+                className="mb-1 flex items-baseline gap-2 py-1 text-[14px] md:text-sm font-semibold"
                 style={{ color: 'var(--assistant-text)', borderBottom: '1px solid var(--assistant-border-soft)' }}
               >
                 {d.label}
-                <span className="text-[12px] font-normal" style={{ color: 'var(--assistant-text-faint)' }}>
-                  · {d.tasks.length} task{d.tasks.length === 1 ? '' : 's'}
+                <span className="text-[12px] font-medium tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
+                  ({d.tasks.length})
                 </span>
               </div>
-              <ul className="space-y-1 pl-1">
+              <ul className="space-y-1">
                 {d.tasks.map(t => (
-                  <li key={t.id} className="flex items-start gap-2 text-[14px]" style={{ color: 'var(--assistant-text-soft)' }}>
-                    <svg viewBox="0 0 16 16" className="mt-[3px] h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--assistant-accent)' }} aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.2 8.4l3 3 6.6-7" />
-                    </svg>
-                    <span className="min-w-0 break-words">
-                      {t.text}
-                      {where(t) ? (
-                        <span className="ml-2 text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>{where(t)}</span>
-                      ) : null}
+                  <li key={t.id} className="flex items-start gap-2 px-0.5 py-1" style={{ paddingLeft: 8 }}>
+                    <span className="flex h-[1.45em] w-4 shrink-0 items-center justify-center text-[14px] md:text-sm">
+                      <TaskCheckmark checked />
                     </span>
+                    <span
+                      className="min-w-0 flex-1 break-words text-[14px] md:text-sm leading-[1.45]"
+                      style={{ color: 'var(--assistant-text-soft)' }}
+                    >
+                      {t.text}
+                    </span>
+                    {where(t) ? (
+                      <span className="shrink-0 pl-2 text-[12px] leading-[1.45rem]" style={{ color: 'var(--assistant-text-faint)' }}>
+                        {where(t)}
+                      </span>
+                    ) : null}
                   </li>
                 ))}
               </ul>

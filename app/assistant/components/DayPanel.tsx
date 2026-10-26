@@ -18,13 +18,16 @@ import {
   removeTaskAndSubtasks,
   updateBlock,
   getTaskFlag,
+  formatPill,
   type TaskFlagColor,
 } from '@/lib/datacenter';
-import { TaskFlagBadge } from './TaskFlag';
+import { TaskFlagButton } from './TaskFlag';
+import { TaskNoteButton, TaskNoteModal } from './TaskNote';
+import { TaskRowMenu } from './TaskRowMenu';
 import { useShowAllGroups } from '../_hook/useShowAllGroups';
 import { useQuickFilters } from './QuickFiltersContext';
 import classes from '@/app/assistant/_theme/themes.module.css';
-import { TaskCheckmark } from './TaskCheckmark';
+import { AgendaListHeader, AgendaListTitle, AgendaTaskRow, AgendaCheck, AgendaTaskText, AgendaDate, AgendaMenuButton } from './AgendaList';
 
 type CalCard = {
   id: string;
@@ -37,6 +40,8 @@ type CalCard = {
   isHidden?: boolean;
   archived?: boolean;
   flag?: TaskFlagColor;
+  note?: string;
+  createdAt?: string;
 };
 
 type DayGroup = {
@@ -56,7 +61,8 @@ type Props = {
   onClose: () => void;
   ymd: string;
   variant?: 'overlay' | 'dock';
-  isLight?: boolean;
+  /** Weekday, "Nd ago" and date on one line, in a 49px header like the other panels */
+  oneLineHeader?: boolean;
 };
 
 function dayDiff(ymd: string): number {
@@ -65,39 +71,13 @@ function dayDiff(ymd: string): number {
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
 
-function pillColorForList(index: number, isLight = false): string {
-  if (isLight) {
-    const palettes = [
-      'bg-sky-500/12 text-sky-700 border-sky-500/25',
-      'bg-violet-500/12 text-violet-700 border-violet-500/25',
-      'bg-rose-500/12 text-rose-700 border-rose-400/25',
-      'bg-cyan-500/12 text-cyan-700 border-cyan-400/25',
-      'bg-teal-500/12 text-teal-700 border-teal-500/25',
-      'bg-fuchsia-500/12 text-fuchsia-700 border-fuchsia-500/25',
-      'bg-indigo-500/12 text-indigo-700 border-indigo-500/25',
-      'bg-orange-500/12 text-orange-700 border-orange-400/25',
-    ];
-    return palettes[index % palettes.length];
-  }
-  const palettes = [
-    'bg-[#d5fc43]/15 text-[#d5fc43] border-[#d5fc43]/28',
-    'bg-sky-500/15 text-sky-200 border-sky-400/25',
-    'bg-[#d5fc43]/10 text-[#d5fc43] border-[#d5fc43]/22',
-    'bg-violet-500/15 text-violet-200 border-violet-400/25',
-    'bg-[#d5fc43]/12 text-[#d5fc43] border-[#d5fc43]/26',
-    'bg-cyan-500/15 text-cyan-200 border-cyan-400/25',
-    'bg-[#d5fc43]/8 text-[#d5fc43]/95 border-[#d5fc43]/18',
-    'bg-emerald-500/12 text-emerald-200 border-emerald-400/25',
-  ];
-  return palettes[index % palettes.length];
-}
 
 export default function DayPanel({
   open,
   onClose,
   ymd,
   variant = 'overlay',
-  isLight = false,
+  oneLineHeader = false,
 }: Props) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
@@ -197,6 +177,8 @@ export default function DayPanel({
           isHidden: b.isHidden === true,
           archived: b.archived,
           flag: getTaskFlag(b),
+          note: b.note,
+          createdAt: b.createdAt,
         });
       }
     }
@@ -277,6 +259,13 @@ export default function DayPanel({
     )));
   };
 
+  const patchTask = (cardId: string, patch: Partial<Block>) =>
+    mutateHolding(cardId, bl => bl.map(b => (b.id === cardId && b.indent === 1 ? { ...b, ...patch } : b)));
+
+  // ⋮ menu of a task row (same menu as Agenda, minus in-place edit and reminders)
+  const [taskMenu, setTaskMenu] = useState<{ cardId: string; x: number; y: number } | null>(null);
+  const [noteCardId, setNoteCardId] = useState<string | null>(null);
+
   const handleAddTask = (listId: string, text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -319,10 +308,6 @@ export default function DayPanel({
     return { color: 'var(--assistant-text-soft)' };
   })();
 
-  const allDayCards = groups.flatMap(g => g.cards);
-  const doneCount = allDayCards.filter(c => c.checked).length;
-  const totalCount = allDayCards.length;
-
   const panelAnim = isClosing
     ? 'dayPanelOut 0.24s cubic-bezier(0.4, 0, 1, 1) both'
     : 'dayPanelIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both';
@@ -341,6 +326,38 @@ export default function DayPanel({
         }
       `}</style>
 
+      {oneLineHeader ? (
+        // Same 49px header as the other panels, always one row
+        <div
+          className="flex min-h-[49px] items-center justify-between gap-2 px-4 py-1.5 shrink-0"
+          style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}
+        >
+          {/* One row: never wraps. @container lets the date scale to the room left (cqw) */}
+          <div className="@container flex min-w-0 flex-1 flex-nowrap items-center gap-2 whitespace-nowrap">
+            <span className="text-[16px] font-semibold leading-none" style={{ color: 'var(--assistant-text-soft)' }}>
+              {new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })}
+            </span>
+            <span
+              className="shrink-0 text-[12px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ ...diffStyle, background: 'var(--assistant-control-bg)', border: '1px solid var(--assistant-border-soft)' }}
+            >
+              {dayLabel}
+            </span>
+            {/* Full size (13px) with room to spare; shrinks down to 10px in a narrow panel */}
+            <span style={{ color: 'var(--assistant-text-muted)', fontSize: 'clamp(10px, 4cqw, 13px)' }}>
+              {formatPill(ymd)}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={requestClose}
+            className={`h-8 w-8 shrink-0 rounded-lg ${classes.panelCloseBtn}`}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
       <div
         className="flex items-start justify-between px-4 py-3 shrink-0"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}
@@ -358,18 +375,7 @@ export default function DayPanel({
             </span>
           </div>
           <div className="text-[13px] mt-1" style={{ color: 'var(--assistant-text-muted)' }}>
-            {new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <div className="h-1 rounded-full flex-1 overflow-hidden" style={{ background: 'var(--assistant-control-bg)' }}>
-              <div
-                className="h-full rounded-full bg-[#d5fc43]/85 transition-all duration-500 shadow-[0_0_12px_rgba(213,252,67,.25)]"
-                style={{ width: totalCount ? `${(doneCount / totalCount) * 100}%` : '0%' }}
-              />
-            </div>
-            <span className="text-[12px] shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>
-              {doneCount}/{totalCount}
-            </span>
+            {formatPill(ymd)}
           </div>
         </div>
         <button
@@ -381,109 +387,94 @@ export default function DayPanel({
           ✕
         </button>
       </div>
+      )}
 
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+      {/* Same list layout as Agenda: list title + rule, then task rows */}
+      <div className="flex-1 overflow-y-auto px-3 py-3">
         {groups.length === 0 ? (
           <div className="text-center py-10 text-[14px]" style={{ color: 'var(--assistant-text-faint)' }}>
             No tasks for this day.
           </div>
         ) : (
-          groups.map((group, gi) => (
-            <div key={group.listId} className="space-y-2">
-              <div className="flex items-center gap-2 px-1">
-                <span className={`text-[12px] font-semibold px-2 py-0.5 rounded-full border ${pillColorForList(gi, isLight)}`}>
-                  {group.listTitle}
-                </span>
-                <span className="text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
-                  {group.cards.length} task{group.cards.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-
-              {group.cards.map(card => (
-                <div
-                  key={card.id}
-                  className="rounded-xl border transition-all duration-200"
-                  style={{
-                    background: 'var(--assistant-surface)',
-                    borderColor: 'var(--assistant-border-soft)',
-                    opacity: card.archived ? 0.4 : card.checked ? 0.6 : 1,
-                  }}
-                >
-                  <div className="p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="group flex items-start gap-2 min-w-0 flex-1">
-                        {card.archived ? (
-                          <span
-                            className="mt-0.5 h-4 w-4 rounded flex items-center justify-center shrink-0 text-[10px]"
-                            style={{ border: '1px solid var(--assistant-border-soft)', color: 'var(--assistant-text-faint)' }}
-                          >
-                            ▣
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleToggleDone(card.id)}
-                            className="check-glow relative mt-0.5 h-4 w-4 shrink-0 flex items-center justify-center rounded-full group-hover:scale-[1.06] transition-[transform,box-shadow]"
-                            title={card.checked ? 'Mark pending' : 'Mark done'}
-                          >
-                            <TaskCheckmark checked={Boolean(card.checked)} />
-                          </button>
-                        )}
-
-                        <span
-                          className="text-[14px] leading-snug"
-                          style={{
-                            color: card.archived || card.checked ? 'var(--assistant-text-muted)' : 'var(--assistant-text)',
-                            textDecoration: card.archived || card.checked ? 'line-through' : 'none',
-                          }}
-                        >
-                          <TaskFlagBadge source={{ flag: card.flag }} inline />
-                          {card.text || '(no text)'}
-                        </span>
-                      </div>
-
-                      {!card.archived && (
-                        <div className="shrink-0 flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openPicker(card.id)}
-                            className="text-[15px] opacity-40 hover:opacity-90 transition-opacity"
-                            title="Reschedule"
-                          >
-                            📅
-                          </button>
-                          <input
-                            ref={el => void (dateRefs.current[card.id] = el)}
-                            type="date"
-                            className="hidden"
-                            value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
-                            onChange={e => {
-                              if (e.target.value) handleReschedule(card.id, e.target.value);
-                            }}
+          <div className="space-y-1">
+            {groups.map(group => (
+              <React.Fragment key={group.listId}>
+                <AgendaListHeader heading={<AgendaListTitle>{group.listTitle}</AgendaListTitle>} />
+                {group.cards.map(card => (
+                  <AgendaTaskRow
+                    key={card.id}
+                    style={card.archived ? { opacity: 0.5 } : undefined}
+                    check={
+                      <AgendaCheck
+                        checked={card.checked}
+                        onToggle={card.archived ? undefined : () => handleToggleDone(card.id)}
+                      />
+                    }
+                    right={
+                      card.archived ? (
+                        <span className="shrink-0 text-[11px] leading-[1.45rem]" style={{ color: 'var(--assistant-text-faint)' }}>archived</span>
+                      ) : (
+                        <>
+                          {card.flag ? (
+                            <TaskFlagButton source={{ flag: card.flag }} onChange={next => patchTask(card.id, { flag: next, priority: undefined })} />
+                          ) : null}
+                          {(card.note || '').trim() ? (
+                            <TaskNoteButton task={card} onChange={note => patchTask(card.id, { note })} />
+                          ) : null}
+                          <AgendaMenuButton
+                            open={taskMenu?.cardId === card.id}
+                            onOpen={r => setTaskMenu(prev => (prev?.cardId === card.id ? null : { cardId: card.id, x: r.right, y: r.bottom + 4 }))}
                           />
-                          <button
-                            type="button"
-                            onClick={() => setDeleteConfirmId(card.id)}
-                            className="text-[15px] opacity-40 hover:opacity-90 transition-opacity"
-                            title="Delete"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      )}
-                      {card.archived && (
-                        <span className="text-[10px] shrink-0" style={{ color: 'var(--assistant-text-faint)' }}>
-                          archived
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))
+                        </>
+                      )
+                    }
+                  >
+                    <AgendaTaskText checked={card.checked || Boolean(card.archived)}>{card.text || '(no text)'}</AgendaTaskText>
+                    <AgendaDate ymd={card.deadline} onClick={card.archived ? undefined : () => openPicker(card.id)} />
+                    {/* Native picker behind the date (and the menu's "Change due date") */}
+                    <input
+                      ref={el => void (dateRefs.current[card.id] = el)}
+                      type="date"
+                      className="sr-only"
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
+                      onChange={e => {
+                        if (e.target.value) handleReschedule(card.id, e.target.value);
+                      }}
+                    />
+                  </AgendaTaskRow>
+                ))}
+              </React.Fragment>
+            ))}
+          </div>
         )}
       </div>
+
+      {(() => {
+        const card = taskMenu ? allCards.find(c => c.id === taskMenu.cardId) : undefined;
+        return taskMenu && card ? (
+          <TaskRowMenu
+            x={taskMenu.x}
+            y={taskMenu.y}
+            createdAt={card.createdAt}
+            flag={card.flag}
+            hasNote={Boolean((card.note || '').trim())}
+            hasDueDate={isValidDateYYYYMMDD(card.deadline)}
+            onDueDate={() => openPicker(card.id)}
+            onFlag={flag => patchTask(card.id, { flag, priority: undefined })}
+            onNote={() => setNoteCardId(card.id)}
+            onDelete={() => setDeleteConfirmId(card.id)}
+            onClose={() => setTaskMenu(null)}
+          />
+        ) : null;
+      })()}
+      {(() => {
+        const card = noteCardId ? allCards.find(c => c.id === noteCardId) : undefined;
+        return card ? (
+          <TaskNoteModal task={card} onChange={note => patchTask(card.id, { note })} onClose={() => setNoteCardId(null)} />
+        ) : null;
+      })()}
 
       <div className="shrink-0 px-4 py-3" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
         {addOpen ? (
@@ -560,7 +551,6 @@ export default function DayPanel({
             className="w-full text-[14px] font-semibold px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] flex items-center justify-center gap-1.5"
             style={{
               color: 'var(--assistant-tone-1)',
-              border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 40%, transparent)',
               background:
                 'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1) 16%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 8%, transparent) 100%)',
             }}

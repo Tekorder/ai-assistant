@@ -9,6 +9,7 @@ import {
   LS_KEY_REMINDERS,
   readProjectsLS,
   readRemindersLS,
+  formatPill,
 } from '@/lib/datacenter';
 import {
   type MonthStats,
@@ -369,10 +370,7 @@ function Empty({ text }: { text: string }) {
 
 function MonthSlide({ s, prev }: { s: MonthStats; prev?: MonthStats }) {
   const prevLabel = prev?.shortLabel ?? 'last month';
-  const dayName = (day: number) =>
-    new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(
-      new Date(Number(s.key.slice(0, 4)), Number(s.key.slice(5, 7)) - 1, day),
-    );
+  const dayName = (day: number) => formatPill(`${s.key}-${String(day).padStart(2, '0')}`);
   const isCurrent = s.elapsedDays < s.daysInMonth;
   const bestWeekday = s.weekday.reduce((b, v, i) => (v > s.weekday[b] ? i : b), 0);
 

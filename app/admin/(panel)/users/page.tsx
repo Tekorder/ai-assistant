@@ -127,11 +127,11 @@ export default async function AdminUsersPage({
                       </span>
                     )}
                     <div className="min-w-0">
-                      <p className="truncate font-medium">
+                      <p className="break-words font-medium">
                         {u.name || '—'}
                         {!u.onboarded && <span className="ml-2 text-xs font-normal text-neutral-400">setup pending</span>}
                       </p>
-                      <p className="truncate text-xs text-neutral-500">{u.email}</p>
+                      <p className="break-all text-xs text-neutral-500">{u.email}</p>
                     </div>
                   </div>
                 </td>

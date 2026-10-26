@@ -46,8 +46,8 @@ function isReminderToday(r: ReminderItem, today: string): boolean {
 export const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.ReactNode }[] = [
   {
     id: 'quick',
-    label: 'Workspace',
-    mobileLabel: 'Work',
+    label: 'Agenda',
+    mobileLabel: 'Agenda',
     icon: (
       <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 8.5l3 3 6-7" />
@@ -699,10 +699,20 @@ export function AccountActions({
   if (placement === 'footer') {
     // One row: sync status · who you are · quick toggles on the right.
     // The bell lives in the sidebar header next to the panels menu.
+    // The name is just a label here — the menu has its own button at the top of the sidebar.
     return (
       <div className="flex items-center gap-1">
         {syncDot}
-        {profileBtn}
+        <div
+          className="flex min-w-0 flex-1 items-center gap-2 pl-1.5 pr-1 py-1"
+          style={{ color: 'var(--assistant-text)' }}
+          title={userName ? `Signed in as ${userName}` : undefined}
+        >
+          {avatar}
+          <span className="min-w-0 flex-1 break-words text-left text-[14px] font-medium">
+            {userName || 'Account'}
+          </span>
+        </div>
         {layoutBtn}
         {themeBtn}
       </div>

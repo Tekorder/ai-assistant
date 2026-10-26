@@ -655,16 +655,16 @@ input[type="checkbox"]:not(:disabled):hover {
   border-bottom: 1px solid var(--assistant-border-soft);
   font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
   color: var(--assistant-text-muted);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* Long titles wrap — never cut off */
+  overflow-wrap: anywhere;
 }
 .yt-group .yt-row { padding-left: 4px; }
 
-/* ===== Rows (list, one line between items) ===== */
+/* ===== Rows (list, no divider between items) ===== */
 .yt-row {
   position: relative;
   display: flex; align-items: flex-start; gap: 8px;
   padding: 12px 0;
-  border-bottom: 1px solid var(--assistant-row-divider);
 }
 .yt-row.is-dragging { opacity: .35; }
 

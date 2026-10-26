@@ -485,6 +485,13 @@
   font-weight: 600;
 }
 
+/* Light themes: white chip with the theme's text color */
+:global([data-theme-style="light"]) .quickFilterActive {
+  color: var(--assistant-text);
+  background: #fff;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--assistant-text) 12%, transparent);
+}
+
 .quickFilterInactive {
   color: var(--assistant-text-muted);
   background: color-mix(in srgb, var(--assistant-text) 6%, transparent);
@@ -500,7 +507,7 @@
 .quickNewListBtn {
   color: var(--assistant-text);
   background: transparent;
-  border: 1px solid var(--assistant-text);
+  border: none;
   box-shadow: none;
 }
 
@@ -792,17 +799,16 @@
 /* ── MiniCalendar ── */
 
 .miniCalNavBtn {
-  background: var(--assistant-control-bg);
-  color: var(--assistant-text-muted);
-  transition: background .15s;
+  background: transparent;
+  color: var(--assistant-text);
+  transition: opacity .15s;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .miniCalNavBtn:hover {
-  background: var(--assistant-hover-bg);
-  color: var(--assistant-text);
+  opacity: .7;
 }
 
 .miniCalDayNormal {

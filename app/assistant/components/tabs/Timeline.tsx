@@ -28,6 +28,7 @@ import {
   type TaskFlagColor,
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from '../TaskFlag';
+import { TaskNoteButton } from '../TaskNote';
 import { DatePickerModal } from '../DatePickerModal';
 import { useShowAllGroups } from '../../_hook/useShowAllGroups';
 import { TaskCheckmark } from '../TaskCheckmark';
@@ -51,6 +52,7 @@ type Card = {
   isHidden?: boolean;
   archived?: boolean;
   flag?: TaskFlagColor;
+  note?: string;
 };
 
 /* ===================== Constants ===================== */
@@ -290,6 +292,7 @@ export default function Timeline() {
         isHidden,
         archived: false,
         flag: getTaskFlag(b),
+        note: b.note,
       });
     }
     }
@@ -689,6 +692,15 @@ export default function Timeline() {
                                   <span className="yt-row-flag" title={`${card.flag[0].toUpperCase()}${card.flag.slice(1)} flag`}>
                                     <TaskFlagIcon color={card.flag} className="h-[13px] w-[13px]" />
                                   </span>
+                                ) : null}
+                                {/* Note (only when set), right after the flag — same as Agenda */}
+                                {(card.note || '').trim() ? (
+                                  <TaskNoteButton
+                                    task={card}
+                                    onChange={note => patchTask(card.id, { note })}
+                                    // Inline, so it sits on the title's line like the flag
+                                    className="ml-1 !inline-flex align-middle"
+                                  />
                                 ) : null}
                               </div>
                             )}

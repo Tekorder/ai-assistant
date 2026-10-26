@@ -99,7 +99,7 @@ export function DatePickerModal({
                 style={
                   value === ymd
                     ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }
-                    : { border: '1px solid var(--assistant-border-soft)', color: 'var(--assistant-text-soft)' }
+                    : { color: 'var(--assistant-text-soft)' }
                 }
               >
                 {label}

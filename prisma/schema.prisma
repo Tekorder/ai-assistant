@@ -62,6 +62,8 @@ model Block {
   order         Int      @default(0)
   checked       Boolean?
   deadline      String?
+  /// Optional time on the due date, "HH:MM" (24h); deadline stays a plain YYYY-MM-DD
+  dueTime       String?
   createdAt     String?
   isHidden      Boolean  @default(false)
   archived      Boolean  @default(false)

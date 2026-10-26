@@ -346,7 +346,6 @@ export default function CalendarView({
               role="radiogroup"
               aria-label="Place tasks by"
               className="flex items-center rounded-xl p-0.5"
-              style={{ border: '1px solid var(--assistant-border-soft)' }}
             >
               {([['dueDate', 'Due date'], ['createdAt', 'Created']] as const).map(([value, label]) => {
                 const on = sortBy === value;
@@ -373,7 +372,6 @@ export default function CalendarView({
               className="text-[12px] px-3 py-1.5 rounded-xl transition-all hover:scale-105"
               style={{
                 color: 'var(--assistant-tone-1)',
-                border: '1px solid color-mix(in srgb, var(--assistant-tone-1) 40%, transparent)',
                 background: 'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1) 20%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 10%, transparent) 100%)',
                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,.1), 0 2px 8px rgba(0,0,0,.15)',
               }}

@@ -30,8 +30,6 @@ import {
   writeProjectsLS,
   cleanupEmptyTasks,
   updateBlock,
-  formatPill,
-  pillClass,
   isValidDateYYYYMMDD,
   todayYMD,
   LS_KEY_CHECKLISTS,
@@ -544,10 +542,6 @@ export default function App() {
     [projectBlocks],
   );
 
-  const pillClassNike = useCallback((deadline?: string, checked?: boolean) => {
-    return pillClass(deadline, checked);
-  }, []);
-
   const handlePivotToggleTask = useCallback((blockId: string, nextChecked: boolean) => {
     const payload = readProjectsLS();
     if (!payload?.projects?.length) return;
@@ -663,6 +657,8 @@ export default function App() {
   const isAccordionExpanded = (key: string) => accordionOpenKey === key;
   const isAccordion = dockLayout === 'accordion';
   const ACCORDION_BAR = '49px'; // = panel header height (h-[49px]) → only the title bar shows
+  // Day panels have a two-line header (weekday + date), so their collapsed bar is taller
+  const accordionBarHeight = (key: string) => (dayPanelInstances.some(d => d.id === key) ? '72px' : ACCORDION_BAR);
 
   // Stack-mode carousel: open dock panels in visual order (newest first), three per
   // page. The carousel is as wide as the current page and slides between pages.
@@ -693,7 +689,7 @@ export default function App() {
         width: '100%',
         // Expanded: as tall as its content, one after another; collapsed: just the title bar
         flex: '0 0 auto',
-        height: !visible ? 0 : expanded ? 'auto' : `calc(${ACCORDION_BAR} + 0.75rem)`,
+        height: !visible ? 0 : expanded ? 'auto' : `calc(${accordionBarHeight(key)} + 0.75rem)`,
         opacity: visible ? 1 : 0,
         overflow: 'hidden',
         transition: 'opacity 260ms ease',
@@ -726,8 +722,15 @@ export default function App() {
       <button
         type="button"
         onClick={() => setAccordionPanelOpen(key, !expanded)}
-        className="absolute left-0 top-0 z-10 flex cursor-pointer items-center"
-        style={{ height: ACCORDION_BAR, right: '3.5rem', color: 'var(--assistant-text-muted)' }}
+        // Chevron lines up with the header's first line (centered in a 49px bar), even on
+        // the taller two-line day headers — the whole header stays clickable
+        className="absolute left-0 top-0 z-10 flex cursor-pointer items-start"
+        style={{
+          height: accordionBarHeight(key),
+          paddingTop: `calc((${ACCORDION_BAR} - 12px) / 2)`,
+          right: '3.5rem',
+          color: 'var(--assistant-text-muted)',
+        }}
         aria-expanded={expanded}
         aria-label={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
         title={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
@@ -977,7 +980,7 @@ export default function App() {
             </div>
             {/* Sidebar closed → its footer controls stack here, level with the sidebar's foot */}
             <div
-              className="absolute bottom-[4.75rem] left-7 right-0 z-[120] flex justify-center pb-2 transition-opacity"
+              className="absolute bottom-3 left-7 right-0 z-[120] flex justify-center pb-2 transition-opacity"
               style={{ opacity: sidebarVisualOpen ? 0 : 1, pointerEvents: sidebarVisualOpen ? 'none' : 'auto' }}
               aria-hidden={sidebarVisualOpen}
             >
@@ -994,7 +997,8 @@ export default function App() {
             }}
           >
             <div
-              className="relative m-3 box-border flex h-[calc(100%-5.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl"
+              // Full height: no bottom room here (that room is for the chat button, on the right)
+              className="relative m-3 box-border flex h-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl"
               style={{
                 width: `calc(${MIN_SIDEBAR}px - 1.5rem)`,
               }}
@@ -1166,8 +1170,6 @@ export default function App() {
                     onClose={() => closePivotInstance(pivot.id)}
                     onGoTo={handlePivotGoTo}
                     onToggleTask={handlePivotToggleTask}
-                    pillText={(r: PivotTreeRow) => (r.indent > 0 ? formatPill(r.deadline) : '')}
-                    pillClass={(r: PivotTreeRow) => pillClassNike(r.deadline, r.checked)}
                   />
                 </div>
               </div>
@@ -1187,7 +1189,8 @@ export default function App() {
                     variant="dock"
                     open
                     ymd={day.ymd}
-                    isLight={isLight}
+                    // Side by side: one-line header like the other panels; the accordion keeps two lines
+                    oneLineHeader={!isAccordion}
                     onClose={() => closeDayPanelInstance(day.id)}
                   />
                 </div>
@@ -1331,14 +1334,11 @@ export default function App() {
               }}
               onGoTo={handlePivotGoTo}
               onToggleTask={handlePivotToggleTask}
-              pillText={(r: PivotTreeRow) => (r.indent > 0 ? formatPill(r.deadline) : '')}
-              pillClass={(r: PivotTreeRow) => pillClassNike(r.deadline, r.checked)}
             />
             <DayPanel
               variant="overlay"
               open={Boolean(lastDayPanel)}
               ymd={lastDayPanel?.ymd ?? todayYMD()}
-              isLight={isLight}
               onClose={() => {
                 if (lastDayPanel) closeDayPanelInstance(lastDayPanel.id);
               }}
