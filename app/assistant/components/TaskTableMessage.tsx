@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { TaskTableRow } from '../_types/Message';
-import { labelForYMD, pillClass } from '@/lib/datacenter';
+import { formatPill } from '@/lib/datacenter';
 
 interface TaskTableMessageProps {
   rows: TaskTableRow[];
@@ -26,13 +26,12 @@ export default function TaskTableMessage({ rows, onToggle }: TaskTableMessagePro
             <th className="w-8 px-2 py-1.5" />
             <th className="px-2 py-1.5 font-medium">Task</th>
             <th className="px-2 py-1.5 font-medium">List</th>
-            <th className="px-2 py-1.5 font-medium">Due</th>
           </tr>
         </thead>
         <tbody>
           {rows.map(row => (
             <tr key={row.id} style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
-              <td className="px-2 py-1.5">
+              <td className="px-2 py-1.5 align-top">
                 <input
                   type="checkbox"
                   checked={row.checked}
@@ -42,23 +41,26 @@ export default function TaskTableMessage({ rows, onToggle }: TaskTableMessagePro
                   aria-label={`Mark "${row.text}" as done`}
                 />
               </td>
-              <td
-                className="px-2 py-1.5"
-                style={
-                  row.checked
-                    ? { textDecoration: 'line-through', color: 'var(--assistant-text-faint)' }
-                    : { color: 'var(--assistant-text)' }
-                }
-              >
-                {row.text}
+              <td className="px-2 py-1.5 align-top">
+                <div
+                  className="break-words"
+                  style={
+                    row.checked
+                      ? { textDecoration: 'line-through', color: 'var(--assistant-text-faint)' }
+                      : { color: 'var(--assistant-text)' }
+                  }
+                >
+                  {row.text}
+                </div>
+                {/* Due date under the task, as plain faint text (same as Agenda) */}
+                {formatPill(row.deadline) ? (
+                  <div className="text-[12px] leading-[1.45]" style={{ color: 'var(--assistant-text-faint)' }}>
+                    {formatPill(row.deadline)}
+                  </div>
+                ) : null}
               </td>
-              <td className="px-2 py-1.5" style={{ color: 'var(--assistant-text-soft)' }}>
+              <td className="px-2 py-1.5 align-top break-words" style={{ color: 'var(--assistant-text-soft)' }}>
                 {row.listName}
-              </td>
-              <td className="px-2 py-1.5">
-                <span className={`inline-block rounded-full px-2 py-0.5 text-[12px] ${pillClass(row.deadline, row.checked)}`}>
-                  {row.deadline ? labelForYMD(row.deadline) : '—'}
-                </span>
               </td>
             </tr>
           ))}

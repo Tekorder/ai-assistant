@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { type TaskFlagColor } from '@/lib/datacenter';
+import { type TaskFlagColor, formatPill } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
 // test
@@ -32,10 +32,7 @@ function monthLabel(monthKey: string) {
 }
 
 function dateLabel(ymd: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd || 'No date';
-  const [y, m, d] = ymd.split('-').map(Number);
-  const dt = new Date(y, (m || 1) - 1, d || 1);
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(dt);
+  return formatPill(ymd) || ymd || 'No date';
 }
 
 export default function ActivityLogPanel({ open, onClose, tasks, variant = 'overlay' }: Props) {

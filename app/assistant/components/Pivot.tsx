@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getTaskFlag, type TaskFlagColor } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
-import { TaskCheckmark } from './TaskCheckmark';
+import { AgendaListHeader, AgendaListTitle, AgendaTaskRow, AgendaCheck, AgendaTaskText, AgendaDate } from './AgendaList';
 
 export type PivotTreeRow = {
   key: string;
@@ -192,13 +192,11 @@ export type PivotPanelProps = {
   rows: PivotTreeRow[];
   onClose: () => void;
   onGoTo: (blockId: string) => void;
-  pillText: (r: PivotTreeRow) => string;
-  pillClass: (r: PivotTreeRow) => string;
   onToggleTask?: (blockId: string, nextChecked: boolean) => void;
 };
 
 function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
-  const { word, pivotKind = 'word', rows, onClose, onGoTo, pillText, pillClass, onToggleTask } = props;
+  const { word, pivotKind = 'word', rows, onClose, onGoTo, onToggleTask } = props;
   const [showCompleted, setShowCompleted] = useState(false);
 
   const visibleRows = useMemo(() => {
@@ -215,96 +213,51 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
 
   const hasRows = visibleRows && visibleRows.length > 0;
 
+  // Same layout as Agenda (list title + rule, task rows); clicking a row goes to the task.
+  // The keyword's matches are underlined.
   const renderRows = useMemo(() => {
-    return visibleRows.map((r) => {
-      const isTitle = r.indent === 0;
-      const pill = !isTitle ? pillText(r) : '';
-      const leftPad = isTitle ? 6 : Math.min(40, 10 + r.indent * 16);
-
-      return (
-        <div
-          key={r.key}
-          role="button"
-          tabIndex={0}
-          onClick={() => onGoTo(r.blockId)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onGoTo(r.blockId);
-            }
-          }}
-          className="group flex w-full box-border cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors"
-          style={{ paddingLeft: leftPad }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'color-mix(in srgb, var(--assistant-text) 5%, transparent)')}
-          onMouseLeave={e => (e.currentTarget.style.background = '')}
-          title="Go to task"
-        >
-          <div className="relative flex w-6 shrink-0 items-center">
-            <div className="absolute bottom-0 left-3 top-0 w-px" style={{ background: 'var(--assistant-border-soft)' }} />
-            <div className="absolute left-3 top-1/2 h-px w-3" style={{ background: 'var(--assistant-border-soft)' }} />
-            <div className="absolute left-[18px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full" style={{ background: 'color-mix(in srgb, var(--assistant-text) 25%, transparent)' }} />
-          </div>
-
-          {isTitle ? (
-            <div className="h-4 w-4 shrink-0" />
-          ) : (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleTask?.(r.blockId, !Boolean(r.checked));
-              }}
-              className={[
-                'flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-shadow',
-                onToggleTask ? 'check-glow cursor-pointer' : 'cursor-default',
-              ].join(' ')}
-              title={r.checked ? 'Completed' : 'Not completed'}
-            >
-              <TaskCheckmark checked={Boolean(r.checked)} />
-            </button>
-          )}
-
-          {!isTitle && r.flag ? (
-            <TaskFlagBadge source={{ flag: r.flag }} />
-          ) : null}
-
-          <div className="min-w-0 flex-1">
-            <div
-              className={[
-                'text-[14px] whitespace-normal break-words',
-                isTitle ? 'font-semibold' : '',
-                !isTitle && r.checked ? 'line-through' : '',
-                r.isMatch ? 'underline underline-offset-4' : '',
-              ].join(' ')}
-              style={{
-                color: isTitle
-                  ? 'var(--assistant-text)'
-                  : r.checked
-                  ? 'var(--assistant-text-faint)'
-                  : 'var(--assistant-text-soft)',
-                textDecorationColor: r.isMatch
-                  ? 'color-mix(in srgb, var(--assistant-accent) 65%, transparent)'
-                  : undefined,
-              }}
-            >
-              {r.text || '—'}
-            </div>
-          </div>
-
-          {!isTitle ? (
-            <div className="shrink-0">
-              <div
-                className={['rounded-full border px-2 py-1 text-[12px]', pillClass(r)].join(' ')}
-                title={r.deadline ? `Date: ${r.deadline}` : 'No date'}
-              >
-                {pill ? pill : '📅'}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      );
+    const matchStyle = (isMatch: boolean): React.CSSProperties | undefined => (isMatch
+      ? { textDecoration: 'underline', textUnderlineOffset: 4, textDecorationColor: 'color-mix(in srgb, var(--assistant-accent) 65%, transparent)' }
+      : undefined);
+    const goTo = (blockId: string) => ({
+      role: 'button',
+      tabIndex: 0,
+      title: 'Go to task',
+      onClick: () => onGoTo(blockId),
+      onKeyDown: (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onGoTo(blockId);
+        }
+      },
     });
-  }, [visibleRows, onGoTo, onToggleTask, pillText, pillClass]);
+
+    return visibleRows.map((r) => (r.indent === 0 ? (
+      <AgendaListHeader
+        key={r.key}
+        {...goTo(r.blockId)}
+        className="cursor-pointer"
+        heading={<AgendaListTitle><span style={matchStyle(r.isMatch)}>{r.text || '—'}</span></AgendaListTitle>}
+      />
+    ) : (
+      <AgendaTaskRow
+        key={r.key}
+        {...goTo(r.blockId)}
+        className="cursor-pointer rounded-md transition-colors hover:bg-[color-mix(in_srgb,var(--assistant-text)_5%,transparent)]"
+        indent={r.indent}
+        check={
+          <AgendaCheck
+            checked={Boolean(r.checked)}
+            onToggle={onToggleTask ? () => onToggleTask(r.blockId, !r.checked) : undefined}
+          />
+        }
+        right={r.flag ? <TaskFlagBadge source={{ flag: r.flag }} /> : null}
+      >
+        <AgendaTaskText checked={Boolean(r.checked)} style={matchStyle(r.isMatch)}>{r.text || '—'}</AgendaTaskText>
+        <AgendaDate ymd={r.deadline} />
+      </AgendaTaskRow>
+    )));
+  }, [visibleRows, onGoTo, onToggleTask]);
 
   return (
     <>
@@ -367,8 +320,6 @@ export function PivotPanel({
   onClose,
   onGoTo,
   onToggleTask,
-  pillText,
-  pillClass,
 }: PivotPanelProps) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
@@ -415,8 +366,6 @@ export function PivotPanel({
       onClose={requestClose}
       onGoTo={onGoTo}
       onToggleTask={onToggleTask}
-      pillText={pillText}
-      pillClass={pillClass}
     />
   );
 

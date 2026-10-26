@@ -41,6 +41,8 @@ import { useShowAllGroups, useFocusedList } from '../_hook/useShowAllGroups';
 import { DeleteWithOpenTasksDialog, buildMoveTargets } from './DeleteWithOpenTasksDialog';
 
 const LS_KEY_COLLAPSED_GROUPS = 'youtask_sidebar_collapsed_groups';
+// Background of the one active row (All lists, the selected group, or the focused list)
+const ACTIVE_BG = 'color-mix(in srgb, var(--assistant-accent) 14%, transparent)';
 
 type SidebarProps = {
   onOpenPivot?: (detail: {
@@ -506,6 +508,18 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     requestAnimationFrame(() => inputRefs.current[newListId]?.focus());
   };
 
+  // First list of an empty group (the group is selected on mousedown, so this lands in it)
+  const handleAddFirstList = () => {
+    const newListId = uid();
+    setCurrentBlocks(prev => {
+      const roots = prev.filter(b => b.indent === 0);
+      const order = roots.length ? Math.max(...roots.map(b => b.order)) + 1 : 0;
+      return [...prev, { id: newListId, text: '', indent: 0, parentId: null, order, createdAt: todayYMD() }];
+    });
+    setEditingListTitleId(newListId);
+    requestAnimationFrame(() => inputRefs.current[newListId]?.focus());
+  };
+
   // Leaving a brand-new list without a name (and with no tasks) drops it
   const handleListTitleBlur = (b: Block) => {
     setEditingListTitleId(prev => (prev === b.id ? null : prev));
@@ -716,17 +730,11 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 }}
                 title={showAllGroups ? 'Showing every group and list — click to go back to the selected group' : 'Show every group and list'}
                 className="mb-3 flex cursor-pointer select-none items-center gap-1 rounded-md px-0.5 py-1"
-                style={{ paddingLeft: 2 }}
+                style={{ paddingLeft: 2, background: showAllGroups ? ACTIVE_BG : undefined }}
               >
                 <span
-                  className={[
-                    'min-w-0 break-words text-left text-[14px] md:text-sm font-semibold',
-                    showAllGroups ? 'underline decoration-2 underline-offset-[3px]' : '',
-                  ].join(' ')}
-                  style={{
-                    color: 'var(--assistant-text)',
-                    textDecorationColor: showAllGroups ? 'var(--assistant-accent)' : undefined,
-                  }}
+                  className="min-w-0 break-words text-left text-[14px] md:text-sm font-semibold"
+                  style={{ color: 'var(--assistant-text)' }}
                 >
                   All lists
                 </span>
@@ -737,6 +745,9 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 const isCurrent = project.project_id === currentProject?.project_id;
                 const isGroupCollapsed = collapsedGroups[project.project_id] === true;
                 const listBlocks = (project.blocks ?? []).filter(b => b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true);
+                // Only one row is highlighted: "All lists", the focused list, or else the selected group
+                const focusedListId = !showAllGroups && isCurrent && focusedList?.projectId === project.project_id ? focusedList.listId : null;
+                const groupActive = isCurrent && !showAllGroups && focusedListId === null;
                 return (
               <div
                 key={project.project_id}
@@ -756,8 +767,8 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 <div className="mb-1 flex items-center gap-2">
                   <div
                     // Same type as the list titles below (14px semibold, normal case)
-                    className="flex min-w-0 flex-1 items-center gap-1 px-1 text-left text-[14px] md:text-sm font-semibold"
-                    style={{ color: 'var(--assistant-text-soft)' }}
+                    className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-1 text-left text-[14px] md:text-sm font-semibold"
+                    style={{ color: 'var(--assistant-text-soft)', background: groupActive ? ACTIVE_BG : undefined }}
                   >
                     {/* Folder · name · chevron at the end. Clicking the name selects the group and
                         clears any view filter; the chevron collapses it */}
@@ -772,10 +783,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                     <span
                       role="button"
                       tabIndex={0}
-                      className={[
-                        'break-words cursor-pointer select-none',
-                        isCurrent ? 'underline underline-offset-[3px]' : '',
-                      ].join(' ')}
+                      className="break-words cursor-pointer select-none"
                       style={isCurrent ? { color: 'var(--assistant-text)' } : undefined}
                       title={project.title}
                       aria-current={isCurrent ? 'true' : undefined}
@@ -818,10 +826,18 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               <div className="space-y-1 pl-3">
                 {(() => {
                   if (!listBlocks.length) {
+                    // Empty group: always-visible "List…" row that starts its first list
                     return (
-                      <div className="text-[13px] px-1 py-2" style={{ color: 'var(--assistant-text-faint)' }}>
-                        No lists yet.
-                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddFirstList}
+                        aria-label="Add list"
+                        className="flex w-full items-center gap-1 rounded-md py-1 text-left transition-opacity hover:opacity-80"
+                        style={{ paddingLeft: 2 }}
+                      >
+                        <span className="w-5 shrink-0 text-center text-[14px] leading-none" style={{ color: 'var(--assistant-text-faint)' }}>+</span>
+                        <span className="text-[14px] md:text-sm font-semibold" style={{ color: 'var(--assistant-text-faint)' }}>List…</span>
+                      </button>
                     );
                   }
                   return listBlocks.map((b) => {
@@ -834,12 +850,13 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                           onDragOver={e => onDragOverRow(e, b.id, project.project_id)}
                           onDrop={e => onDropRow(e, b.id, project.project_id)}
                           className={[
-                            'group flex items-center gap-1 px-0.5 py-1 rounded-md',
+                            // items-start: badge, count and buttons line up with the title's first line when it wraps
+                            'group flex items-start gap-1 px-0.5 py-1 rounded-md',
                             dragOverId === b.id && dragRef.current?.id !== b.id ? classes.dragOver : '',
                             dragRef.current?.id === b.id ? 'opacity-60' : '',
                             hasTitle && !typing ? 'side-add-anchor' : '',
                           ].join(' ')}
-                          style={{ paddingLeft: 2 }}
+                          style={{ paddingLeft: 2, background: focusedListId === b.id ? ACTIVE_BG : undefined }}
                         >
                           <div
                             draggable
@@ -869,12 +886,12 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                               onKeyDown={e => handleKey(e, b)}
                               onBlur={() => handleListTitleBlur(b)}
                               className={[
-                                'w-full cursor-text bg-transparent text-[14px] md:text-sm font-semibold outline-none transition-opacity duration-150',
+                                'w-full cursor-text bg-transparent text-[14px] md:text-sm outline-none transition-opacity duration-150',
                               ].join(' ')}
                                 style={{color: 'var(--assistant-text)'}}
                             />
                           ) : (
-                            <div className="min-w-0 flex-1 flex items-center gap-1">
+                            <div className="min-w-0 flex-1 flex items-start gap-1">
                               <span
                                 data-youtask-block={b.id}
                                 role="button"
@@ -882,14 +899,11 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                                 aria-pressed={focusedList?.listId === b.id}
                                 title={focusedList?.listId === b.id ? 'Showing only this list — click to show all lists' : 'Show only this list'}
                                 className={[
-                                  'min-w-0 cursor-pointer select-none break-words text-left text-[14px] md:text-sm font-semibold',
-                                  // Selected list: double underline (a selected group gets a single one)
-                                  focusedList?.listId === b.id ? 'underline decoration-double underline-offset-[3px]' : '',
+                                  'min-w-0 cursor-pointer select-none break-words text-left text-[14px] md:text-sm leading-5',
+                                  // Selected list: bold (its row is highlighted too)
+                                  focusedListId === b.id ? 'font-semibold' : 'font-normal',
                                 ].join(' ')}
-                                style={{
-                                  color: 'var(--assistant-text)',
-                                  textDecorationColor: focusedList?.listId === b.id ? 'var(--assistant-accent)' : undefined,
-                                }}
+                                style={{ color: 'var(--assistant-text)' }}
                                 // Global filter: Workspace, Calendar and Timeline show only this list (click again to undo)
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -913,7 +927,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                                 const p = getListProgress(project.blocks ?? [], b.id);
                                 return (
                                   // ml-auto: pinned to the row's right edge, however short the title
-                                  <span className="ml-auto shrink-0 pl-2 text-[12px] font-medium tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
+                                  <span className="ml-auto shrink-0 pl-2 text-[12px] font-medium leading-5 tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
                                     ({p.done}/{p.total})
                                   </span>
                                 );
@@ -929,7 +943,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                                 e.stopPropagation();
                                 toggleListVisibility(b.id);
                               }}
-                              className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100"
+                              className="-my-1 shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100"
                               style={{ color: 'var(--assistant-text-faint)' }}
                               title="Hidden — click to show"
                               aria-label="Show list"
@@ -954,7 +968,8 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                               );
                             }}
                             className={[
-                              'shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-opacity',
+                              // -my-1: the 28px button centers on the 20px first line
+                              '-my-1 shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-opacity',
                               listMenu?.listId === b.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
                             ].join(' ')}
                             // Full theme text color — the faint tone was too hard to spot

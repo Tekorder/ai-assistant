@@ -228,17 +228,15 @@ export function todayYMD(): string {
 }
 
 export function fmtColTitle(ymd: string): string {
-  const d  = parseYMD(ymd);
-  const wd  = d.toLocaleDateString('en-US', { weekday: 'short' });
-  const day = d.toLocaleDateString('en-US', { day:     '2-digit' });
-  const mon = d.toLocaleDateString('en-US', { month:   'short' });
-  return `${wd} ${day} ${mon}`;
+  const wd = parseYMD(ymd).toLocaleDateString('en-US', { weekday: 'short' });
+  return `${wd}, ${formatPill(ymd)}`;
 }
 
+/** The app's one date format: full month, day and year ("October 23, 2026"). */
 export function formatPill(deadline?: string): string {
   if (!deadline || !isValidDateYYYYMMDD(deadline)) return '';
   const [y, m, d] = deadline.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
 export function dayDiffFromToday(yyyyMmDd?: string): number | null {
@@ -274,11 +272,7 @@ export function weekdayLabel(ymd: string): string {
 }
 
 export function fullDateLabel(ymd: string): string {
-  if (!isValidDateYYYYMMDD(ymd)) return ymd;
-  const [y, m, d] = ymd.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    month: 'short', day: 'numeric', year: 'numeric',
-  });
+  return formatPill(ymd) || ymd;
 }
 
 export function monthStartYMD(anchor: string): string {

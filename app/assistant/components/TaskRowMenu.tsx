@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { isValidDateYYYYMMDD, parseYMD, type TaskFlagColor } from '@/lib/datacenter';
+import { isValidDateYYYYMMDD, formatPill, type TaskFlagColor } from '@/lib/datacenter';
 import { TaskFlagIcon } from './TaskFlag';
 
 const FLAG_CHOICES: TaskFlagColor[] = ['blue', 'yellow', 'red'];
@@ -30,11 +30,12 @@ export function TaskRowMenu({
   flag?: TaskFlagColor;
   hasNote: boolean;
   hasDueDate: boolean;
-  onEdit: () => void;
+  /** Edit / note / reminder are left out of the menu when not given (e.g. in the dock panels) */
+  onEdit?: () => void;
   onDueDate: () => void;
   onFlag: (flag: TaskFlagColor | undefined) => void;
-  onNote: () => void;
-  onReminder: () => void;
+  onNote?: () => void;
+  onReminder?: () => void;
   onDelete: () => void;
   onClose: () => void;
 }) {
@@ -78,7 +79,7 @@ export function TaskRowMenu({
   );
 
   const created = isValidDateYYYYMMDD(createdAt)
-    ? parseYMD(createdAt!).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    ? formatPill(createdAt)
     : null;
   const divider = <div className="my-1 h-px" style={{ background: 'var(--assistant-border-soft)' }} />;
 
@@ -99,7 +100,7 @@ export function TaskRowMenu({
         </>
       ) : null}
 
-      {item('Edit', onEdit)}
+      {onEdit && item('Edit', onEdit)}
       {item(hasDueDate ? 'Change due date' : 'Set due date', onDueDate)}
 
       {/* Flag: pick a color right here (the active one is ringed; ⊘ clears it) */}
@@ -134,8 +135,8 @@ export function TaskRowMenu({
         </button>
       </div>
 
-      {item(hasNote ? 'Edit note' : 'Add note', onNote)}
-      {item('Set reminder', onReminder)}
+      {onNote && item(hasNote ? 'Edit note' : 'Add note', onNote)}
+      {onReminder && item('Set reminder', onReminder)}
       {divider}
       {item('Delete', onDelete, true)}
     </div>,

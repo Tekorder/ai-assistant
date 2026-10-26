@@ -66,7 +66,8 @@ import { FirstListWizard } from '../FirstListWizard';
 import { DeleteWithOpenTasksDialog, buildMoveTargets } from '../DeleteWithOpenTasksDialog';
 import { DateRangeDialog } from '../DateRangeDialog';
 import { NewTaskDialog, type NewTaskListOption, type NewTaskTarget } from '../NewTaskDialog';
-import { TaskCheckmark } from '../TaskCheckmark';
+import { HiddenTaskDialog, isHiddenTaskNoticeMuted, type HiddenTaskReason } from '../HiddenTaskDialog';
+import { AgendaListHeader, AgendaTaskRow, AgendaCheck, AgendaDate, AgendaMenuButton, agendaRowPad } from '../AgendaList';
 
 /**
  * Uids that closed the first-list wizard during this page load. Module memory on
@@ -708,16 +709,23 @@ export default function Quick(props: QuickProps = {}) {
         : buildListVisibilityHiddenMap(blocks, visibleLists)),
     [blocks, visibleLists, showAllGroups, focusList],
   );
+  // Uncategorized tasks only show with the whole group, not under a focused list
+  const hideUncategorized = !showAllGroups && focusList !== null;
 
   /** Progress block — scoped to tasks currently visible with active filters (every group under "Show all") */
   const progress = useMemo(() => {
-    const visibleIn = (pBlocks: Block[], pHidden: Record<string, boolean>) => pBlocks.filter(b =>
+    const visibleIn = (pBlocks: Block[], pHidden: Record<string, boolean>) => {
+      // A focused list leaves Uncategorized out, so its tasks don't count either
+      const uncIds = hideUncategorized ? new Set(pBlocks.filter(isUncTitleBlock).map(b => b.id)) : null;
+      return pBlocks.filter(b =>
       b.indent > 0 &&
+      !(uncIds && b.parentId && uncIds.has(b.parentId)) &&
       b.archived !== true &&
       (showCompleted || b.checked !== true) &&
       !pHidden[b.id] &&
       passesTaskFilter(b),
-    );
+      );
+    };
     const visibleTasks = showAllGroups
       ? projects.flatMap(p => p.project_id === currentProject?.project_id
           ? visibleIn(blocks, hiddenMap)
@@ -728,7 +736,7 @@ export default function Quick(props: QuickProps = {}) {
     const remaining = Math.max(0, total - done);
     const pct = total > 0 ? done / total : 0;
     return { total, done, remaining, pct };
-  }, [blocks, hiddenMap, hiddenByListMap, showCompleted, passesTaskFilter, showAllGroups, projects, currentProject?.project_id, searching, viewDateMode, focusDay, sortBy, dateRange]);
+  }, [blocks, hiddenMap, hiddenByListMap, showCompleted, passesTaskFilter, hideUncategorized, showAllGroups, projects, currentProject?.project_id, searching, viewDateMode, focusDay, sortBy, dateRange]);
 
   const isBrandNewEmpty = useMemo(
     () => blocks.length === 1 && isUncTitleBlock(blocks[0]),
@@ -829,6 +837,18 @@ export default function Quick(props: QuickProps = {}) {
         if (a) { try { a.currentTime = 0; a.play(); } catch {} }
       }
       showGamificationToast();
+    }
+
+    // Changing a due date or flag can push a task out of the current filters (e.g. clearing
+    // the due date while viewing by due date) — say so, or it looks deleted
+    if ('deadline' in patch || 'flag' in patch) {
+      const task = blocks.find(b => b.id === id);
+      if (task && task.indent > 0 && (task.text || '').trim() && whyHidden(blocks, id, currentProject?.project_id).length === 0) {
+        const reasons = whyHidden(updateBlockArr(blocks, id, patch, focusDay), id, currentProject?.project_id);
+        if (reasons.length) {
+          setHiddenNotice({ text: task.text.trim(), projectId: currentProject?.project_id, reasons, title: "Task moved out of view — it's not deleted" });
+        }
+      }
     }
 
     setCurrentBlocks(prev => {
@@ -1144,30 +1164,105 @@ const handleKey = (
   };
 
   // The task arrives with its text, so nothing empty is ever created
+  /** The active filters that keep a task out of view — empty when it shows. */
+  const whyHidden = (pBlocks: Block[], taskId: string, projectId: string | undefined): HiddenTaskReason[] => {
+    const task = pBlocks.find(b => b.id === taskId);
+    if (!task) return [];
+    const reasons: HiddenTaskReason[] = [];
+    const otherGroup = !showAllGroups && projectId !== currentProject?.project_id;
+    if (otherGroup) {
+      const title = projects.find(p => p.project_id === projectId)?.title ?? 'another group';
+      reasons.push({ key: 'group', label: `Group: ${currentProject?.title ?? ''}`, detail: `It went to ${title}. Switch to that group to see it.` });
+    } else if (!showAllGroups && focusList && task.parentId !== focusList.id) {
+      reasons.push({ key: 'list', label: `List: ${(focusList.text || '').trim() || 'List'}`, detail: 'Only this list is showing.' });
+    }
+    if (searching) {
+      const list = pBlocks.find(b => b.id === task.parentId);
+      const listMatches = !!list && !isUncTitleBlock(list) && matchesSearch(list);
+      if (!listMatches && !matchesSearch(task)) {
+        reasons.push({ key: 'search', label: `Search: “${searchQuery.trim()}”`, detail: "The task doesn't contain these words." });
+      }
+    }
+    const hasDue = isValidDateYYYYMMDD(task.deadline);
+    if (viewTaskFilter === 'priority' && !getTaskFlag(task)) {
+      reasons.push({ key: 'tag', label: 'Priority filter', detail: 'New tasks have no flag yet.' });
+    } else if (viewTaskFilter === 'someday' && hasDue) {
+      reasons.push({ key: 'tag', label: 'Someday filter', detail: 'The task has a due date.' });
+    } else if (viewTaskFilter === 'scheduled' && !hasDue) {
+      reasons.push({ key: 'tag', label: 'Scheduled filter', detail: 'The task has no due date.' });
+    }
+    if (hidingSomeday && !hasDue) {
+      reasons.push({ key: 'someday', label: 'Hide Someday', detail: 'The task has no due date.' });
+    }
+    const dateHidden = buildHiddenMap(pBlocks, { collapsed: {}, showHidden: false, dateMode: viewDateMode, focusDay, sortBy, range: dateRange })[taskId];
+    if (dateHidden) {
+      const view = viewDateMode === 'today' ? (focusDay === todayYMD() ? 'Today' : formatPill(focusDay))
+        : viewDateMode === 'week' ? `Week ${getWeekRangeLabel(focusDay)}`
+        : viewDateMode === 'month' ? `Month ${getMonthRangeLabel(focusDay)}`
+        : `Range ${getRangeLabel(dateRange)}`;
+      reasons.push({
+        key: 'date',
+        label: `Dates: ${view}`,
+        detail: sortBy === 'createdAt' ? 'The task was created outside these dates.'
+          : hasDue ? 'Its due date is outside these dates.'
+          : 'It has no due date, so it only shows under All dates.',
+      });
+    }
+    return reasons;
+  };
+
+  const [hiddenNotice, setHiddenNoticeState] = useState<{ text: string; projectId?: string; reasons: HiddenTaskReason[]; title?: string } | null>(null);
+  // Opening is skipped once the user ticked "Don't show this again"
+  const setHiddenNotice = (notice: typeof hiddenNotice) => {
+    if (notice && isHiddenTaskNoticeMuted()) return;
+    setHiddenNoticeState(notice);
+  };
+  const turnOffFilters = (keys: string[], projectId?: string) => {
+    for (const key of keys) {
+      if (key === 'group' && projectId) setSelectedProjectId(projectId);
+      if (key === 'list') setFocusedList(null);
+      if (key === 'search') setSearchQuery('');
+      if (key === 'tag') setTaskFilter('none');
+      if (key === 'someday') setHideSomeday(false);
+      if (key === 'date') setDateMode('all');
+    }
+  };
+
   const handleDialogAddTask = (text: string, target: NewTaskTarget) => {
     setTaskDialogOpen(false);
+    // Ids up front, so the result can be checked against the filters before state updates
+    const taskId = uid();
+    // A task the filters would hide gets a heads-up naming the filters in the way
+    const warnIfHidden = (nextBlocks: Block[], projectId?: string) => {
+      const reasons = whyHidden(nextBlocks, taskId, projectId);
+      if (reasons.length) setHiddenNotice({ text, projectId, reasons });
+    };
     if (target.kind === 'new') {
       // New list in the selected group; createList seeds one task — fill it
-      let newListId = '';
-      setCurrentBlocks(prev => {
-        const created = createListArr(prev, target.newListName, { focusDay: newTaskDue });
-        newListId = created.newListId;
-        return updateBlockArr(created.blocks, created.newTaskId, { text });
-      });
-      setCurrentCollapsed(prev => (newListId ? { ...prev, [newListId]: false } : prev));
+      const listId = uid();
+      const create = (prev: Block[]) => {
+        const created = createListArr(prev, target.newListName, { focusDay: newTaskDue, listId, taskId });
+        return { listId: created.newListId, blocks: updateBlockArr(created.blocks, created.newTaskId, { text }) };
+      };
+      const preview = create(blocks);
+      setCurrentBlocks(prev => create(prev).blocks);
+      setCurrentCollapsed(prev => ({ ...prev, [preview.listId]: false }));
+      warnIfHidden(preview.blocks, currentProject?.project_id);
       return;
     }
     const add = (blocks: Block[]) =>
-      sortBlocksByOrder(addTaskUnderListArr(blocks, target.listId, { focusDay: newTaskDue, text }).blocks);
+      sortBlocksByOrder(addTaskUnderListArr(blocks, target.listId, { focusDay: newTaskDue, text, id: taskId }).blocks);
     if (target.projectId === currentProject?.project_id) {
       setCurrentBlocks(add);
       setCurrentCollapsed(prev => ({ ...prev, [target.listId]: false }));
+      warnIfHidden(add(blocks), target.projectId);
     } else {
       setProjects(prev => prev.map(p => (
         p.project_id === target.projectId
           ? { ...p, blocks: add(p.blocks ?? []), quickCollapsed: { ...(p.quickCollapsed ?? {}), [target.listId]: false } }
           : p
       )));
+      warnIfHidden(add(projects.find(p => p.project_id === target.projectId)?.blocks ?? []), target.projectId);
     }
   };
 
@@ -1301,12 +1396,12 @@ const handleKey = (
   /* ── Render helpers ── */
   // Renders one group's lists (the selected group unless `project` says otherwise)
   const renderNormalList = (project?: Project) => {
+    // Styled after the Completed report: quiet rows, plain-text dates, bare list headers
     const isCurrent = !project || project.project_id === currentProject?.project_id;
     const pBlocks = isCurrent ? blocks : project.blocks ?? [];
     const pCollapsed = isCurrent ? collapsed : project.quickCollapsed ?? {};
-    const pHiddenMap = isCurrent
-      ? hiddenMap
-      : buildHiddenMap(pBlocks, { collapsed: searching ? {} : pCollapsed, showHidden: false, dateMode: viewDateMode, focusDay, sortBy, range: dateRange });
+    // Collapse is left out here: a collapsed list keeps its header (and count), only its rows go
+    const pHiddenMap = buildHiddenMap(pBlocks, { collapsed: {}, showHidden: false, dateMode: viewDateMode, focusDay, sortBy, range: dateRange });
     // "Show all" shows hidden lists too
     const pHiddenByList: Record<string, boolean> = showAllGroups
       ? {}
@@ -1325,18 +1420,6 @@ const handleKey = (
     }
     listBlocks.sort((a, b) => a.order - b.order);
     for (const tasks of tasksByParent.values()) tasks.sort((a, b) => a.order - b.order);
-    const dragDots = (
-      <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
-        <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-        <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
-        <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
-      </svg>
-    );
-    const editIcon = (
-      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
-      </svg>
-    );
     // Ghost "Task…" row; revealed by hovering the row right before it (.quick-add-anchor)
     const addGhost = (onClick: () => void, paddingLeft: number) => (
       <button
@@ -1346,8 +1429,6 @@ const handleKey = (
         className="quick-add-ghost w-full flex items-center px-0.5 gap-1 text-left"
         style={{ paddingLeft, marginTop: 0, marginBottom: 0 }}
       >
-        <div className="w-3 shrink-0" />
-        <div className="w-3 shrink-0" />
         <span className="h-4 w-4 shrink-0 flex items-center justify-center">
           <span className="h-3.5 w-3.5 rounded-full border border-dashed" style={{ borderColor: 'var(--assistant-text-faint)' }} />
         </span>
@@ -1357,9 +1438,11 @@ const handleKey = (
       </button>
     );
 
+    let showsUncategorized = false;
     const rows = listBlocks.map(listBlock => {
           if (pHiddenByList[listBlock.id]) return null;
           const isUncList = isUncTitleBlock(listBlock);
+          if (isUncList && hideUncategorized) return null;
           const tasks = tasksByParent.get(listBlock.id) ?? [];
           // A list whose title matches shows all its tasks; otherwise only matching tasks
           const listMatches = searching && !isUncList && matchesSearch(listBlock);
@@ -1371,6 +1454,7 @@ const handleKey = (
           );
           // A list with no tasks to show isn't shown at all — unless its title is being typed
           if (visibleTasks.length === 0 && editingListTitleId !== listBlock.id) return null;
+          if (isUncList) showsUncategorized = true;
           // Hovering any task reveals a ghost "Task…" row right below it that inserts a task
           // there; an empty list gets one under its header. Only offered under committed
           // tasks (has text), and never while a task or list title is being typed.
@@ -1379,57 +1463,22 @@ const handleKey = (
           const showHeaderGhost = !pCollapsed[listBlock.id] && !isUncList && !lastVisibleTaskId && !typingAny;
           const lDragOver = dragOverId === listBlock.id && dragRef.current?.id !== listBlock.id;
           const lDragMe   = dragRef.current?.id === listBlock.id;
+          const listCollapsed = !searching && !isUncList && pCollapsed[listBlock.id] === true;
 
           return (
             <React.Fragment key={listBlock.id}>
               {/* ── List header (hidden for Uncategorized) ── */}
               {!isUncList && (
-                <div
+                <AgendaListHeader
                   draggable
                   onDragStart={e => onDragStartRow(e, listBlock.id)}
                   onDragOver={e => onDragOverRow(e, listBlock.id)}
                   onDrop={e => onDropRow(e, listBlock.id)}
                   onDragEnd={onDragEndRow}
-                  className={['group flex items-center px-0.5 py-1 gap-2', lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : '', showHeaderGhost ? 'quick-add-anchor' : ''].join(' ')}
-                  // Thin divider under the list title
-                  style={{ paddingLeft: 2, borderBottom: '1px solid var(--assistant-border-soft)' }}>
-                  <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
-                    {dragDots}
-                  </div>
-                  <button type="button" onClick={() => toggleList(listBlock.id)} className={`w-3 shrink-0 transition-colors ${classes.quickCollapseBtn}`} title={pCollapsed[listBlock.id] ? 'Expand' : 'Collapse'}>
-                    <svg
-                      viewBox="0 0 16 16"
-                      className={`h-3 w-3 transition-transform ${pCollapsed[listBlock.id] ? '-rotate-90' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
-                    </svg>
-                  </button>
-                  {editingListTitleId !== listBlock.id ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingListTitleId(listBlock.id);
-                        requestAnimationFrame(() => {
-                          const el = inputRefs.current[listBlock.id];
-                          if (!el) return;
-                          el.focus();
-                          const len = el.value.length;
-                          el.setSelectionRange(len, len);
-                        });
-                      }}
-                      aria-label="Edit list title"
-                      title="Edit list title"
-                      className={`shrink-0 h-4 w-4 flex items-center justify-center text-[12px] opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-all duration-150 ${classes.quickEditBtn}`}
-                    >
-                      {editIcon}
-                    </button>
-                  ) : null}
-                  <div className="min-w-0 flex-1 flex flex-wrap items-center gap-0.5">
-                    {editingListTitleId === listBlock.id ? (
+                  className={[lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : '', showHeaderGhost ? 'quick-add-anchor' : ''].join(' ')}
+                  collapsed={listCollapsed}
+                  onToggleCollapse={() => toggleList(listBlock.id)}
+                  heading={editingListTitleId === listBlock.id ? (
                       <input
                         ref={el => void (inputRefs.current[listBlock.id] = el)}
                         value={listBlock.text}
@@ -1453,50 +1502,69 @@ const handleKey = (
                         {(listBlock.text || '').trim() ? listBlock.text : 'List…'}
                       </span>
                     )}
-                  </div>
-                </div>
+                />
               )}
               {/* ── Tasks belonging to this list ── */}
-              {visibleTasks.map(task => {
+              {!listCollapsed && visibleTasks.map(task => {
                 // scheduled: layout only for now
                 const tDragOver = dragOverId === task.id && dragRef.current?.id !== task.id;
                 const tDragMe   = dragRef.current?.id === task.id;
+                const rowPad = agendaRowPad(task.indent);
                 return (
                   <React.Fragment key={task.id}>
-                    <div
+                    <AgendaTaskRow
                       draggable
                       onDragStart={e => onDragStartRow(e, task.id)}
                       onDragOver={e => onDragOverRow(e, task.id)}
                       onDrop={e => onDropRow(e, task.id)}
                       onDragEnd={onDragEndRow}
-                      className={['group flex items-center px-0.5 py-1 gap-1', tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) ? 'quick-add-anchor' : ''].join(' ')}
-                      style={{ paddingLeft: isUncList ? 6 : 8 + task.indent * 16 }}>
-                      <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
-                        {dragDots}
-                      </div>
-                      <div className="w-3 shrink-0" />
-                      <button type="button" onClick={() => handleUpdateBlock(task.id, { checked: !task.checked })}
-                        className="check-glow relative h-4 w-4 shrink-0 flex items-center justify-center rounded-full group-hover:scale-[1.06] transition-[transform,box-shadow]"
-                        title="Complete">
-                        {pulseId === task.id ? (
-                          <>
-                            <span className={`absolute -inset-2 rounded-full border animate-ping ${classes.quickPulseRing1}`} />
-                            <span className={`absolute -inset-3 rounded-full border animate-ping [animation-delay:90ms] ${classes.quickPulseRing2}`} />
-                            <span className={`absolute -inset-4 rounded-full border animate-ping [animation-delay:160ms] ${classes.quickPulseRing3}`} />
-                            <span className={`absolute -inset-2 rounded-full blur-sm ${classes.quickPulseGlow}`} />
-                          </>
-                        ) : null}
-                        <TaskCheckmark checked={task.checked === true} />
-                      </button>
-                      <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                      className={[tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) ? 'quick-add-anchor' : ''].join(' ')}
+                      indent={task.indent}
+                      check={
+                        <AgendaCheck checked={task.checked === true} onToggle={() => handleUpdateBlock(task.id, { checked: !task.checked })}>
+                          {pulseId === task.id ? (
+                            <>
+                              <span className={`absolute -inset-2 rounded-full border animate-ping ${classes.quickPulseRing1}`} />
+                              <span className={`absolute -inset-3 rounded-full border animate-ping [animation-delay:90ms] ${classes.quickPulseRing2}`} />
+                              <span className={`absolute -inset-4 rounded-full border animate-ping [animation-delay:160ms] ${classes.quickPulseRing3}`} />
+                              <span className={`absolute -inset-2 rounded-full blur-sm ${classes.quickPulseGlow}`} />
+                            </>
+                          ) : null}
+                        </AgendaCheck>
+                      }
+                      right={
+                        <>
+                          {/* Pinned on the right (only when set): flag, then note — everything else lives in the ⋮ menu */}
+                          {getTaskFlag(task) ? (
+                            <TaskFlagButton
+                              source={task}
+                              onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
+                            />
+                          ) : null}
+                          {(task.note || '').trim() ? (
+                            <TaskNoteButton
+                              task={task}
+                              onChange={(note) => handleUpdateBlock(task.id, { note })}
+                            />
+                          ) : null}
+                          <AgendaMenuButton
+                            open={taskMenu?.taskId === task.id}
+                            onOpen={r => setTaskMenu(prev => (prev?.taskId === task.id ? null : { taskId: task.id, x: r.right, y: r.bottom + 4 }))}
+                          />
+                        </>
+                      }
+                    >
                         {renderTaskTextWithWordHover(task)}
+                        {editingDateTaskId !== task.id && (
+                          <AgendaDate ymd={task.deadline} onClick={() => setEditingDateTaskId(task.id)} />
+                        )}
                         {editingDateTaskId === task.id && (
                           <input
                             ref={el => void (inlineDateRefs.current[task.id] = el)}
                             autoFocus
                             type="date"
                             lang="en-US"
-                            className={`shrink-0 mt-0.5 text-[12px] px-1.5 py-0.5 rounded-full outline-none ${classes.quickDatePillInput}`}
+                            className={`shrink-0 mt-0.5 self-start text-[12px] px-1.5 py-0.5 rounded-full outline-none ${classes.quickDatePillInput}`}
                             value={isValidDateYYYYMMDD(task.deadline) ? task.deadline : ''}
                             onChange={e => {
                               const v = e.target.value;
@@ -1507,69 +1575,11 @@ const handleKey = (
                             onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setEditingDateTaskId(null); }}
                           />
                         )}
-                      </div>
-                      {/* Pinned (only when set): flag, due date, note — everything else lives in the ⋮ menu */}
-                      {getTaskFlag(task) ? (
-                        <TaskFlagButton
-                          source={task}
-                          onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
-                        />
-                      ) : null}
-                      {editingDateTaskId !== task.id && isValidDateYYYYMMDD(task.deadline) && (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setEditingDateTaskId(task.id); }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          aria-label="Change due date"
-                          title="Change due date"
-                          className="shrink-0 h-5 flex items-center justify-center rounded-full px-2 text-[12px] transition-all duration-150 hover:brightness-125"
-                          style={{ background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }}
-                        >
-                          <span className="inline-flex items-center gap-1">
-                            {formatPill(task.deadline)}
-                            <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
-                            </svg>
-                          </span>
-                        </button>
-                      )}
-                      {(task.note || '').trim() ? (
-                        <TaskNoteButton
-                          task={task}
-                          onChange={(note) => handleUpdateBlock(task.id, { note })}
-                        />
-                      ) : null}
-                      {/* ⋮ shows on hover (and stays while its menu is open) */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const r = e.currentTarget.getBoundingClientRect();
-                          setTaskMenu(prev => (prev?.taskId === task.id ? null : { taskId: task.id, x: r.right, y: r.bottom + 4 }));
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        aria-label="Task options"
-                        title="Task options"
-                        aria-haspopup="menu"
-                        aria-expanded={taskMenu?.taskId === task.id}
-                        className={[
-                          'shrink-0 h-5 w-5 flex items-center justify-center rounded transition-opacity duration-150',
-                          taskMenu?.taskId === task.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
-                        ].join(' ')}
-                        // Full theme text color — the muted tone was too faint to spot
-                        style={{ color: 'var(--assistant-text)' }}
-                      >
-                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
-                          <circle cx="8" cy="3.2" r="1.3" />
-                          <circle cx="8" cy="8" r="1.3" />
-                          <circle cx="8" cy="12.8" r="1.3" />
-                        </svg>
-                      </button>
-                    </div>
+                    </AgendaTaskRow>
                     {/* Must directly follow the row: CSS reveals it via .quick-add-anchor:hover + .quick-add-ghost */}
                     {isCommitted(task) && addGhost(
                       () => handleAddTaskAfter(task.id),
-                      isUncList ? 6 : 8 + task.indent * 16,
+                      rowPad,
                     )}
                   </React.Fragment>
                 );
@@ -1581,7 +1591,8 @@ const handleKey = (
 
     // Nothing to show → render nothing, so "All groups" can drop the group's heading too
     if (rows.length === 0) return null;
-    return <div className="space-y-1 quick-rows">{rows}</div>;
+    // Uncategorized tasks have no list header, so the group name is what places them
+    return { node: <div className="space-y-1 quick-rows">{rows}</div>, showsUncategorized };
   };
 
   const actionsPanelProps = {
@@ -1623,6 +1634,19 @@ const handleKey = (
       </div>
     );
   }
+
+  // The selected group's lists; the header names the group only when they include Uncategorized tasks
+  const groupLists = showAllGroups ? null : renderNormalList();
+
+  // Back to the defaults: every date, no tag filter, Someday shown, no keyword, every list
+  const filtersActive = dateMode !== 'all' || taskFilter !== 'none' || hideSomeday || searching || focusList !== null;
+  const clearFilters = () => {
+    setDateMode('all');
+    setTaskFilter('none');
+    setHideSomeday(false);
+    setSearchQuery('');
+    setFocusedList(null);
+  };
 
   return (
     <div className="h-full w-full min-h-0 flex flex-col overflow-hidden bg-transparent" style={{ color: 'var(--assistant-text)' }}>
@@ -1781,10 +1805,22 @@ const handleKey = (
                       // Focused-list filter: name it and offer a way out
                       <span
                         className="flex min-w-0 items-center gap-1 rounded-full py-0.5 pl-2 pr-1 text-[11px] md:text-[12px] font-semibold uppercase tracking-wide"
-                        style={{ color: 'var(--assistant-text)', border: '1px solid var(--assistant-accent)' }}
+                        style={{ color: 'var(--assistant-text)' }}
                         title={`Showing only ${currentProject?.title} › ${focusList.text}`}
                       >
-                        <span className="break-words">{currentProject?.title} › {(focusList.text || '').trim() || 'List'}</span>
+                        {/* Breadcrumbs: group (back to all its lists) › list (current) */}
+                        <nav aria-label="Breadcrumb" className="flex min-w-0 flex-wrap items-center gap-1 break-words">
+                          <button
+                            type="button"
+                            onClick={() => setFocusedList(null)}
+                            className="uppercase tracking-wide opacity-60 transition-opacity hover:opacity-100 hover:underline"
+                            title={`Show every list in ${currentProject?.title}`}
+                          >
+                            {currentProject?.title}
+                          </button>
+                          <span aria-hidden="true" className="opacity-40">›</span>
+                          <span aria-current="page">{(focusList.text || '').trim() || 'List'}</span>
+                        </nav>
                         <button
                           type="button"
                           onClick={() => setFocusedList(null)}
@@ -1795,10 +1831,10 @@ const handleKey = (
                           ×
                         </button>
                       </span>
-                    ) : showAllGroups || currentProject?.title ? (
+                    ) : showAllGroups || (currentProject?.title && groupLists?.showsUncategorized) ? (
                       <span
                         className="min-w-0 break-words rounded-full px-2 py-0.5 text-[11px] md:text-[12px] font-semibold uppercase tracking-wide"
-                        style={{ color: 'var(--assistant-text-soft)', border: '1px solid var(--assistant-border-soft)' }}
+                        style={{ color: 'var(--assistant-text-soft)' }}
                         title={showAllGroups ? 'Showing every group' : `Group: ${currentProject?.title}`}
                       >
                         {showAllGroups ? 'All groups' : currentProject?.title}
@@ -1895,20 +1931,34 @@ const handleKey = (
                           onMouseDownCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
                           onFocusCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
                         >
-                          <div
-                            className="mb-1 px-1 text-[11px] font-bold uppercase tracking-[0.14em]"
-                            style={{ color: 'var(--assistant-accent)' }}
-                          >
-                            {p.title}
-                          </div>
-                          {lists}
+                          {lists.showsUncategorized && (
+                            <div
+                              className="mb-1 px-1 text-[11px] font-bold uppercase tracking-[0.14em]"
+                              style={{ color: 'var(--assistant-accent)' }}
+                            >
+                              {p.title}
+                            </div>
+                          )}
+                          {lists.node}
                         </div>
                       );
                     })}
                   </div>
-                ) : renderNormalList() ?? (
+                ) : groupLists?.node ?? (
                   <div className="px-1 py-6 text-center text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>
                     No tasks to show here.
+                    {filtersActive && (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={clearFilters}
+                          className="rounded-full px-3 py-1 text-[12px] font-medium transition-colors"
+                          style={{ color: 'var(--assistant-text)', background: 'color-mix(in srgb, var(--assistant-text) 6%, transparent)' }}
+                        >
+                          Clear filters
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1939,6 +1989,16 @@ const handleKey = (
             defaultListId={focusList?.id}
             onCancel={() => setTaskDialogOpen(false)}
             onSubmit={handleDialogAddTask}
+          />
+        ) : null}
+
+        {hiddenNotice ? (
+          <HiddenTaskDialog
+            title={hiddenNotice.title}
+            taskText={hiddenNotice.text}
+            reasons={hiddenNotice.reasons}
+            onTurnOff={keys => turnOffFilters(keys, hiddenNotice.projectId)}
+            onClose={() => setHiddenNotice(null)}
           />
         ) : null}
 

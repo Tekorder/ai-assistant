@@ -206,16 +206,15 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
       <div className="w-full p-2" style={{ color: 'var(--assistant-text)' }}>
         <div className="flex items-center justify-between mb-2">
           <button type="button" onClick={prevMonth} className={`h-6 w-6 rounded-md text-sm ${classes.miniCalNavBtn}`}>‹</button>
-          <div className="text-[13px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>
-            {MONTH_NAMES[viewMonth]}{' '}
-            <span style={{ color: 'var(--assistant-accent)' }}>{viewYear}</span>
+          <div className="text-[13px] font-semibold" style={{ color: 'var(--assistant-text)' }}>
+            {MONTH_NAMES[viewMonth]} {viewYear}
           </div>
           <button type="button" onClick={nextMonth} className={`h-6 w-6 rounded-md text-sm ${classes.miniCalNavBtn}`}>›</button>
         </div>
 
         <div className="grid grid-cols-7 gap-1 mb-1">
           {WEEKDAYS_SHORT.map(wd => (
-            <div key={wd} className="text-center text-[10px]" style={{ color: 'var(--assistant-text-faint)' }}>{wd[0]}</div>
+            <div key={wd} className="text-center text-[10px]" style={{ color: 'var(--assistant-text)' }}>{wd[0]}</div>
           ))}
         </div>
 
@@ -224,8 +223,8 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
             if (!ymd) return <div key={`empty-${idx}`} className="h-7 rounded-md bg-transparent" />;
             const isToday = ymd === today;
             const dayCards = getVisibleDayCards(ymd);
+            // Only days with pending tasks get a dot
             const hasPending = dayCards.some(c => !c.checked);
-            const hasDone = dayCards.some(c => c.checked);
             const [, , day] = ymd.split('-');
             return (
               <button
@@ -236,13 +235,13 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                   'h-7 rounded-md text-[12px] transition-colors',
                   isToday ? `font-bold ${classes.miniCalDayToday}` : classes.miniCalDayNormal,
                 ].join(' ')}
+                // Every day in the theme's text color; today keeps only its background
+                style={{ color: 'var(--assistant-text)' }}
                 title={ymd}
               >
                 <span className="inline-flex items-center gap-1">
                   {Number(day)}
-                  {(hasPending || hasDone) ? (
-                    <span className={['h-1.5 w-1.5 rounded-full', hasPending ? 'bg-rose-400/80' : 'bg-emerald-400/80'].join(' ')} />
-                  ) : null}
+                  {hasPending ? <span className="h-1.5 w-1.5 rounded-full bg-rose-400/80" /> : null}
                 </span>
               </button>
             );
