@@ -2,7 +2,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import type { Block as PrismaBlock } from '@prisma/client';
-import { isDefaultGroup, parseListStatus } from '@/lib/datacenter';
+import { isDefaultGroup, parseListStatus, parseRepeatDays } from '@/lib/datacenter';
 
 function getUid(req: NextRequest) {
   return req.headers.get('X-Firebase-UID') ?? '';
@@ -50,6 +50,18 @@ export async function GET(req: NextRequest) {
     orderBy: [{ position: 'asc' }, { rowCreatedAt: 'asc' }],
   });
 
+  // Done occurrences of recurring tasks, by task
+  const completions = await prisma.taskCompletion.findMany({
+    where: { userId: user.id },
+    select: { taskLocalId: true, date: true },
+  });
+  const doneByTask = new Map<string, string[]>();
+  for (const c of completions) {
+    const arr = doneByTask.get(c.taskLocalId) ?? [];
+    arr.push(c.date);
+    doneByTask.set(c.taskLocalId, arr);
+  }
+
   return NextResponse.json({
     onboarded: user.onboarded,
     groupsSeeded: user.groupsSeeded,
@@ -67,6 +79,10 @@ export async function GET(req: NextRequest) {
         order: b.order,
         ...(b.checked != null ? { checked: b.checked } : {}),
         ...(b.deadline ? { deadline: b.deadline } : {}),
+        ...(b.dueTime ? { dueTime: b.dueTime } : {}),
+        ...(b.repeatDays.length ? { repeatDays: b.repeatDays } : {}),
+        ...(b.isSection ? { section: true } : {}),
+        ...(doneByTask.has(b.localId) ? { doneDates: doneByTask.get(b.localId)!.sort() } : {}),
         ...(b.createdAt ? { createdAt: b.createdAt } : {}),
         ...(b.isHidden ? { isHidden: b.isHidden } : {}),
         ...(b.archived ? { archived: b.archived } : {}),
@@ -108,6 +124,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Every task in the payload, and the done occurrences of the ones that send them
+  const seenTaskIds = new Set<string>();
+  const incomingDone = new Map<string, Set<string>>();
+
   for (const [position, rawProj] of projects.entries()) {
     const localId = typeof rawProj.project_id === 'string' ? rawProj.project_id : '';
     if (!localId) continue;
@@ -147,6 +167,14 @@ export async function POST(req: NextRequest) {
         const parentLocalId = indent > 0 ? (parentStack[indent - 1] ?? null) : null;
         parentStack[indent] = bLocalId;
         for (const key in parentStack) { if (Number(key) > indent) delete parentStack[key]; }
+        if (indent > 0) {
+          seenTaskIds.add(bLocalId);
+          if (Array.isArray(b.doneDates)) {
+            incomingDone.set(bLocalId, new Set(
+              (b.doneDates as unknown[]).filter((d): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)),
+            ));
+          }
+        }
         return {
           projectId:     project.id,
           localId:       bLocalId,
@@ -156,6 +184,9 @@ export async function POST(req: NextRequest) {
           order:         Number(b.order ?? 0),
           checked:       typeof b.checked === 'boolean' ? b.checked : null,
           deadline:      typeof b.deadline === 'string' ? b.deadline : null,
+          dueTime:       indent > 0 && typeof b.dueTime === 'string' && /^\d{2}:\d{2}$/.test(b.dueTime) ? b.dueTime : null,
+          repeatDays:    indent > 0 ? parseRepeatDays(b.repeatDays) : [],
+          isSection:     indent > 0 && b.section === true,
           createdAt:     typeof b.createdAt === 'string' ? b.createdAt : null,
           isHidden:      Boolean(b.isHidden ?? false),
           archived:      Boolean(b.archived ?? false),
@@ -188,6 +219,31 @@ export async function POST(req: NextRequest) {
     await prisma.project.deleteMany({
       where: { userId: user.id, localId: { notIn: incomingProjectLocalIds } },
     });
+  }
+
+  // TaskCompletion: a task that sends doneDates is synced to exactly that set; one
+  // that doesn't (e.g. a tab still on older code) keeps its rows; a deleted task
+  // drops them. Only the difference is written.
+  if (projects.length > 0) {
+    const existing = await prisma.taskCompletion.findMany({
+      where: { userId: user.id },
+      select: { id: true, taskLocalId: true, date: true },
+    });
+    const staleIds = existing
+      .filter(c => !seenTaskIds.has(c.taskLocalId) || (incomingDone.get(c.taskLocalId)?.has(c.date) === false))
+      .map(c => c.id);
+    const existingKeys = new Set(existing.map(c => `${c.taskLocalId}|${c.date}`));
+    const toAdd = [...incomingDone].flatMap(([taskLocalId, dates]) =>
+      [...dates]
+        .filter(date => !existingKeys.has(`${taskLocalId}|${date}`))
+        .map(date => ({ userId: user.id, taskLocalId, date })),
+    );
+    if (staleIds.length || toAdd.length) {
+      await prisma.$transaction([
+        ...(staleIds.length ? [prisma.taskCompletion.deleteMany({ where: { id: { in: staleIds } } })] : []),
+        ...(toAdd.length ? [prisma.taskCompletion.createMany({ data: toAdd, skipDuplicates: true })] : []),
+      ]);
+    }
   }
 
   // A post-hydration upload means the client already ran its one-time starter

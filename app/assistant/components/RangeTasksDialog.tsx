@@ -50,7 +50,7 @@ export function RangeTasksDialog({
         listVisible = isListVisible(visibleLists, b.id);
         continue;
       }
-      if (b.indent !== 1 || !listVisible || b.archived) continue;
+      if (b.indent !== 1 || b.section || !listVisible || b.archived) continue;
       const date = by === 'createdAt' ? b.createdAt : b.deadline;
       if (!isValidDateYYYYMMDD(date) || date < range.from || date > range.to) continue;
       (byDate[date] ??= []).push({

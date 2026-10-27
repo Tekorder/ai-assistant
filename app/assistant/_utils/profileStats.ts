@@ -64,7 +64,7 @@ export function collectTasks(projects: Project[]): TaskRow[] {
         listTitle = isUncTitleBlock(b) ? UNC_TITLE : (b.text || '').trim() || 'Untitled list';
         continue;
       }
-      if (b.archived === true) continue;
+      if (b.archived === true || b.section) continue;
       if (!(b.text || '').trim()) continue; // empty placeholder rows
       rows.push({
         id: b.id,

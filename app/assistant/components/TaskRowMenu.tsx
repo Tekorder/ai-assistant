@@ -16,7 +16,9 @@ export function TaskRowMenu({
   hasNote,
   hasDueDate,
   onEdit,
+  repeatLabel,
   onDueDate,
+  onRepeat,
   onFlag,
   onNote,
   onReminder,
@@ -30,9 +32,12 @@ export function TaskRowMenu({
   flag?: TaskFlagColor;
   hasNote: boolean;
   hasDueDate: boolean;
+  /** The task's repeat ("Every Monday"); empty when it doesn't repeat */
+  repeatLabel?: string;
   /** Edit / note / reminder are left out of the menu when not given (e.g. in the dock panels) */
   onEdit?: () => void;
   onDueDate: () => void;
+  onRepeat?: () => void;
   onFlag: (flag: TaskFlagColor | undefined) => void;
   onNote?: () => void;
   onReminder?: () => void;
@@ -102,6 +107,7 @@ export function TaskRowMenu({
 
       {onEdit && item('Edit', onEdit)}
       {item(hasDueDate ? 'Change due date' : 'Set due date', onDueDate)}
+      {onRepeat && item(repeatLabel ? `Repeat: ${repeatLabel}` : 'Repeat…', onRepeat)}
 
       {/* Flag: pick a color right here (the active one is ringed; ⊘ clears it) */}
       <div className="flex items-center gap-1 px-3 py-1.5" role="group" aria-label="Flag">

@@ -26,6 +26,7 @@ model User {
   habits                 Habit[]
   reminders              Reminder[]
   checklists             Checklist[]
+  taskCompletions        TaskCompletion[]
   habitMeta              HabitMeta?
   rowCreatedAt           DateTime   @default(now())
   rowUpdatedAt           DateTime   @updatedAt
@@ -64,6 +65,11 @@ model Block {
   deadline      String?
   /// Optional time on the due date, "HH:MM" (24h); deadline stays a plain YYYY-MM-DD
   dueTime       String?
+  /// Weekdays a recurring task repeats on (0 = Sun … 6 = Sat); empty = not recurring.
+  /// deadline is its current occurrence; done occurrences live in TaskCompletion.
+  repeatDays    Int[]    @default([])
+  /// A section divider among a list's tasks (indent 1, not a task) — only Agenda shows it
+  isSection     Boolean  @default(false)
   createdAt     String?
   isHidden      Boolean  @default(false)
   archived      Boolean  @default(false)
@@ -82,6 +88,22 @@ model Block {
   @@index([projectId])
   @@index([deadline])
   @@index([archived])
+}
+
+/// One done occurrence of a recurring task ("Gym" on 2026-10-26). An occurrence with
+/// no row here is still open. Keyed by the task's localId, not Block.id — the sync
+/// recreates Block rows on every save, so a FK there would wipe the history.
+model TaskCompletion {
+  id           String   @id @default(cuid())
+  userId       String
+  taskLocalId  String
+  /// YYYY-MM-DD of the occurrence
+  date         String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rowCreatedAt DateTime @default(now())
+
+  @@unique([userId, taskLocalId, date])
+  @@index([userId])
 }
 
 model Habit {
