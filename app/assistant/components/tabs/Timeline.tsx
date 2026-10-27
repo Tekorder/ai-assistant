@@ -255,7 +255,7 @@ export default function Timeline() {
         continue;
       }
 
-      if (b.indent !== 1) continue;
+      if (b.indent !== 1 || b.section) continue;
       if (currentSectionId && !currentSectionVisible) continue;
       if (!isValidDateYYYYMMDD(b.deadline)) continue;
       if (b.archived === true) continue;

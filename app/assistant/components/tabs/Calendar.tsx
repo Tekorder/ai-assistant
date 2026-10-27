@@ -15,6 +15,8 @@ import {
   getTaskFlag,
   highestTaskFlag,
   type TaskFlagColor,
+  recurringCalendarDays,
+  isOccurrenceDone,
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from '../TaskFlag';
 import { useQuickFilters } from '../QuickFiltersContext';
@@ -180,14 +182,14 @@ export default function CalendarView({
         continue;
       }
 
-      if (b.indent !== 1) continue;
+      if (b.indent !== 1 || b.section) continue;
       if (currentListId && !currentListVisible) continue;
       if (b.archived) continue; // 👈 ocultar archivados
       const day = byCreated ? b.createdAt : b.deadline;
       if (!isValidDateYYYYMMDD(day)) continue;
 
       const listTitle = currentListTitle || groupTitle || 'General';
-      out.push({
+      const card = {
         id:        b.id,
         // Under "Show all" the group name leads, so same-named lists in different groups stay apart
         listTitle: showAll ? `${groupTitle} · ${listTitle}` : listTitle,
@@ -198,7 +200,14 @@ export default function CalendarView({
         isHidden:  b.isHidden === true,
         archived:  b.archived,
         flag: getTaskFlag(b),
-      });
+      };
+      // A recurring task sits on each of its repeat days, done or not per day
+      const repeats = byCreated ? [] : recurringCalendarDays(b);
+      if (repeats.length) {
+        for (const ymd of repeats) out.push({ ...card, deadline: ymd, checked: isOccurrenceDone(b, ymd) });
+      } else {
+        out.push(card);
+      }
     }
     }
 

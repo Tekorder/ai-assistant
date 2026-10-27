@@ -53,13 +53,20 @@ import {
   onlyListVisible,
   sortBlocksByOrder,
   getTaskFlag,
+  repeatDaysLabel,
   // Sync status
   isProjectsHydrated,
   PROJECTS_HYDRATED_EVENT,
+  // Recurring tasks
+  isRecurringTask,
+  recurringShowsOn,
+  isOccurrenceDone,
+  toggleOccurrence,
 } from '@/lib/datacenter';
 import { getCurrentUid } from '@/lib/session';
 import { TaskFlagButton } from '../TaskFlag';
 import { TaskReminderModal } from '../TaskReminder';
+import { TaskRepeatModal } from '../TaskRepeat';
 import { TaskNoteButton, TaskNoteModal } from '../TaskNote';
 import { TaskRowMenu } from '../TaskRowMenu';
 import { FirstListWizard } from '../FirstListWizard';
@@ -67,7 +74,7 @@ import { DeleteWithOpenTasksDialog, buildMoveTargets } from '../DeleteWithOpenTa
 import { DateRangeDialog } from '../DateRangeDialog';
 import { NewTaskDialog, type NewTaskListOption, type NewTaskTarget } from '../NewTaskDialog';
 import { HiddenTaskDialog, isHiddenTaskNoticeMuted, type HiddenTaskReason } from '../HiddenTaskDialog';
-import { AgendaListHeader, AgendaTaskRow, AgendaCheck, AgendaDate, AgendaMenuButton, agendaRowPad } from '../AgendaList';
+import { AgendaListHeader, AgendaTaskRow, AgendaCheck, AgendaDate, AgendaMenuButton, AgendaSectionRow, agendaSectionTitleClass, agendaRowPad } from '../AgendaList';
 
 /**
  * Uids that closed the first-list wizard during this page load. Module memory on
@@ -121,7 +128,7 @@ function findFirstEmptyTaskUnderList(blocks: Block[], listId: string): string | 
   if (i < 0) return null;
   for (let j = i + 1; j < blocks.length && blocks[j].indent !== 0; j++) {
     const t = blocks[j];
-    if (!(t.indent > 0)) continue;
+    if (!(t.indent > 0) || t.section) continue;
     if (t.archived === true) continue;
     if (t.checked === true) continue;
     if ((t.text || '').trim() !== '') continue;
@@ -487,7 +494,8 @@ export default function Quick(props: QuickProps = {}) {
   const closeTaskMenu = useCallback(() => setTaskMenu(null), []);
   const [noteModalTaskId, setNoteModalTaskId] = useState<string | null>(null);
   const [reminderModalTaskId, setReminderModalTaskId] = useState<string | null>(null);
-  const checkUndoRef = useRef<Array<Array<Pick<Block, 'id' | 'checked' | 'deadline' | 'isHidden'>>>>([]);
+  const [repeatModalTaskId, setRepeatModalTaskId] = useState<string | null>(null);
+  const checkUndoRef = useRef<Array<Array<Pick<Block, 'id' | 'checked' | 'deadline' | 'isHidden' | 'doneDates'>>>>([]);
   const undoLastCheckRef = useRef<() => boolean>(() => false);
   useEffect(() => () => {
     if (armTimerRef.current) window.clearTimeout(armTimerRef.current);
@@ -719,6 +727,7 @@ export default function Quick(props: QuickProps = {}) {
       const uncIds = hideUncategorized ? new Set(pBlocks.filter(isUncTitleBlock).map(b => b.id)) : null;
       return pBlocks.filter(b =>
       b.indent > 0 &&
+      !b.section &&
       !(uncIds && b.parentId && uncIds.has(b.parentId)) &&
       b.archived !== true &&
       (showCompleted || b.checked !== true) &&
@@ -808,10 +817,11 @@ export default function Quick(props: QuickProps = {}) {
     if (typeof patch.checked === 'boolean') {
       const before = new Map(blocks.map(b => [b.id, b]));
       const changed = updateBlockArr(blocks, id, patch, focusDay)
-        .filter(b => before.has(b.id) && Boolean(before.get(b.id)!.checked) !== Boolean(b.checked))
+        // A recurring task stays unchecked — its completion shows up as new doneDates
+        .filter(b => before.has(b.id) && (Boolean(before.get(b.id)!.checked) !== Boolean(b.checked) || before.get(b.id)!.doneDates !== b.doneDates))
         .map(b => {
           const old = before.get(b.id)!;
-          return { id: b.id, checked: old.checked, deadline: old.deadline, isHidden: old.isHidden };
+          return { id: b.id, checked: old.checked, deadline: old.deadline, isHidden: old.isHidden, doneDates: old.doneDates };
         });
       if (changed.length) {
         checkUndoRef.current.push(changed);
@@ -879,7 +889,8 @@ export default function Quick(props: QuickProps = {}) {
     const byId = new Map(entry.map(e => [e.id, e]));
     setCurrentBlocks(prev => prev.map(b => {
       const e = byId.get(b.id);
-      return e ? { ...b, checked: e.checked, deadline: e.deadline, isHidden: e.isHidden } : b;
+      // Undoing a recurring completion keeps doneDates as a (possibly empty) list, so the server drops that row
+      return e ? { ...b, checked: e.checked, deadline: e.deadline, isHidden: e.isHidden, ...(b.doneDates ? { doneDates: e.doneDates ?? [] } : {}) } : b;
     }));
     return true;
   };
@@ -1139,7 +1150,63 @@ const handleKey = (
   const [deleteListConfirmId, setDeleteListConfirmId] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingListTitleId, setEditingListTitleId] = useState<string | null>(null);
-  const typingAny = editingTaskId !== null || editingListTitleId !== null;
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const typingAny = editingTaskId !== null || editingListTitleId !== null || editingSectionId !== null;
+
+  /* ── Sections: titled dividers among a list's tasks (Agenda-only, never tasks) ── */
+  // The header's two-line button turns the list's "Task…" slots into "Section…" slots,
+  // so a section can be placed anywhere among the tasks
+  const [sectionModeListId, setSectionModeListId] = useState<string | null>(null);
+  const toggleSectionMode = (listId: string) => {
+    setSectionModeListId(prev => (prev === listId ? null : listId));
+    setCurrentCollapsed(prev => ({ ...prev, [listId]: false }));
+  };
+  useEffect(() => {
+    if (!sectionModeListId) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSectionModeListId(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sectionModeListId]);
+
+  // A new section right after `afterId` (the list itself = top of the list; a task = after its subtasks)
+  const handleInsertSection = (listId: string, afterId: string) => {
+    const sectionId = uid();
+    setCurrentBlocks(prev => {
+      const i = prev.findIndex(b => b.id === afterId);
+      if (i < 0) return prev;
+      let end = i;
+      if (afterId !== listId) {
+        while (end + 1 < prev.length && prev[end + 1].indent > prev[i].indent) end++;
+      }
+      return insertBlockAfter(prev, prev[end].id, {
+        id: sectionId, text: '', indent: 1, parentId: listId, order: 0, section: true, createdAt: todayYMD(),
+      });
+    });
+    setSectionModeListId(null);
+    setEditingSectionId(sectionId);
+    requestAnimationFrame(() => inputRefs.current[sectionId]?.focus());
+  };
+
+  // Leaving a section without a title drops it
+  const handleSectionBlur = (id: string) => {
+    setEditingSectionId(prev => (prev === id ? null : prev));
+    setCurrentBlocks(prev => {
+      const s = prev.find(b => b.id === id);
+      return s && !(s.text || '').trim() ? prev.filter(b => b.id !== id) : prev;
+    });
+  };
+
+  const handleSectionKey = (e: React.KeyboardEvent<HTMLInputElement>, s: Block) => {
+    if (e.key === 'Escape') { e.preventDefault(); e.currentTarget.blur(); return; }
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (!(s.text || '').trim()) return;
+    // Enter starts the section's first task right under it
+    setEditingSectionId(null);
+    const newTaskId = uid();
+    setCurrentBlocks(prev => insertBlockAfter(prev, s.id, makeTaskBlock({ id: newTaskId, indent: 1, parentId: s.parentId }, newTaskDue)));
+    focusBlock(newTaskId, false);
+  };
 
   // Empty tasks are never kept: leaving one without text drops it (unless it holds subtasks)
   const handleTaskBlur = (id: string) => {
@@ -1437,6 +1504,33 @@ const handleKey = (
         </span>
       </button>
     );
+    // Sections (and the button that adds them) only exist in the "All" view
+    const sectionsShown = dateMode === 'all';
+    // On a single day, a recurring task stands for that day's occurrence: its date, done state and check
+    const occurrenceDay = (t: Block) =>
+      sortBy === 'dueDate' && viewDateMode === 'today' && isRecurringTask(t) && recurringShowsOn(t, focusDay) ? focusDay : null;
+    const isTaskDone = (t: Block) => {
+      const day = occurrenceDay(t);
+      return day ? isOccurrenceDone(t, day) : t.checked === true;
+    };
+    // "Section…" slot, in place of the "Task…" ghost while the list is in section mode;
+    // revealed the same way, by hovering the row right before it
+    const sectionSlot = (onClick: () => void) => (
+      <button
+        type="button"
+        onClick={onClick}
+        onMouseDown={e => e.preventDefault()}
+        aria-label="Add section here"
+        className="quick-add-ghost quick-section-slot w-full flex items-center gap-2 px-0.5 text-left"
+        style={{ paddingLeft: agendaRowPad(1), marginTop: 0, marginBottom: 0 }}
+      >
+        <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <path strokeLinecap="round" d="M3 6h10M3 10.5h10" />
+        </svg>
+        <span className={agendaSectionTitleClass}>Section…</span>
+        <span aria-hidden="true" className="h-0 min-w-6 flex-1 border-t border-dashed" style={{ borderColor: 'currentColor' }} />
+      </button>
+    );
 
     let showsUncategorized = false;
     const rows = listBlocks.map(listBlock => {
@@ -1447,13 +1541,35 @@ const handleKey = (
           // A list whose title matches shows all its tasks; otherwise only matching tasks
           const listMatches = searching && !isUncList && matchesSearch(listBlock);
           const visibleTasks = tasks.filter(task =>
+            !task.section &&
             !pHiddenMap[task.id] && !pHiddenByList[task.id] &&
-            (showCompleted || task.checked !== true) &&
+            (showCompleted || !isTaskDone(task)) &&
             passesTaskFilter(task) &&
             (!searching || listMatches || matchesSearch(task)),
           );
-          // A list with no tasks to show isn't shown at all — unless its title is being typed
-          if (visibleTasks.length === 0 && editingListTitleId !== listBlock.id) return null;
+          // Sections slot in among the visible tasks: one shows while it has a visible task under
+          // it, while it's empty (just made) or while its title is being typed — filters that hide
+          // all its tasks hide it too
+          const visibleIds = new Set(visibleTasks.map(t => t.id));
+          const listRows: Block[] = [];
+          tasks.forEach((t, k) => {
+            if (!t.section) {
+              if (visibleIds.has(t.id)) listRows.push(t);
+              return;
+            }
+            // Sections belong to the "All" view only — date filters show plain task lists
+            if (!sectionsShown) return;
+            let hasTasks = false;
+            let showsTask = false;
+            for (let m = k + 1; m < tasks.length && !tasks[m].section; m++) {
+              hasTasks = true;
+              if (visibleIds.has(tasks[m].id)) { showsTask = true; break; }
+            }
+            if (showsTask || editingSectionId === t.id || (!hasTasks && !searching)) listRows.push(t);
+          });
+          const typingSectionHere = listRows.some(r => r.id === editingSectionId);
+          // A list with no tasks to show isn't shown at all — unless its title (or a new section's) is being typed
+          if (visibleTasks.length === 0 && editingListTitleId !== listBlock.id && !typingSectionHere) return null;
           if (isUncList) showsUncategorized = true;
           // Hovering any task reveals a ghost "Task…" row right below it that inserts a task
           // there; an empty list gets one under its header. Only offered under committed
@@ -1464,6 +1580,8 @@ const handleKey = (
           const lDragOver = dragOverId === listBlock.id && dragRef.current?.id !== listBlock.id;
           const lDragMe   = dragRef.current?.id === listBlock.id;
           const listCollapsed = !searching && !isUncList && pCollapsed[listBlock.id] === true;
+          // Section mode swaps the hover "Task…" slots for "Section…" slots
+          const sectionMode = sectionsShown && sectionModeListId === listBlock.id && !listCollapsed && !typingAny;
 
           return (
             <React.Fragment key={listBlock.id}>
@@ -1475,9 +1593,11 @@ const handleKey = (
                   onDragOver={e => onDragOverRow(e, listBlock.id)}
                   onDrop={e => onDropRow(e, listBlock.id)}
                   onDragEnd={onDragEndRow}
-                  className={[lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : '', showHeaderGhost ? 'quick-add-anchor' : ''].join(' ')}
+                  className={[lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : '', showHeaderGhost || sectionMode ? 'quick-add-anchor' : ''].join(' ')}
                   collapsed={listCollapsed}
                   onToggleCollapse={() => toggleList(listBlock.id)}
+                  onAddSection={sectionsShown ? () => toggleSectionMode(listBlock.id) : undefined}
+                  addSectionActive={sectionsShown && sectionModeListId === listBlock.id}
                   heading={editingListTitleId === listBlock.id ? (
                       <input
                         ref={el => void (inputRefs.current[listBlock.id] = el)}
@@ -1505,11 +1625,61 @@ const handleKey = (
                 />
               )}
               {/* ── Tasks belonging to this list ── */}
-              {!listCollapsed && visibleTasks.map(task => {
+              {sectionMode && listRows[0] && !listRows[0].section && sectionSlot(() => handleInsertSection(listBlock.id, listBlock.id))}
+              {!listCollapsed && listRows.map((task, rowIdx) => {
+                // In section mode: a slot after each task, unless a section already sits there
+                const slotAfter = sectionMode && !task.section && !listRows[rowIdx + 1]?.section
+                  ? sectionSlot(() => handleInsertSection(listBlock.id, task.id))
+                  : null;
                 // scheduled: layout only for now
                 const tDragOver = dragOverId === task.id && dragRef.current?.id !== task.id;
                 const tDragMe   = dragRef.current?.id === task.id;
+                if (task.section) {
+                  return (
+                    <React.Fragment key={task.id}>
+                    <AgendaSectionRow
+                      draggable={editingSectionId !== task.id}
+                      onDragStart={e => onDragStartRow(e, task.id)}
+                      onDragOver={e => onDragOverRow(e, task.id)}
+                      onDrop={e => onDropRow(e, task.id)}
+                      onDragEnd={onDragEndRow}
+                      className={[tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) || sectionMode ? 'quick-add-anchor' : ''].join(' ')}
+                      onRemove={editingSectionId === task.id ? undefined : () => setCurrentBlocks(prev => prev.filter(b => b.id !== task.id))}
+                      heading={editingSectionId === task.id ? (
+                        <input
+                          ref={el => void (inputRefs.current[task.id] = el)}
+                          value={task.text}
+                          placeholder="Section…"
+                          onChange={e => handleUpdateBlock(task.id, { text: e.target.value })}
+                          onKeyDown={e => handleSectionKey(e, task)}
+                          onBlur={() => handleSectionBlur(task.id)}
+                          className={`bg-transparent outline-none ${agendaSectionTitleClass}`}
+                          style={{ width: `${inputWidthPx(task.text || 'Section…')}px`, maxWidth: '100%', color: 'var(--assistant-text-muted)' }}
+                        />
+                      ) : (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          title="Rename section"
+                          className={`min-w-0 break-words cursor-text ${agendaSectionTitleClass}`}
+                          style={{ color: 'var(--assistant-text-muted)' }}
+                          onClick={(e) => { e.stopPropagation(); setEditingSectionId(task.id); requestAnimationFrame(() => inputRefs.current[task.id]?.focus()); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setEditingSectionId(task.id); requestAnimationFrame(() => inputRefs.current[task.id]?.focus()); } }}
+                        >
+                          {task.text}
+                        </span>
+                      )}
+                    />
+                    {/* Hovering the section offers a task right under it */}
+                    {isCommitted(task) && !sectionMode && addGhost(() => handleAddTaskAfter(task.id), agendaRowPad(1))}
+                    </React.Fragment>
+                  );
+                }
                 const rowPad = agendaRowPad(task.indent);
+                const occDay = occurrenceDay(task);
+                const toggleDone = occDay
+                  ? () => { const next = toggleOccurrence(task, occDay); handleUpdateBlock(task.id, { doneDates: next.doneDates, deadline: next.deadline }); }
+                  : () => handleUpdateBlock(task.id, { checked: !task.checked });
                 return (
                   <React.Fragment key={task.id}>
                     <AgendaTaskRow
@@ -1518,10 +1688,10 @@ const handleKey = (
                       onDragOver={e => onDragOverRow(e, task.id)}
                       onDrop={e => onDropRow(e, task.id)}
                       onDragEnd={onDragEndRow}
-                      className={[tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) ? 'quick-add-anchor' : ''].join(' ')}
+                      className={[tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) || sectionMode ? 'quick-add-anchor' : ''].join(' ')}
                       indent={task.indent}
                       check={
-                        <AgendaCheck checked={task.checked === true} onToggle={() => handleUpdateBlock(task.id, { checked: !task.checked })}>
+                        <AgendaCheck checked={isTaskDone(task)} onToggle={toggleDone}>
                           {pulseId === task.id ? (
                             <>
                               <span className={`absolute -inset-2 rounded-full border animate-ping ${classes.quickPulseRing1}`} />
@@ -1556,7 +1726,16 @@ const handleKey = (
                     >
                         {renderTaskTextWithWordHover(task)}
                         {editingDateTaskId !== task.id && (
-                          <AgendaDate ymd={task.deadline} onClick={() => setEditingDateTaskId(task.id)} />
+                          <AgendaDate
+                            ymd={occDay ?? task.deadline}
+                            time={task.dueTime}
+                            repeatDays={task.repeatDays}
+                            // The sort picked in Filters names the date: "Due Date: …" or "Created: … · Due Date: …"
+                            labeled={sortBy === 'dueDate'}
+                            created={sortBy === 'createdAt' ? task.createdAt : undefined}
+                            onClick={() => setEditingDateTaskId(task.id)}
+                            onRepeatClick={() => setRepeatModalTaskId(task.id)}
+                          />
                         )}
                         {editingDateTaskId === task.id && (
                           <input
@@ -1577,10 +1756,11 @@ const handleKey = (
                         )}
                     </AgendaTaskRow>
                     {/* Must directly follow the row: CSS reveals it via .quick-add-anchor:hover + .quick-add-ghost */}
-                    {isCommitted(task) && addGhost(
+                    {isCommitted(task) && !sectionMode && addGhost(
                       () => handleAddTaskAfter(task.id),
                       rowPad,
                     )}
+                    {slotAfter}
                   </React.Fragment>
                 );
               })}
@@ -1669,6 +1849,8 @@ const handleKey = (
           max-height: 0; opacity: 0; overflow: hidden; cursor: text;
           transition: max-height 0.15s ease 0.25s, opacity 0.15s ease 0.25s, padding 0.15s ease 0.25s;
         }
+        .quick-section-slot { color: var(--assistant-text-faint); transition: color 0.15s ease; }
+        .quick-section-slot:hover, .quick-section-slot:focus-visible { color: var(--assistant-accent); }
         .quick-add-anchor:hover + .quick-add-ghost,
         .quick-add-ghost:hover,
         .quick-add-ghost:focus-visible {
@@ -2022,8 +2204,10 @@ const handleKey = (
               flag={getTaskFlag(menuTask)}
               hasNote={Boolean((menuTask.note || '').trim())}
               hasDueDate={isValidDateYYYYMMDD(menuTask.deadline)}
+              repeatLabel={repeatDaysLabel(menuTask.repeatDays)}
               onEdit={() => { setEditingTaskId(menuTask.id); focusBlock(menuTask.id, true); }}
               onDueDate={() => setEditingDateTaskId(menuTask.id)}
+              onRepeat={() => setRepeatModalTaskId(menuTask.id)}
               onFlag={(flag) => handleUpdateBlock(menuTask.id, { flag, priority: undefined })}
               onNote={() => setNoteModalTaskId(menuTask.id)}
               onReminder={() => setReminderModalTaskId(menuTask.id)}
@@ -2045,6 +2229,16 @@ const handleKey = (
         {(() => {
           const t = reminderModalTaskId ? blocks.find(b => b.id === reminderModalTaskId) : undefined;
           return t ? <TaskReminderModal task={t} onClose={() => setReminderModalTaskId(null)} /> : null;
+        })()}
+        {(() => {
+          const t = repeatModalTaskId ? blocks.find(b => b.id === repeatModalTaskId) : undefined;
+          return t ? (
+            <TaskRepeatModal
+              task={t}
+              onSave={(patch) => handleUpdateBlock(t.id, patch)}
+              onClose={() => setRepeatModalTaskId(null)}
+            />
+          ) : null;
         })()}
 
         {deleteListConfirmId ? (

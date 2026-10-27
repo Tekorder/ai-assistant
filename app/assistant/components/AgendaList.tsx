@@ -2,7 +2,7 @@
 
 import React from 'react';
 import classes from '@/app/assistant/_theme/themes.module.css';
-import { formatPill, isValidDateYYYYMMDD } from '@/lib/datacenter';
+import { formatPill, formatTime12, isValidDateYYYYMMDD, repeatDaysLabel } from '@/lib/datacenter';
 import { TaskCheckmark } from './TaskCheckmark';
 
 /*
@@ -21,6 +21,8 @@ export function AgendaListHeader({
   heading,
   collapsed,
   onToggleCollapse,
+  onAddSection,
+  addSectionActive = false,
   className = '',
   style,
   ...rest
@@ -30,6 +32,10 @@ export function AgendaListHeader({
   collapsed?: boolean;
   /** Shows the chevron when given */
   onToggleCollapse?: () => void;
+  /** Shows the "Add section" button (two lines) next to the chevron when given */
+  onAddSection?: () => void;
+  /** The list is picking where a new section goes — the button shows as on */
+  addSectionActive?: boolean;
 }) {
   return (
     <div
@@ -38,6 +44,27 @@ export function AgendaListHeader({
       style={{ paddingLeft: 2, borderBottom: '1px solid var(--assistant-border-soft)', ...style }}
     >
       <div className="min-w-0 flex-1 flex flex-wrap items-center gap-0.5">{heading}</div>
+      {onAddSection ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onAddSection(); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          // On: ringed in a circle, accent-colored
+          className={`shrink-0 transition-colors ${addSectionActive ? 'h-5 w-5 -mx-1 flex items-center justify-center rounded-full' : `w-3 ${classes.quickCollapseBtn}`}`}
+          style={addSectionActive ? {
+            color: 'var(--assistant-accent)',
+            background: 'color-mix(in srgb, var(--assistant-accent) 14%, transparent)',
+            boxShadow: '0 0 0 1px color-mix(in srgb, var(--assistant-accent) 45%, transparent)',
+          } : undefined}
+          title={addSectionActive ? 'Cancel add section' : 'Add section'}
+          aria-label={addSectionActive ? 'Cancel add section' : 'Add section'}
+          aria-pressed={addSectionActive}
+        >
+          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <path strokeLinecap="round" d="M3 6h10M3 10.5h10" />
+          </svg>
+        </button>
+      ) : null}
       {onToggleCollapse ? (
         // Points down while open, left while collapsed
         <button
@@ -97,6 +124,52 @@ export function AgendaTaskRow({
   );
 }
 
+/**
+ * A section divider among a list's tasks — the title, then a rule to the end of the row:
+ *   Section ───────────────────── ×
+ */
+export function AgendaSectionRow({
+  heading,
+  onRemove,
+  className = '',
+  style,
+  ...rest
+}: DivProps & {
+  /** The section title (text, or an input while it's being renamed) */
+  heading: React.ReactNode;
+  /** Shows an × at the end of the row when given */
+  onRemove?: () => void;
+}) {
+  return (
+    <div
+      {...rest}
+      className={`group flex items-center gap-2 px-0.5 pt-2 pb-0.5 ${className}`}
+      style={{ paddingLeft: agendaRowPad(1), ...style }}
+    >
+      <div className="min-w-0 max-w-[85%] flex items-center">{heading}</div>
+      <span aria-hidden="true" className="h-px min-w-6 flex-1" style={{ background: 'var(--assistant-border-soft)' }} />
+      {onRemove ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="shrink-0 mr-1 h-5 w-5 flex items-center justify-center rounded opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+          style={{ color: 'var(--assistant-text-faint)' }}
+          title="Delete section"
+          aria-label="Delete section"
+        >
+          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <path strokeLinecap="round" d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+          </svg>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Section title text style (shared by the read-only label and the rename input). */
+export const agendaSectionTitleClass = 'text-[13px] font-medium leading-[1.45]';
+
 /** Left padding of a task row at a given depth (also used by rows that sit between tasks). */
 export const agendaRowPad = (indent: number) => 8 + (Math.max(1, indent) - 1) * 16;
 
@@ -148,12 +221,44 @@ export function AgendaTaskText({
   );
 }
 
-/** The due date under a task's text, as plain faint text. Clickable when `onClick` is given. */
-export function AgendaDate({ ymd, onClick }: { ymd?: string; onClick?: () => void }) {
-  if (!isValidDateYYYYMMDD(ymd)) return null;
-  const cls = '-mt-1 self-start text-[12px] leading-[1.45]';
+/**
+ * The due date under a task's text, as plain faint text — plus its hour and repeat when set:
+ *   October 26, 2026 · 6:00 AM · ↻ Every Monday
+ * The date is clickable when `onClick` is given, the repeat when `onRepeatClick` is.
+ * `labeled` names it ("Due Date: …"); `created` leads with the creation date ("Created: … · Due Date: …").
+ */
+export function AgendaDate({
+  ymd,
+  time,
+  repeatDays,
+  onClick,
+  onRepeatClick,
+  labeled = false,
+  created,
+}: {
+  ymd?: string;
+  time?: string;
+  repeatDays?: number[];
+  onClick?: () => void;
+  onRepeatClick?: () => void;
+  /** Prefix the due date with "Due Date:" */
+  labeled?: boolean;
+  /** Creation date (YYYY-MM-DD) shown first as "Created: …" */
+  created?: string;
+}) {
+  const cls = 'text-[12px] leading-[1.45]';
   const style = { color: 'var(--assistant-text-faint)' };
-  return onClick ? (
+  const createdText = isValidDateYYYYMMDD(created) ? (
+    <span className={cls} style={style}>Created: {formatPill(created)}</span>
+  ) : null;
+  if (!isValidDateYYYYMMDD(ymd)) {
+    return createdText ? <span className="-mt-1 self-start flex">{createdText}</span> : null;
+  }
+  const hour = formatTime12(time);
+  const repeat = repeatDaysLabel(repeatDays);
+  const dueLabel = labeled || createdText ? <span className={cls} style={style}>Due Date:</span> : null;
+
+  const date = onClick ? (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onClick(); }}
@@ -167,6 +272,37 @@ export function AgendaDate({ ymd, onClick }: { ymd?: string; onClick?: () => voi
     </button>
   ) : (
     <span className={cls} style={style}>{formatPill(ymd)}</span>
+  );
+  if (!hour && !repeat && !dueLabel) return <span className="-mt-1 self-start flex">{date}</span>;
+
+  const repeatText = <>↻ {repeat}</>;
+  return (
+    <span className="-mt-1 self-start flex flex-wrap items-baseline gap-x-1.5">
+      {createdText}
+      {createdText ? <span className={cls} style={style} aria-hidden="true">·</span> : null}
+      {dueLabel}
+      {date}
+      {hour ? <span className={cls} style={style}>· {hour}</span> : null}
+      {repeat ? (
+        <>
+          <span className={cls} style={style} aria-hidden="true">·</span>
+          {onRepeatClick ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRepeatClick(); }}
+              onMouseDown={(e) => e.stopPropagation()}
+              title="Change repeat"
+              className={`${cls} transition-colors hover:underline`}
+              style={style}
+            >
+              {repeatText}
+            </button>
+          ) : (
+            <span className={cls} style={style}>{repeatText}</span>
+          )}
+        </>
+      ) : null}
+    </span>
   );
 }
 

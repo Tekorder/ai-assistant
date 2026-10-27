@@ -75,7 +75,7 @@ function applyAddTask(listName: string, block: WaldyBlock): void {
 /** Finds the task block Waldy referred to, preferring an exact text match, scoped to a list when known. */
 function findTaskBlock(blocks: Block[], listName: string | null | undefined, taskText: string): Block | undefined {
   const target = norm(taskText);
-  let candidates = blocks.filter(b => b.indent > 0 && b.archived !== true);
+  let candidates = blocks.filter(b => b.indent > 0 && !b.section && b.archived !== true);
 
   if (listName) {
     const list = findListBlock(blocks, listName);
@@ -120,7 +120,7 @@ function buildTaskTableRows(
   listName: string | null | undefined,
   when: string | null | undefined,
 ): TaskTableRow[] {
-  let candidates = blocks.filter(b => b.indent > 0 && b.archived !== true);
+  let candidates = blocks.filter(b => b.indent > 0 && !b.section && b.archived !== true);
 
   if (listName) {
     const list = findListBlock(blocks, listName);
@@ -178,7 +178,7 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
         .map(listBlock => ({
           name: listBlock.text.trim(),
           tasks: blocks
-            .filter(b => b.indent > 0 && b.parentId === listBlock.id && b.archived !== true)
+            .filter(b => b.indent > 0 && !b.section && b.parentId === listBlock.id && b.archived !== true)
             .map(b => ({ text: b.text.trim(), checked: Boolean(b.checked) }))
             .filter(t => t.text),
         }))

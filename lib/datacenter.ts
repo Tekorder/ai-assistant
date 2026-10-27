@@ -41,7 +41,7 @@ export function getListProgress(blocks: Block[], listId: string): ListProgress {
   let total = 0;
   if (list) {
     for (let j = i + 1; j < blocks.length && blocks[j].indent !== 0; j++) {
-      if (blocks[j].archived === true) continue;
+      if (blocks[j].archived === true || isSectionBlock(blocks[j])) continue;
       total++;
       if (blocks[j].checked === true) done++;
     }
@@ -69,7 +69,20 @@ export type Block = {
   listStatus?: ListStatus;
   /** Free-text note on a task (indent > 0) */
   note?: string;
+  /** Time on the due date, "HH:MM" (24h) */
+  dueTime?: string;
+  /** Recurring task: weekdays it repeats on (0 = Sun … 6 = Sat). `deadline` is the current occurrence. */
+  repeatDays?: number[];
+  /** Recurring task: occurrences already done (YYYY-MM-DD) — stored server-side in TaskCompletion */
+  doneDates?: string[];
+  /** A section divider inside a list (indent 1, not a task) — only Agenda shows it */
+  section?: boolean;
 };
+
+/** Section dividers sit among a list's tasks but are never tasks themselves. */
+export function isSectionBlock(b: Pick<Block, 'section'>): boolean {
+  return b.section === true;
+}
 
 export type Project = {
   project_id: string;
@@ -161,6 +174,10 @@ type RawBlock = {
   flag?: unknown;
   listStatus?: unknown;
   note?: unknown;
+  dueTime?: unknown;
+  repeatDays?: unknown;
+  doneDates?: unknown;
+  section?: unknown;
 };
 
 type RawProject = {
@@ -237,6 +254,121 @@ export function formatPill(deadline?: string): string {
   if (!deadline || !isValidDateYYYYMMDD(deadline)) return '';
   const [y, m, d] = deadline.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+/** "HH:MM" (24h) → "6:30 AM". */
+export function formatTime12(hhmm?: string): string {
+  if (!isValidTimeHHMM(hhmm)) return '';
+  const [h, m] = hhmm.split(':').map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/* ===================== Recurring tasks =====================
+ * A recurring task is one block with `repeatDays`. Its `deadline` is the current
+ * occurrence; checking it records that date in `doneDates` (the TaskCompletion
+ * table server-side) and moves the task on to its next open occurrence. */
+
+/** Mon-first display order; values are JS weekdays (0 = Sun). */
+export const WEEKDAYS: { value: number; short: string; long: string; letter: string }[] = [
+  { value: 1, short: 'Mon', long: 'Monday',    letter: 'M' },
+  { value: 2, short: 'Tue', long: 'Tuesday',   letter: 'T' },
+  { value: 3, short: 'Wed', long: 'Wednesday', letter: 'W' },
+  { value: 4, short: 'Thu', long: 'Thursday',  letter: 'T' },
+  { value: 5, short: 'Fri', long: 'Friday',    letter: 'F' },
+  { value: 6, short: 'Sat', long: 'Saturday',  letter: 'S' },
+  { value: 0, short: 'Sun', long: 'Sunday',    letter: 'S' },
+];
+
+/** Valid, unique weekdays (0–6), sorted. */
+export function parseRepeatDays(v: unknown): number[] {
+  if (!Array.isArray(v)) return [];
+  return [...new Set(v.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))].sort((a, b) => a - b);
+}
+
+export function isRecurringTask(b: Pick<Block, 'repeatDays'>): boolean {
+  return (b.repeatDays?.length ?? 0) > 0;
+}
+
+/** First day on or after `fromYmd` that falls on one of `days` and isn't already done. */
+export function nextOccurrenceYMD(days: number[], fromYmd: string, done: string[] = []): string {
+  if (!days.length || !isValidDateYYYYMMDD(fromYmd)) return fromYmd;
+  const doneSet = new Set(done);
+  let ymd = fromYmd;
+  // Done dates can sit ahead of today (completed early), so look past one week
+  for (let i = 0; i < 400; i++) {
+    if (days.includes(parseYMD(ymd).getDay()) && !doneSet.has(ymd)) return ymd;
+    ymd = addDaysYMD(ymd, 1);
+  }
+  return fromYmd;
+}
+
+/** "Every day", "Mon–Fri", "Weekends", "Every Monday", "Mon, Wed, Fri". */
+export function repeatDaysLabel(days?: number[]): string {
+  const set = new Set(days ?? []);
+  if (set.size === 0) return '';
+  if (set.size === 7) return 'Every day';
+  if (set.size === 5 && [1, 2, 3, 4, 5].every(d => set.has(d))) return 'Mon–Fri';
+  if (set.size === 2 && set.has(6) && set.has(0)) return 'Weekends';
+  const picked = WEEKDAYS.filter(d => set.has(d.value));
+  return picked.length === 1 ? `Every ${picked[0].long}` : picked.map(d => d.short).join(', ');
+}
+
+/**
+ * Completes a recurring task's current occurrence: the date is recorded as done and the
+ * task moves to its next open occurrence (never before today — missed ones aren't
+ * brought back). It stays unchecked.
+ */
+export function completeOccurrence(b: Block): Block {
+  const today = todayYMD();
+  const occurrence = isValidDateYYYYMMDD(b.deadline) ? b.deadline : today;
+  const doneDates = [...new Set([...(b.doneDates ?? []), occurrence])].sort();
+  const dayAfter = addDaysYMD(occurrence, 1);
+  const next = nextOccurrenceYMD(b.repeatDays ?? [], dayAfter > today ? dayAfter : today, doneDates);
+  return { ...b, checked: false, isHidden: false, doneDates, deadline: next };
+}
+
+type RecurringFields = Pick<Block, 'repeatDays' | 'deadline' | 'doneDates'>;
+
+/** Does a recurring task show on `ymd`? Its current occurrence, the repeat days after it, and the days it was done. */
+export function recurringShowsOn(b: RecurringFields, ymd: string): boolean {
+  if (!isRecurringTask(b) || !isValidDateYYYYMMDD(b.deadline)) return false;
+  if (ymd === b.deadline || b.doneDates?.includes(ymd)) return true;
+  return ymd > b.deadline && b.repeatDays!.includes(parseYMD(ymd).getDay());
+}
+
+/** Days in [from, to] a recurring task shows on (capped at ~13 months of days). */
+export function recurringDaysInRange(b: RecurringFields, from: string, to: string): string[] {
+  if (!isRecurringTask(b) || !isValidDateYYYYMMDD(b.deadline)) return [];
+  const out: string[] = [];
+  let ymd = from;
+  for (let i = 0; i < 400 && ymd <= to; i++, ymd = addDaysYMD(ymd, 1)) {
+    if (recurringShowsOn(b, ymd)) out.push(ymd);
+  }
+  return out;
+}
+
+/** Every day a recurring task shows on, for calendars: done days, then a year of repeats from its current occurrence. */
+export function recurringCalendarDays(b: RecurringFields): string[] {
+  if (!isRecurringTask(b) || !isValidDateYYYYMMDD(b.deadline)) return [];
+  const past = (b.doneDates ?? []).filter(d => d < b.deadline!);
+  return [...past, ...recurringDaysInRange(b, b.deadline, addDaysYMD(b.deadline, 366))];
+}
+
+export function isOccurrenceDone(b: RecurringFields, ymd: string): boolean {
+  return b.doneDates?.includes(ymd) ?? false;
+}
+
+/** Marks one day of a recurring task done, or open again. */
+export function toggleOccurrence(b: Block, ymd: string): Block {
+  const done = b.doneDates ?? [];
+  if (done.includes(ymd)) {
+    // Reopened: if it's earlier than the current occurrence, the task goes back to it
+    const deadline = isValidDateYYYYMMDD(b.deadline) && b.deadline < ymd ? b.deadline : ymd;
+    return { ...b, doneDates: done.filter(d => d !== ymd), deadline };
+  }
+  if (ymd === b.deadline || !isValidDateYYYYMMDD(b.deadline)) return completeOccurrence(b);
+  // A later day done ahead of time — the current occurrence stays
+  return { ...b, doneDates: [...done, ymd].sort() };
 }
 
 export function dayDiffFromToday(yyyyMmDd?: string): number | null {
@@ -541,7 +673,7 @@ export function moveListToProject(
 export function openTasksOf(blocks: Block[], listIds: Iterable<string>): Block[] {
   const ids = new Set(listIds);
   return sortBlocksByOrder(blocks).filter(b =>
-    b.indent > 0 && b.parentId != null && ids.has(b.parentId) &&
+    b.indent > 0 && !isSectionBlock(b) && b.parentId != null && ids.has(b.parentId) &&
     b.checked !== true && b.archived !== true && (b.text || '').trim() !== '',
   );
 }
@@ -600,10 +732,21 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
     const order = Number.isFinite(rawOrder) ? Number(rawOrder) : NaN;
     const b: Block = { id, text, indent: Math.max(0, indent), parentId: null, order };
 
-    if (b.indent > 0) {
+    if (b.indent > 0 && x?.section === true) {
+      // A section is just its title: always top level in its list, no task fields
+      b.indent = 1;
+      b.section = true;
+    } else if (b.indent > 0) {
       b.checked = Boolean(x?.checked);
       if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline as string;
       if (typeof x?.note === 'string' && x.note.trim() !== '') b.note = x.note;
+      if (isValidTimeHHMM(x?.dueTime)) b.dueTime = x.dueTime;
+      const repeatDays = parseRepeatDays(x?.repeatDays);
+      if (repeatDays.length) b.repeatDays = repeatDays;
+      // Kept even when empty: an empty list tells the server to clear the task's history
+      if (Array.isArray(x?.doneDates)) {
+        b.doneDates = [...new Set((x.doneDates as unknown[]).filter(isValidDateYYYYMMDD))].sort();
+      }
     } else {
       const listStatus = parseListStatus(x?.listStatus);
       if (listStatus) b.listStatus = listStatus;
@@ -1448,6 +1591,11 @@ export function passesDateFilter(
   opts: { sortBy: SortBy; dateMode: DateMode; focusDay: string; range?: DateRange },
 ): boolean {
   if (!(b.indent > 0)) return true;
+  // A recurring task is due on every repeat day, so it passes when any of them falls in the window
+  if (opts.sortBy === 'dueDate' && opts.dateMode !== 'all' && isRecurringTask(b) && isValidDateYYYYMMDD(b.deadline)) {
+    const [from, to] = dateWindow(opts);
+    if (from && to) return recurringDaysInRange(b, from, to).length > 0;
+  }
   const date = getFilterDate(b, opts.sortBy);
   if (!date || !isValidDateYYYYMMDD(date)) return false;
   if (opts.dateMode === 'all')   return true;
@@ -1455,6 +1603,15 @@ export function passesDateFilter(
   if (opts.dateMode === 'week')  return inWeekRange(date, opts.focusDay);
   if (opts.dateMode === 'range') return !!opts.range && date >= opts.range.from && date <= opts.range.to;
   return inMonthRange(date, opts.focusDay);
+}
+
+/** First and last day a date filter covers ("all" covers no fixed window). */
+function dateWindow(opts: { dateMode: DateMode; focusDay: string; range?: DateRange }): [string?, string?] {
+  if (opts.dateMode === 'today') return [opts.focusDay, opts.focusDay];
+  if (opts.dateMode === 'week') { const monday = getMonday(opts.focusDay); return [monday, addDaysYMD(monday, 6)]; }
+  if (opts.dateMode === 'range') return [opts.range?.from, opts.range?.to];
+  if (opts.dateMode === 'month') return [monthStartYMD(opts.focusDay), monthEndYMD(opts.focusDay)];
+  return [];
 }
 
 /** Days in a range, inclusive (both ends YYYY-MM-DD). */
@@ -1686,6 +1843,10 @@ export function removeTaskAndSubtasks(blocks: Block[], taskId: string): Block[] 
 }
 
 function applyPatch(b: Block, patch: Partial<Block>, focusDay?: string): Block {
+  if (patch.checked === true && isRecurringTask(b)) {
+    return completeOccurrence({ ...b, ...patch });
+  }
+
   if (patch.checked === true) {
     return {
       ...b,
@@ -1750,6 +1911,9 @@ export function updateBlock(
 ): Block[] {
   let next = blocks.map(b => (b.id === id ? applyPatch(b, patch, focusDay) : b));
   if (typeof patch.checked !== 'boolean') return next;
+  // Completing a recurring task only closes its occurrence — the task itself stays open
+  const target = blocks.find(b => b.id === id);
+  if (patch.checked && target && isRecurringTask(target)) return next;
 
   // Checking/unchecking a task does the same to all its subtasks
   const checked = patch.checked;

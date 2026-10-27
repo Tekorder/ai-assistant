@@ -10,6 +10,8 @@ import {
   todayYMD,
   parseYMD,
   readSelectedProject,
+  recurringCalendarDays,
+  isOccurrenceDone,
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
@@ -111,11 +113,11 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
       continue;
     }
 
-    if (b.indent !== 1) continue;
+    if (b.indent !== 1 || b.section) continue;
     if (b.archived) continue;
     if (!isValidDateYYYYMMDD(b.deadline)) continue;
 
-    out.push({
+    const card = {
       id:        b.id,
       listTitle: currentListTitle || projectTitle || 'General',
       text:      b.text || '',
@@ -123,7 +125,14 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
       deadline:  b.deadline!,
       isHidden:  b.isHidden === true,
       archived:  b.archived
-    });
+    };
+    // A recurring task sits on each of its repeat days, done or not per day
+    const repeats = recurringCalendarDays(b);
+    if (repeats.length) {
+      for (const ymd of repeats) out.push({ ...card, deadline: ymd, checked: isOccurrenceDone(b, ymd) });
+    } else {
+      out.push(card);
+    }
   }
 
   return out;

@@ -19,8 +19,14 @@ import {
   updateBlock,
   getTaskFlag,
   formatPill,
+  isRecurringTask,
+  recurringShowsOn,
+  isOccurrenceDone,
+  toggleOccurrence,
+  repeatDaysLabel,
   type TaskFlagColor,
 } from '@/lib/datacenter';
+import { TaskRepeatModal } from './TaskRepeat';
 import { TaskFlagButton } from './TaskFlag';
 import { TaskNoteButton, TaskNoteModal } from './TaskNote';
 import { TaskRowMenu } from './TaskRowMenu';
@@ -42,6 +48,9 @@ type CalCard = {
   flag?: TaskFlagColor;
   note?: string;
   createdAt?: string;
+  dueTime?: string;
+  repeatDays?: number[];
+  doneDates?: string[];
 };
 
 type DayGroup = {
@@ -161,7 +170,7 @@ export default function DayPanel({
           currentListVisible = isListVisible(visibleLists, b.id);
           continue;
         }
-        if (b.indent !== 1) continue;
+        if (b.indent !== 1 || b.section) continue;
         if (currentListId && !currentListVisible) continue;
         if (b.archived) continue;
         if (!isValidDateYYYYMMDD(byCreated ? b.createdAt : b.deadline)) continue;
@@ -179,6 +188,9 @@ export default function DayPanel({
           flag: getTaskFlag(b),
           note: b.note,
           createdAt: b.createdAt,
+          dueTime: b.dueTime,
+          repeatDays: b.repeatDays,
+          doneDates: b.doneDates,
         });
       }
     }
@@ -186,7 +198,13 @@ export default function DayPanel({
   }, [sources, showAll, byCreated]);
 
   const groups = useMemo<DayGroup[]>(() => {
-    const cards = allCards.filter(c => c.day === ymd);
+    // A recurring task shows on each of its days, done or open per day (not under "View by: Created")
+    const cards = allCards.flatMap(c => {
+      if (!byCreated && isRecurringTask(c)) {
+        return recurringShowsOn(c, ymd) ? [{ ...c, deadline: ymd, checked: isOccurrenceDone(c, ymd) }] : [];
+      }
+      return c.day === ymd ? [c] : [];
+    });
     const byList: Record<string, { title: string; cards: CalCard[] }> = {};
     const order: string[] = [];
     for (const c of cards) {
@@ -203,7 +221,7 @@ export default function DayPanel({
       count: byList[k].cards.length,
       cards: byList[k].cards,
     }));
-  }, [allCards, ymd]);
+  }, [allCards, ymd, byCreated]);
 
   const listOptions = useMemo<ListOption[]>(() => {
     const out: ListOption[] = [];
@@ -244,6 +262,11 @@ export default function DayPanel({
   const handleToggleDone = (cardId: string) => {
     const card = blocks.find(b => b.id === cardId && b.indent === 1);
     if (!card) return;
+    // A recurring task is done per day — this panel's day
+    if (!byCreated && isRecurringTask(card)) {
+      mutateHolding(cardId, bl => bl.map(b => (b.id === cardId ? toggleOccurrence(b, ymd) : b)));
+      return;
+    }
     mutateHolding(cardId, bl => updateBlock(bl, cardId, { checked: !card.checked }));
   };
 
@@ -265,6 +288,7 @@ export default function DayPanel({
   // ⋮ menu of a task row (same menu as Agenda, minus in-place edit and reminders)
   const [taskMenu, setTaskMenu] = useState<{ cardId: string; x: number; y: number } | null>(null);
   const [noteCardId, setNoteCardId] = useState<string | null>(null);
+  const [repeatCardId, setRepeatCardId] = useState<string | null>(null);
 
   const handleAddTask = (listId: string, text: string) => {
     const trimmed = text.trim();
@@ -430,7 +454,13 @@ export default function DayPanel({
                     }
                   >
                     <AgendaTaskText checked={card.checked || Boolean(card.archived)}>{card.text || '(no text)'}</AgendaTaskText>
-                    <AgendaDate ymd={card.deadline} onClick={card.archived ? undefined : () => openPicker(card.id)} />
+                    <AgendaDate
+                      ymd={card.deadline}
+                      time={card.dueTime}
+                      repeatDays={card.repeatDays}
+                      onClick={card.archived ? undefined : () => openPicker(card.id)}
+                      onRepeatClick={card.archived ? undefined : () => setRepeatCardId(card.id)}
+                    />
                     {/* Native picker behind the date (and the menu's "Change due date") */}
                     <input
                       ref={el => void (dateRefs.current[card.id] = el)}
@@ -461,7 +491,9 @@ export default function DayPanel({
             flag={card.flag}
             hasNote={Boolean((card.note || '').trim())}
             hasDueDate={isValidDateYYYYMMDD(card.deadline)}
+            repeatLabel={repeatDaysLabel(card.repeatDays)}
             onDueDate={() => openPicker(card.id)}
+            onRepeat={() => setRepeatCardId(card.id)}
             onFlag={flag => patchTask(card.id, { flag, priority: undefined })}
             onNote={() => setNoteCardId(card.id)}
             onDelete={() => setDeleteConfirmId(card.id)}
@@ -473,6 +505,13 @@ export default function DayPanel({
         const card = noteCardId ? allCards.find(c => c.id === noteCardId) : undefined;
         return card ? (
           <TaskNoteModal task={card} onChange={note => patchTask(card.id, { note })} onClose={() => setNoteCardId(null)} />
+        ) : null;
+      })()}
+      {(() => {
+        // The task itself, not the per-day copy — the modal edits the real date
+        const card = repeatCardId ? allCards.find(c => c.id === repeatCardId) : undefined;
+        return card ? (
+          <TaskRepeatModal task={card} onSave={patch => patchTask(card.id, patch)} onClose={() => setRepeatCardId(null)} />
         ) : null;
       })()}
 

@@ -67,11 +67,13 @@ function isUncTitleBlock(text: string, indent: number, uncTitle?: string) {
   return indent === 0 && (text || '').trim().toLowerCase() === uncTitle.trim().toLowerCase();
 }
 
-export function buildPrunedPivotTree<T extends { id: string; text: string; indent: number; checked?: boolean; deadline?: string; archived?: boolean; flag?: TaskFlagColor; priority?: boolean }>(
-  blocks: T[],
+export function buildPrunedPivotTree<T extends { id: string; text: string; indent: number; checked?: boolean; deadline?: string; archived?: boolean; flag?: TaskFlagColor; priority?: boolean; section?: boolean }>(
+  allBlocks: T[],
   word: string,
   opts?: { uncTitle?: string },
 ): PivotTreeRow[] {
+  // Section dividers are Agenda-only
+  const blocks = allBlocks.filter(b => !b.section);
   const w = (word || '').trim().toLowerCase();
   if (!w) return [];
 
@@ -139,11 +141,13 @@ export function buildPrunedPivotTree<T extends { id: string; text: string; inden
 }
 
 /** All tasks under a list block (indent 0) until the next list — for list-title pivot. */
-export function buildListPivotTree<T extends { id: string; text: string; indent: number; checked?: boolean; deadline?: string; archived?: boolean; flag?: TaskFlagColor; priority?: boolean }>(
-  blocks: T[],
+export function buildListPivotTree<T extends { id: string; text: string; indent: number; checked?: boolean; deadline?: string; archived?: boolean; flag?: TaskFlagColor; priority?: boolean; section?: boolean }>(
+  allBlocks: T[],
   listBlockId: string,
   opts?: { uncTitle?: string },
 ): PivotTreeRow[] {
+  // Section dividers are Agenda-only
+  const blocks = allBlocks.filter(b => !b.section);
   const i0 = blocks.findIndex((b) => b.id === listBlockId && b.indent === 0);
   if (i0 < 0) return [];
 
