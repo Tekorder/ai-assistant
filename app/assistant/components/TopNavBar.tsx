@@ -84,8 +84,11 @@ export const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: Re
 ];
 
 
-const CENTER_NAV: {
-  id: 'lists' | 'habits' | 'reminders';
+export type PanelId = 'lists' | 'habits' | 'reminders';
+
+/** Check Lists / Habits / Reminders: the panels menu and the sidebar's panel rows */
+export const CENTER_NAV: {
+  id: PanelId;
   label: string;
   icon: React.ReactNode;
 }[] = [

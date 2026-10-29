@@ -33,26 +33,16 @@ export function NewSectionDialog({
         className={`relative w-[92vw] max-w-md rounded-2xl shadow-2xl ${classes.quickModal}`}
       >
         <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-          <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>New section</div>
-          <label className="block text-[13px] mt-2 mb-1.5" style={{ color: 'var(--assistant-text-soft)' }} htmlFor="new-section-name">
-            Section name
+          <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--assistant-text)' }} htmlFor="new-section-name">
+            New section
           </label>
           <input
             id="new-section-name"
             autoFocus
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="e.g. House"
             className={`w-full rounded-lg px-2 py-2 text-[13px] ${classes.quickSearchInput}`}
           />
-          <p className="text-[12px] mt-2" style={{ color: 'var(--assistant-text-faint)' }}>
-            It shows at the top of the list. Drag tasks into it.
-          </p>
-          {listName ? (
-            <div className="text-[12px] mt-2 break-words" title={listName} style={{ color: 'var(--assistant-text-faint)' }}>
-              List: {listName}
-            </div>
-          ) : null}
         </div>
         <div className="px-4 py-3 flex flex-wrap items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
           <button type="button" onClick={onCancel} className={`text-[13px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}>

@@ -1052,6 +1052,7 @@ export default function App() {
               >
                 <Sidebar
                   onOpenPivot={requestOpenPivot}
+                  panels={panelsMenuProps}
                 />
               </div>
               {/* ChatGPT-style foot: profile + layout / theme / reminders / sync */}

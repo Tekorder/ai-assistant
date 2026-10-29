@@ -39,6 +39,7 @@ import classes from '@/app/assistant/_theme/themes.module.css';
 import { useQuickFilters } from './QuickFiltersContext';
 import { useShowAllGroups, useFocusedList } from '../_hook/useShowAllGroups';
 import { DeleteWithOpenTasksDialog, buildMoveTargets } from './DeleteWithOpenTasksDialog';
+import { CENTER_NAV, type PanelId } from './TopNavBar';
 
 const LS_KEY_COLLAPSED_GROUPS = 'youtask_sidebar_collapsed_groups';
 // Background of the one active row (All lists, the selected group, or the focused list)
@@ -51,9 +52,14 @@ type SidebarProps = {
     origin: 'sidebar';
     listId?: string | null;
   }) => void;
+  /** Check Lists / Habits / Reminders rows under the groups (toggle their panels) */
+  panels?: {
+    open: Record<PanelId, boolean>;
+    onToggle: Record<PanelId, () => void>;
+  };
 };
 
-export const Sidebar: React.FC<SidebarProps> = () => {
+export const Sidebar: React.FC<SidebarProps> = ({ panels }) => {
   const { sortBy, hideSomeday } = useQuickFilters();
 
   const buildAllCollapsedFromBlocks = (listBlocks: Block[]): Record<string, boolean> => {
@@ -1010,6 +1016,41 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 );
               })}
               </div>
+
+              {/* Panels, under the groups: rows like the lists (padding, thin faint icon, type), but
+                  top-level — their icons line up with the group icons. Highlighted while open */}
+              {panels ? (
+                <div className="mt-4 space-y-1">
+                  {CENTER_NAV.map(item => {
+                    const isOn = panels.open[item.id];
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={panels.onToggle[item.id]}
+                        aria-pressed={isOn}
+                        title={isOn ? `Close ${item.label}` : `Open ${item.label}`}
+                        className="group flex w-full items-start gap-1 rounded-md px-1 py-1 text-left"
+                        style={{ background: isOn ? ACTIVE_BG : undefined }}
+                      >
+                        <span
+                          className="h-5 w-5 shrink-0 flex items-center justify-center [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:[stroke-width:1.4]"
+                          style={{ color: 'var(--assistant-text-faint)' }}
+                          aria-hidden="true"
+                        >
+                          {item.icon}
+                        </span>
+                        <span
+                          className={`min-w-0 break-words text-[14px] md:text-sm leading-5 ${isOn ? 'font-medium' : 'font-normal'}`}
+                          style={{ color: isOn ? 'var(--assistant-text)' : 'var(--assistant-text-soft)' }}
+                        >
+                          {item.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
           </>
         </div>
         </aside>

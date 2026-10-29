@@ -1500,13 +1500,14 @@ const handleKey = (
     }
     listBlocks.sort((a, b) => a.order - b.order);
     for (const tasks of tasksByParent.values()) tasks.sort((a, b) => a.order - b.order);
-    // Ghost "Task…" row; revealed by hovering the row right before it (.quick-add-anchor)
-    const addGhost = (onClick: () => void, paddingLeft: number) => (
+    // Ghost "Task…" row; revealed by hovering the row right before it (.quick-add-anchor),
+    // or always shown when `visible` (an empty section's suggestion)
+    const addGhost = (onClick: () => void, paddingLeft: number, visible = false) => (
       <button
         type="button"
         onClick={onClick}
         aria-label="Add task"
-        className="quick-add-ghost w-full flex items-center px-0.5 gap-1 text-left"
+        className={`${visible ? 'py-1' : 'quick-add-ghost'} w-full flex items-center px-0.5 gap-1 text-left`}
         style={{ paddingLeft, marginTop: 0, marginBottom: 0 }}
       >
         <span className="h-4 w-4 shrink-0 flex items-center justify-center">
@@ -1758,8 +1759,10 @@ const handleKey = (
                     <React.Fragment key={s.head.id}>
                       {renderRow(s.head)}
                       {s.shown.map(renderRow)}
+                      {/* Empty section: suggest a task (inserted right under the header, so it lands inside) */}
+                      {s.rows.length === 0 && addGhost(() => handleAddTaskAfter(s.head.id), agendaRowPad(1), true)}
                       <AgendaSectionEnd {...sectionEndDrop(s.head.id)} className={dropHighlight(`${s.head.id}::end`)}>
-                        {s.shown.length > 0 ? null : s.rows.length > 0 ? 'No tasks to show' : 'Drag tasks here'}
+                        {s.shown.length > 0 ? null : s.rows.length > 0 ? 'No tasks to show' : 'Drag items or add new'}
                       </AgendaSectionEnd>
                     </React.Fragment>
                   ))}
@@ -1930,13 +1933,13 @@ const handleKey = (
       {/* @container: the filters column follows this panel's own width, not the window's —
           docked panels can leave the main panel narrow on a wide screen */}
       <div className="@container flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 pt-2 pb-0 @2xl:px-8 @2xl:pt-8">
+        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 pt-2 pb-0 @2xl:px-8 @2xl:pt-3">
           <div className="flex min-h-0 flex-1 flex-col gap-4 @2xl:flex-row">
             <div className="min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden">
 
               {/* Date pagination header — fixed above the scroll area, never overlapped by the tasks */}
               <div className="shrink-0 z-30">
-                <div className={`flex items-center justify-between gap-1 px-3 py-2.5 md:gap-3 md:px-4 md:py-3 ${classes.quickHeaderBar}`}>
+                <div className={`flex items-center justify-between gap-1 px-3 py-1 md:gap-3 md:px-4 md:py-1.5 ${classes.quickHeaderBar}`}>
 
                   {/* Left: ‹ date › */}
                   <div className="flex items-center gap-1 sm:gap-2 min-w-0">
@@ -2062,7 +2065,7 @@ const handleKey = (
                 </div>
 
                 {/* Keyword box — live-filters the lists (searches across all dates); "/" focuses it */}
-                <div className="px-3 pt-2">
+                <div className="px-3 pt-0.5">
                   <label className="quick-search flex items-center gap-2 px-1">
                     <svg viewBox="0 0 16 16" className="quick-search-icon h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                       <circle cx="7" cy="7" r="4.5" />
