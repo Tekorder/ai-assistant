@@ -239,7 +239,8 @@ export function AgendaTaskText({
 /**
  * The due date under a task's text, as plain faint text — plus its hour and repeat when set:
  *   October 26, 2026 · 6:00 AM · ↻ Every Monday
- * The date is clickable when `onClick` is given, the repeat when `onRepeatClick` is.
+ * The date is clickable when `onClick` is given, the hour when `onTimeClick` is, the repeat when `onRepeatClick` is.
+ * Without a date, a repeat still shows (with its hour): "6:00 AM · ↻ Every day".
  * `labeled` names it ("Due Date: …"); `created` leads with the creation date ("Created: … · Due Date: …").
  */
 export function AgendaDate({
@@ -247,6 +248,7 @@ export function AgendaDate({
   time,
   repeatDays,
   onClick,
+  onTimeClick,
   onRepeatClick,
   labeled = false,
   created,
@@ -255,6 +257,7 @@ export function AgendaDate({
   time?: string;
   repeatDays?: number[];
   onClick?: () => void;
+  onTimeClick?: () => void;
   onRepeatClick?: () => void;
   /** Prefix the due date with "Due Date:" */
   labeled?: boolean;
@@ -266,14 +269,15 @@ export function AgendaDate({
   const createdText = isValidDateYYYYMMDD(created) ? (
     <span className={cls} style={style}>Created: {formatPill(created)}</span>
   ) : null;
-  if (!isValidDateYYYYMMDD(ymd)) {
-    return createdText ? <span className="-mt-1 self-start flex">{createdText}</span> : null;
-  }
   const hour = formatTime12(time);
   const repeat = repeatDaysLabel(repeatDays);
-  const dueLabel = labeled || createdText ? <span className={cls} style={style}>Due Date:</span> : null;
+  const hasDate = isValidDateYYYYMMDD(ymd);
+  if (!hasDate && !repeat) {
+    return createdText ? <span className="-mt-1 self-start flex">{createdText}</span> : null;
+  }
+  const dueLabel = hasDate && (labeled || createdText) ? <span className={cls} style={style}>Due Date:</span> : null;
 
-  const date = onClick ? (
+  const date = !hasDate ? null : onClick ? (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onClick(); }}
@@ -291,16 +295,35 @@ export function AgendaDate({
   if (!hour && !repeat && !dueLabel) return <span className="-mt-1 self-start flex">{date}</span>;
 
   const repeatText = <>↻ {repeat}</>;
+  const hourText = hour && onTimeClick ? (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onTimeClick(); }}
+      onMouseDown={(e) => e.stopPropagation()}
+      title="Change time"
+      className={`${cls} transition-colors hover:underline`}
+      style={style}
+    >
+      {hour}
+    </button>
+  ) : hour ? (
+    <span className={cls} style={style}>{hour}</span>
+  ) : null;
   return (
     <span className="-mt-1 self-start flex flex-wrap items-baseline gap-x-1.5">
       {createdText}
       {createdText ? <span className={cls} style={style} aria-hidden="true">·</span> : null}
       {dueLabel}
       {date}
-      {hour ? <span className={cls} style={style}>· {hour}</span> : null}
+      {hourText ? (
+        <>
+          {date ? <span className={cls} style={style} aria-hidden="true">·</span> : null}
+          {hourText}
+        </>
+      ) : null}
       {repeat ? (
         <>
-          <span className={cls} style={style} aria-hidden="true">·</span>
+          {date || hourText ? <span className={cls} style={style} aria-hidden="true">·</span> : null}
           {onRepeatClick ? (
             <button
               type="button"

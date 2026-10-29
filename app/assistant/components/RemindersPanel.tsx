@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   type ReminderItem,
   LS_KEY_REMINDERS,
@@ -18,6 +18,7 @@ import {
 } from '@/lib/datacenter';
 import { createPortal } from 'react-dom';
 import { TaskFlagButton } from './TaskFlag';
+import { AgendaTaskRow, AgendaCheck, AgendaDate } from './AgendaList';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 /** Mon-first display order; values are JS weekdays (0 = Sun). */
@@ -39,15 +40,9 @@ function localNowKey(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function repeatLabel(r: ReminderItem): string {
-  if (!r.daily) return 'Once';
-  const days = r.days?.length ? r.days : ALL_DAYS;
-  if (days.length === 7) return 'Daily';
-  const set = new Set(days);
-  if (set.size === 5 && [1, 2, 3, 4, 5].every(d => set.has(d))) return 'Mon–Fri';
-  if (set.size === 2 && set.has(6) && set.has(0)) return 'Weekends';
-  return WEEK.filter(d => set.has(d.value)).map(d => d.short).join(', ');
-}
+/** Small icon buttons on the right of a row: show on hover. */
+const hoverIconClass =
+  'shrink-0 h-5 w-5 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity';
 
 type Props = {
   open: boolean;
@@ -60,7 +55,9 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
   const [isClosing, setIsClosing] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
   const [reminders, setReminders] = useState<ReminderItem[]>([makeDefaultReminder()]);
-  const reminderTitleRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const reminderTitleRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const timeRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [newId, setNewId] = useState<string | null>(null);
   const newTimerRef = useRef<number | null>(null);
   const dragRef = useRef<{ id: string; fromIndex: number } | null>(null);
@@ -99,6 +96,15 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
       window.removeEventListener('storage', onStorage);
     };
   }, []);
+
+  // Grow each title textarea to fit its wrapped text
+  useLayoutEffect(() => {
+    Object.values(reminderTitleRefs.current).forEach(el => {
+      if (!el) return;
+      el.style.height = '1px';
+      el.style.height = el.scrollHeight + 'px';
+    });
+  });
 
   useEffect(() => {
     return () => {
@@ -144,6 +150,18 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
     });
   };
 
+  const openPicker = (el: HTMLInputElement | null | undefined) => {
+    if (!el) return;
+    try {
+      (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+    } catch {
+      el.click();
+    }
+  };
+
+  const openDaysModal = (r: ReminderItem) =>
+    setDaysModal({ id: r.id, days: r.daily && r.days?.length ? r.days : ALL_DAYS });
+
   const triggerNewLineAnim = (id: string) => {
     setNewId(id);
     if (newTimerRef.current) window.clearTimeout(newTimerRef.current);
@@ -178,7 +196,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
     focusReminder(result.newReminder.id, false);
   };
 
-  const handleReminderKey = (e: React.KeyboardEvent<HTMLInputElement>, r: ReminderItem) => {
+  const handleReminderKey = (e: React.KeyboardEvent<HTMLTextAreaElement>, r: ReminderItem) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleInsertReminderAfter(r.id);
@@ -261,11 +279,12 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
           {reminders.map((r, idx) => {
             const isDraggingOver = dragOverId === r.id && dragRef.current?.id !== r.id;
             const isDraggingMe = dragRef.current?.id === r.id;
+            const ymd = isValidDateYYYYMMDD(r.date) ? r.date : todayYMD();
+            const hhmm = isValidTimeHHMM(r.time) ? r.time : '11:00';
             // One-off reminders whose date + time already went by (zero-padded, so string compare works)
-            const isPast = !r.daily && r.title.trim() !== '' &&
-              `${isValidDateYYYYMMDD(r.date) ? r.date : todayYMD()}T${isValidTimeHHMM(r.time) ? r.time : '11:00'}` < nowKey;
+            const isPast = !r.daily && r.title.trim() !== '' && `${ymd}T${hhmm}` < nowKey;
             return (
-              <div
+              <AgendaTaskRow
                 key={r.id}
                 draggable
                 onDragStart={e => onDragStartRow(e, r.id, idx)}
@@ -273,89 +292,97 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                 onDrop={e => onDropRow(e, r.id)}
                 onDragEnd={onDragEndRow}
                 className={[
-                  'group flex flex-col gap-1 px-0.5 py-1 rounded-md',
+                  'rounded-md',
                   isDraggingOver ? classes.dragOver : '',
                   isDraggingMe ? 'opacity-60' : '',
                   newId === r.id ? 'wadu-line-in' : '',
                 ].join(' ')}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
-                    <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
-                      <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-                      <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
-                      <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
-                    </svg>
-                  </div>
-
-                  {isPast ? (
+                // Checking a reminder dismisses it
+                check={
+                  <AgendaCheck
+                    checked={false}
+                    onToggle={() => handleRemoveReminder(r.id)}
+                    title={isPast ? 'This reminder already passed — dismiss it' : 'Done — dismiss'}
+                  />
+                }
+                right={
+                  <>
+                    <TaskFlagButton
+                      source={r}
+                      onChange={(next) => handleUpdateReminder(r.id, { flag: next, priority: undefined })}
+                    />
+                    {r.daily ? null : (
+                      <button
+                        type="button"
+                        onClick={() => openDaysModal(r)}
+                        className={hoverIconClass}
+                        style={{ color: 'var(--assistant-text-faint)' }}
+                        title="Repeat"
+                        aria-label="Repeat"
+                      >
+                        <span className="text-[13px] leading-none">↻</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleRemoveReminder(r.id)}
-                      className={`shrink-0 text-[12px] font-medium px-2.5 py-1 rounded-full ${classes.modalSecondaryButton}`}
-                      title="This reminder already passed — dismiss it"
-                    >
-                      Dismiss
-                    </button>
-                  ) : null}
-
-                  <TaskFlagButton
-                    source={r}
-                    onChange={(next) => handleUpdateReminder(r.id, { flag: next, priority: undefined })}
-                  />
-
-                  <input
-                    ref={el => void (reminderTitleRefs.current[r.id] = el)}
-                    value={r.title}
-                    placeholder="Reminder…"
-                    onChange={e => handleUpdateReminder(r.id, { title: e.target.value })}
-                    onKeyDown={e => handleReminderKey(e, r)}
-                    className="min-w-30 flex-1 bg-transparent outline-none text-sm cursor-pointer"
-                    style={{ color: isPast ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)' }}
-                  />
-
-                  {/* Repeating reminders fire on their weekdays — the date only matters for "Once" */}
-                  {!r.daily && <input
-                    type="date"
-                    value={isValidDateYYYYMMDD(r.date) ? r.date : todayYMD()}
-                    onChange={e => {
-                      const v = e.target.value;
-                      handleUpdateReminder(r.id, { date: isValidDateYYYYMMDD(v) ? v : todayYMD() });
-                    }}
-                    className={`shrink-0 text-[12px] px-2 py-1 rounded-md ${classes.panelInput}`}
-                  />}
-
-                  <input
-                    type="time"
-                    value={isValidTimeHHMM(r.time) ? r.time : '11:00'}
-                    onChange={e => {
-                      const v = e.target.value;
-                      handleUpdateReminder(r.id, { time: isValidTimeHHMM(v) ? v : '11:00' });
-                    }}
-                    className={`shrink-0 text-[12px] px-2 py-1 rounded-md ${classes.panelInput}`}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => setDaysModal({ id: r.id, days: r.daily && r.days?.length ? r.days : ALL_DAYS })}
-                    className={`shrink-0 text-[12px] px-2 py-1 rounded-full ${r.daily ? classes.panelAccentBadge : classes.panelNeutralBadge}`}
-                    title="Repeat"
-                  >
-                    {repeatLabel(r)}
-                  </button>
-
-                  {isPast ? null : (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveReminder(r.id)}
-                      className={`h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 ${classes.panelBtn}`}
+                      className={hoverIconClass}
+                      style={{ color: 'var(--assistant-text-faint)' }}
                       title="Delete"
+                      aria-label="Delete"
                     >
-                      ×
+                      <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                        <path strokeLinecap="round" d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+                      </svg>
                     </button>
-                  )}
-                </div>
-              </div>
+                  </>
+                }
+              >
+                <textarea
+                  ref={el => void (reminderTitleRefs.current[r.id] = el)}
+                  rows={1}
+                  value={r.title}
+                  placeholder="Reminder…"
+                  onChange={e => handleUpdateReminder(r.id, { title: e.target.value })}
+                  onKeyDown={e => handleReminderKey(e, r)}
+                  className="w-full resize-none overflow-hidden whitespace-pre-wrap break-words bg-transparent outline-none text-[14px] md:text-sm leading-[1.45] min-h-[1.45em]"
+                  style={{ color: isPast ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)' }}
+                />
+                {/* Repeating reminders fire on their weekdays — the date only matters for "Once" */}
+                <AgendaDate
+                  ymd={r.daily ? undefined : ymd}
+                  time={hhmm}
+                  repeatDays={r.daily ? (r.days?.length ? r.days : ALL_DAYS) : undefined}
+                  onClick={() => openPicker(dateRefs.current[r.id])}
+                  onTimeClick={() => openPicker(timeRefs.current[r.id])}
+                  onRepeatClick={() => openDaysModal(r)}
+                />
+                {/* Native pickers behind the date and the hour */}
+                <input
+                  ref={el => void (dateRefs.current[r.id] = el)}
+                  type="date"
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  value={ymd}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (isValidDateYYYYMMDD(v)) handleUpdateReminder(r.id, { date: v });
+                  }}
+                />
+                <input
+                  ref={el => void (timeRefs.current[r.id] = el)}
+                  type="time"
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  value={hhmm}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (isValidTimeHHMM(v)) handleUpdateReminder(r.id, { time: v });
+                  }}
+                />
+              </AgendaTaskRow>
             );
           })}
         </div>
