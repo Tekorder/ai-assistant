@@ -1930,7 +1930,7 @@ const handleKey = (
       {/* @container: the filters column follows this panel's own width, not the window's —
           docked panels can leave the main panel narrow on a wide screen */}
       <div className="@container flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 pt-2 pb-0 @2xl:px-8 @2xl:py-8">
+        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 pt-2 pb-0 @2xl:px-8 @2xl:pt-8">
           <div className="flex min-h-0 flex-1 flex-col gap-4 @2xl:flex-row">
             <div className="min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden">
 
