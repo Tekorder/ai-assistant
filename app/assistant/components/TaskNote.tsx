@@ -116,7 +116,7 @@ export function TaskNoteModal({
             <button
               type="button"
               onClick={() => { onChange(undefined); onClose(); }}
-              className="text-[13px] px-2 py-2 rounded-md transition-colors hover:!text-rose-400"
+              className="text-[13px] px-2 py-2 rounded-md transition-colors hover:!text-[var(--assistant-danger-text)]"
               style={{ color: 'var(--assistant-text-muted)' }}
             >
               Delete note

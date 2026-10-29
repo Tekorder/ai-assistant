@@ -32,6 +32,7 @@ import { TaskNoteButton } from '../TaskNote';
 import { DatePickerModal } from '../DatePickerModal';
 import { useShowAllGroups } from '../../_hook/useShowAllGroups';
 import { TaskCheckmark } from '../TaskCheckmark';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 /* ===================== Local UI types (no van a datacenter) ===================== */
 
@@ -909,7 +910,7 @@ export default function Timeline() {
               <button
                 type="button"
                 onClick={() => { deleteTask(deleteConfirmId); setDeleteConfirmId(null); }}
-                className="text-[13px] px-3 py-2 rounded-lg bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
+                className={`text-[13px] font-medium px-3 py-2 rounded-lg ${classes.panelBtnDanger}`}
               >
                 Delete
               </button>

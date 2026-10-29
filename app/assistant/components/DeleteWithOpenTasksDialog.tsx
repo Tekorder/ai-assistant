@@ -117,7 +117,7 @@ export function DeleteWithOpenTasksDialog({
               <button
                 type="button"
                 onClick={onDelete}
-                className="text-[13px] px-3 py-2 rounded-md bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 transition-colors"
+                className={`text-[13px] font-medium px-3 py-2 rounded-md ${classes.panelBtnDanger}`}
               >
                 {openCount > 0 ? 'Delete everything' : 'Yes, delete'}
               </button>

@@ -354,13 +354,13 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                         isToday
                           ? classes.miniCalDayNumToday
                           : isOverdue
-                          ? 'text-red-400/85'
+                          ? 'text-[var(--assistant-danger-text)]'
                           : classes.miniCalDayNumDefault,
                       ].join(' ')}>
                         {parseInt(dayNum)}
                       </div>
                       {isOverdue && (
-                        <span className="text-[8px] font-semibold uppercase leading-none text-red-400/75">
+                        <span className="text-[8px] font-semibold uppercase leading-none text-[var(--assistant-danger-text)]">
                           !
                         </span>
                       )}
@@ -412,7 +412,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                   <div className="flex items-center gap-1">
                     <span className={[
                       'text-[16px] font-bold leading-none',
-                      isOverdue ? 'text-red-400/85' : '',
+                      isOverdue ? 'text-[var(--assistant-danger-text)]' : '',
                     ].join(' ')}
                       style={!isOverdue ? { color: isToday ? 'var(--assistant-accent)' : 'var(--assistant-text-soft)' } : undefined}
                     >
@@ -421,7 +421,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                     <span className="text-[10px] uppercase" style={{ color: 'var(--assistant-text-faint)' }}>{weekday}</span>
                   </div>
                   {isOverdue && (
-                    <span className="text-[9px] font-semibold uppercase text-red-400/75">!</span>
+                    <span className="text-[9px] font-semibold uppercase text-[var(--assistant-danger-text)]">!</span>
                   )}
                 </div>
                 {hasAnyTask ? renderDaySummary(ymd) : (

@@ -1072,9 +1072,10 @@ export default function App() {
               transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}
           >
-            {/* MAINPANEL — tabs + active view as one unit inside the dock */}
+            {/* MAINPANEL — tabs + active view as one unit inside the dock. Full height: the
+                bottom room (5.5rem) is only for the dock carousel's bullets */}
             <div
-              className={`relative m-3 box-border flex h-[calc(100%-5.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden ${classes.mainPanel}`}
+              className={`relative m-3 box-border flex h-[calc(100%-1.5rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden ${classes.mainPanel}`}
               style={{
                 minWidth: isAccordion ? 0 : `calc(${mainPanelWidth} - 1.5rem)`,
                 transition: 'min-width 420ms cubic-bezier(0.22, 1, 0.36, 1)',

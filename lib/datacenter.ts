@@ -1763,6 +1763,88 @@ export function buildListSections(blocks: Block[]): ListSection[] {
   return sections;
 }
 
+/* ===================== List sections ===================== */
+/*
+ * A list stores its loose tasks first, then each section followed by its tasks (one
+ * `order` sequence, the list as every row's parentId). Agenda draws the sections on top,
+ * as two-line containers, and the loose tasks under them.
+ */
+
+export type ListLayout = {
+  loose: Block[];
+  sections: { head: Block; rows: Block[] }[];
+};
+
+/** Splits a list's rows into its loose tasks and its sections (each with its tasks). */
+export function readListLayout(blocks: Block[], listId: string): ListLayout {
+  const rows = blocks
+    .filter(b => b.indent > 0 && b.parentId === listId)
+    .sort((a, b) => a.order - b.order);
+  const layout: ListLayout = { loose: [], sections: [] };
+  for (const b of rows) {
+    if (isSectionBlock(b)) layout.sections.push({ head: b, rows: [] });
+    else if (layout.sections.length) layout.sections[layout.sections.length - 1].rows.push(b);
+    else layout.loose.push(b);
+  }
+  return layout;
+}
+
+/** Stores a layout back: its rows get the list as parent and their new order. */
+export function writeListLayout(blocks: Block[], listId: string, layout: ListLayout): Block[] {
+  const seq = [...layout.loose, ...layout.sections.flatMap(s => [s.head, ...s.rows])];
+  const orderOf = new Map(seq.map((b, i) => [b.id, i]));
+  return blocks.map(b => {
+    const order = orderOf.get(b.id);
+    if (order === undefined || (b.order === order && b.parentId === listId)) return b;
+    return { ...b, order, parentId: listId };
+  });
+}
+
+/** The rows in the order Agenda draws them: sections (each with its tasks), then loose tasks. */
+export function drawnListRows(layout: ListLayout): Block[] {
+  return [...layout.sections.flatMap(s => [s.head, ...s.rows]), ...layout.loose];
+}
+
+/** The task rows (loose, or one section's) that hold `id`. */
+export function layoutRowsHolding(layout: ListLayout, id: string): Block[] | null {
+  if (layout.loose.some(b => b.id === id)) return layout.loose;
+  return layout.sections.find(s => s.rows.some(b => b.id === id))?.rows ?? null;
+}
+
+/** Takes a row out of the layout: a task with its subtasks, or a section with its tasks. */
+export function takeFromLayout(layout: ListLayout, id: string): Block[] | null {
+  const si = layout.sections.findIndex(s => s.head.id === id);
+  if (si >= 0) {
+    const [s] = layout.sections.splice(si, 1);
+    return [s.head, ...s.rows];
+  }
+  const rows = layoutRowsHolding(layout, id);
+  if (!rows) return null;
+  const i = rows.findIndex(b => b.id === id);
+  let end = i + 1;
+  while (end < rows.length && rows[end].indent > rows[i].indent) end++;
+  return rows.splice(i, end - i);
+}
+
+/** A new section, first in its list (right under the list's title in Agenda). */
+export function addSectionToList(blocks: Block[], listId: string, section: Block): Block[] {
+  const layout = readListLayout(blocks, listId);
+  layout.sections.unshift({ head: section, rows: [] });
+  return writeListLayout([...blocks, section], listId, layout);
+}
+
+/** Deletes a section; its tasks stay in the list, as loose tasks. */
+export function removeSection(blocks: Block[], sectionId: string): Block[] {
+  const listId = blocks.find(b => b.id === sectionId)?.parentId;
+  if (!listId) return blocks;
+  const layout = readListLayout(blocks, listId);
+  const i = layout.sections.findIndex(s => s.head.id === sectionId);
+  if (i < 0) return blocks;
+  const [gone] = layout.sections.splice(i, 1);
+  layout.loose.push(...gone.rows);
+  return writeListLayout(blocks.filter(b => b.id !== sectionId), listId, layout);
+}
+
 /* ===================== Block mutations ===================== */
 
 export function insertBlockAfter(blocks: Block[], afterId: string, newBlock: Block): Block[] {

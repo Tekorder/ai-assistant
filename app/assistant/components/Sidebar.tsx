@@ -772,9 +772,9 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                   >
                     {/* Folder · name · chevron at the end. Clicking the name selects the group and
                         clears any view filter; the chevron collapses it */}
-                    <span className="w-5 shrink-0 flex items-center justify-center" aria-hidden="true">
+                    <span className="w-5 shrink-0 flex items-center justify-center" style={{ color: 'var(--assistant-text-faint)' }} aria-hidden="true">
                       {/* Stacked rectangles (receding cards behind the front one) */}
-                      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true">
+                      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true">
                         <rect x="1.75" y="6.25" width="12.5" height="8" rx="1.5" />
                         <path d="M3.25 4.25h9.5" />
                         <path d="M4.75 2.25h6.5" />
@@ -802,18 +802,18 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                       type="button"
                       onClick={() => toggleGroupCollapsed(project.project_id)}
                       className="ml-auto shrink-0 flex h-7 w-7 items-center justify-center rounded-md"
-                      style={{ color: 'var(--assistant-accent)' }}
+                      style={{ color: 'var(--assistant-text-faint)' }}
                       title={isGroupCollapsed ? 'Expand group' : 'Collapse group'}
                       aria-label={isGroupCollapsed ? `Expand ${project.title}` : `Collapse ${project.title}`}
                       aria-expanded={!isGroupCollapsed}
                     >
                       <svg
                         viewBox="0 0 16 16"
-                        className="h-3.5 w-3.5 shrink-0 transition-transform duration-150"
+                        className="h-3 w-3 shrink-0 transition-transform duration-150"
                         style={{ transform: isGroupCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
                         fill="none"
                         stroke="currentColor"
-                        strokeWidth="2"
+                        strokeWidth="1.8"
                         aria-hidden="true"
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
@@ -836,7 +836,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                         style={{ paddingLeft: 2 }}
                       >
                         <span className="w-5 shrink-0 text-center text-[14px] leading-none" style={{ color: 'var(--assistant-text-faint)' }}>+</span>
-                        <span className="text-[14px] md:text-sm font-semibold" style={{ color: 'var(--assistant-text-faint)' }}>List…</span>
+                        <span className="text-[14px] md:text-sm font-normal" style={{ color: 'var(--assistant-text-faint)' }}>List…</span>
                       </button>
                     );
                   }
@@ -862,13 +862,13 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                             draggable
                             onDragStart={e => onDragStartRow(e, b.id, project.project_id)}
                             onDragEnd={onDragEndRow}
-                            // List badge (round, accent) — doubles as the drag handle
-                            className="h-5 w-5 shrink-0 select-none flex items-center justify-center rounded-full cursor-grab active:cursor-grabbing"
-                            style={{ background: 'var(--assistant-accent)', color: '#fff' }}
+                            // List icon (thin, faint) — doubles as the drag handle
+                            className="h-5 w-5 shrink-0 select-none flex items-center justify-center cursor-grab active:cursor-grabbing"
+                            style={{ color: 'var(--assistant-text-faint)' }}
                             title="Drag to reorder"
                             aria-label="Drag to reorder"
                           >
-                            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
                               <circle cx="3" cy="4" r="1" fill="currentColor" stroke="none" />
                               <circle cx="3" cy="8" r="1" fill="currentColor" stroke="none" />
                               <circle cx="3" cy="12" r="1" fill="currentColor" stroke="none" />
@@ -900,10 +900,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                                 title={focusedList?.listId === b.id ? 'Showing only this list — click to show all lists' : 'Show only this list'}
                                 className={[
                                   'min-w-0 cursor-pointer select-none break-words text-left text-[14px] md:text-sm leading-5',
-                                  // Selected list: bold (its row is highlighted too)
-                                  focusedListId === b.id ? 'font-semibold' : 'font-normal',
+                                  // Selected list: medium weight, full text color (its row is highlighted too)
+                                  focusedListId === b.id ? 'font-medium' : 'font-normal',
                                 ].join(' ')}
-                                style={{ color: 'var(--assistant-text)' }}
+                                style={{ color: focusedListId === b.id ? 'var(--assistant-text)' : 'var(--assistant-text-soft)' }}
                                 // Global filter: Workspace, Calendar and Timeline show only this list (click again to undo)
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -997,7 +997,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                             style={{ paddingLeft: 2 }}
                           >
                             <span className="w-5 shrink-0 text-center text-[14px] leading-none" style={{ color: 'var(--assistant-text-faint)' }}>+</span>
-                            <span className="text-[14px] md:text-sm font-semibold" style={{ color: 'var(--assistant-text-faint)' }}>List…</span>
+                            <span className="text-[14px] md:text-sm font-normal" style={{ color: 'var(--assistant-text-faint)' }}>List…</span>
                           </button>
                         )}
                       </React.Fragment>
@@ -1060,7 +1060,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                   setDeleteListConfirmId(listId);
                   setListMenu(null);
                 }}
-                className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:!text-rose-400"
+                className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:!text-[var(--assistant-danger-text)]"
                 style={{ color: 'var(--assistant-text-faint)' }}
                 title="Delete list"
                 aria-label="Delete list"
@@ -1211,7 +1211,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                         <button
                           type="button"
                           onClick={() => handleDeleteProject(project.project_id)}
-                          className="shrink-0 rounded-md px-2 py-1 text-[12px] bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 transition-colors"
+                          className={`${classes.panelBtnDanger} shrink-0 rounded-md px-2 py-1 text-[12px] font-medium`}
                         >
                           Delete
                         </button>
@@ -1227,7 +1227,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                       <button
                         type="button"
                         onClick={() => requestDeleteProject(project)}
-                        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:!text-rose-400 transition-[opacity,color]"
+                        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:!text-[var(--assistant-danger-text)] transition-[opacity,color]"
                         style={{ color: 'var(--assistant-text-faint)' }}
                         title="Delete group"
                         aria-label={`Delete group ${project.title}`}
@@ -1245,7 +1245,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 Drag to reorder. Double-click a name to rename it.
               </p>
               {deleteGroupConfirmId ? (
-                <p className="mt-1 text-[12px] text-rose-300">
+                <p className="mt-1 text-[12px]" style={{ color: 'var(--assistant-danger-text)' }}>
                   Warning: deleting a group also deletes all its lists and tasks. This can&apos;t be undone.
                 </p>
               ) : null}
