@@ -635,7 +635,7 @@ export default function DayPanel({
                   handleDelete(deleteConfirmId);
                   setDeleteConfirmId(null);
                 }}
-                className="text-[13px] px-3 py-2 rounded-lg bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 transition-colors"
+                className={`text-[13px] font-medium px-3 py-2 rounded-lg ${classes.panelBtnDanger}`}
               >
                 Delete
               </button>

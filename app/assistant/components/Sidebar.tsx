@@ -1060,7 +1060,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                   setDeleteListConfirmId(listId);
                   setListMenu(null);
                 }}
-                className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:!text-rose-400"
+                className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:!text-[var(--assistant-danger-text)]"
                 style={{ color: 'var(--assistant-text-faint)' }}
                 title="Delete list"
                 aria-label="Delete list"
@@ -1211,7 +1211,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                         <button
                           type="button"
                           onClick={() => handleDeleteProject(project.project_id)}
-                          className="shrink-0 rounded-md px-2 py-1 text-[12px] bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 transition-colors"
+                          className={`${classes.panelBtnDanger} shrink-0 rounded-md px-2 py-1 text-[12px] font-medium`}
                         >
                           Delete
                         </button>
@@ -1227,7 +1227,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                       <button
                         type="button"
                         onClick={() => requestDeleteProject(project)}
-                        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:!text-rose-400 transition-[opacity,color]"
+                        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:!text-[var(--assistant-danger-text)] transition-[opacity,color]"
                         style={{ color: 'var(--assistant-text-faint)' }}
                         title="Delete group"
                         aria-label={`Delete group ${project.title}`}
@@ -1245,7 +1245,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 Drag to reorder. Double-click a name to rename it.
               </p>
               {deleteGroupConfirmId ? (
-                <p className="mt-1 text-[12px] text-rose-300">
+                <p className="mt-1 text-[12px]" style={{ color: 'var(--assistant-danger-text)' }}>
                   Warning: deleting a group also deletes all its lists and tasks. This can&apos;t be undone.
                 </p>
               ) : null}

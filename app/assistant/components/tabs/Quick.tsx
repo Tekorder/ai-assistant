@@ -62,6 +62,15 @@ import {
   recurringShowsOn,
   isOccurrenceDone,
   toggleOccurrence,
+  isSectionBlock,
+  readListLayout,
+  writeListLayout,
+  drawnListRows,
+  layoutRowsHolding,
+  takeFromLayout,
+  addSectionToList,
+  removeSection,
+  type ListLayout,
 } from '@/lib/datacenter';
 import { getCurrentUid } from '@/lib/session';
 import { TaskFlagButton } from '../TaskFlag';
@@ -74,7 +83,8 @@ import { DeleteWithOpenTasksDialog, buildMoveTargets } from '../DeleteWithOpenTa
 import { DateRangeDialog } from '../DateRangeDialog';
 import { NewTaskDialog, type NewTaskListOption, type NewTaskTarget } from '../NewTaskDialog';
 import { HiddenTaskDialog, isHiddenTaskNoticeMuted, type HiddenTaskReason } from '../HiddenTaskDialog';
-import { AgendaListHeader, AgendaTaskRow, AgendaCheck, AgendaDate, AgendaMenuButton, AgendaSectionRow, agendaSectionTitleClass, agendaRowPad } from '../AgendaList';
+import { AgendaListHeader, AgendaTaskRow, AgendaCheck, AgendaDate, AgendaMenuButton, AgendaSectionRow, AgendaSectionEnd, agendaSectionTitleClass, agendaRowPad } from '../AgendaList';
+import { NewSectionDialog } from '../NewSectionDialog';
 
 /**
  * Uids that closed the first-list wizard during this page load. Module memory on
@@ -1097,9 +1107,14 @@ const handleKey = (
     dragRef.current = null; setDragOverId(null);
     if (!drag || drag.id === overId) return;
 
+    // Besides rows, a section's closing line ("<sectionId>::end") and a list's loose-task
+    // zone ("<listId>::loose") take drops
+    const [overBlockId, zone] = overId.split('::');
+    const sectionsOn = dateMode === 'all';
+
     setCurrentBlocks(prev => {
       const dragged = prev.find(b => b.id === drag.id);
-      const target  = prev.find(b => b.id === overId);
+      const target  = prev.find(b => b.id === overBlockId);
       if (!dragged || !target) return prev;
 
       // List-header drag: reorder among root blocks
@@ -1107,7 +1122,7 @@ const handleKey = (
         const roots = prev
           .filter(b => b.indent === 0 && b.id !== drag.id)
           .sort((a, b) => a.order - b.order);
-        const insertIdx = roots.findIndex(b => b.id === overId);
+        const insertIdx = roots.findIndex(b => b.id === overBlockId);
         roots.splice(insertIdx < 0 ? roots.length : insertIdx + 1, 0, dragged);
         return prev.map(b => {
           const i = roots.findIndex(r => r.id === b.id);
@@ -1115,32 +1130,57 @@ const handleKey = (
         });
       }
 
-      // Task drag: determine new parent from drop target
-      const newParentId = target.indent === 0 ? target.id : target.parentId;
+      const fromListId = dragged.parentId;
+      const toListId = target.indent === 0 ? target.id : target.parentId;
+      if (!fromListId || !toListId) return prev;
+      const from = readListLayout(prev, fromListId);
+      const to = toListId === fromListId ? from : readListLayout(prev, toListId);
 
-      // All siblings in the new parent (excluding dragged)
-      const siblings = prev
-        .filter(b => b.parentId === newParentId && b.id !== drag.id && b.indent > 0)
-        .sort((a, b) => a.order - b.order);
-
-      // Use drag direction to decide insert position so both forward and backward moves work.
-      // Dropped on list header → insert at the top.
-      let insertIdx: number;
-      if (target.indent === 0) {
-        insertIdx = 0;
-      } else {
-        const targetIdx = siblings.findIndex(s => s.id === target.id);
-        insertIdx = dragged.order > target.order
-          ? targetIdx          // dragging up → insert before target
-          : targetIdx + 1;     // dragging down → insert after target
+      // Section drag: moves with all its tasks, within its own list
+      if (isSectionBlock(dragged)) {
+        if (toListId !== fromListId) return prev;
+        const fromIdx = from.sections.findIndex(s => s.head.id === dragged.id);
+        // The section the drop points at: its title, its closing line or one of its tasks
+        const overIdx = from.sections.findIndex(s => s.head.id === target.id || s.rows.some(r => r.id === target.id));
+        const [moved] = from.sections.splice(fromIdx, 1);
+        // List title → first; a loose task → last (sections always sit above the loose tasks)
+        const at = target.indent === 0 ? 0 : overIdx < 0 ? from.sections.length : overIdx;
+        from.sections.splice(at, 0, moved);
+        return writeListLayout(prev, fromListId, from);
       }
-      siblings.splice(insertIdx, 0, dragged);
 
-      return prev.map(b => {
-        const i = siblings.findIndex(s => s.id === b.id);
-        if (i < 0) return b;
-        return { ...b, order: i, parentId: newParentId };
-      });
+      // Task drag (with its subtasks). Onto a task: moving down the drawn rows lands after it,
+      // moving up lands before it
+      const drawn = (l: ListLayout) => (sectionsOn ? drawnListRows(l) : [...l.loose, ...l.sections.flatMap(s => [s.head, ...s.rows])]);
+      let after = true;
+      if (toListId === fromListId && target.indent > 0 && !isSectionBlock(target)) {
+        const rows = drawn(from);
+        after = rows.findIndex(r => r.id === dragged.id) < rows.findIndex(r => r.id === target.id);
+      }
+      const unit = takeFromLayout(from, dragged.id);
+      if (!unit || unit.some(b => b.id === target.id)) return prev;
+
+      let rows: Block[];
+      let at: number;
+      if (target.indent === 0) {
+        // List title (or its loose zone) → first of the loose tasks
+        rows = to.loose;
+        at = 0;
+      } else if (isSectionBlock(target)) {
+        // Section title → top of the section; its closing line → bottom
+        rows = to.sections.find(s => s.head.id === target.id)!.rows;
+        at = zone === 'end' ? rows.length : 0;
+      } else {
+        rows = layoutRowsHolding(to, target.id)!;
+        const i = rows.findIndex(b => b.id === target.id);
+        let end = i + 1;
+        while (end < rows.length && rows[end].indent > rows[i].indent) end++;
+        at = after ? end : i;
+      }
+      rows.splice(at, 0, ...unit);
+
+      const next = writeListLayout(prev, fromListId, from);
+      return toListId === fromListId ? next : writeListLayout(next, toListId, to);
     });
   };
   const onDragEndRow = () => { dragRef.current = null; setDragOverId(null); };
@@ -1153,59 +1193,32 @@ const handleKey = (
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const typingAny = editingTaskId !== null || editingListTitleId !== null || editingSectionId !== null;
 
-  /* ── Sections: titled dividers among a list's tasks (Agenda-only, never tasks) ── */
-  // The header's two-line button turns the list's "Task…" slots into "Section…" slots,
-  // so a section can be placed anywhere among the tasks
-  const [sectionModeListId, setSectionModeListId] = useState<string | null>(null);
-  const toggleSectionMode = (listId: string) => {
-    setSectionModeListId(prev => (prev === listId ? null : listId));
+  /* ── Sections: two-line containers among a list's tasks (Agenda-only, never tasks) ── */
+  // The header's two-line button opens a dialog to name one; it goes first in the list,
+  // and tasks are dragged into it
+  const [newSectionListId, setNewSectionListId] = useState<string | null>(null);
+  const handleCreateSection = (listId: string, name: string) => {
+    setCurrentBlocks(prev => addSectionToList(prev, listId, {
+      id: uid(), text: name, indent: 1, parentId: listId, order: 0, section: true, createdAt: todayYMD(),
+    }));
     setCurrentCollapsed(prev => ({ ...prev, [listId]: false }));
-  };
-  useEffect(() => {
-    if (!sectionModeListId) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSectionModeListId(null); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [sectionModeListId]);
-
-  // A new section right after `afterId` (the list itself = top of the list; a task = after its subtasks)
-  const handleInsertSection = (listId: string, afterId: string) => {
-    const sectionId = uid();
-    setCurrentBlocks(prev => {
-      const i = prev.findIndex(b => b.id === afterId);
-      if (i < 0) return prev;
-      let end = i;
-      if (afterId !== listId) {
-        while (end + 1 < prev.length && prev[end + 1].indent > prev[i].indent) end++;
-      }
-      return insertBlockAfter(prev, prev[end].id, {
-        id: sectionId, text: '', indent: 1, parentId: listId, order: 0, section: true, createdAt: todayYMD(),
-      });
-    });
-    setSectionModeListId(null);
-    setEditingSectionId(sectionId);
-    requestAnimationFrame(() => inputRefs.current[sectionId]?.focus());
+    setNewSectionListId(null);
   };
 
-  // Leaving a section without a title drops it
+  // Renaming in place; clearing the name keeps the old one
+  const sectionNameBeforeEdit = useRef('');
+  const startSectionRename = (s: Block) => {
+    sectionNameBeforeEdit.current = s.text || '';
+    setEditingSectionId(s.id);
+    requestAnimationFrame(() => inputRefs.current[s.id]?.focus());
+  };
   const handleSectionBlur = (id: string) => {
     setEditingSectionId(prev => (prev === id ? null : prev));
-    setCurrentBlocks(prev => {
-      const s = prev.find(b => b.id === id);
-      return s && !(s.text || '').trim() ? prev.filter(b => b.id !== id) : prev;
-    });
+    const old = sectionNameBeforeEdit.current;
+    setCurrentBlocks(prev => prev.map(b => (b.id === id && !(b.text || '').trim() ? { ...b, text: old } : b)));
   };
-
-  const handleSectionKey = (e: React.KeyboardEvent<HTMLInputElement>, s: Block) => {
-    if (e.key === 'Escape') { e.preventDefault(); e.currentTarget.blur(); return; }
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    if (!(s.text || '').trim()) return;
-    // Enter starts the section's first task right under it
-    setEditingSectionId(null);
-    const newTaskId = uid();
-    setCurrentBlocks(prev => insertBlockAfter(prev, s.id, makeTaskBlock({ id: newTaskId, indent: 1, parentId: s.parentId }, newTaskDue)));
-    focusBlock(newTaskId, false);
+  const handleSectionKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); e.currentTarget.blur(); }
   };
 
   // Empty tasks are never kept: leaving one without text drops it (unless it holds subtasks)
@@ -1513,24 +1526,9 @@ const handleKey = (
       const day = occurrenceDay(t);
       return day ? isOccurrenceDone(t, day) : t.checked === true;
     };
-    // "Section…" slot, in place of the "Task…" ghost while the list is in section mode;
-    // revealed the same way, by hovering the row right before it
-    const sectionSlot = (onClick: () => void) => (
-      <button
-        type="button"
-        onClick={onClick}
-        onMouseDown={e => e.preventDefault()}
-        aria-label="Add section here"
-        className="quick-add-ghost quick-section-slot w-full flex items-center gap-2 px-0.5 text-left"
-        style={{ paddingLeft: agendaRowPad(1), marginTop: 0, marginBottom: 0 }}
-      >
-        <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-          <path strokeLinecap="round" d="M3 6h10M3 10.5h10" />
-        </svg>
-        <span className={agendaSectionTitleClass}>Section…</span>
-        <span aria-hidden="true" className="h-0 min-w-6 flex-1 border-t border-dashed" style={{ borderColor: 'currentColor' }} />
-      </button>
-    );
+    // While a task is being dragged, lists with sections but no loose tasks offer a spot under them
+    const draggedBlock = dragRef.current ? pBlocks.find(b => b.id === dragRef.current!.id) : undefined;
+    const draggingTask = !!draggedBlock && draggedBlock.indent > 0 && !isSectionBlock(draggedBlock);
 
     let showsUncategorized = false;
     const rows = listBlocks.map(listBlock => {
@@ -1547,41 +1545,30 @@ const handleKey = (
             passesTaskFilter(task) &&
             (!searching || listMatches || matchesSearch(task)),
           );
-          // Sections slot in among the visible tasks: one shows while it has a visible task under
-          // it, while it's empty (just made) or while its title is being typed — filters that hide
-          // all its tasks hide it too
+          // Sections belong to the "All" view only (date filters show plain task lists): drawn on
+          // top, each with its tasks, the loose tasks under them. A search only keeps sections
+          // with a match (or the one being renamed)
           const visibleIds = new Set(visibleTasks.map(t => t.id));
-          const listRows: Block[] = [];
-          tasks.forEach((t, k) => {
-            if (!t.section) {
-              if (visibleIds.has(t.id)) listRows.push(t);
-              return;
-            }
-            // Sections belong to the "All" view only — date filters show plain task lists
-            if (!sectionsShown) return;
-            let hasTasks = false;
-            let showsTask = false;
-            for (let m = k + 1; m < tasks.length && !tasks[m].section; m++) {
-              hasTasks = true;
-              if (visibleIds.has(tasks[m].id)) { showsTask = true; break; }
-            }
-            if (showsTask || editingSectionId === t.id || (!hasTasks && !searching)) listRows.push(t);
-          });
-          const typingSectionHere = listRows.some(r => r.id === editingSectionId);
-          // A list with no tasks to show isn't shown at all — unless its title (or a new section's) is being typed
-          if (visibleTasks.length === 0 && editingListTitleId !== listBlock.id && !typingSectionHere) return null;
+          const layout = readListLayout(pBlocks, listBlock.id);
+          const shownSections = sectionsShown
+            ? layout.sections
+                .filter(s => !searching || editingSectionId === s.head.id || s.rows.some(r => visibleIds.has(r.id)))
+                .map(s => ({ ...s, shown: s.rows.filter(r => visibleIds.has(r.id)) }))
+            : [];
+          const looseRows = sectionsShown ? layout.loose.filter(r => visibleIds.has(r.id)) : tasks.filter(t => visibleIds.has(t.id));
+          // A list with nothing to show isn't shown at all — unless its title is being typed
+          if (visibleTasks.length === 0 && shownSections.length === 0 && editingListTitleId !== listBlock.id) return null;
           if (isUncList) showsUncategorized = true;
           // Hovering any task reveals a ghost "Task…" row right below it that inserts a task
           // there; an empty list gets one under its header. Only offered under committed
           // tasks (has text), and never while a task or list title is being typed.
           const lastVisibleTaskId = visibleTasks.length > 0 ? visibleTasks[visibleTasks.length - 1].id : null;
           const isCommitted = (t: Block) => (t.text || '').trim() !== '' && !typingAny;
-          const showHeaderGhost = !pCollapsed[listBlock.id] && !isUncList && !lastVisibleTaskId && !typingAny;
+          const showHeaderGhost = !pCollapsed[listBlock.id] && !isUncList && !lastVisibleTaskId && shownSections.length === 0 && !typingAny;
           const lDragOver = dragOverId === listBlock.id && dragRef.current?.id !== listBlock.id;
           const lDragMe   = dragRef.current?.id === listBlock.id;
           const listCollapsed = !searching && !isUncList && pCollapsed[listBlock.id] === true;
-          // Section mode swaps the hover "Task…" slots for "Section…" slots
-          const sectionMode = sectionsShown && sectionModeListId === listBlock.id && !listCollapsed && !typingAny;
+          const dropHighlight = (key: string) => (dragOverId === key ? classes.dragOver : '');
 
           return (
             <React.Fragment key={listBlock.id}>
@@ -1593,11 +1580,10 @@ const handleKey = (
                   onDragOver={e => onDragOverRow(e, listBlock.id)}
                   onDrop={e => onDropRow(e, listBlock.id)}
                   onDragEnd={onDragEndRow}
-                  className={[lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : '', showHeaderGhost || sectionMode ? 'quick-add-anchor' : ''].join(' ')}
+                  className={[lDragOver ? classes.dragOver : '', lDragMe ? 'opacity-60' : '', showHeaderGhost ? 'quick-add-anchor' : ''].join(' ')}
                   collapsed={listCollapsed}
                   onToggleCollapse={() => toggleList(listBlock.id)}
-                  onAddSection={sectionsShown ? () => toggleSectionMode(listBlock.id) : undefined}
-                  addSectionActive={sectionsShown && sectionModeListId === listBlock.id}
+                  onAddSection={sectionsShown && isCurrent ? () => setNewSectionListId(listBlock.id) : undefined}
                   heading={editingListTitleId === listBlock.id ? (
                       <input
                         ref={el => void (inputRefs.current[listBlock.id] = el)}
@@ -1625,12 +1611,8 @@ const handleKey = (
                 />
               )}
               {/* ── Tasks belonging to this list ── */}
-              {sectionMode && listRows[0] && !listRows[0].section && sectionSlot(() => handleInsertSection(listBlock.id, listBlock.id))}
-              {!listCollapsed && listRows.map((task, rowIdx) => {
-                // In section mode: a slot after each task, unless a section already sits there
-                const slotAfter = sectionMode && !task.section && !listRows[rowIdx + 1]?.section
-                  ? sectionSlot(() => handleInsertSection(listBlock.id, task.id))
-                  : null;
+              {!listCollapsed && (() => {
+              const renderRow = (task: Block) => {
                 // scheduled: layout only for now
                 const tDragOver = dragOverId === task.id && dragRef.current?.id !== task.id;
                 const tDragMe   = dragRef.current?.id === task.id;
@@ -1643,18 +1625,19 @@ const handleKey = (
                       onDragOver={e => onDragOverRow(e, task.id)}
                       onDrop={e => onDropRow(e, task.id)}
                       onDragEnd={onDragEndRow}
-                      className={[tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) || sectionMode ? 'quick-add-anchor' : ''].join(' ')}
-                      onRemove={editingSectionId === task.id ? undefined : () => setCurrentBlocks(prev => prev.filter(b => b.id !== task.id))}
+                      className={[tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) ? 'quick-add-anchor' : ''].join(' ')}
+                      // Its tasks stay in the list, as loose tasks
+                      onRemove={editingSectionId === task.id ? undefined : () => setCurrentBlocks(prev => removeSection(prev, task.id))}
                       heading={editingSectionId === task.id ? (
                         <input
                           ref={el => void (inputRefs.current[task.id] = el)}
                           value={task.text}
                           placeholder="Section…"
                           onChange={e => handleUpdateBlock(task.id, { text: e.target.value })}
-                          onKeyDown={e => handleSectionKey(e, task)}
+                          onKeyDown={handleSectionKey}
                           onBlur={() => handleSectionBlur(task.id)}
                           className={`bg-transparent outline-none ${agendaSectionTitleClass}`}
-                          style={{ width: `${inputWidthPx(task.text || 'Section…')}px`, maxWidth: '100%', color: 'var(--assistant-text-muted)' }}
+                          style={{ width: `${inputWidthPx(task.text || 'Section…')}px`, maxWidth: '100%', color: 'var(--assistant-text-soft)' }}
                         />
                       ) : (
                         <span
@@ -1662,16 +1645,16 @@ const handleKey = (
                           tabIndex={0}
                           title="Rename section"
                           className={`min-w-0 break-words cursor-text ${agendaSectionTitleClass}`}
-                          style={{ color: 'var(--assistant-text-muted)' }}
-                          onClick={(e) => { e.stopPropagation(); setEditingSectionId(task.id); requestAnimationFrame(() => inputRefs.current[task.id]?.focus()); }}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setEditingSectionId(task.id); requestAnimationFrame(() => inputRefs.current[task.id]?.focus()); } }}
+                          style={{ color: 'var(--assistant-text-soft)' }}
+                          onClick={(e) => { e.stopPropagation(); startSectionRename(task); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); startSectionRename(task); } }}
                         >
                           {task.text}
                         </span>
                       )}
                     />
                     {/* Hovering the section offers a task right under it */}
-                    {isCommitted(task) && !sectionMode && addGhost(() => handleAddTaskAfter(task.id), agendaRowPad(1))}
+                    {isCommitted(task) && addGhost(() => handleAddTaskAfter(task.id), agendaRowPad(1))}
                     </React.Fragment>
                   );
                 }
@@ -1688,7 +1671,7 @@ const handleKey = (
                       onDragOver={e => onDragOverRow(e, task.id)}
                       onDrop={e => onDropRow(e, task.id)}
                       onDragEnd={onDragEndRow}
-                      className={[tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) || sectionMode ? 'quick-add-anchor' : ''].join(' ')}
+                      className={[tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) ? 'quick-add-anchor' : ''].join(' ')}
                       indent={task.indent}
                       check={
                         <AgendaCheck checked={isTaskDone(task)} onToggle={toggleDone}>
@@ -1756,14 +1739,45 @@ const handleKey = (
                         )}
                     </AgendaTaskRow>
                     {/* Must directly follow the row: CSS reveals it via .quick-add-anchor:hover + .quick-add-ghost */}
-                    {isCommitted(task) && !sectionMode && addGhost(
+                    {isCommitted(task) && addGhost(
                       () => handleAddTaskAfter(task.id),
                       rowPad,
                     )}
-                    {slotAfter}
                   </React.Fragment>
                 );
-              })}
+              };
+              // A section's closing line takes drops too: they land at the end of the section
+              const sectionEndDrop = (sectionId: string) => ({
+                onDragOver: (e: React.DragEvent) => onDragOverRow(e, `${sectionId}::end`),
+                onDrop: (e: React.DragEvent) => onDropRow(e, `${sectionId}::end`),
+              });
+              const looseKey = `${listBlock.id}::loose`;
+              return (
+                <>
+                  {shownSections.map(s => (
+                    <React.Fragment key={s.head.id}>
+                      {renderRow(s.head)}
+                      {s.shown.map(renderRow)}
+                      <AgendaSectionEnd {...sectionEndDrop(s.head.id)} className={dropHighlight(`${s.head.id}::end`)}>
+                        {s.shown.length > 0 ? null : s.rows.length > 0 ? 'No tasks to show' : 'Drag tasks here'}
+                      </AgendaSectionEnd>
+                    </React.Fragment>
+                  ))}
+                  {looseRows.map(renderRow)}
+                  {/* No loose tasks under the sections: a spot to drop one out of its section */}
+                  {draggingTask && shownSections.length > 0 && looseRows.length === 0 ? (
+                    <div
+                      onDragOver={e => onDragOverRow(e, looseKey)}
+                      onDrop={e => onDropRow(e, looseKey)}
+                      className={`py-2 text-[12px] leading-[1.45] rounded ${dropHighlight(looseKey)}`}
+                      style={{ paddingLeft: agendaRowPad(1) + 24, color: 'var(--assistant-text-faint)', border: '1px dashed var(--assistant-border-soft)' }}
+                    >
+                      Drop here to take it out of its section
+                    </div>
+                  ) : null}
+                </>
+              );
+              })()}
               {showHeaderGhost && addGhost(() => handleAddTaskUnderList(listBlock.id), 24)}
             </React.Fragment>
           );
@@ -1849,8 +1863,6 @@ const handleKey = (
           max-height: 0; opacity: 0; overflow: hidden; cursor: text;
           transition: max-height 0.15s ease 0.25s, opacity 0.15s ease 0.25s, padding 0.15s ease 0.25s;
         }
-        .quick-section-slot { color: var(--assistant-text-faint); transition: color 0.15s ease; }
-        .quick-section-slot:hover, .quick-section-slot:focus-visible { color: var(--assistant-accent); }
         .quick-add-anchor:hover + .quick-add-ghost,
         .quick-add-ghost:hover,
         .quick-add-ghost:focus-visible {
@@ -2240,6 +2252,14 @@ const handleKey = (
             />
           ) : null;
         })()}
+
+        {newSectionListId ? (
+          <NewSectionDialog
+            listName={blocks.find(x => x.id === newSectionListId)?.text?.trim()}
+            onCancel={() => setNewSectionListId(null)}
+            onCreate={name => handleCreateSection(newSectionListId, name)}
+          />
+        ) : null}
 
         {deleteListConfirmId ? (
           <DeleteWithOpenTasksDialog

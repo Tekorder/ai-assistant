@@ -22,7 +22,6 @@ export function AgendaListHeader({
   collapsed,
   onToggleCollapse,
   onAddSection,
-  addSectionActive = false,
   className = '',
   style,
   ...rest
@@ -34,8 +33,6 @@ export function AgendaListHeader({
   onToggleCollapse?: () => void;
   /** Shows the "Add section" button (two lines) next to the chevron when given */
   onAddSection?: () => void;
-  /** The list is picking where a new section goes — the button shows as on */
-  addSectionActive?: boolean;
 }) {
   return (
     <div
@@ -49,16 +46,9 @@ export function AgendaListHeader({
           type="button"
           onClick={(e) => { e.stopPropagation(); onAddSection(); }}
           onMouseDown={(e) => e.stopPropagation()}
-          // On: ringed in a circle, accent-colored
-          className={`shrink-0 transition-colors ${addSectionActive ? 'h-5 w-5 -mx-1 flex items-center justify-center rounded-full' : `w-3 ${classes.quickCollapseBtn}`}`}
-          style={addSectionActive ? {
-            color: 'var(--assistant-accent)',
-            background: 'color-mix(in srgb, var(--assistant-accent) 14%, transparent)',
-            boxShadow: '0 0 0 1px color-mix(in srgb, var(--assistant-accent) 45%, transparent)',
-          } : undefined}
-          title={addSectionActive ? 'Cancel add section' : 'Add section'}
-          aria-label={addSectionActive ? 'Cancel add section' : 'Add section'}
-          aria-pressed={addSectionActive}
+          className={`w-3 shrink-0 transition-colors ${classes.quickCollapseBtn}`}
+          title="Add section"
+          aria-label="Add section"
         >
           <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
             <path strokeLinecap="round" d="M3 6h10M3 10.5h10" />
@@ -125,8 +115,10 @@ export function AgendaTaskRow({
 }
 
 /**
- * A section divider among a list's tasks — the title, then a rule to the end of the row:
- *   Section ───────────────────── ×
+ * A section is a two-line container among a list's rows; its tasks sit between the lines:
+ *   Section ───────────────────── ×     ← AgendaSectionRow
+ *     ○ Task
+ *   ──────────────────────────────      ← AgendaSectionEnd
  */
 export function AgendaSectionRow({
   heading,
@@ -163,6 +155,29 @@ export function AgendaSectionRow({
           </svg>
         </button>
       ) : null}
+    </div>
+  );
+}
+
+/** A section's closing line; `children` (e.g. "Drag tasks here") sits above it while the section shows no tasks. */
+export function AgendaSectionEnd({
+  children,
+  className = '',
+  style,
+  ...rest
+}: DivProps) {
+  return (
+    <div
+      {...rest}
+      className={`pb-1.5 ${children ? 'pt-1' : 'pt-1.5'} ${className}`}
+      style={{ paddingLeft: agendaRowPad(1), ...style }}
+    >
+      {children ? (
+        <div className="pb-2 text-[12px] leading-[1.45]" style={{ paddingLeft: 24, color: 'var(--assistant-text-faint)' }}>
+          {children}
+        </div>
+      ) : null}
+      <div aria-hidden="true" className="h-px mr-1" style={{ background: 'var(--assistant-border-soft)' }} />
     </div>
   );
 }

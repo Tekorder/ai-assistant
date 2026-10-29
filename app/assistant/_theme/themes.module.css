@@ -373,6 +373,7 @@
   color: var(--assistant-danger-text);
   transition: background .15s;
 }
+.panelBtnDanger:hover { background: color-mix(in srgb, #ef4444 24%, transparent); }
 /* First-list wizard */
 .wizardPrimaryBtn {
   background: var(--assistant-contrast-bg);
