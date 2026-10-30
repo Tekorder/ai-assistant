@@ -2125,14 +2125,18 @@ const handleKey = (
                           onMouseDownCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
                           onFocusCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
                         >
-                          {lists.showsUncategorized && (
-                            <div
-                              className="mb-1 px-1 text-[11px] font-bold uppercase tracking-[0.14em]"
-                              style={{ color: 'var(--assistant-accent)' }}
-                            >
+                          {/* Group header — same-named lists in different groups stay apart */}
+                          <div className="mb-1.5 flex items-center gap-1.5 px-1" role="heading" aria-level={2}>
+                            <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" style={{ color: 'var(--assistant-accent)' }} aria-hidden="true">
+                              <rect x="1.75" y="6.25" width="12.5" height="8" rx="1.5" />
+                              <path d="M3.25 4.25h9.5" />
+                              <path d="M4.75 2.25h6.5" />
+                            </svg>
+                            <span className="min-w-0 break-words text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--assistant-accent)' }}>
                               {p.title}
-                            </div>
-                          )}
+                            </span>
+                            <span className="h-px flex-1" style={{ background: 'color-mix(in srgb, var(--assistant-accent) 25%, transparent)' }} aria-hidden="true" />
+                          </div>
                           {lists.node}
                         </div>
                       );
