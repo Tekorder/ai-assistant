@@ -108,7 +108,7 @@ export default function App() {
 
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
   useEffect(() => {
-    console.log(`YouTask v${APP_VERSION}`);
+    console.log(`Youtask v${APP_VERSION}`);
   }, []);
   useEffect(() => {
     void (async () => {

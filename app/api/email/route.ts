@@ -1,7 +1,26 @@
 import { NextResponse } from "next/server";
-import { sendEmailBrevo } from "@/lib/sendEmailBrevo";
+import { sendEmail } from "@/lib/sendEmail";
+import {
+  ResetError,
+  confirmPasswordReset,
+  requestPasswordReset,
+  verifyResetCode,
+} from "@/lib/passwordReset";
 
+// Templates the client may request directly. password_reset / password_changed
+// carry links or security notices, so only the server sends them (actions below).
 type TemplateKey = "test" | "welcome" | "twofa";
+
+const resetFailed = (err: unknown) => {
+  if (err instanceof ResetError) {
+    return NextResponse.json({ ok: false, message: err.message }, { status: 400 });
+  }
+  console.error("PASSWORD RESET ERROR:", err);
+  return NextResponse.json(
+    { ok: false, message: "Something went wrong. Please try again." },
+    { status: 500 }
+  );
+};
 
 export async function POST(req: Request) {
   try {
@@ -36,7 +55,7 @@ export async function POST(req: Request) {
         const displayName = String(body?.displayName || "").trim();
         const username = String(body?.username || "").trim();
 
-        console.log("BREVO SEND ->", { email, template, data });
+        console.log("EMAIL SEND ->", { email, template, data });
 
         if (!email) {
           return NextResponse.json(
@@ -71,7 +90,7 @@ export async function POST(req: Request) {
           }
         }
 
-        // Payload final hacia Brevo (se adapta por template)
+        // Payload final hacia el email (se adapta por template)
         const payload: Record<string, unknown> = {
           ...data,
           ...(displayName ? { displayName } : {}),
@@ -79,9 +98,46 @@ export async function POST(req: Request) {
         };
 
         // Llamada real
-        await sendEmailBrevo(email, template, payload);
+        await sendEmail(email, template, payload);
 
         return NextResponse.json({ ok: true });
+      }
+
+      // --------------------------------
+      // PASSWORD RESET: request the email
+      // Always ok for unknown emails (no account enumeration)
+      // --------------------------------
+      case "password_reset": {
+        try {
+          await requestPasswordReset(String(body?.email || ""));
+          return NextResponse.json({ ok: true });
+        } catch (err) {
+          return resetFailed(err);
+        }
+      }
+
+      // --------------------------------
+      // PASSWORD RESET: check the link's code, return its email
+      // --------------------------------
+      case "verify_reset_code": {
+        try {
+          const email = await verifyResetCode(String(body?.oobCode || ""));
+          return NextResponse.json({ ok: true, email });
+        } catch (err) {
+          return resetFailed(err);
+        }
+      }
+
+      // --------------------------------
+      // PASSWORD RESET: set the new password
+      // --------------------------------
+      case "confirm_password_reset": {
+        try {
+          await confirmPasswordReset(String(body?.oobCode || ""), String(body?.newPassword || ""));
+          return NextResponse.json({ ok: true });
+        } catch (err) {
+          return resetFailed(err);
+        }
       }
 
       // --------------------------------
@@ -94,7 +150,7 @@ export async function POST(req: Request) {
         );
     }
   }  catch (err) {
-  console.error("BREVO API ERROR FULL:", err);
+  console.error("EMAIL API ERROR FULL:", err);
   const e = err instanceof Error ? err : new Error(String(err));
   return NextResponse.json(
     {

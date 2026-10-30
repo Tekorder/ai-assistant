@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import ProfileDashboard from './ProfileDashboard';
 import CompletedReport from './CompletedReport';
+import ProfileSecurity from './ProfileSecurity';
 import { getProfile } from '@/lib/session';
 
 type ProfilePanelProps = {
@@ -125,6 +126,8 @@ export default function ProfilePanel({ open, onClose }: ProfilePanelProps) {
               </div>
             </section>
             </div>
+
+            <ProfileSecurity email={email} />
 
             <div style={{ borderTop: '1px solid var(--assistant-border-soft)' }} />
 

@@ -1,6 +1,6 @@
 // lib/datacenter.ts
 // ─────────────────────────────────────────────────────────────
-//  YouTask — fuente única de verdad para el array de proyectos
+//  Youtask — fuente única de verdad para el array de proyectos
 //  Toda mutación, normalización y persistencia pasa por aquí.
 // ─────────────────────────────────────────────────────────────
 
@@ -796,7 +796,7 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
 
 /* ===================== Sync logging =====================
  * Every step between localStorage and Postgres logs to the browser console as
- * "[YouTask sync] …" with list/task counts, so a lost task can be traced to
+ * "[Youtask sync] …" with list/task counts, so a lost task can be traced to
  * the exact step (never uploaded, uploaded-then-overwritten, wiped, …). */
 
 const SYNC_LOG_BADGE = 'color:#fff;padding:1px 6px;border-radius:4px;font-weight:600;background:';
@@ -847,8 +847,8 @@ function taskTitles(raw: unknown): string[] {
 function syncLog(message: string, details?: Record<string, unknown>): void {
   try {
     const { badge, text } = syncLogColors(message);
-    if (details) console.log(`%cYouTask sync%c ${message}`, SYNC_LOG_BADGE + badge, text, details);
-    else console.log(`%cYouTask sync%c ${message}`, SYNC_LOG_BADGE + badge, text);
+    if (details) console.log(`%cYoutask sync%c ${message}`, SYNC_LOG_BADGE + badge, text, details);
+    else console.log(`%cYoutask sync%c ${message}`, SYNC_LOG_BADGE + badge, text);
   } catch {}
 }
 

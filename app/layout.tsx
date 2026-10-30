@@ -26,7 +26,7 @@ const thicccboi = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "YouTask by Tekorder",
+  title: "Youtask by Tekorder",
   description: "AI Task ManagerAgent",
 };
 

@@ -282,7 +282,7 @@ export default function SignUpPage() {
         avatarUrl: cred.user.photoURL || null,
       });
 
-      const res = await fetch('/api/brevo', {
+      const res = await fetch('/api/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
