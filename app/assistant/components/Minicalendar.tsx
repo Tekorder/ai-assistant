@@ -232,8 +232,9 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
             if (!ymd) return <div key={`empty-${idx}`} className="h-7 rounded-md bg-transparent" />;
             const isToday = ymd === today;
             const dayCards = getVisibleDayCards(ymd);
-            // Only days with pending tasks get a dot
+            // Days with tasks are colored: red while any is pending, green once all are done
             const hasPending = dayCards.some(c => !c.checked);
+            const allDone    = dayCards.length > 0 && !hasPending;
             const [, , day] = ymd.split('-');
             return (
               <button
@@ -243,15 +244,19 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                 className={[
                   'h-7 rounded-md text-[12px] transition-colors',
                   isToday ? `font-bold ${classes.miniCalDayToday}` : classes.miniCalDayNormal,
+                  hasPending || allDone ? 'font-semibold' : '',
                 ].join(' ')}
-                // Every day in the theme's text color; today keeps only its background
-                style={{ color: 'var(--assistant-text)' }}
+                // Plain days in the theme's text color; today keeps only its background
+                style={{
+                  color: hasPending
+                    ? 'var(--assistant-danger-text)'
+                    : allDone
+                    ? 'var(--assistant-success-text)'
+                    : 'var(--assistant-text)',
+                }}
                 title={ymd}
               >
-                <span className="inline-flex items-center gap-1">
-                  {Number(day)}
-                  {hasPending ? <span className="h-1.5 w-1.5 rounded-full bg-rose-400/80" /> : null}
-                </span>
+                {Number(day)}
               </button>
             );
           })}
