@@ -269,7 +269,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
       <div className="px-4 py-3 shrink-0 flex items-center justify-end"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <button type="button" onClick={handleAddReminder}
-          className={`h-8 w-8 shrink-0 rounded-md ${classes.panelBtn}`} title="New reminder">
+          className={`h-8 w-8 shrink-0 rounded-md ${classes.panelBtn}`} data-tip="New reminder">
           +
         </button>
       </div>
@@ -317,7 +317,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                         onClick={() => openDaysModal(r)}
                         className={hoverIconClass}
                         style={{ color: 'var(--assistant-text-faint)' }}
-                        title="Repeat"
+                        data-tip="Repeat"
                         aria-label="Repeat"
                       >
                         <span className="text-[13px] leading-none">↻</span>
@@ -328,7 +328,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                       onClick={() => handleRemoveReminder(r.id)}
                       className={hoverIconClass}
                       style={{ color: 'var(--assistant-text-faint)' }}
-                      title="Delete"
+                      data-tip="Delete"
                       aria-label="Delete"
                     >
                       <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -426,7 +426,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                     style={on ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' } : undefined}
                     aria-pressed={on}
                     aria-label={d.short}
-                    title={d.short}
+                    data-tip={d.short}
                   >
                     {d.letter}
                   </button>
@@ -459,7 +459,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                   setDaysModal(null);
                 }}
                 className={`${classes.modalSecondaryButton} text-[13px] px-3 py-2 rounded-md`}
-                title="Don't repeat"
+                data-tip="Don't repeat"
               >
                 Once
               </button>

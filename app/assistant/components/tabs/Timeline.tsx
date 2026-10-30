@@ -535,7 +535,7 @@ export default function Timeline() {
                 type="button"
                 className="youtask-timeline-monthnav"
                 onClick={() => setVisibleMonth(prev => addMonths(prev, -1))}
-                title="Previous month"
+                data-tip="Previous month"
                 aria-label="Previous month"
               >
                 ‹
@@ -553,7 +553,7 @@ export default function Timeline() {
                     setVisibleMonth(prev => addMonths(prev, 1));
                   }
                 }}
-                title="Next month"
+                data-tip="Next month"
                 aria-label="Next month"
                 disabled={!canGoNextMonth}
               >
@@ -568,7 +568,7 @@ export default function Timeline() {
             type="button"
             className={['youtask-timeline-toggle', showCompleted ? 'is-on' : ''].join(' ')}
             onClick={() => setShowCompleted(v => !v)}
-            title="Muestra tasks del mes completo, tanto completados como pendientes, ocultando días sin activity. Archived no aparece aquí."
+            data-tip="Muestra tasks del mes completo, tanto completados como pendientes, ocultando días sin activity. Archived no aparece aquí."
           >
             {showCompleted ? '✓ Show Completed' : 'Show Completed'}
           </button>
@@ -577,7 +577,7 @@ export default function Timeline() {
             type="button"
             className="youtask-timeline-addbtn"
             onClick={handleCreateTask}
-            title="Add task"
+            data-tip="Add task"
             aria-label="Add task"
           >
             +
@@ -615,7 +615,7 @@ export default function Timeline() {
                 <div className="yt-col-header">
                   <div
                     className={['yt-col-title', showOverduePill ? 'is-overdue' : ''].join(' ')}
-                    title={isOverdueCol ? `${list.length} overdue` : colKey}
+                    data-tip={isOverdueCol ? `${list.length} overdue` : colKey}
                   >
                     {title}
                   </div>
@@ -638,7 +638,7 @@ export default function Timeline() {
                   ) : (
                     groupByList(list).map(group => (
                       <div key={group.listId ?? group.title} className="yt-group">
-                        <div className="yt-group-title" title={group.title}>{group.title}</div>
+                        <div className="yt-group-title" data-tip={group.title}>{group.title}</div>
                         {group.cards.map(card => {
                       const overdueDays = isOverdueCol
                         ? Math.max(0, -dayDiffFromToday(card.deadline))
@@ -653,7 +653,7 @@ export default function Timeline() {
                             draggingCardId === card.id ? 'is-dragging' : '',
                             rowMenu?.cardId === card.id ? 'is-menu-open' : '',
                           ].join(' ')}
-                          title={isOverdueCol ? `${fmtColTitle(card.deadline)} · ${overdueDays}d late` : undefined}
+                          data-tip={isOverdueCol ? `${fmtColTitle(card.deadline)} · ${overdueDays}d late` : undefined}
                           draggable
                           onDragStart={e => handleCardDragStart(e, card.id)}
                           onDragEnd={handleCardDragEnd}
@@ -662,7 +662,7 @@ export default function Timeline() {
                             type="button"
                             className={['yt-check check-glow', card.checked ? 'is-on' : ''].join(' ')}
                             onClick={() => toggleDone(card.id)}
-                            title={card.checked ? 'Mark as pending' : 'Mark as completed'}
+                            data-tip={card.checked ? 'Mark as pending' : 'Mark as completed'}
                             aria-label={card.checked ? 'Completed' : 'Mark completed'}
                             aria-pressed={card.checked}
                           >
@@ -690,7 +690,7 @@ export default function Timeline() {
                               >
                                 {card.text || '(sin texto)'}
                                 {card.flag ? (
-                                  <span className="yt-row-flag" title={`${card.flag[0].toUpperCase()}${card.flag.slice(1)} flag`}>
+                                  <span className="yt-row-flag" data-tip={`${card.flag[0].toUpperCase()}${card.flag.slice(1)} flag`}>
                                     <TaskFlagIcon color={card.flag} className="h-[13px] w-[13px]" />
                                   </span>
                                 ) : null}
@@ -715,7 +715,7 @@ export default function Timeline() {
                                       type="button"
                                       className={['yt-check yt-subcheck check-glow', st.checked ? 'is-on' : ''].join(' ')}
                                       onClick={() => toggleDone(st.id)}
-                                      title={st.checked ? 'Mark as pending' : 'Mark as completed'}
+                                      data-tip={st.checked ? 'Mark as pending' : 'Mark as completed'}
                                       aria-label={st.checked ? 'Completed' : 'Mark completed'}
                                       aria-pressed={st.checked}
                                     >
@@ -733,7 +733,7 @@ export default function Timeline() {
                               type="button"
                               className={['yt-row-iconbtn', card.flag ? 'is-flagged' : ''].join(' ')}
                               onClick={() => setFlag(card.id, cycleTaskFlag(card.flag))}
-                              title={card.flag ? 'Change flag' : 'Add flag'}
+                              data-tip={card.flag ? 'Change flag' : 'Add flag'}
                               aria-label={card.flag ? 'Change flag' : 'Add flag'}
                             >
                               {card.flag ? (
@@ -761,7 +761,7 @@ export default function Timeline() {
                                   prev?.cardId === card.id ? null : { cardId: card.id, x: r.right, y: r.bottom + 4 },
                                 );
                               }}
-                              title="Task options"
+                              data-tip="Task options"
                               aria-label="Task options"
                               aria-haspopup="menu"
                               aria-expanded={rowMenu?.cardId === card.id}

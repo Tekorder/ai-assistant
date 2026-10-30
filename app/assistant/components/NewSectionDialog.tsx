@@ -49,7 +49,7 @@ export function NewSectionDialog({
             It shows at the top of the list. Drag tasks into it.
           </p>
           {listName ? (
-            <div className="text-[12px] mt-2 break-words" title={listName} style={{ color: 'var(--assistant-text-faint)' }}>
+            <div className="text-[12px] mt-2 break-words" data-tip={listName} style={{ color: 'var(--assistant-text-faint)' }}>
               List: {listName}
             </div>
           ) : null}

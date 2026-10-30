@@ -9,6 +9,7 @@ import {
   readRemindersLS, writeRemindersLS, LS_KEY_REMINDERS, type ReminderItem,
 } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
+import type { TipSide } from '@/components/Tooltip';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 export type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
@@ -164,7 +165,7 @@ function SyncDot({ tipSide }: { tipSide?: TipSide } = {}) {
       type="button"
       onClick={() => { if (status.state !== 'synced') void loadFromDatabase(); }}
       className="flex h-7 w-5 items-center justify-center shrink-0"
-      title={tipSide ? undefined : status.message}
+      data-tip={tipSide ? undefined : status.message}
       aria-label={status.message}
     >
       <span className="relative flex h-2.5 w-2.5">
@@ -184,38 +185,22 @@ function SyncDot({ tipSide }: { tipSide?: TipSide } = {}) {
   return tipSide ? <IconTip label={status.message} side={tipSide}>{dot}</IconTip> : dot;
 }
 
-export type TipSide = 'right' | 'bottom' | 'bottom-start' | 'bottom-end' | 'top' | 'top-start' | 'top-end';
+export type { TipSide };
 
-/** Hover label for an icon button — says what it does. Pure CSS (no delay state). */
+/** Hover label for an icon button — says what it does. Shown by the app-wide TooltipLayer. */
 export function IconTip({
   label,
   side = 'right',
   children,
 }: {
-  label: React.ReactNode;
-  /** -start / -end hug the button's left / right edge — for buttons near a clipping edge */
+  label: string;
+  /** -start / -end line the tip up with the button's left / right edge */
   side?: TipSide;
   children: React.ReactNode;
 }) {
-  const pos = {
-    right: 'left-full top-1/2 ml-2 -translate-y-1/2',
-    bottom: 'left-1/2 top-full mt-1.5 -translate-x-1/2',
-    'bottom-start': 'left-0 top-full mt-1.5',
-    'bottom-end': 'right-0 top-full mt-1.5',
-    top: 'bottom-full left-1/2 mb-1.5 -translate-x-1/2',
-    'top-start': 'bottom-full left-0 mb-1.5',
-    'top-end': 'bottom-full right-0 mb-1.5',
-  }[side];
   return (
-    <span className="group/tip relative inline-flex">
+    <span className="inline-flex" data-tip={label} data-tip-side={side}>
       {children}
-      <span
-        role="tooltip"
-        className={`pointer-events-none absolute z-[200] w-max max-w-[220px] rounded-md px-2 py-1 text-[12px] font-medium leading-snug opacity-0 shadow-lg transition-opacity delay-150 duration-150 group-hover/tip:opacity-100 ${pos}`}
-        style={{ background: 'var(--assistant-panel-bg)', color: 'var(--assistant-text)', border: '1px solid var(--assistant-border-soft)' }}
-      >
-        {label}
-      </span>
     </span>
   );
 }
@@ -439,10 +424,10 @@ export function AccountActions({
   const ic = placement === 'rail' ? 'h-6 w-6' : 'h-4 w-4';
   // Rail buttons grow with their icons (the CSS-module button is 2rem)
   const btnCls = placement === 'rail' ? `${classes.topNavIconBtn} !h-9 !w-9` : classes.topNavIconBtn;
-  // Hover labels on desktop placements (mobile keeps native titles)
+  // Hover labels on desktop placements (the top bar keeps the short data-tip on the button)
   const tipSide: TipSide | null =
     placement === 'rail' ? 'right' : placement === 'footer' ? 'top-end' : placement === 'bell' ? 'bottom-end' : null;
-  const tip = (label: React.ReactNode, node: React.ReactNode) =>
+  const tip = (label: string, node: React.ReactNode) =>
     tipSide ? <IconTip label={label} side={tipSide}>{node}</IconTip> : node;
 
   const avatarSize = placement === 'rail' ? 'h-8 w-8' : 'h-7 w-7';
@@ -489,7 +474,7 @@ export function AccountActions({
       onClick={onToggleTheme}
       className={btnCls}
       aria-label={themeStyle === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-      title={tipSide ? undefined : themeStyle === 'light' ? 'Dark mode' : 'Light mode'}
+      data-tip={tipSide ? undefined : themeStyle === 'light' ? 'Dark mode' : 'Light mode'}
     >
       {themeStyle === 'light' ? (
         <svg viewBox="0 0 16 16" className={ic} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
@@ -618,7 +603,7 @@ export function AccountActions({
         ref={bellRef}
         type="button"
         onClick={toggleDrop}
-        title={tipSide ? undefined : bellStatus}
+        data-tip={tipSide ? undefined : bellStatus}
         className={`relative ${btnCls}`}
         aria-label="Notifications"
       >
@@ -637,7 +622,7 @@ export function AccountActions({
   );
   const bell = hydrated ? (
     <div ref={dropRef} className="relative">
-      {dropOpen ? bellButton : tip(<>Today&apos;s reminders · {bellStatus}</>, bellButton)}
+      {dropOpen ? bellButton : tip(`Today's reminders · ${bellStatus}`, bellButton)}
       {dropOpen && (placement === 'top'
         ? reminderMenu
         : createPortal(reminderMenu, document.querySelector('[data-assistant-root]') ?? document.body))}
@@ -657,7 +642,7 @@ export function AccountActions({
         {bell}
         {syncDot}
         {tip(
-          <>Menu &amp; account{userName ? ` · ${userName}` : ''}</>,
+          `Menu & account${userName ? ` · ${userName}` : ''}`,
           <button
             type="button"
             onClick={onOpenMenu}
@@ -681,7 +666,7 @@ export function AccountActions({
         classes.topNavProfile,
       ].join(' ')}
       aria-label="Open menu"
-      title={userName ? `Signed in as ${userName}` : 'Profile'}
+      data-tip={userName ? `Signed in as ${userName}` : 'Profile'}
     >
       {avatar}
       <span className={`${placement === 'footer' ? 'min-w-0 flex-1 text-left' : 'hidden sm:inline max-w-[140px]'} break-words text-[14px] font-medium`}>
@@ -706,7 +691,7 @@ export function AccountActions({
         <div
           className="flex min-w-0 flex-1 items-center gap-2 pl-1.5 pr-1 py-1"
           style={{ color: 'var(--assistant-text)' }}
-          title={userName ? `Signed in as ${userName}` : undefined}
+          data-tip={userName ? `Signed in as ${userName}` : undefined}
         >
           {avatar}
           <span className="min-w-0 flex-1 break-words text-left text-[14px] font-medium">

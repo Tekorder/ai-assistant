@@ -223,11 +223,11 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
       <div className="px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <div className="flex items-center gap-2">
           <button type="button" onClick={handleAddHabit}
-            className={`h-8 w-8 shrink-0 rounded-md ${classes.panelBtn}`} title="New habit">
+            className={`h-8 w-8 shrink-0 rounded-md ${classes.panelBtn}`} data-tip="New habit">
             +
           </button>
           <button type="button" onClick={handleForceResetHabits}
-            className={`text-[12px] px-2 py-1 rounded-md ${classes.panelBtn}`} title="Reset now">
+            className={`text-[12px] px-2 py-1 rounded-md ${classes.panelBtn}`} data-tip="Reset now">
             Reset
           </button>
         </div>
@@ -256,7 +256,7 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
                   newId === h.id ? 'wadu-line-in' : '',
                 ].join(' ')}
               >
-                <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} title="Drag">
+                <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} data-tip="Drag">
                   <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
                     <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
                     <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>

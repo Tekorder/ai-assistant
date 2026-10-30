@@ -121,12 +121,12 @@ export function RangeTasksDialog({
                         <span
                           className={`min-w-0 flex-1 break-words text-[13px] ${t.checked ? 'line-through opacity-60' : ''}`}
                           style={{ color: 'var(--assistant-text)' }}
-                          title={t.text}
+                          data-tip={t.text}
                         >
                           {t.text || 'Untitled'}
                         </span>
                         {flag && <TaskFlagIcon color={flag} className="h-3.5 w-3.5 shrink-0" />}
-                        <span className="max-w-[40%] shrink-0 break-words text-[11px]" style={{ color: 'var(--assistant-text-faint)' }} title={t.listTitle}>
+                        <span className="max-w-[40%] shrink-0 break-words text-[11px]" style={{ color: 'var(--assistant-text-faint)' }} data-tip={t.listTitle}>
                           {t.listTitle}
                         </span>
                       </li>

@@ -257,7 +257,7 @@ export default function Entities({
                   'w-full text-left rounded-xl bg-white/8',
                   'px-3 py-3 hover:bg-white/12 transition-colors',
                 ].join(' ')}
-                title={e.examples.map(x => `${x.projectTitle} · ${x.sectionTitle}`).join('\n')}
+                data-tip={e.examples.map(x => `${x.projectTitle} · ${x.sectionTitle}`).join('\n')}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">

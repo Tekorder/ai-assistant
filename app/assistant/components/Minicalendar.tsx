@@ -254,7 +254,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                     ? 'var(--assistant-success-text)'
                     : 'var(--assistant-text)',
                 }}
-                title={ymd}
+                data-tip={ymd}
               >
                 {Number(day)}
               </button>

@@ -1643,7 +1643,7 @@ const handleKey = (
                         <span
                           role="button"
                           tabIndex={0}
-                          title="Rename section"
+                          data-tip="Rename section"
                           className={`min-w-0 break-words cursor-text ${agendaSectionTitleClass}`}
                           style={{ color: 'var(--assistant-text-soft)' }}
                           onClick={(e) => { e.stopPropagation(); startSectionRename(task); }}
@@ -1977,7 +1977,7 @@ const handleKey = (
                       )}
 
                       {dateMode === 'range' && (
-                        <button type="button" onClick={() => setRangeDialogOpen(true)} title="Change range" className="font-semibold">
+                        <button type="button" onClick={() => setRangeDialogOpen(true)} data-tip="Change range" className="font-semibold">
                           Range{' '}
                           <span style={{ color: 'var(--assistant-text-faint)', fontWeight: 500 }}>
                             {getRangeLabel(dateRange)}
@@ -2000,7 +2000,7 @@ const handleKey = (
                       <span
                         className="flex min-w-0 items-center gap-1 rounded-full py-0.5 pl-2 pr-1 text-[11px] md:text-[12px] font-semibold uppercase tracking-wide"
                         style={{ color: 'var(--assistant-text)' }}
-                        title={`Showing only ${currentProject?.title} › ${focusList.text}`}
+                        data-tip={`Showing only ${currentProject?.title} › ${focusList.text}`}
                       >
                         {/* Breadcrumbs: group (back to all its lists) › list (current) */}
                         <nav aria-label="Breadcrumb" className="flex min-w-0 flex-wrap items-center gap-1 break-words">
@@ -2008,7 +2008,7 @@ const handleKey = (
                             type="button"
                             onClick={() => setFocusedList(null)}
                             className="uppercase tracking-wide opacity-60 transition-opacity hover:opacity-100 hover:underline"
-                            title={`Show every list in ${currentProject?.title}`}
+                            data-tip={`Show every list in ${currentProject?.title}`}
                           >
                             {currentProject?.title}
                           </button>
@@ -2019,7 +2019,7 @@ const handleKey = (
                           type="button"
                           onClick={() => setFocusedList(null)}
                           className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[13px] leading-none opacity-60 transition-opacity hover:opacity-100"
-                          title="Show every list"
+                          data-tip="Show every list"
                           aria-label="Clear list filter"
                         >
                           ×
@@ -2029,7 +2029,7 @@ const handleKey = (
                       <span
                         className="min-w-0 break-words rounded-full px-2 py-0.5 text-[11px] md:text-[12px] font-semibold uppercase tracking-wide"
                         style={{ color: 'var(--assistant-text-soft)' }}
-                        title={showAllGroups ? 'Showing every group' : `Group: ${currentProject?.title}`}
+                        data-tip={showAllGroups ? 'Showing every group' : `Group: ${currentProject?.title}`}
                       >
                         {showAllGroups ? 'All groups' : currentProject?.title}
                       </span>
@@ -2086,7 +2086,7 @@ const handleKey = (
                         className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[14px] leading-none opacity-50 transition-opacity hover:opacity-100"
                         style={{ color: 'var(--assistant-text)' }}
                         aria-label="Clear search"
-                        title="Clear"
+                        data-tip="Clear"
                       >
                         ×
                       </button>

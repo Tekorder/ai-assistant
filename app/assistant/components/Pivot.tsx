@@ -268,14 +268,14 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
       <div className="flex h-[49px] shrink-0 items-center gap-2 px-4" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           <span className="shrink-0 text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--assistant-accent)' }}>{pivotKind === 'list' ? 'List' : 'Keyword'}</span>
-          <h2 className="min-w-0 break-words text-[16px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }} title={word}>&ldquo;{word}&rdquo;</h2>
+          <h2 className="min-w-0 break-words text-[16px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }} data-tip={word}>&ldquo;{word}&rdquo;</h2>
         </div>
         <button
           type="button"
           onClick={onClose}
           className={`h-8 w-8 shrink-0 rounded-lg ${classes.panelCloseBtn}`}
           aria-label="Close keyword panel"
-          title="Close"
+          data-tip="Close"
         >
           ✕
         </button>

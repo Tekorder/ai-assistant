@@ -26,7 +26,7 @@ export function TaskNoteButton({
         onClick={(e) => { e.stopPropagation(); setOpen(true); }}
         onMouseDown={(e) => e.stopPropagation()}
         aria-label={hasNote ? 'Edit note' : 'Add note'}
-        title={hasNote ? (task.note || '').trim() : 'Add note'}
+        data-tip={hasNote ? (task.note || '').trim() : 'Add note'}
         className={[
           'relative z-10 shrink-0 h-4 w-4 flex items-center justify-center select-none transition-all duration-150',
           hasNote
@@ -92,7 +92,7 @@ export function TaskNoteModal({
         <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
           <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Note</div>
           {(task.text || '').trim() ? (
-            <div className="mt-1 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} title={task.text}>
+            <div className="mt-1 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} data-tip={task.text}>
               {task.text}
             </div>
           ) : null}

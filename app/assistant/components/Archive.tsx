@@ -166,7 +166,7 @@ export default function Archive() {
                   <td className="youtask-archive-right">
                     <button type="button" className="youtask-archive-btnsmall"
                       onClick={() => handleUnarchiveTask(r.taskId)}
-                      title="Desarchivar">
+                      data-tip="Desarchivar">
                       Restore
                     </button>
                   </td>

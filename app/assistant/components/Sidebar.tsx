@@ -694,7 +694,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
       className={`${classes.panelCloseBtn} flex h-7 w-7 shrink-0 items-center justify-center rounded-md`}
       // Theme text color: navy on light themes, white on dark (icon keeps its .72 opacity)
       style={{ color: 'var(--assistant-text)' }}
-      title="Manage groups"
+      data-tip="Manage groups"
       aria-label="Manage groups"
       aria-haspopup="dialog"
     >
@@ -728,7 +728,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowAllGroups(!showAllGroups); }
                 }}
-                title={showAllGroups ? 'Showing every group and list — click to go back to the selected group' : 'Show every group and list'}
+                data-tip={showAllGroups ? 'Showing every group and list — click to go back to the selected group' : 'Show every group and list'}
                 className="mb-3 flex cursor-pointer select-none items-center gap-1 rounded-md px-0.5 py-1"
                 style={{ paddingLeft: 2, background: showAllGroups ? ACTIVE_BG : undefined }}
               >
@@ -785,7 +785,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                       tabIndex={0}
                       className="break-words cursor-pointer select-none"
                       style={isCurrent ? { color: 'var(--assistant-text)' } : undefined}
-                      title={project.title}
+                      data-tip={project.title}
                       aria-current={isCurrent ? 'true' : undefined}
                       onClick={clearViewFilters}
                       onKeyDown={(e) => {
@@ -803,7 +803,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                       onClick={() => toggleGroupCollapsed(project.project_id)}
                       className="ml-auto shrink-0 flex h-7 w-7 items-center justify-center rounded-md"
                       style={{ color: 'var(--assistant-text-faint)' }}
-                      title={isGroupCollapsed ? 'Expand group' : 'Collapse group'}
+                      data-tip={isGroupCollapsed ? 'Expand group' : 'Collapse group'}
                       aria-label={isGroupCollapsed ? `Expand ${project.title}` : `Collapse ${project.title}`}
                       aria-expanded={!isGroupCollapsed}
                     >
@@ -865,7 +865,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                             // List icon (thin, faint) — doubles as the drag handle
                             className="h-5 w-5 shrink-0 select-none flex items-center justify-center cursor-grab active:cursor-grabbing"
                             style={{ color: 'var(--assistant-text-faint)' }}
-                            title="Drag to reorder"
+                            data-tip="Drag to reorder"
                             aria-label="Drag to reorder"
                           >
                             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
@@ -897,7 +897,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                                 role="button"
                                 tabIndex={0}
                                 aria-pressed={focusedList?.listId === b.id}
-                                title={focusedList?.listId === b.id ? 'Showing only this list — click to show all lists' : 'Show only this list'}
+                                data-tip={focusedList?.listId === b.id ? 'Showing only this list — click to show all lists' : 'Show only this list'}
                                 className={[
                                   'min-w-0 cursor-pointer select-none break-words text-left text-[14px] md:text-sm leading-5',
                                   // Selected list: medium weight, full text color (its row is highlighted too)
@@ -945,7 +945,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                               }}
                               className="-my-1 shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100"
                               style={{ color: 'var(--assistant-text-faint)' }}
-                              title="Hidden — click to show"
+                              data-tip="Hidden — click to show"
                               aria-label="Show list"
                             >
                               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -974,7 +974,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                             ].join(' ')}
                             // Full theme text color — the faint tone was too hard to spot
                             style={{ color: 'var(--assistant-text)' }}
-                            title="List options"
+                            data-tip="List options"
                             aria-label="List options"
                             aria-haspopup="menu"
                             aria-expanded={listMenu?.listId === b.id}
@@ -1046,7 +1046,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 }}
                 className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:!text-[var(--assistant-text)]"
                 style={{ color: 'var(--assistant-text-faint)' }}
-                title="Rename list"
+                data-tip="Rename list"
                 aria-label="Rename list"
               >
                 <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
@@ -1062,7 +1062,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 }}
                 className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:!text-[var(--assistant-danger-text)]"
                 style={{ color: 'var(--assistant-text-faint)' }}
-                title="Delete list"
+                data-tip="Delete list"
                 aria-label="Delete list"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -1186,7 +1186,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                       <span
                         className="min-w-0 flex-1 break-words text-[13px] font-semibold uppercase tracking-wide"
                         style={{ color: 'var(--assistant-text-soft)' }}
-                        title={confirming ? project.title : 'Double-click to rename'}
+                        data-tip={confirming ? project.title : 'Double-click to rename'}
                         onDoubleClick={() => { if (!confirming) startRenameProject(project); }}
                       >
                         {confirming ? `Delete ${project.title}?` : project.title}
@@ -1198,7 +1198,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                         onClick={() => startRenameProject(project)}
                         className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-opacity"
                         style={{ color: 'var(--assistant-text-faint)' }}
-                        title="Rename group"
+                        data-tip="Rename group"
                         aria-label={`Rename group ${project.title}`}
                       >
                         <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
@@ -1229,7 +1229,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                         onClick={() => requestDeleteProject(project)}
                         className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md opacity-0 group-hover:opacity-70 hover:!opacity-100 hover:!text-[var(--assistant-danger-text)] transition-[opacity,color]"
                         style={{ color: 'var(--assistant-text-faint)' }}
-                        title="Delete group"
+                        data-tip="Delete group"
                         aria-label={`Delete group ${project.title}`}
                       >
                         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">

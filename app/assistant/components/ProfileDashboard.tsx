@@ -275,7 +275,7 @@ function StatusBar({ s }: { s: MonthStats }) {
         <div className="flex h-3 w-full gap-[2px] overflow-hidden rounded-full" role="img"
           aria-label={segments.map(x => `${x.label} ${x.value}`).join(', ')}>
           {segments.filter(x => x.value > 0).map(x => (
-            <div key={x.key} title={`${x.label}: ${x.value}`}
+            <div key={x.key} data-tip={`${x.label}: ${x.value}`}
               style={{ flexGrow: x.value, flexBasis: 0, background: x.color }} />
           ))}
         </div>
@@ -306,7 +306,7 @@ function BreakdownBars({ rows, empty }: { rows: BreakdownRow[]; empty: string })
   return (
     <div className="space-y-2.5">
       {rows.map(r => (
-        <div key={r.id} title={`${r.title}: ${r.done} of ${r.total} done`}>
+        <div key={r.id} data-tip={`${r.title}: ${r.done} of ${r.total} done`}>
           <div className="mb-1 flex items-baseline gap-2 text-[13px]">
             <span className="min-w-0 break-words font-medium" style={{ color: 'var(--assistant-text)' }}>{r.title}</span>
             {r.sub ? <span className="shrink-0 break-words text-[11px] uppercase tracking-wide" style={{ color: 'var(--assistant-text-faint)' }}>{r.sub}</span> : null}
@@ -525,7 +525,7 @@ export default function ProfileDashboard() {
             disabled={active === 0}
             className={`flex h-9 w-9 items-center justify-center rounded-md ${classes.panelBtn}`}
             aria-label="Previous month"
-            title="Previous month"
+            data-tip="Previous month"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 3 4.5 8l5 5" />
@@ -537,7 +537,7 @@ export default function ProfileDashboard() {
             disabled={active === stats.length - 1}
             className={`flex h-9 w-9 items-center justify-center rounded-md ${classes.panelBtn}`}
             aria-label="Next month"
-            title="Next month"
+            data-tip="Next month"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 3l5 5-5 5" />

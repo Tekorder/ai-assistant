@@ -293,7 +293,7 @@ export default function CalendarView({
             <div
               key={g.listId}
               className={`relative overflow-hidden rounded-md border px-1.5 pt-[3px] pb-[5px] ${pillColorForCalendarCell(idx, isLight)}`}
-              title={`${g.listTitle}: ${done}/${total}`}
+              data-tip={`${g.listTitle}: ${done}/${total}`}
             >
               {/* Label row */}
               <div className="flex items-center justify-between gap-1 leading-none mb-[4px]">
@@ -487,7 +487,7 @@ export default function CalendarView({
                           dayCards.filter(c => !c.checked).map(c => c.flag),
                         );
                         return dayFlag ? (
-                          <span className="h-4 w-4 flex items-center justify-center" title="Has flagged task" aria-label="Has flagged task">
+                          <span className="h-4 w-4 flex items-center justify-center" data-tip="Has flagged task" aria-label="Has flagged task">
                             <TaskFlagIcon color={dayFlag} className="h-3.5 w-3.5" />
                           </span>
                         ) : null;
@@ -565,7 +565,7 @@ export default function CalendarView({
                         groups.flatMap(g => g.cards).filter(c => !c.checked).map(c => c.flag),
                       );
                       return dayFlag ? (
-                        <span className="h-4 w-4 flex items-center justify-center" title="Has flagged task" aria-label="Has flagged task">
+                        <span className="h-4 w-4 flex items-center justify-center" data-tip="Has flagged task" aria-label="Has flagged task">
                           <TaskFlagIcon color={dayFlag} className="h-3.5 w-3.5" />
                         </span>
                       ) : null;
@@ -590,7 +590,7 @@ export default function CalendarView({
                         <div
                           key={g.listId}
                           className={`relative overflow-hidden rounded-md border px-1.5 pt-[3px] pb-[5px] ${pillColorForCalendarCell(colorIdx, isLight)}`}
-                          title={`${g.listTitle}: ${done}/${total}`}
+                          data-tip={`${g.listTitle}: ${done}/${total}`}
                         >
                           <div className="flex items-start justify-between gap-1 leading-tight mb-[4px]">
                             <span className="min-w-0 text-[10px] font-medium break-words">{g.listTitle}</span>

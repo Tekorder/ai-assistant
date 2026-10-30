@@ -254,7 +254,7 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
             style={{ color: 'var(--assistant-text-soft)' }}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
             onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-soft)')}
-            title="Cancelar"
+            data-tip="Cancelar"
           >
             ✕
           </button>

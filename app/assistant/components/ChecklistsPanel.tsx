@@ -280,7 +280,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
           type="button"
           onClick={handleAddList}
           className={`shrink-0 flex items-center justify-center h-7 w-7 rounded-lg ${classes.panelBtn}`}
-          title="New list"
+          data-tip="New list"
           aria-label="New list"
         >
           <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -308,11 +308,11 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
         <div className="flex items-center gap-2 min-w-0">
           <button type="button" onClick={() => handleAddItem(activeList.id)}
             className={`h-7 w-7 shrink-0 rounded-md flex items-center justify-center ${classes.panelBtn}`}
-            title="New item" aria-label="New item">
+            data-tip="New item" aria-label="New item">
             +
           </button>
           <button type="button" onClick={() => startTabRename(activeList)}
-            className={`text-[13px] break-words ${classes.panelEmptyAddBtn}`} title="Rename list">
+            className={`text-[13px] break-words ${classes.panelEmptyAddBtn}`} data-tip="Rename list">
             Rename
           </button>
         </div>
@@ -323,12 +323,12 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
           </span>
           <button type="button" onClick={() => handleEmptyList(activeList.id)}
             className={`text-[12px] px-2 py-1 rounded-md ${classes.panelBtn}`}
-            title="Remove every item from this list">
+            data-tip="Remove every item from this list">
             Empty
           </button>
           <button type="button" onClick={() => setConfirmDeleteId(activeList.id)}
             className={`text-[12px] px-2 py-1 rounded-md ${classes.panelBtnDanger}`}
-            title="Delete this list">
+            data-tip="Delete this list">
             Delete
           </button>
         </div>
@@ -360,7 +360,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                   ].join(' ')}
                 >
                   <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`}
-                    title="Drag to reorder">
+                    data-tip="Drag to reorder">
                     <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
                       <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
                       <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
@@ -393,7 +393,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                     onClick={() => handleRemoveItem(activeList.id, item.id)}
                     className={`shrink-0 opacity-0 group-hover:opacity-100 text-[12px] px-1.5 py-0.5 rounded ${classes.panelItemDelete}`}
                     aria-label="Remove item"
-                    title="Remove item"
+                    data-tip="Remove item"
                   >
                     ✕
                   </button>

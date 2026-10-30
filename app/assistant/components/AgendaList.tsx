@@ -47,7 +47,7 @@ export function AgendaListHeader({
           onClick={(e) => { e.stopPropagation(); onAddSection(); }}
           onMouseDown={(e) => e.stopPropagation()}
           className={`w-3 shrink-0 transition-colors ${classes.quickCollapseBtn}`}
-          title="Add section"
+          data-tip="Add section"
           aria-label="Add section"
         >
           <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -61,7 +61,7 @@ export function AgendaListHeader({
           type="button"
           onClick={onToggleCollapse}
           className={`w-3 shrink-0 mr-1 transition-colors ${classes.quickCollapseBtn}`}
-          title={collapsed ? 'Expand' : 'Collapse'}
+          data-tip={collapsed ? 'Expand' : 'Collapse'}
         >
           <svg viewBox="0 0 16 16" className={`h-3 w-3 transition-transform ${collapsed ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
@@ -147,7 +147,7 @@ export function AgendaSectionRow({
           onMouseDown={(e) => e.stopPropagation()}
           className="shrink-0 mr-1 h-5 w-5 flex items-center justify-center rounded opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
           style={{ color: 'var(--assistant-text-faint)' }}
-          title="Delete section"
+          data-tip="Delete section"
           aria-label="Delete section"
         >
           <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -206,7 +206,7 @@ export function AgendaCheck({
       onClick={(e) => { e.stopPropagation(); onToggle?.(); }}
       disabled={!onToggle}
       className="relative flex h-[1.45em] w-4 shrink-0 items-center justify-center text-[14px] md:text-sm disabled:cursor-default"
-      title={title ?? (checked ? 'Mark as not done' : 'Complete')}
+      data-tip={title ?? (checked ? 'Mark as not done' : 'Complete')}
     >
       {children}
       <TaskCheckmark checked={checked} />
@@ -283,7 +283,7 @@ export function AgendaDate({
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       onMouseDown={(e) => e.stopPropagation()}
       aria-label="Change due date"
-      title="Change due date"
+      data-tip="Change due date"
       className={`${cls} transition-colors hover:underline`}
       style={style}
     >
@@ -300,7 +300,7 @@ export function AgendaDate({
       type="button"
       onClick={(e) => { e.stopPropagation(); onTimeClick(); }}
       onMouseDown={(e) => e.stopPropagation()}
-      title="Change time"
+      data-tip="Change time"
       className={`${cls} transition-colors hover:underline`}
       style={style}
     >
@@ -329,7 +329,7 @@ export function AgendaDate({
               type="button"
               onClick={(e) => { e.stopPropagation(); onRepeatClick(); }}
               onMouseDown={(e) => e.stopPropagation()}
-              title="Change repeat"
+              data-tip="Change repeat"
               className={`${cls} transition-colors hover:underline`}
               style={style}
             >
@@ -359,7 +359,7 @@ export function AgendaMenuButton({
       onClick={(e) => { e.stopPropagation(); onOpen(e.currentTarget.getBoundingClientRect()); }}
       onMouseDown={(e) => e.stopPropagation()}
       aria-label="Task options"
-      title="Task options"
+      data-tip="Task options"
       aria-haspopup="menu"
       aria-expanded={open}
       className={[

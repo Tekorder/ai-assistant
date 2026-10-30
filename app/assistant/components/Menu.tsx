@@ -197,7 +197,7 @@ export default function Menu({
             onClick={onClose}
             className={`absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-md transition-colors ${classes.panelCloseBtn}`}
             aria-label="Close menu"
-            title="Close menu"
+            data-tip="Close menu"
           >
             ✕
           </button>
@@ -215,7 +215,7 @@ export default function Menu({
                   type="button"
                   disabled={soon}
                   aria-disabled={soon}
-                  title={soon ? 'Coming soon' : undefined}
+                  data-tip={soon ? 'Coming soon' : undefined}
                   onClick={
                     item.label === 'Settings'
                       ? () => { onClose(); onOpenSettings?.(); }
