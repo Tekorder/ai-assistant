@@ -2075,8 +2075,9 @@ export function createList(
   const newListId = opts.listId ?? uid();
   const newTaskId = opts.taskId ?? uid();
 
+  // Archived lists don't count — the task would vanish into one
   const existingId = blocks.find(
-    b => b.indent === 0 && !isUncTitleBlock(b) && (b.text || '').trim().toLowerCase() === name.toLowerCase(),
+    b => b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true && (b.text || '').trim().toLowerCase() === name.toLowerCase(),
   )?.id;
 
   if (existingId) {
@@ -2144,6 +2145,39 @@ export function archiveTask(blocks: Block[], taskId: string): Block[] {
     j++;
   }
   return next;
+}
+
+/** The list itself plus everything in it: its run of blocks and anything parented under it. */
+function listBlockIds(blocks: Block[], listId: string): Set<string> {
+  const ids = new Set<string>([listId]);
+  const i = blocks.findIndex(b => b.id === listId);
+  for (let j = i + 1; i >= 0 && j < blocks.length && blocks[j].indent !== 0; j++) ids.add(blocks[j].id);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const b of blocks) {
+      if (b.parentId != null && ids.has(b.parentId) && !ids.has(b.id)) { ids.add(b.id); grew = true; }
+    }
+  }
+  return ids;
+}
+
+/**
+ * Archive a whole list: it and all its tasks/sections get `archived`, so every view
+ * (which already skips archived blocks) drops them. `unarchiveList` brings it all back.
+ */
+export function archiveList(blocks: Block[], listId: string): Block[] {
+  const list = blocks.find(b => b.id === listId);
+  if (!list || list.indent !== 0 || isUncTitleBlock(list)) return blocks;
+  const ids = listBlockIds(blocks, listId);
+  return blocks.map(b => (ids.has(b.id) && b.archived !== true ? { ...b, archived: true } : b));
+}
+
+export function unarchiveList(blocks: Block[], listId: string): Block[] {
+  const list = blocks.find(b => b.id === listId);
+  if (!list || list.indent !== 0) return blocks;
+  const ids = listBlockIds(blocks, listId);
+  return blocks.map(b => (ids.has(b.id) && b.archived === true ? { ...b, archived: false } : b));
 }
 
 export function unhideTask(blocks: Block[], taskId: string): Block[] {

@@ -26,6 +26,8 @@ import {
   insertListAfter,
   removeBlock as removeBlockArr,
   removeListAndChildren,
+  archiveList,
+  unarchiveList,
   openTasksOf,
   moveOpenTasksToList,
   getListProgress,
@@ -41,6 +43,7 @@ import { useShowAllGroups, useFocusedList } from '../_hook/useShowAllGroups';
 import { DeleteWithOpenTasksDialog, buildMoveTargets } from './DeleteWithOpenTasksDialog';
 
 const LS_KEY_COLLAPSED_GROUPS = 'youtask_sidebar_collapsed_groups';
+const LS_KEY_ARCHIVED_OPEN = 'youtask_sidebar_archived_open';
 // Background of the one active row (All lists, the selected group, or the focused list)
 const ACTIVE_BG = 'color-mix(in srgb, var(--assistant-accent) 14%, transparent)';
 
@@ -86,6 +89,9 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const [renamingGroup, setRenamingGroup] = useState<{ id: string; draft: string } | null>(null);
   // Group a dragged list is hovering when it's about to move to another group
   const [listDropGroupId, setListDropGroupId] = useState<string | null>(null);
+  // "Archived" section under the groups — closed by default, remembered per browser
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [deleteArchived, setDeleteArchived] = useState<{ projectId: string; listId: string } | null>(null);
 
   /* ── Refs ── */
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -394,6 +400,42 @@ export const Sidebar: React.FC<SidebarProps> = () => {
     armedDeleteListRef.current = null;
     handleDeleteList(listId);
   };
+
+  // Archived lists leave every view and wait in the "Archived" section
+  const handleArchiveList = (listId: string) => {
+    setCurrentBlocks(prev => archiveList(prev, listId));
+    if (focusedList?.listId === listId) setFocusedList(null);
+    if (editingListTitleId === listId) setEditingListTitleId(null);
+  };
+
+  // The Archived section mixes groups, so these act on the list's own group (not the selected one)
+  const updateProjectBlocks = (projectId: string, fn: (blocks: Block[]) => Block[]) =>
+    setProjects(prev => prev.map(p => (p.project_id === projectId ? { ...p, blocks: fn(p.blocks ?? []) } : p)));
+
+  const handleUnarchiveList = (projectId: string, listId: string) =>
+    updateProjectBlocks(projectId, b => unarchiveList(b, listId));
+
+  const handleDeleteArchivedList = (projectId: string, listId: string) => {
+    setDeleteArchived(null);
+    setProjects(prev => prev.map(p => {
+      if (p.project_id !== projectId) return p;
+      const { [listId]: _c, ...collapsed } = p.collapsed ?? {};
+      const { [listId]: _v, ...visibleLists } = p.visibleLists ?? {};
+      void _c; void _v;
+      return { ...p, blocks: removeListAndChildren(p.blocks ?? [], listId), collapsed, visibleLists };
+    }));
+  };
+
+  const toggleArchivedOpen = () => {
+    setArchivedOpen(prev => {
+      try { localStorage.setItem(LS_KEY_ARCHIVED_OPEN, prev ? '0' : '1'); } catch {}
+      return !prev;
+    });
+  };
+
+  useEffect(() => {
+    try { setArchivedOpen(localStorage.getItem(LS_KEY_ARCHIVED_OPEN) === '1'); } catch {}
+  }, []);
 
   // Rescue the list's unchecked tasks into another list (any group), then delete it
   const handleMoveAndDeleteList = (listId: string, toProjectId: string, toListId: string) => {
@@ -1010,6 +1052,102 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 );
               })}
               </div>
+
+              {/* ── Archived lists (every group) — unarchive or delete them for good ── */}
+              {(() => {
+                const archived = projects.flatMap(p =>
+                  (p.blocks ?? [])
+                    .filter(b => b.indent === 0 && b.archived === true && !isUncTitleBlock(b))
+                    .sort((a, b) => a.order - b.order)
+                    .map(list => ({ project: p, list })),
+                );
+                if (!archived.length) return null;
+                return (
+                  <div className="mt-5 pt-3" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+                    <button
+                      type="button"
+                      onClick={toggleArchivedOpen}
+                      aria-expanded={archivedOpen}
+                      className="flex w-full items-center gap-1 rounded-md px-0.5 py-1 text-left text-[14px] md:text-sm font-semibold"
+                      style={{ paddingLeft: 2, color: 'var(--assistant-text-soft)' }}
+                    >
+                      <span className="w-5 shrink-0 flex items-center justify-center" style={{ color: 'var(--assistant-text-faint)' }} aria-hidden="true">
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="4" width="18" height="4" rx="1" />
+                          <path d="M5 8v10.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V8M10 12h4" />
+                        </svg>
+                      </span>
+                      <span>Archived</span>
+                      <span className="pl-1 text-[12px] font-medium tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
+                        {archived.length}
+                      </span>
+                      <span className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center" style={{ color: 'var(--assistant-text-faint)' }} aria-hidden="true">
+                        <svg
+                          viewBox="0 0 16 16"
+                          className="h-3 w-3 transition-transform duration-150"
+                          style={{ transform: archivedOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
+                        </svg>
+                      </span>
+                    </button>
+                    {archivedOpen && (
+                      <div className="mt-0.5">
+                        {archived.map(({ project, list }) => {
+                          const tasks = (project.blocks ?? []).filter(x => x.parentId === list.id && x.indent > 0 && !x.section);
+                          const done = tasks.filter(x => x.checked === true).length;
+                          const name = (list.text || '').trim() || 'Untitled list';
+                          return (
+                            <div key={list.id} className="flex items-start gap-1 rounded-md px-0.5 py-1" style={{ paddingLeft: 2 }}>
+                              <span className="w-5 shrink-0" aria-hidden="true" />
+                              {/* Group name under the title: two groups can have a list with the same name */}
+                              <div className="min-w-0 flex-1">
+                                <div className="break-words text-[14px] md:text-sm leading-5" style={{ color: 'var(--assistant-text-soft)' }}>
+                                  {name}
+                                </div>
+                                <div className="break-words text-[11px] leading-4" style={{ color: 'var(--assistant-text-faint)' }}>
+                                  {project.title}
+                                </div>
+                              </div>
+                              <span className="shrink-0 pl-1 text-[12px] font-medium leading-5 tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
+                                ({done}/{tasks.length})
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleUnarchiveList(project.project_id, list.id)}
+                                className="-my-1 shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:!text-[var(--assistant-text)]"
+                                style={{ color: 'var(--assistant-text-faint)' }}
+                                data-tip="Unarchive list"
+                                aria-label={`Unarchive ${name}`}
+                              >
+                                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <rect x="3" y="4" width="18" height="4" rx="1" />
+                                  <path d="M5 8v10.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V8M12 17v-6M9.5 13.5L12 11l2.5 2.5" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteArchived({ projectId: project.project_id, listId: list.id })}
+                                className="-my-1 shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:!text-[var(--assistant-danger-text)]"
+                                style={{ color: 'var(--assistant-text-faint)' }}
+                                data-tip="Delete list"
+                                aria-label={`Delete ${name}`}
+                              >
+                                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M9.5 7V4.5h5V7M6 7l1 12.5h10L18 7M10 11v5M14 11v5" />
+                                </svg>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
           </>
         </div>
         </aside>
@@ -1051,6 +1189,23 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               >
                 <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 2.5l3 3L5.5 13.5H2.5v-3L10.5 2.5z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setListMenu(null);
+                  handleArchiveList(listId);
+                }}
+                className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:!text-[var(--assistant-text)]"
+                style={{ color: 'var(--assistant-text-faint)' }}
+                data-tip="Archive list"
+                aria-label="Archive list"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="4" rx="1" />
+                  <path d="M5 8v10.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V8M10 12h4" />
                 </svg>
               </button>
               <button
@@ -1267,6 +1422,22 @@ export const Sidebar: React.FC<SidebarProps> = () => {
           onCancel={() => { setDeleteListConfirmId(null); armedDeleteListRef.current = null; }}
           onDelete={() => handleConfirmDeleteList(deleteListConfirmId)}
           onMoveAndDelete={(toProjectId, toListId) => handleMoveAndDeleteList(deleteListConfirmId, toProjectId, toListId)}
+        />,
+        document.querySelector('[data-assistant-root]') ?? document.body,
+      ) : null}
+
+      {deleteArchived ? createPortal(
+        <DeleteWithOpenTasksDialog
+          key={deleteArchived.listId}
+          kind="list"
+          name={projects.find(p => p.project_id === deleteArchived.projectId)?.blocks.find(b => b.id === deleteArchived.listId)?.text?.trim()}
+          description="This archived list and all its tasks will be deleted permanently."
+          openCount={0}
+          targets={[]}
+          zIndex={10050}
+          onCancel={() => setDeleteArchived(null)}
+          onDelete={() => handleDeleteArchivedList(deleteArchived.projectId, deleteArchived.listId)}
+          onMoveAndDelete={() => {}}
         />,
         document.querySelector('[data-assistant-root]') ?? document.body,
       ) : null}

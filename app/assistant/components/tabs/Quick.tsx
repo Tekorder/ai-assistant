@@ -1532,7 +1532,7 @@ const handleKey = (
 
     let showsUncategorized = false;
     const rows = listBlocks.map(listBlock => {
-          if (pHiddenByList[listBlock.id]) return null;
+          if (pHiddenByList[listBlock.id] || listBlock.archived === true) return null;
           const isUncList = isUncTitleBlock(listBlock);
           if (isUncList && hideUncategorized) return null;
           const tasks = tasksByParent.get(listBlock.id) ?? [];
