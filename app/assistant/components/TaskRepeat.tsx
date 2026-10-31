@@ -66,19 +66,18 @@ export function TaskRepeatModal({
     <div className="fixed inset-0 z-[10050] flex items-center justify-center">
       <button
         type="button"
-        className="absolute inset-0 bg-black/60"
+        className={`absolute inset-0 ${classes.modalBackdrop}`}
         onClick={onClose}
         aria-label="Close"
       />
       <form
         role="dialog"
         aria-label="Repeat task"
-        className="relative w-[92vw] max-w-sm rounded-2xl shadow-2xl"
-        style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-panel-bg)' }}
+        className={`relative w-[92vw] max-w-sm ${classes.modalCard}`}
         onSubmit={(e) => { e.preventDefault(); handleSave(); }}
       >
-        <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-          <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Repeat task</div>
+        <div className={classes.modalHeader}>
+          <div className={classes.modalTitle}>Repeat task</div>
           {(task.text || '').trim() ? (
             <div className="mt-1 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
               {task.text}
@@ -86,7 +85,7 @@ export function TaskRepeatModal({
           ) : null}
         </div>
 
-        <div className="flex justify-between gap-1.5 px-4 pt-4" role="group" aria-label="Weekdays">
+        <div className="flex justify-between gap-1.5 px-6 pt-4" role="group" aria-label="Weekdays">
           {WEEKDAYS.map(d => {
             const on = days.includes(d.value);
             return (
@@ -106,7 +105,7 @@ export function TaskRepeatModal({
           })}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 px-4 pt-3 text-[12px]">
+        <div className="flex flex-wrap items-center gap-2 px-6 pt-3 text-[12px]">
           {[
             { label: 'Every day', days: ALL_DAYS },
             { label: 'Mon–Fri', days: [1, 2, 3, 4, 5] },
@@ -123,7 +122,7 @@ export function TaskRepeatModal({
           ))}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 px-4 py-4">
+        <div className="grid grid-cols-2 gap-2 px-6 pt-4">
           <label className="flex min-w-0 flex-col gap-1">
             <span className="text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>Starts</span>
             <input
@@ -145,7 +144,7 @@ export function TaskRepeatModal({
           </label>
         </div>
 
-        <div className="px-4 py-3 flex items-center gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+        <div className={classes.modalFooter}>
           {recurring ? (
             <button
               type="button"

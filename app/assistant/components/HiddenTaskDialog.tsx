@@ -63,20 +63,13 @@ export function HiddenTaskDialog({
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
-      <style>{`
-        @keyframes hiddenTaskIn {
-          from { opacity: 0; transform: translateY(8px) scale(.97); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
-      <button type="button" className="absolute inset-0 bg-black/50" onClick={close} aria-label="Close" />
+      <button type="button" className={`absolute inset-0 ${classes.modalBackdrop}`} onClick={close} aria-label="Close" />
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="hidden-task-title"
         aria-describedby="hidden-task-desc"
-        className={`relative w-full max-w-sm rounded-2xl shadow-2xl ${classes.quickModal}`}
-        style={{ animation: 'hiddenTaskIn .28s cubic-bezier(0.22, 1, 0.36, 1) both' }}
+        className={`relative w-full max-w-sm ${classes.modalCard}`}
       >
         <div className="px-5 pt-5 text-center">
           {/* Eye with a slash: saved, just not visible */}

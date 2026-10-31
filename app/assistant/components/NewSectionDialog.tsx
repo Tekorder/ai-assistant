@@ -24,16 +24,16 @@ export function NewSectionDialog({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex }}>
-      <button type="button" className="absolute inset-0 bg-black/60" onClick={onCancel} aria-label="Close" />
+      <button type="button" className={`absolute inset-0 ${classes.modalBackdrop}`} onClick={onCancel} aria-label="Close" />
       <form
         role="dialog"
         aria-label="New section"
         onSubmit={submit}
         onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); onCancel(); } }}
-        className={`relative w-[92vw] max-w-md rounded-2xl shadow-2xl ${classes.quickModal}`}
+        className={`relative w-[92vw] max-w-md ${classes.modalCard}`}
       >
-        <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-          <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--assistant-text)' }} htmlFor="new-section-name">
+        <div className={classes.modalHeader}>
+          <label className={`mb-3 block ${classes.modalTitle}`} htmlFor="new-section-name">
             New section
           </label>
           <input
@@ -44,7 +44,7 @@ export function NewSectionDialog({
             className={`w-full rounded-lg px-2 py-2 text-[13px] ${classes.quickSearchInput}`}
           />
         </div>
-        <div className="px-4 py-3 flex flex-wrap items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+        <div className={`${classes.modalFooter} flex-wrap justify-end`}>
           <button type="button" onClick={onCancel} className={`text-[13px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}>
             Cancel
           </button>

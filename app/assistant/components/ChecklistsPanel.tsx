@@ -23,7 +23,8 @@ import { TaskCheckmark } from './TaskCheckmark';
 type Props = {
   open: boolean;
   onClose: () => void;
-  variant?: 'overlay' | 'dock';
+  /** tab: a main-panel tab — no frame, title or close button; lists in a column beside the items */
+  variant?: 'overlay' | 'dock' | 'tab';
 };
 
 export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: Props) {
@@ -228,9 +229,18 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
 
   if (!shouldRender) return null;
 
+  const isTab = variant === 'tab';
   const tabsRow = (
-    <div className="px-3 pt-2 pb-2 shrink-0" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+    // Tab: a column on desktop, the usual scrolling row on phones
+    <div
+      className={isTab
+        ? 'shrink-0 border-b px-3 py-2 md:w-[220px] md:overflow-y-auto md:border-b-0 md:border-r md:px-2 md:py-3'
+        : 'px-3 pt-2 pb-2 shrink-0'}
+      style={isTab ? { borderColor: 'var(--assistant-border-soft)' } : { borderBottom: '1px solid var(--assistant-border-soft)' }}
+    >
+      <div className={isTab
+        ? 'flex items-center gap-1 overflow-x-auto scrollbar-none md:flex-col md:items-stretch md:overflow-x-visible'
+        : 'flex items-center gap-1 overflow-x-auto scrollbar-none'}>
         {lists.map(l => {
           const isActive = l.id === selectedId;
           const isEditing = editingTabId === l.id;
@@ -238,7 +248,8 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
             <div
               key={l.id}
               className={[
-                'group relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium whitespace-nowrap shrink-0',
+                'group relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium shrink-0',
+                isTab ? 'whitespace-nowrap md:justify-between md:whitespace-normal' : 'whitespace-nowrap',
                 isActive ? classes.panelTabActive : classes.panelTabInactive,
               ].join(' ')}
               onClick={() => {
@@ -265,9 +276,9 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                   style={{ color: 'var(--assistant-text)' }}
                 />
               ) : (
-                <span className="break-words max-w-40">{l.name || 'List'}</span>
+                <span className={`break-words ${isTab ? 'min-w-0' : 'max-w-40'}`}>{l.name || 'List'}</span>
               )}
-              {isActive && !isEditing && (
+              {(isActive || isTab) && !isEditing && (
                 <span className="text-[11px] tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
                   {l.items.filter(i => i.checked).length}/{l.items.length}
                 </span>
@@ -276,17 +287,24 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
           );
         })}
 
-        <button
-          type="button"
-          onClick={handleAddList}
-          className={`shrink-0 flex items-center justify-center h-7 w-7 rounded-lg ${classes.panelBtn}`}
-          title="New list"
-          aria-label="New list"
-        >
-          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path strokeLinecap="round" d="M8 3.5v9M3.5 8h9" />
-          </svg>
-        </button>
+        {isTab ? (
+          <button type="button" onClick={handleAddList}
+            className={`shrink-0 whitespace-nowrap text-left text-[13px] px-2.5 py-1.5 rounded-lg md:mt-1 md:w-full ${classes.panelEmptyAddBtn}`}>
+            + New list
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleAddList}
+            className={`shrink-0 flex items-center justify-center h-7 w-7 rounded-lg ${classes.panelBtn}`}
+            title="New list"
+            aria-label="New list"
+          >
+            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" d="M8 3.5v9M3.5 8h9" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -411,8 +429,8 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
   ) : null;
 
   const confirmDelete = confirmDeleteId ? (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/55 backdrop-blur-[2px]">
-      <div className={`w-65 rounded-xl p-4 shadow-2xl text-center ${classes.panelConfirmModal}`}>
+    <div className={`absolute inset-0 z-10 flex items-center justify-center ${classes.modalBackdrop}`}>
+      <div role="alertdialog" className={`w-65 p-4 text-center ${classes.modalCard}`}>
         <div className="text-[14px] mb-1 font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Delete list?</div>
         <div className="text-[12px] mb-3" style={{ color: 'var(--assistant-text-muted)' }}>
           This will permanently remove the list and all its items.
@@ -449,29 +467,44 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
         }
       `}</style>
 
-      <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
-        style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <div className="flex items-baseline gap-2">
-          <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Check Lists</h2>
-          {lists.length > 0 && (
-            <span className="text-[12px] tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
-              {lists.length} {lists.length === 1 ? 'list' : 'lists'}
-            </span>
-          )}
+      {!isTab && (
+        <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
+          style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Check Lists</h2>
+            {lists.length > 0 && (
+              <span className="text-[12px] tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
+                {lists.length} {lists.length === 1 ? 'list' : 'lists'}
+              </span>
+            )}
+          </div>
+          <button type="button" onClick={requestClose}
+            className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close lists">
+            ✕
+          </button>
         </div>
-        <button type="button" onClick={requestClose}
-          className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close lists">
-          ✕
-        </button>
-      </div>
+      )}
 
-      {lists.length > 0 && tabsRow}
-
-      {lists.length === 0 ? emptyState : (activeList ? activeListBody : emptyState)}
+      {isTab && lists.length > 0 ? (
+        // Lists in a column on the left, the open list's items fill the rest
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          {tabsRow}
+          {activeList ? activeListBody : emptyState}
+        </div>
+      ) : (
+        <>
+          {lists.length > 0 && tabsRow}
+          {lists.length === 0 ? emptyState : (activeList ? activeListBody : emptyState)}
+        </>
+      )}
 
       {confirmDelete}
     </>
   );
+
+  if (isTab) {
+    return <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col">{body}</div>;
+  }
 
   if (variant === 'dock') {
     return (

@@ -241,7 +241,7 @@ export function AgendaTaskText({
  *   October 26, 2026 · 6:00 AM · ↻ Every Monday
  * The date is clickable when `onClick` is given, the hour when `onTimeClick` is, the repeat when `onRepeatClick` is.
  * Without a date, a repeat still shows (with its hour): "6:00 AM · ↻ Every day".
- * `labeled` names it ("Due Date: …"); `created` leads with the creation date ("Created: … · Due Date: …").
+ * `labeled` names it ("Due …"); `created` leads with the creation date ("Created … · Due …").
  */
 export function AgendaDate({
   ymd,
@@ -259,15 +259,15 @@ export function AgendaDate({
   onClick?: () => void;
   onTimeClick?: () => void;
   onRepeatClick?: () => void;
-  /** Prefix the due date with "Due Date:" */
+  /** Prefix the due date with "Due" */
   labeled?: boolean;
-  /** Creation date (YYYY-MM-DD) shown first as "Created: …" */
+  /** Creation date (YYYY-MM-DD) shown first as "Created …" */
   created?: string;
 }) {
   const cls = 'text-[12px] leading-[1.45]';
   const style = { color: 'var(--assistant-text-faint)' };
   const createdText = isValidDateYYYYMMDD(created) ? (
-    <span className={cls} style={style}>Created: {formatPill(created)}</span>
+    <span className={cls} style={style}>Created {formatPill(created)}</span>
   ) : null;
   const hour = formatTime12(time);
   const repeat = repeatDaysLabel(repeatDays);
@@ -275,7 +275,7 @@ export function AgendaDate({
   if (!hasDate && !repeat) {
     return createdText ? <span className="-mt-1 self-start flex">{createdText}</span> : null;
   }
-  const dueLabel = hasDate && (labeled || createdText) ? <span className={cls} style={style}>Due Date:</span> : null;
+  const dueLabel = hasDate && (labeled || createdText) ? <span className={cls} style={style}>Due</span> : null;
 
   const date = !hasDate ? null : onClick ? (
     <button

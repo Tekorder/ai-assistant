@@ -22,7 +22,8 @@ import { TaskCheckmark } from './TaskCheckmark';
 type Props = {
   open: boolean;
   onClose: () => void;
-  variant?: 'overlay' | 'dock';
+  /** tab: a main-panel tab — no frame, title or close button */
+  variant?: 'overlay' | 'dock' | 'tab';
 };
 
 export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Props) {
@@ -212,13 +213,15 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
         }
       `}</style>
 
-      <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
-        style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Habits</h2>
-        <button type="button" onClick={requestClose} className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
-          ✕
-        </button>
-      </div>
+      {variant !== 'tab' && (
+        <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
+          style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+          <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Habits</h2>
+          <button type="button" onClick={requestClose} className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <div className="flex items-center gap-2">
@@ -237,7 +240,8 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
-        <div className="space-y-1">
+        {/* As a main tab there's room for two columns */}
+        <div className={variant === 'tab' ? 'grid grid-cols-1 gap-x-8 gap-y-1 lg:grid-cols-2' : 'space-y-1'}>
           {habits.map((h, idx) => {
             const isDraggingOver = dragOverId === h.id && dragRef.current?.id !== h.id;
             const isDraggingMe = dragRef.current?.id === h.id;
@@ -296,6 +300,10 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
       </div>
     </>
   );
+
+  if (variant === 'tab') {
+    return <div className="flex h-full min-h-0 w-full min-w-0 flex-col">{body}</div>;
+  }
 
   if (variant === 'dock') {
     return (

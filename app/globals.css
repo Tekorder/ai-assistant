@@ -647,6 +647,10 @@ input[type="checkbox"]:not(:disabled):hover {
   max-height: 2rem; opacity: 1; padding-top: .25rem; padding-bottom: .25rem;
   transition-delay: 0s;
 }
+/* Like Agenda's "Task…": hovering the list only reveals it after resting there 1s */
+.side-add-anchor:hover + .side-add-ghost:not(:hover):not(:focus-visible) {
+  transition-delay: 1s;
+}
 
 /* ===== List groups inside a column (list title, thin line, tasks indented) ===== */
 .yt-group + .yt-group { margin-top: 14px; }
@@ -709,11 +713,11 @@ input[type="checkbox"]:not(:disabled):hover {
 
 /* Actions float over the row's right edge on hover (fading the text under them),
    so the title gets the full width the rest of the time */
+/* Its own slot at the row's end (not overlaid), so the title wraps before it instead of under it */
 .yt-row-actions {
-  position: absolute; right: 0; top: 9px;
+  flex-shrink: 0;
   display: flex; align-items: center; gap: 2px;
-  padding-left: 22px;
-  background: linear-gradient(to right, transparent, var(--assistant-column-bg) 18px);
+  margin-top: -3px;
   opacity: 0; pointer-events: none;
   transition: opacity .15s ease;
 }
@@ -940,13 +944,6 @@ input[type="checkbox"]:not(:disabled):hover {
   /* No hover on touch — keep row actions visible, in the row's flow */
   .yt-row-iconbtn { opacity: 1; }
   .yt-row-actions { position: static; padding-left: 0; background: none; opacity: 1; pointer-events: auto; }
-}
-
-/* ===== Confetti ===== */
-@keyframes confettiFall {
-  0%   { transform: translateY(-40px) translateX(0) rotate(0deg); opacity: 0; }
-  5%   { opacity: 1; }
-  100% { transform: translateY(110vh) translateX(var(--cdrift)) rotate(var(--crot)); opacity: 0; }
 }
 
 /* ===== Bell ring ===== */

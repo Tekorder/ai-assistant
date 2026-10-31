@@ -25,6 +25,7 @@ import {
   toggleOccurrence,
   repeatDaysLabel,
   type TaskFlagColor,
+  type TaskNoteEntry,
 } from '@/lib/datacenter';
 import { TaskRepeatModal } from './TaskRepeat';
 import { TaskFlagButton } from './TaskFlag';
@@ -46,7 +47,7 @@ type CalCard = {
   isHidden?: boolean;
   archived?: boolean;
   flag?: TaskFlagColor;
-  note?: string;
+  notes?: TaskNoteEntry[];
   createdAt?: string;
   dueTime?: string;
   repeatDays?: number[];
@@ -186,7 +187,7 @@ export default function DayPanel({
           isHidden: b.isHidden === true,
           archived: b.archived,
           flag: getTaskFlag(b),
-          note: b.note,
+          notes: b.notes,
           createdAt: b.createdAt,
           dueTime: b.dueTime,
           repeatDays: b.repeatDays,
@@ -442,8 +443,8 @@ export default function DayPanel({
                           {card.flag ? (
                             <TaskFlagButton source={{ flag: card.flag }} onChange={next => patchTask(card.id, { flag: next, priority: undefined })} />
                           ) : null}
-                          {(card.note || '').trim() ? (
-                            <TaskNoteButton task={card} onChange={note => patchTask(card.id, { note })} />
+                          {card.notes?.length ? (
+                            <TaskNoteButton task={card} onChange={notes => patchTask(card.id, { notes })} />
                           ) : null}
                           <AgendaMenuButton
                             open={taskMenu?.cardId === card.id}
@@ -489,7 +490,7 @@ export default function DayPanel({
             y={taskMenu.y}
             createdAt={card.createdAt}
             flag={card.flag}
-            hasNote={Boolean((card.note || '').trim())}
+            hasNote={Boolean(card.notes?.length)}
             hasDueDate={isValidDateYYYYMMDD(card.deadline)}
             repeatLabel={repeatDaysLabel(card.repeatDays)}
             onDueDate={() => openPicker(card.id)}
@@ -504,7 +505,7 @@ export default function DayPanel({
       {(() => {
         const card = noteCardId ? allCards.find(c => c.id === noteCardId) : undefined;
         return card ? (
-          <TaskNoteModal task={card} onChange={note => patchTask(card.id, { note })} onClose={() => setNoteCardId(null)} />
+          <TaskNoteModal task={card} onChange={notes => patchTask(card.id, { notes })} onClose={() => setNoteCardId(null)} />
         ) : null;
       })()}
       {(() => {
@@ -603,20 +604,15 @@ export default function DayPanel({
         <div className="fixed inset-0 z-300 flex items-center justify-center p-5">
           <button
             type="button"
-            className="fixed inset-0"
-            style={{ background: 'var(--assistant-overlay)' }}
+            className={`fixed inset-0 ${classes.modalBackdrop}`}
             onClick={() => setDeleteConfirmId(null)}
             aria-label="Cancel"
           />
           <div
-            className="relative z-10 w-full max-w-[320px] rounded-2xl p-4 shadow-2xl"
-            style={{
-              background: 'var(--assistant-bg)',
-              color: 'var(--assistant-text)',
-              border: '1px solid var(--assistant-border-soft)',
-            }}
+            role="alertdialog"
+            className={`relative z-10 w-full max-w-[320px] p-6 ${classes.modalCard}`}
           >
-            <h3 className="text-[15px] font-semibold mb-1.5">Delete task?</h3>
+            <h3 className={`mb-2 ${classes.modalTitle}`}>Delete task?</h3>
             <p className="text-[13px] mb-4" style={{ color: 'var(--assistant-text-soft)' }}>
               This can&apos;t be undone.
             </p>

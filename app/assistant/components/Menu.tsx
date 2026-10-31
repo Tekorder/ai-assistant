@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import type { MenuAnchor } from './TopNavBar';
 import { flushAllToDatabase } from '@/lib/datacenter';
 import { signOutAndClear } from '@/lib/session';
 import classes from '@/app/assistant/_theme/themes.module.css';
@@ -9,6 +11,8 @@ import classes from '@/app/assistant/_theme/themes.module.css';
 type MenuProps = {
   open: boolean;
   onClose: () => void;
+  /** Desktop: pop a small menu from this button. None (mobile) → the full drawer. */
+  anchor?: MenuAnchor | null;
   /** Picks the logo variant: blue on light themes, white on dark ones */
   themeStyle?: 'light' | 'dark';
   // Mobile-only panel toggles
@@ -30,6 +34,7 @@ type MenuProps = {
 export default function Menu({
   open,
   onClose,
+  anchor = null,
   themeStyle = 'light',
   onToggleHabits,
   onToggleReminders,
@@ -64,6 +69,26 @@ export default function Menu({
   }, [open, shouldRender]);
 
   const [loggingOut, setLoggingOut] = useState(false);
+
+  // Popover: close on a click outside it or Escape (no overlay to click)
+  const popRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open || !anchor) return;
+    const onDown = (e: MouseEvent) => {
+      if (popRef.current?.contains(e.target as Node)) return;
+      // A click on the button that opened it toggles it there instead
+      const r = anchor.rect;
+      if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return;
+      onClose();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open, anchor, onClose]);
 
   const handleLogout = useCallback(async () => {
     if (loggingOut) return;
@@ -130,6 +155,67 @@ export default function Menu({
       ),
     },
   ] as const;
+
+  const onItem = (label: string) =>
+    label === 'Settings' ? () => { onClose(); onOpenSettings?.(); }
+    : label === 'Profile' ? () => { onClose(); onOpenProfile?.(); }
+    : label === 'Themes' ? () => { onClose(); onOpenThemes?.(); }
+    : undefined;
+
+  if (anchor) {
+    // Small menu like the panels menu: above the sidebar's name, or beside the rail's avatar
+    const pos: React.CSSProperties = anchor.side === 'top'
+      ? { left: anchor.rect.left, bottom: window.innerHeight - anchor.rect.top + 8 }
+      : { left: anchor.rect.right + 8, bottom: window.innerHeight - anchor.rect.bottom };
+    if (isClosing) return null;
+    return createPortal(
+      <div
+        ref={popRef}
+        role="menu"
+        className="drop-in fixed z-[10060] w-[220px] rounded-xl p-1.5 shadow-2xl"
+        style={{ ...pos, background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
+      >
+        {items.map((item) => {
+          const soon = 'soon' in item && item.soon;
+          return (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              disabled={soon}
+              title={soon ? 'Coming soon' : undefined}
+              onClick={onItem(item.label)}
+              className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors ${soon ? 'cursor-default' : classes.topNavCenterInactive}`}
+              style={soon ? { color: 'var(--assistant-text-faint)' } : undefined}
+            >
+              <span className="inline-flex h-4 w-4 items-center justify-center shrink-0 [&>svg]:h-4 [&>svg]:w-4">{item.icon}</span>
+              <span className="flex-1">{item.label}</span>
+              {soon ? (
+                <span
+                  className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                  style={{ color: 'var(--assistant-accent)', background: 'color-mix(in srgb, var(--assistant-accent) 12%, transparent)' }}
+                >
+                  Soon
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+        <div className="my-1 border-t" style={{ borderColor: 'var(--assistant-border-soft)' }} />
+        <button
+          type="button"
+          role="menuitem"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          aria-busy={loggingOut}
+          className={`flex w-full items-center rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors disabled:opacity-70 ${classes.topNavCenterInactive}`}
+        >
+          {loggingOut ? 'Saving…' : 'Logout'}
+        </button>
+      </div>,
+      document.querySelector('[data-assistant-root]') ?? document.body,
+    );
+  }
 
   return (
     <>
@@ -216,15 +302,7 @@ export default function Menu({
                   disabled={soon}
                   aria-disabled={soon}
                   title={soon ? 'Coming soon' : undefined}
-                  onClick={
-                    item.label === 'Settings'
-                      ? () => { onClose(); onOpenSettings?.(); }
-                      : item.label === 'Profile'
-                      ? () => { onClose(); onOpenProfile?.(); }
-                      : item.label === 'Themes'
-                      ? () => { onClose(); onOpenThemes?.(); }
-                      : undefined
-                  }
+                  onClick={onItem(item.label)}
                   className={`flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-left text-[16px] transition-colors ${classes.panelBtn} ${classes.menuItem} ${soon ? 'cursor-default' : ''}`}
                   style={{
                     color: soon ? 'var(--assistant-text-muted)' : 'var(--assistant-text-soft)',

@@ -39,7 +39,6 @@ import classes from '@/app/assistant/_theme/themes.module.css';
 import { useQuickFilters } from './QuickFiltersContext';
 import { useShowAllGroups, useFocusedList } from '../_hook/useShowAllGroups';
 import { DeleteWithOpenTasksDialog, buildMoveTargets } from './DeleteWithOpenTasksDialog';
-import { CENTER_NAV, type PanelId } from './TopNavBar';
 
 const LS_KEY_COLLAPSED_GROUPS = 'youtask_sidebar_collapsed_groups';
 // Background of the one active row (All lists, the selected group, or the focused list)
@@ -52,14 +51,9 @@ type SidebarProps = {
     origin: 'sidebar';
     listId?: string | null;
   }) => void;
-  /** Check Lists / Habits / Reminders rows under the groups (toggle their panels) */
-  panels?: {
-    open: Record<PanelId, boolean>;
-    onToggle: Record<PanelId, () => void>;
-  };
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ panels }) => {
+export const Sidebar: React.FC<SidebarProps> = () => {
   const { sortBy, hideSomeday } = useQuickFilters();
 
   const buildAllCollapsedFromBlocks = (listBlocks: Block[]): Record<string, boolean> => {
@@ -738,6 +732,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ panels }) => {
                 className="mb-3 flex cursor-pointer select-none items-center gap-1 rounded-md px-0.5 py-1"
                 style={{ paddingLeft: 2, background: showAllGroups ? ACTIVE_BG : undefined }}
               >
+                <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true" style={{ color: 'var(--assistant-text)' }}>
+                  <rect x="1.75" y="6.25" width="12.5" height="8" rx="1.5" />
+                  <path d="M3.25 4.25h9.5" />
+                  <path d="M4.75 2.25h6.5" />
+                </svg>
                 <span
                   className="min-w-0 break-words text-left text-[14px] md:text-sm font-semibold"
                   style={{ color: 'var(--assistant-text)' }}
@@ -1016,41 +1015,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ panels }) => {
                 );
               })}
               </div>
-
-              {/* Panels, under the groups: rows like the lists (padding, thin faint icon, type), but
-                  top-level — their icons line up with the group icons. Highlighted while open */}
-              {panels ? (
-                <div className="mt-4 space-y-1">
-                  {CENTER_NAV.map(item => {
-                    const isOn = panels.open[item.id];
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={panels.onToggle[item.id]}
-                        aria-pressed={isOn}
-                        title={isOn ? `Close ${item.label}` : `Open ${item.label}`}
-                        className="group flex w-full items-start gap-1 rounded-md px-1 py-1 text-left"
-                        style={{ background: isOn ? ACTIVE_BG : undefined }}
-                      >
-                        <span
-                          className="h-5 w-5 shrink-0 flex items-center justify-center [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:[stroke-width:1.4]"
-                          style={{ color: 'var(--assistant-text-faint)' }}
-                          aria-hidden="true"
-                        >
-                          {item.icon}
-                        </span>
-                        <span
-                          className={`min-w-0 break-words text-[14px] md:text-sm leading-5 ${isOn ? 'font-medium' : 'font-normal'}`}
-                          style={{ color: isOn ? 'var(--assistant-text)' : 'var(--assistant-text-soft)' }}
-                        >
-                          {item.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
           </>
         </div>
         </aside>
@@ -1120,35 +1084,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ panels }) => {
         <div className="fixed inset-0 z-[10050] flex items-center justify-center">
           <button
             type="button"
-            className="absolute inset-0 bg-black/60"
+            className={`absolute inset-0 ${classes.modalBackdrop}`}
             onClick={closeGroupsModal}
             aria-label="Close groups"
           />
           <div
             role="dialog"
             aria-label="Groups"
-            className="relative w-[92vw] max-w-sm rounded-2xl shadow-2xl"
-            style={{
-              border: '1px solid var(--assistant-border-soft)',
-              background: 'var(--assistant-panel-bg)',
-            }}
+            className={`relative w-[92vw] max-w-sm ${classes.modalCard}`}
           >
-            <div
-              className="flex items-center justify-between px-4 py-3"
-              style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}
-            >
-              <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Groups</div>
+            <div className={`flex items-center justify-between ${classes.modalHeader}`}>
+              <div className={classes.modalTitle}>Groups</div>
               <button
                 type="button"
                 onClick={closeGroupsModal}
-                className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`}
+                className={`-mr-2 flex h-8 w-8 items-center justify-center rounded-lg ${classes.panelCloseBtn}`}
                 aria-label="Close"
               >
                 ✕
               </button>
             </div>
 
-            <div className="px-4 py-3">
+            <div className="px-6 pb-6 pt-4">
               <form
                 className="flex items-center gap-2"
                 onSubmit={e => { e.preventDefault(); handleAddNewProject(newProjectName); }}

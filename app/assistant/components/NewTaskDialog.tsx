@@ -103,13 +103,13 @@ export function NewTaskDialog({
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center">
-      <button type="button" className="absolute inset-0 bg-black/60" onClick={onCancel} aria-label="Close" />
-      <div className={`relative w-[92vw] max-w-md rounded-2xl shadow-2xl ${classes.quickModal}`}>
-        <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-          <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>New task</div>
+      <button type="button" className={`absolute inset-0 ${classes.modalBackdrop}`} onClick={onCancel} aria-label="Close" />
+      <div role="dialog" aria-label="New task" className={`relative w-[92vw] max-w-md ${classes.modalCard}`}>
+        <div className={classes.modalHeader}>
+          <div className={classes.modalTitle}>New task</div>
         </div>
 
-        <div className="space-y-3 px-4 py-3">
+        <div className="space-y-3 px-6 pt-4">
           <label className="block">
             <div className="mb-1 text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>Task</div>
             <input
@@ -196,7 +196,7 @@ export function NewTaskDialog({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-4 py-3" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+        <div className={`${classes.modalFooter} justify-end`}>
           <button type="button" onClick={onCancel} className={`rounded-md px-3 py-2 text-[13px] ${classes.quickModalSecondary}`}>Cancel</button>
           <button
             type="button"

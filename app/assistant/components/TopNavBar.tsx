@@ -11,7 +11,7 @@ import {
 import { TaskFlagBadge } from './TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
-export type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
+export type View = 'chat' | 'reminders' | 'habits' | 'lists' | 'timeline' | 'archive' | 'quick' | 'calendar';
 
 interface TopNavBarProps {
   title: string;
@@ -78,6 +78,43 @@ export const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: Re
         <circle cx="5.5" cy="10" r="0.8" fill="currentColor" />
         <circle cx="8" cy="10" r="0.8" fill="currentColor" />
         <circle cx="10.5" cy="10" r="0.8" fill="currentColor" />
+      </svg>
+    ),
+  },
+  {
+    id: 'lists',
+    label: 'Check Lists',
+    mobileLabel: 'Lists',
+    icon: (
+      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <circle cx="2.5" cy="4" r="1" fill="currentColor" stroke="none" />
+        <circle cx="2.5" cy="8" r="1" fill="currentColor" stroke="none" />
+        <circle cx="2.5" cy="12" r="1" fill="currentColor" stroke="none" />
+        <path strokeLinecap="round" d="M5.5 4h8M5.5 8h8M5.5 12h8" />
+      </svg>
+    ),
+  },
+  {
+    id: 'habits',
+    label: 'Habits',
+    mobileLabel: 'Habits',
+    icon: (
+      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11.5 3.5A5 5 0 0 1 13 8a5 5 0 0 1-5 5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11.5 3.5V6H9" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.5A5 5 0 0 1 3 8a5 5 0 0 1 5-5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.5V10H7" />
+      </svg>
+    ),
+  },
+  {
+    id: 'reminders',
+    label: 'Reminders',
+    mobileLabel: 'Remind',
+    icon: (
+      <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path strokeLinecap="round" d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 1.2v.8H2.8v-.8L4 9V6.5a4 4 0 0 1 4-4z" />
+        <path strokeLinecap="round" d="M6.3 12.5a1.8 1.8 0 0 0 3.4 0" />
       </svg>
     ),
   },
@@ -333,13 +370,17 @@ export function PanelsMenuButton({
   );
 }
 
+/** Where the account menu pops from: above the sidebar's name, or beside the rail's avatar */
+export type MenuAnchor = { rect: DOMRect; side: 'top' | 'right' };
+
 type AccountActionsProps = {
   /**
    * top: header row (mobile) · footer: sidebar foot (desktop) · rail: vertical strip when
    * the sidebar is closed · bell: just the reminders bell (sidebar header, desktop)
    */
   placement: 'top' | 'footer' | 'rail' | 'bell';
-  onOpenMenu: () => void;
+  /** No anchor (mobile header) → the menu opens as a drawer */
+  onOpenMenu: (anchor?: MenuAnchor) => void;
   themeStyle?: 'light' | 'dark';
   onToggleTheme?: () => void;
   dockLayout?: 'stack' | 'accordion';
@@ -663,7 +704,7 @@ export function AccountActions({
           <>Menu &amp; account{userName ? ` · ${userName}` : ''}</>,
           <button
             type="button"
-            onClick={onOpenMenu}
+            onClick={e => onOpenMenu({ rect: e.currentTarget.getBoundingClientRect(), side: 'right' })}
             className="rounded-full"
             aria-label="Open menu"
           >
@@ -677,7 +718,7 @@ export function AccountActions({
   const profileBtn = (
     <button
       type="button"
-      onClick={onOpenMenu}
+      onClick={() => onOpenMenu()}
       className={[
         'flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg transition-colors',
         placement === 'footer' ? 'min-w-0 flex-1' : '',
@@ -702,20 +743,23 @@ export function AccountActions({
   if (placement === 'footer') {
     // One row: sync status · who you are · quick toggles on the right.
     // The bell lives in the sidebar header next to the panels menu.
-    // The name is just a label here — the menu has its own button at the top of the sidebar.
+    // The name opens the menu (profile, settings, themes) — the sidebar header holds the logo.
     return (
       <div className="flex items-center gap-1">
         {syncDot}
-        <div
-          className="flex min-w-0 flex-1 items-center gap-2 pl-1.5 pr-1 py-1"
+        <button
+          type="button"
+          onClick={e => onOpenMenu({ rect: e.currentTarget.getBoundingClientRect(), side: 'top' })}
+          className="flex min-w-0 flex-1 items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg"
           style={{ color: 'var(--assistant-text)' }}
-          title={userName ? `Signed in as ${userName}` : undefined}
+          aria-label="Open menu"
+          title={userName ? `Signed in as ${userName} · Menu` : 'Menu'}
         >
           {avatar}
           <span className="min-w-0 flex-1 break-words text-left text-[14px] font-medium">
             {userName || 'Account'}
           </span>
-        </div>
+        </button>
         {layoutBtn}
         {themeBtn}
       </div>
@@ -733,9 +777,25 @@ export function AccountActions({
   );
 }
 
-/** Magnifier icon that expands into an input; Enter opens the keyword panel. */
-function HeaderSearch({ onSearch }: { onSearch: (word: string) => void }) {
-  const [open, setOpen] = useState(false);
+/**
+ * Magnifier icon that expands into an input; Enter opens the keyword panel.
+ * compact: sidebar header — the input takes the place of the header's icons (the parent
+ * hides its other icons while `open`, so pass `open` / `onOpenChange` to control it).
+ */
+export function HeaderSearch({
+  onSearch,
+  compact = false,
+  open: openProp,
+  onOpenChange,
+}: {
+  onSearch: (word: string) => void;
+  compact?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean) => { setOpenState(next); onOpenChange?.(next); };
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -751,6 +811,7 @@ function HeaderSearch({ onSearch }: { onSearch: (word: string) => void }) {
           onClick={() => setOpen(true)}
           className={classes.topNavIconBtn}
           aria-label="Search keyword"
+          aria-expanded={false}
         >
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
             <circle cx="7" cy="7" r="4.5" />
@@ -761,9 +822,10 @@ function HeaderSearch({ onSearch }: { onSearch: (word: string) => void }) {
     );
   }
 
+  // compact: as wide as the room between the sidebar logo and the collapse button
   return (
     <div
-      className="flex h-8 w-[min(240px,60vw)] items-center gap-2 rounded-lg px-2.5"
+      className={`flex h-8 items-center gap-2 rounded-lg px-2.5 ${compact ? 'drop-in w-[144px]' : 'w-[min(240px,60vw)]'}`}
       style={{ background: 'var(--assistant-control-bg)', border: '1px solid var(--assistant-border-soft)' }}
     >
       <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" style={{ color: 'var(--assistant-text-muted)' }} aria-hidden>
@@ -779,8 +841,8 @@ function HeaderSearch({ onSearch }: { onSearch: (word: string) => void }) {
           if (e.key === 'Enter' && value.trim()) { onSearch(value.trim()); close(); }
           else if (e.key === 'Escape') close();
         }}
-        onBlur={() => { if (!value.trim()) close(); }}
-        placeholder="Search keyword"
+        onBlur={() => { if (compact || !value.trim()) close(); }}
+        placeholder={compact ? 'Search…' : 'Search keyword'}
         aria-label="Search keyword"
         className="min-w-0 flex-1 bg-transparent text-[14px] outline-none"
         style={{ color: 'var(--assistant-text)' }}
@@ -813,7 +875,7 @@ export default function TopNavBar({
   // ── Current user label ──
   // Warm both logo variants so the light/dark toggle swaps instantly (no blank frame)
   useEffect(() => {
-    for (const src of ['/logoblue.png', '/logowhite-clean.png']) new Image().src = src;
+    for (const src of ['/logoblue.png', '/logowhite-clean.png', '/logoshort-blue.png', '/logoshort-white.png']) new Image().src = src;
   }, []);
 
   // Enforce session on mount + when tab refocuses or storage changes
@@ -871,8 +933,8 @@ export default function TopNavBar({
         .drop-in { animation: dropIn .18s cubic-bezier(.25,.9,.3,1) forwards; }
       `}</style>
 
-      {/* ── Top bar — designer reference layout ── */}
-      <header className={`shrink-0 z-50 flex items-center px-4 md:px-6 ${classes.topNav}`}>
+      {/* ── Top bar — mobile only; on desktop the logo and search live in the sidebar header ── */}
+      <header className={`md:hidden shrink-0 z-50 flex items-center px-4 ${classes.topNav}`}>
         {/* Left: brand */}
         <div className="flex items-center gap-2 shrink-0 min-w-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -888,13 +950,12 @@ export default function TopNavBar({
         <div className="flex-1" />
 
         {onSearchKeyword && (
-          <div className="flex items-center shrink-0 md:mr-0 mr-1">
+          <div className="flex items-center shrink-0 mr-1">
             <HeaderSearch onSearch={onSearchKeyword} />
           </div>
         )}
 
-        {/* Right: on mobile only — on desktop these live at the foot of the sidebar */}
-        <div className="md:hidden">
+        <div>
           <AccountActions
             placement="top"
             onOpenMenu={onOpenMenu}

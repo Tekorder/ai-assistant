@@ -54,10 +54,10 @@ export function DeleteWithOpenTasksDialog({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex }}>
-      <button type="button" className="absolute inset-0 bg-black/60" onClick={onCancel} aria-label="Close" />
-      <div role="dialog" aria-label={`Delete ${noun}`} className={`relative w-[92vw] max-w-md rounded-2xl shadow-2xl ${classes.quickModal}`}>
-        <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-          <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Delete {noun}?</div>
+      <button type="button" className={`absolute inset-0 ${classes.modalBackdrop}`} onClick={onCancel} aria-label="Close" />
+      <div role="dialog" aria-label={`Delete ${noun}`} className={`relative w-[92vw] max-w-md ${classes.modalCard}`}>
+        <div className={classes.modalHeader}>
+          <div className={classes.modalTitle}>Delete {noun}?</div>
           {openCount === 0 ? (
             <p className="text-[13px] mt-2 leading-relaxed" style={{ color: 'var(--assistant-text-soft)' }}>
               {kind === 'list'
@@ -99,7 +99,7 @@ export function DeleteWithOpenTasksDialog({
             </div>
           ) : null}
         </div>
-        <div className="px-4 py-3 flex flex-wrap items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+        <div className={`${classes.modalFooter} flex-wrap justify-end`}>
           {openCount > 0 && step === 'move' ? (
             <>
               <button type="button" onClick={() => setStep('choose')} className={`text-[13px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}>

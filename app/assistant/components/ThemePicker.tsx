@@ -33,15 +33,9 @@ export function ThemePicker({ selectedTheme, onSelect, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[10040] flex items-center justify-center p-4">
-      <style>{`
-        @keyframes tpIn   { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
-        @keyframes tpFade { from { opacity: 0; } to { opacity: 1; } }
-      `}</style>
-
       <button
         type="button"
-        className="absolute inset-0 cursor-default"
-        style={{ background: 'var(--assistant-overlay)', backdropFilter: 'blur(4px)', animation: 'tpFade .2s ease-out both' }}
+        className={`absolute inset-0 cursor-default ${classes.modalBackdrop}`}
         onClick={onClose}
         aria-label="Close themes"
         tabIndex={-1}
@@ -51,14 +45,7 @@ export function ThemePicker({ selectedTheme, onSelect, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="tp-title"
-        className="relative w-full max-w-[560px] overflow-hidden rounded-2xl"
-        style={{
-          background: 'var(--assistant-overlay-panel-bg, var(--assistant-panel-bg))',
-          color: 'var(--assistant-text)',
-          border: '1px solid var(--assistant-border-soft)',
-          boxShadow: '0 24px 60px rgba(0, 0, 0, .28)',
-          animation: 'tpIn .28s cubic-bezier(.25,.9,.3,1) both',
-        }}
+        className={`relative w-full max-w-[560px] overflow-hidden ${classes.modalCard}`}
       >
         <div className="flex items-center justify-between px-6 pt-5">
           <h2 id="tp-title" className="text-[19px] font-bold">Themes</h2>

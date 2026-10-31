@@ -294,8 +294,8 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	: 'linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.04) 100%)',
 	// Tinted with each theme's contrast color (Blue → the original rgba(17,37,77,.40))
 	'--assistant-column-shadow': isLight
-	? `0 20px 40px 0 color-mix(in srgb, ${theme.contrastBg ?? theme.tone1} 40%, transparent)`
-	: '0 20px 40px 0 rgba(0, 0, 0, 0.45)',
+	? `0 1px 2px 0 color-mix(in srgb, ${theme.contrastBg ?? theme.tone1} 8%, transparent)`
+	: '0 1px 2px 0 rgba(0, 0, 0, 0.12)',
 	'--assistant-row-divider': isLight ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.09)',
 	'--assistant-contrast-bg': theme.contrastBg ?? theme.tone1,
 	'--assistant-contrast-text': theme.contrastText ?? (isLight ? '#ffffff' : '#000000'),

@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { isValidDateYYYYMMDD, parseYMD, todayYMD, toYMD } from '@/lib/datacenter';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
@@ -67,23 +68,17 @@ export function DatePickerModal({
     <div className="fixed inset-0 z-[10050] flex items-center justify-center p-5">
       <button
         type="button"
-        className="fixed inset-0"
-        style={{ background: 'var(--assistant-overlay)' }}
+        className={`fixed inset-0 ${classes.modalBackdrop}`}
         onClick={onClose}
         aria-label="Close"
       />
       <div
         role="dialog"
         aria-label={title}
-        className="relative z-10 w-full max-w-[340px] rounded-2xl shadow-2xl"
-        style={{
-          background: 'var(--assistant-bg)',
-          color: 'var(--assistant-text)',
-          border: '1px solid var(--assistant-border-soft)',
-        }}
+        className={`relative z-10 w-full max-w-[340px] ${classes.modalCard}`}
       >
-        <div className="px-4 pt-4 pb-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-          <div className="text-[15px] font-semibold">{title}</div>
+        <div className={classes.modalHeader}>
+          <div className={classes.modalTitle}>{title}</div>
           {subtitle ? (
             <div className="mt-0.5 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} title={subtitle}>
               {subtitle}
@@ -108,7 +103,7 @@ export function DatePickerModal({
           </div>
         </div>
 
-        <div className="px-4 py-3">
+        <div className="px-6 pt-4">
           <div className="mb-2 flex items-center justify-between">
             <button
               type="button"
@@ -167,7 +162,7 @@ export function DatePickerModal({
           </div>
         </div>
 
-        <div className="px-4 pb-4 flex justify-end">
+        <div className={`${classes.modalFooter} justify-end`}>
           <button
             type="button"
             onClick={onClose}
