@@ -47,7 +47,8 @@ const hoverIconClass =
 type Props = {
   open: boolean;
   onClose: () => void;
-  variant?: 'overlay' | 'dock';
+  /** tab: a main-panel tab — no frame, title or close button */
+  variant?: 'overlay' | 'dock' | 'tab';
 };
 
 export default function RemindersPanel({ open, onClose, variant = 'overlay' }: Props) {
@@ -257,17 +258,18 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
         }
       `}</style>
 
-      <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
-        style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Reminders</h2>
-        <button type="button" onClick={requestClose}
-          className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
-          ✕
-        </button>
-      </div>
+      {variant !== 'tab' && (
+        <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
+          style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+          <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Reminders</h2>
+          <button type="button" onClick={requestClose}
+            className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
+            ✕
+          </button>
+        </div>
+      )}
 
-      <div className="px-4 py-3 shrink-0 flex items-center justify-end"
-        style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+      <div className="px-4 py-3 shrink-0 flex items-center justify-end">
         <button type="button" onClick={handleAddReminder}
           className={`h-8 w-8 shrink-0 rounded-md ${classes.panelBtn}`} data-tip="New reminder">
           +
@@ -275,7 +277,8 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
-        <div className="space-y-1">
+        {/* As a main tab there's room for two columns */}
+        <div className={variant === 'tab' ? 'grid grid-cols-1 gap-x-8 gap-y-1 lg:grid-cols-2' : 'space-y-1'}>
           {reminders.map((r, idx) => {
             const isDraggingOver = dragOverId === r.id && dragRef.current?.id !== r.id;
             const isDraggingMe = dragRef.current?.id === r.id;
@@ -392,24 +395,23 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
         <div className="fixed inset-0 z-[10050] flex items-center justify-center">
           <button
             type="button"
-            className="absolute inset-0 bg-black/60"
+            className={`absolute inset-0 ${classes.modalBackdrop}`}
             onClick={() => setDaysModal(null)}
             aria-label="Close"
           />
           <div
             role="dialog"
             aria-label="Repeat on"
-            className="relative w-[92vw] max-w-sm rounded-2xl shadow-2xl"
-            style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-panel-bg)' }}
+            className={`relative w-[92vw] max-w-sm ${classes.modalCard}`}
           >
-            <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-              <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Repeat on</div>
+            <div className={classes.modalHeader}>
+              <div className={classes.modalTitle}>Repeat on</div>
               <div className="mt-1 text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
                 Pick the days this reminder repeats.
               </div>
             </div>
 
-            <div className="flex justify-between gap-1.5 px-4 py-4" role="group" aria-label="Weekdays">
+            <div className="flex justify-between gap-1.5 px-6 py-4" role="group" aria-label="Weekdays">
               {WEEK.map(d => {
                 const on = daysModal.days.includes(d.value);
                 return (
@@ -434,7 +436,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
               })}
             </div>
 
-            <div className="flex items-center gap-2 px-4 pb-4 text-[12px]">
+            <div className="flex items-center gap-2 px-6 text-[12px]">
               {[
                 { label: 'Every day', days: ALL_DAYS },
                 { label: 'Mon–Fri', days: [1, 2, 3, 4, 5] },
@@ -451,7 +453,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
               ))}
             </div>
 
-            <div className="px-4 py-3 flex items-center gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+            <div className={classes.modalFooter}>
               <button
                 type="button"
                 onClick={() => {
@@ -492,6 +494,10 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
       ) : null}
     </>
   );
+
+  if (variant === 'tab') {
+    return <div className="flex h-full min-h-0 w-full min-w-0 flex-col">{body}</div>;
+  }
 
   if (variant === 'dock') {
     return (

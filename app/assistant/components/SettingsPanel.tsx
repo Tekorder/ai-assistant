@@ -244,20 +244,15 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
         <div className="fixed inset-0 z-[10060] flex items-center justify-center p-5">
           <button
             type="button"
-            className="fixed inset-0"
-            style={{ background: 'var(--assistant-overlay)' }}
+            className={`fixed inset-0 ${classes.modalBackdrop}`}
             onClick={() => setConfirmOverride(false)}
             aria-label="Cancel"
           />
           <div
-            className="relative z-10 w-full max-w-[360px] rounded-2xl p-5 shadow-2xl"
-            style={{
-              background: 'var(--assistant-bg)',
-              color: 'var(--assistant-text)',
-              border: '1px solid var(--assistant-border-soft)',
-            }}
+            role="alertdialog"
+            className={`relative z-10 w-full max-w-[360px] p-6 ${classes.modalCard}`}
           >
-            <h3 className="text-[16px] font-semibold mb-1.5">Override existing data?</h3>
+            <h3 className={`mb-2 ${classes.modalTitle}`}>Override existing data?</h3>
             <p className="text-[14px] mb-5" style={{ color: 'var(--assistant-text-soft)' }}>
               This will permanently replace all your current lists, habits, reminders and checklists with the contents of the imported file.
             </p>
@@ -286,8 +281,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
         <div className="fixed inset-0 z-[10060] flex items-center justify-center p-5">
           <button
             type="button"
-            className="fixed inset-0"
-            style={{ background: 'var(--assistant-overlay)' }}
+            className={`fixed inset-0 ${classes.modalBackdrop}`}
             onClick={closeDeleteConfirm}
             aria-label="Cancel"
           />
@@ -295,14 +289,9 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
             role="alertdialog"
             aria-labelledby="delete-all-title"
             onSubmit={e => { e.preventDefault(); void handleDeleteAll(); }}
-            className="relative z-10 w-full max-w-[380px] rounded-2xl p-5 shadow-2xl"
-            style={{
-              background: 'var(--assistant-bg)',
-              color: 'var(--assistant-text)',
-              border: '1px solid var(--assistant-border-soft)',
-            }}
+            className={`relative z-10 w-full max-w-[380px] p-6 ${classes.modalCard}`}
           >
-            <h3 id="delete-all-title" className="text-[16px] font-semibold mb-1.5">Delete all data?</h3>
+            <h3 id="delete-all-title" className={`mb-2 ${classes.modalTitle}`}>Delete all data?</h3>
             <p className="text-[14px] mb-4" style={{ color: 'var(--assistant-text-soft)' }}>
               Every list, task, habit, reminder and checklist will be permanently deleted from this device and the server.
               Consider exporting a backup first.

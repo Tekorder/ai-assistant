@@ -109,9 +109,21 @@ export function TaskRowMenu({
       {item(hasDueDate ? 'Change due date' : 'Set due date', onDueDate)}
       {onRepeat && item(repeatLabel ? `Repeat: ${repeatLabel}` : 'Repeat…', onRepeat)}
 
-      {/* Flag: pick a color right here (the active one is ringed; ⊘ clears it) */}
+      {/* Flag: pick a color right here (⊘ first clears it; the active one is ringed) */}
       <div className="flex items-center gap-1 px-3 py-1.5" role="group" aria-label="Flag">
         <span className="flex-1 text-[13px]" style={{ color: 'var(--assistant-text)' }}>Flag</span>
+        <button
+          type="button"
+          role="menuitemradio"
+          aria-checked={!flag}
+          aria-label="No flag"
+          title="No flag"
+          onClick={() => { onFlag(undefined); onClose(); }}
+          className="grid h-6 w-6 place-items-center rounded-md text-[13px] transition-colors hover:bg-[var(--assistant-hover-bg)]"
+          style={{ color: 'var(--assistant-text-faint)', boxShadow: !flag ? 'inset 0 0 0 1px var(--assistant-border-soft)' : undefined }}
+        >
+          ⊘
+        </button>
         {FLAG_CHOICES.map((c) => (
           <button
             key={c}
@@ -127,21 +139,9 @@ export function TaskRowMenu({
             <TaskFlagIcon color={c} className="h-3.5 w-3.5" glow={false} />
           </button>
         ))}
-        <button
-          type="button"
-          role="menuitemradio"
-          aria-checked={!flag}
-          aria-label="No flag"
-          data-tip="No flag"
-          onClick={() => { onFlag(undefined); onClose(); }}
-          className="grid h-6 w-6 place-items-center rounded-md text-[13px] transition-colors hover:bg-[var(--assistant-hover-bg)]"
-          style={{ color: 'var(--assistant-text-faint)', boxShadow: !flag ? 'inset 0 0 0 1px var(--assistant-border-soft)' : undefined }}
-        >
-          ⊘
-        </button>
       </div>
 
-      {onNote && item(hasNote ? 'Edit note' : 'Add note', onNote)}
+      {onNote && item(hasNote ? 'Notes' : 'Add note', onNote)}
       {onReminder && item('Set reminder', onReminder)}
       {divider}
       {item('Delete', onDelete, true)}

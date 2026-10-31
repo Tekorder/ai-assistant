@@ -77,8 +77,10 @@ model Block {
   flag          String?
   priority      Boolean  @default(false)
   listStatus    String?
-  /// Free-text note on a task
+  /// Legacy single note — now mirrors the newest entry of `notes`
   note          String?
+  /// Dated notes on a task, newest first: [{ id, text, date: "YYYY-MM-DD" }]
+  notes         Json     @default("[]")
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   rowCreatedAt  DateTime @default(now())
   rowUpdatedAt  DateTime @updatedAt

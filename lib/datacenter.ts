@@ -67,8 +67,8 @@ export type Block = {
   priority?: boolean;
   flag?: TaskFlagColor;
   listStatus?: ListStatus;
-  /** Free-text note on a task (indent > 0) */
-  note?: string;
+  /** Notes on a task (indent > 0), newest first */
+  notes?: TaskNoteEntry[];
   /** Time on the due date, "HH:MM" (24h) */
   dueTime?: string;
   /** Recurring task: weekdays it repeats on (0 = Sun … 6 = Sat). `deadline` is the current occurrence. */
@@ -78,6 +78,35 @@ export type Block = {
   /** A section divider inside a list (indent 1, not a task) — only Agenda shows it */
   section?: boolean;
 };
+
+/** One dated note on a task ("Oct 30 – Called the vendor") */
+export type TaskNoteEntry = {
+  id: string;
+  text: string;
+  /** YYYY-MM-DD it was written */
+  date: string;
+};
+
+/**
+ * A task's notes from stored data: the `notes` list, or — for data saved before tasks
+ * had several notes — the single legacy `note` string as one entry dated `fallbackDate`.
+ */
+export function parseTaskNotes(rawNotes: unknown, legacyNote: unknown, fallbackDate: string): TaskNoteEntry[] {
+  if (Array.isArray(rawNotes)) {
+    return rawNotes
+      .filter((n): n is Record<string, unknown> => Boolean(n) && typeof n === 'object')
+      .filter(n => typeof n.text === 'string' && n.text.trim() !== '')
+      .map(n => ({
+        id: typeof n.id === 'string' && n.id ? n.id : uid(),
+        text: n.text as string,
+        date: isValidDateYYYYMMDD(n.date) ? (n.date as string) : fallbackDate,
+      }));
+  }
+  if (typeof legacyNote === 'string' && legacyNote.trim() !== '') {
+    return [{ id: uid(), text: legacyNote, date: fallbackDate }];
+  }
+  return [];
+}
 
 /** Section dividers sit among a list's tasks but are never tasks themselves. */
 export function isSectionBlock(b: Pick<Block, 'section'>): boolean {
@@ -102,6 +131,8 @@ export type DateMode = 'today' | 'week' | 'month' | 'all' | 'range';
 /** Inclusive custom range for the "Ranges" filter (YYYY-MM-DD, from <= to) */
 export type DateRange = { from: string; to: string };
 export type SortBy = 'dueDate' | 'createdAt';
+/** Which date a date filter goes by; Agenda uses both (due or created in the window) */
+export type DateBasis = SortBy | 'both';
 
 export type ProjectsPayload = {
   projects: Project[];
@@ -174,6 +205,7 @@ type RawBlock = {
   flag?: unknown;
   listStatus?: unknown;
   note?: unknown;
+  notes?: unknown;
   dueTime?: unknown;
   repeatDays?: unknown;
   doneDates?: unknown;
@@ -739,7 +771,8 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
     } else if (b.indent > 0) {
       b.checked = Boolean(x?.checked);
       if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline as string;
-      if (typeof x?.note === 'string' && x.note.trim() !== '') b.note = x.note;
+      const notes = parseTaskNotes(x?.notes, x?.note, isValidDateYYYYMMDD(x?.createdAt) ? (x.createdAt as string) : today);
+      if (notes.length) b.notes = notes;
       if (isValidTimeHHMM(x?.dueTime)) b.dueTime = x.dueTime;
       const repeatDays = parseRepeatDays(x?.repeatDays);
       if (repeatDays.length) b.repeatDays = repeatDays;
@@ -1588,9 +1621,13 @@ export function getFilterDate(b: Block, sortBy: SortBy): string | undefined {
 
 export function passesDateFilter(
   b: Block,
-  opts: { sortBy: SortBy; dateMode: DateMode; focusDay: string; range?: DateRange },
+  opts: { sortBy: DateBasis; dateMode: DateMode; focusDay: string; range?: DateRange },
 ): boolean {
   if (!(b.indent > 0)) return true;
+  // Both dates: passes when it's due or was created in the window
+  if (opts.sortBy === 'both') {
+    return passesDateFilter(b, { ...opts, sortBy: 'dueDate' }) || passesDateFilter(b, { ...opts, sortBy: 'createdAt' });
+  }
   // A recurring task is due on every repeat day, so it passes when any of them falls in the window
   if (opts.sortBy === 'dueDate' && opts.dateMode !== 'all' && isRecurringTask(b) && isValidDateYYYYMMDD(b.deadline)) {
     const [from, to] = dateWindow(opts);
@@ -1668,7 +1705,7 @@ export function buildHiddenMap(
     showHidden: boolean;
     dateMode: DateMode;
     focusDay: string;
-    sortBy: SortBy;
+    sortBy: DateBasis;
     range?: DateRange;
   },
 ): Record<string, boolean> {
@@ -1924,21 +1961,14 @@ export function removeTaskAndSubtasks(blocks: Block[], taskId: string): Block[] 
   return blocks.slice(0, i).concat(blocks.slice(end));
 }
 
-function applyPatch(b: Block, patch: Partial<Block>, focusDay?: string): Block {
+function applyPatch(b: Block, patch: Partial<Block>): Block {
   if (patch.checked === true && isRecurringTask(b)) {
     return completeOccurrence({ ...b, ...patch });
   }
 
-  if (patch.checked === true) {
-    return {
-      ...b,
-      ...patch,
-      deadline: isValidDateYYYYMMDD(focusDay) ? focusDay : todayYMD(),
-      isHidden: false,
-    };
-  }
-
-  if (patch.checked === false) {
+  // Checking a task leaves its due date alone (it used to turn into the completion day,
+  // giving undated tasks a due date and moving overdue ones)
+  if (typeof patch.checked === 'boolean') {
     return {
       ...b,
       ...patch,
@@ -1989,9 +2019,8 @@ export function updateBlock(
   blocks: Block[],
   id: string,
   patch: Partial<Block>,
-  focusDay?: string,
 ): Block[] {
-  let next = blocks.map(b => (b.id === id ? applyPatch(b, patch, focusDay) : b));
+  let next = blocks.map(b => (b.id === id ? applyPatch(b, patch) : b));
   if (typeof patch.checked !== 'boolean') return next;
   // Completing a recurring task only closes its occurrence — the task itself stays open
   const target = blocks.find(b => b.id === id);
@@ -2001,7 +2030,7 @@ export function updateBlock(
   const checked = patch.checked;
   const setChecked = (ids: Set<string>) => {
     if (ids.size === 0) return;
-    next = next.map(b => (ids.has(b.id) ? applyPatch(b, { checked }, focusDay) : b));
+    next = next.map(b => (ids.has(b.id) ? applyPatch(b, { checked }) : b));
   };
   const { descendants, ancestors } = taskFamily(next, id);
   setChecked(new Set(descendants.filter(d => Boolean(d.checked) !== checked).map(d => d.id)));
@@ -2874,7 +2903,7 @@ export function aipatchtask(
         if ((patch.text || '').trim()) {
           next = updateBlock(next, result.newTaskId, {
             text: patch.text!.trim(),
-          }, patch.focusDay);
+          });
         }
 
         return {
@@ -2908,7 +2937,7 @@ export function aipatchtask(
         if (typeof patch.archived === 'boolean') patchObj.archived = patch.archived;
         if (isValidDateYYYYMMDD(patch.deadline)) patchObj.deadline = patch.deadline;
 
-        const next = updateBlock(base, patch.taskId, patchObj, patch.focusDay);
+        const next = updateBlock(base, patch.taskId, patchObj);
 
         return {
           ok: true,

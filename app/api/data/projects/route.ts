@@ -2,7 +2,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import type { Block as PrismaBlock } from '@prisma/client';
-import { isDefaultGroup, parseListStatus, parseRepeatDays } from '@/lib/datacenter';
+import { isDefaultGroup, parseListStatus, parseRepeatDays, parseTaskNotes, todayYMD, type TaskNoteEntry } from '@/lib/datacenter';
 
 function getUid(req: NextRequest) {
   return req.headers.get('X-Firebase-UID') ?? '';
@@ -89,7 +89,11 @@ export async function GET(req: NextRequest) {
         ...(b.onHold ? { onHold: b.onHold } : {}),
         ...(b.flag ? { flag: b.flag } : {}),
         ...(b.listStatus ? { listStatus: b.listStatus } : {}),
-        ...(b.note ? { note: b.note } : {}),
+        ...(() => {
+          // Rows saved before the notes list carry only the legacy `note` text
+          const notes = b.indent > 0 ? parseTaskNotes(b.notes, b.note, b.createdAt ?? todayYMD()) : [];
+          return notes.length ? { notes } : {};
+        })(),
       })),
     })),
     selectedProjectId: user.selectedProjectLocalId ?? undefined,
@@ -156,6 +160,17 @@ export async function POST(req: NextRequest) {
       ? (rawProj.blocks as Record<string, unknown>[])
       : [];
 
+    // A tab still on the single-note code sends `note` but no `notes`: keep the notes
+    // already stored for those tasks instead of collapsing them to one
+    const storedNotes = new Map<string, unknown>();
+    if (blocks.some(b => Number(b.indent ?? 0) > 0 && !Array.isArray(b.notes))) {
+      const rows = await prisma.block.findMany({
+        where: { projectId: project.id, indent: { gt: 0 } },
+        select: { localId: true, notes: true, note: true, createdAt: true },
+      });
+      for (const r of rows) storedNotes.set(r.localId, parseTaskNotes(r.notes, r.note, r.createdAt ?? todayYMD()));
+    }
+
     // Derive parentLocalId from the flat array order + indent level.
     // The parent of a block at indent N is the most recent preceding block at indent N-1.
     const parentStack: Record<number, string> = {};
@@ -175,6 +190,12 @@ export async function POST(req: NextRequest) {
             ));
           }
         }
+        const createdAt = typeof b.createdAt === 'string' ? b.createdAt : null;
+        const notes: TaskNoteEntry[] = indent === 0 ? []
+          : Array.isArray(b.notes) ? parseTaskNotes(b.notes, null, createdAt ?? todayYMD())
+          : storedNotes.has(bLocalId) && (storedNotes.get(bLocalId) as TaskNoteEntry[]).length
+          ? (storedNotes.get(bLocalId) as TaskNoteEntry[])
+          : parseTaskNotes(null, b.note, createdAt ?? todayYMD());
         return {
           projectId:     project.id,
           localId:       bLocalId,
@@ -187,13 +208,15 @@ export async function POST(req: NextRequest) {
           dueTime:       indent > 0 && typeof b.dueTime === 'string' && /^\d{2}:\d{2}$/.test(b.dueTime) ? b.dueTime : null,
           repeatDays:    indent > 0 ? parseRepeatDays(b.repeatDays) : [],
           isSection:     indent > 0 && b.section === true,
-          createdAt:     typeof b.createdAt === 'string' ? b.createdAt : null,
+          createdAt,
           isHidden:      Boolean(b.isHidden ?? false),
           archived:      Boolean(b.archived ?? false),
           onHold:        Boolean(b.onHold ?? false),
           flag:          typeof b.flag === 'string' ? b.flag : null,
           listStatus:    indent === 0 ? (parseListStatus(b.listStatus) ?? null) : null,
-          note:          indent > 0 && typeof b.note === 'string' && b.note.trim() !== '' ? b.note : null,
+          notes,
+          // Legacy column: the newest note's text, so older code (or a rollback) still sees one
+          note:          notes[0]?.text ?? null,
         };
       })
       .filter((b): b is NonNullable<typeof b> => b !== null);

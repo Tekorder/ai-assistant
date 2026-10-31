@@ -774,6 +774,11 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 className="mb-3 flex cursor-pointer select-none items-center gap-1 rounded-md px-0.5 py-1"
                 style={{ paddingLeft: 2, background: showAllGroups ? ACTIVE_BG : undefined }}
               >
+                <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden="true" style={{ color: 'var(--assistant-text)' }}>
+                  <rect x="1.75" y="6.25" width="12.5" height="8" rx="1.5" />
+                  <path d="M3.25 4.25h9.5" />
+                  <path d="M4.75 2.25h6.5" />
+                </svg>
                 <span
                   className="min-w-0 break-words text-left text-[14px] md:text-sm font-semibold"
                   style={{ color: 'var(--assistant-text)' }}
@@ -1234,35 +1239,28 @@ export const Sidebar: React.FC<SidebarProps> = () => {
         <div className="fixed inset-0 z-[10050] flex items-center justify-center">
           <button
             type="button"
-            className="absolute inset-0 bg-black/60"
+            className={`absolute inset-0 ${classes.modalBackdrop}`}
             onClick={closeGroupsModal}
             aria-label="Close groups"
           />
           <div
             role="dialog"
             aria-label="Groups"
-            className="relative w-[92vw] max-w-sm rounded-2xl shadow-2xl"
-            style={{
-              border: '1px solid var(--assistant-border-soft)',
-              background: 'var(--assistant-panel-bg)',
-            }}
+            className={`relative w-[92vw] max-w-sm ${classes.modalCard}`}
           >
-            <div
-              className="flex items-center justify-between px-4 py-3"
-              style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}
-            >
-              <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Groups</div>
+            <div className={`flex items-center justify-between ${classes.modalHeader}`}>
+              <div className={classes.modalTitle}>Groups</div>
               <button
                 type="button"
                 onClick={closeGroupsModal}
-                className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`}
+                className={`-mr-2 flex h-8 w-8 items-center justify-center rounded-lg ${classes.panelCloseBtn}`}
                 aria-label="Close"
               >
                 ✕
               </button>
             </div>
 
-            <div className="px-4 py-3">
+            <div className="px-6 pb-6 pt-4">
               <form
                 className="flex items-center gap-2"
                 onSubmit={e => { e.preventDefault(); handleAddNewProject(newProjectName); }}

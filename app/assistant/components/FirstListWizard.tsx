@@ -69,29 +69,17 @@ export function FirstListWizard({ onFinish, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-[9000] flex items-center justify-center p-4">
       <style>{`
-        @keyframes flwIn   { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
         @keyframes flwStep { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
-        @keyframes flwFade { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
 
       {/* Backdrop doesn't close — a stray click shouldn't throw away what was typed */}
-      <div
-        className="absolute inset-0"
-        style={{ background: 'rgba(17, 37, 77, .28)', backdropFilter: 'blur(6px)', animation: 'flwFade .2s ease-out both' }}
-      />
+      <div className={`absolute inset-0 ${classes.modalBackdrop}`} />
 
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="flw-title"
-        className="relative w-full max-w-[520px] overflow-hidden rounded-2xl"
-        style={{
-          background: 'var(--assistant-overlay-panel-bg, var(--assistant-panel-bg))',
-          color: 'var(--assistant-text)',
-          border: '1px solid var(--assistant-border-soft)',
-          boxShadow: '0 24px 60px rgba(17, 37, 77, .28)',
-          animation: 'flwIn .3s cubic-bezier(.25,.9,.3,1) both',
-        }}
+        className={`relative w-full max-w-[520px] overflow-hidden ${classes.modalCard}`}
       >
         {/* Header: progress + close */}
         <div className="flex items-center justify-between px-6 pt-5">

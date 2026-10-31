@@ -65,10 +65,12 @@ export type MiniCalendarProps = {
   /** If set, clicking a day invokes this (compact picker; no day sidebar) */
   onPickDay?: (ymd: string) => void;
   compact?: boolean;
+  /** Compact: the day the view is narrowed to — drawn filled in the theme's contrast color */
+  selectedDay?: string;
 };
 
 /** Compact month grid for side drawer (e.g. Quick). Full app calendar is `Calendar.tsx`. */
-export default function MiniCalendar({ onPickDay, compact = false }: MiniCalendarProps) {
+export default function MiniCalendar({ onPickDay, compact = false, selectedDay }: MiniCalendarProps) {
   const [blocks, setBlocks]             = useState<Block[]>([]);
   const [hydrated, setHydrated]         = useState(false);
   const [projectTitle, setProjectTitle] = useState<string>('Group');
@@ -231,6 +233,7 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
           {grid.map((ymd, idx) => {
             if (!ymd) return <div key={`empty-${idx}`} className="h-7 rounded-md bg-transparent" />;
             const isToday = ymd === today;
+            const isSelected = ymd === selectedDay;
             const dayCards = getVisibleDayCards(ymd);
             // Days with tasks are colored: red while any is pending, green once all are done
             const hasPending = dayCards.some(c => !c.checked);
@@ -241,20 +244,22 @@ export default function MiniCalendar({ onPickDay, compact = false }: MiniCalenda
                 key={ymd}
                 type="button"
                 onClick={() => onPickDay?.(ymd)}
+                aria-pressed={isSelected}
                 className={[
                   'h-7 rounded-md text-[12px] transition-colors',
-                  isToday ? `font-bold ${classes.miniCalDayToday}` : classes.miniCalDayNormal,
-                  hasPending || allDone ? 'font-semibold' : '',
+                  isSelected ? 'font-bold' : isToday ? `font-bold ${classes.miniCalDayToday}` : classes.miniCalDayNormal,
                 ].join(' ')}
-                // Plain days in the theme's text color; today keeps only its background
-                style={{
-                  color: hasPending
+                // Every day in the theme's text color; today keeps only its background.
+                // The selected day (the only one shown) is filled dark
+                style={color: hasPending
                     ? 'var(--assistant-danger-text)'
                     : allDone
                     ? 'var(--assistant-success-text)'
                     : 'var(--assistant-text)',
-                }}
-                data-tip={ymd}
+                  isSelected
+                  ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }
+                  : { color: 'var(--assistant-text)' }}
+                data-tip={isSelected ? `${ymd} · click again to show every date` : ymd}
               >
                 {Number(day)}
               </button>

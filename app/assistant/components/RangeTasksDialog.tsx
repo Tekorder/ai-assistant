@@ -69,14 +69,14 @@ export function RangeTasksDialog({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex }}>
-      <button type="button" className="absolute inset-0 bg-black/60" onClick={onClose} aria-label="Close" />
+      <button type="button" className={`absolute inset-0 ${classes.modalBackdrop}`} onClick={onClose} aria-label="Close" />
       <div
         role="dialog"
         aria-label="Tasks in range"
-        className={`relative flex max-h-[85vh] w-[92vw] max-w-lg flex-col rounded-2xl shadow-2xl ${classes.quickModal}`}
+        className={`relative flex max-h-[85vh] w-[92vw] max-w-lg flex-col ${classes.modalCard}`}
       >
-        <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-          <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>{getRangeLabel(range)}</div>
+        <div className={`${classes.modalHeader} pb-3`}>
+          <div className={classes.modalTitle}>{getRangeLabel(range)}</div>
           <div className="text-[12px] mt-1" style={{ color: 'var(--assistant-text-faint)' }}>
             {total === 0 ? 'No tasks' : `${total} task${total === 1 ? '' : 's'} · ${done} done`}
           </div>
@@ -95,7 +95,7 @@ export function RangeTasksDialog({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-1">
           {days.length === 0 ? (
             <div className="py-8 text-center text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>
               No tasks {by === 'createdAt' ? 'created' : 'due'} in this range
@@ -138,7 +138,7 @@ export function RangeTasksDialog({
           )}
         </div>
 
-        <div className="px-4 py-3 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+        <div className={`${classes.modalFooter} justify-end`}>
           <button type="button" onClick={onChangeRange} className={`text-[13px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}>
             Change range
           </button>

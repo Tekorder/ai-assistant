@@ -5,6 +5,10 @@ import { addDaysYMD, isValidDateYYYYMMDD, todayYMD, type DateMode, type DateRang
 /** Extra task filters beyond date range (UI; priority is wired). */
 export type TaskFilterTag = 'none' | 'priority' | 'someday' | 'scheduled';
 
+/** 'list' is the normal view (Group by off); the others put a heading per due / created day */
+export type GroupBy = 'list' | 'dueDate' | 'createdAt';
+const GROUP_BY_VALUES: GroupBy[] = ['list', 'dueDate', 'createdAt'];
+
 type QuickFiltersContextValue = {
   dateMode: DateMode;
   setDateMode: (m: DateMode) => void;
@@ -18,6 +22,9 @@ type QuickFiltersContextValue = {
   setHideSomeday: (v: boolean | ((p: boolean) => boolean)) => void;
   sortBy: SortBy;
   setSortBy: (v: SortBy) => void;
+  /** Agenda "Group by": under their lists, or under a heading per due day / created day */
+  groupBy: GroupBy;
+  setGroupBy: (v: GroupBy) => void;
   taskFilter: TaskFilterTag;
   setTaskFilter: (v: TaskFilterTag) => void;
   /** Live keyword filter for the workspace lists (not persisted) */
@@ -35,6 +42,7 @@ type SavedFilters = Partial<{
   showCompleted: boolean;
   hideSomeday: boolean;
   sortBy: SortBy;
+  groupBy: GroupBy;
   taskFilter: TaskFilterTag;
 }>;
 
@@ -44,6 +52,7 @@ export function QuickFiltersProvider({ children }: { children: React.ReactNode }
   const [showCompleted, setShowCompleted] = useState(true);
   const [hideSomeday, setHideSomeday] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>('createdAt');
+  const [groupBy, setGroupBy] = useState<GroupBy>('list');
   const [taskFilter, setTaskFilter] = useState<TaskFilterTag>('none');
   const [searchQuery, setSearchQuery] = useState('');
   const [restored, setRestored] = useState(false);
@@ -60,6 +69,7 @@ export function QuickFiltersProvider({ children }: { children: React.ReactNode }
         if (typeof saved.showCompleted === 'boolean') setShowCompleted(saved.showCompleted);
         if (typeof saved.hideSomeday === 'boolean') setHideSomeday(saved.hideSomeday);
         // sortBy is not restored: every session starts on "Created Date"
+        if (saved.groupBy && GROUP_BY_VALUES.includes(saved.groupBy)) setGroupBy(saved.groupBy);
         if (saved.taskFilter) setTaskFilter(saved.taskFilter);
       }
     } catch {}
@@ -69,10 +79,10 @@ export function QuickFiltersProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!restored) return;
     try {
-      const data: SavedFilters = { dateMode, dateRange, showCompleted, hideSomeday, sortBy, taskFilter };
+      const data: SavedFilters = { dateMode, dateRange, showCompleted, hideSomeday, sortBy, groupBy, taskFilter };
       localStorage.setItem(LS_KEY_QUICK_FILTERS, JSON.stringify(data));
     } catch {}
-  }, [restored, dateMode, dateRange, showCompleted, hideSomeday, sortBy, taskFilter]);
+  }, [restored, dateMode, dateRange, showCompleted, hideSomeday, sortBy, groupBy, taskFilter]);
 
   return (
     <QuickFiltersContext.Provider
@@ -87,6 +97,8 @@ export function QuickFiltersProvider({ children }: { children: React.ReactNode }
         setHideSomeday,
         sortBy,
         setSortBy,
+        groupBy,
+        setGroupBy,
         taskFilter,
         setTaskFilter,
         searchQuery,

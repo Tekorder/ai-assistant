@@ -84,22 +84,18 @@ export function TaskReminderModal({ task, onClose }: { task: ReminderSource; onC
         <div className="fixed inset-0 z-[10050] flex items-center justify-center">
           <button
             type="button"
-            className="absolute inset-0 bg-black/60"
+            className={`absolute inset-0 ${classes.modalBackdrop}`}
             onClick={onClose}
             aria-label="Close"
           />
           <form
             role="dialog"
             aria-label="Set reminder"
-            className="relative w-[92vw] max-w-sm rounded-2xl shadow-2xl"
-            style={{
-              border: '1px solid var(--assistant-border-soft)',
-              background: 'var(--assistant-panel-bg)',
-            }}
+            className={`relative w-[92vw] max-w-sm ${classes.modalCard}`}
             onSubmit={(e) => { e.preventDefault(); handleSave(); }}
           >
-            <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-              <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Set reminder</div>
+            <div className={classes.modalHeader}>
+              <div className={classes.modalTitle}>Set reminder</div>
               {(task.text || '').trim() ? (
                 <div className="mt-1 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} data-tip={task.text}>
                   {task.text}
@@ -107,7 +103,7 @@ export function TaskReminderModal({ task, onClose }: { task: ReminderSource; onC
               ) : null}
             </div>
 
-            <div className="flex items-center gap-2 px-4 py-4">
+            <div className="flex items-center gap-2 px-6 pt-4">
               <span className="shrink-0 text-[13px] tabular-nums" style={{ color: 'var(--assistant-text-muted)' }}>
                 {date.slice(5, 7)}/{date.slice(8, 10)}/{date.slice(0, 4)}
               </span>
@@ -120,7 +116,7 @@ export function TaskReminderModal({ task, onClose }: { task: ReminderSource; onC
               />
             </div>
 
-            <div className="px-4 py-3 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+            <div className={`${classes.modalFooter} justify-end`}>
               <button
                 type="button"
                 onClick={onClose}

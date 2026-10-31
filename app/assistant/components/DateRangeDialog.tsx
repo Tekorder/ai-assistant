@@ -72,16 +72,16 @@ export function DateRangeDialog({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex }}>
-      <button type="button" className="absolute inset-0 bg-black/60" onClick={onCancel} aria-label="Close" />
-      <div role="dialog" aria-label="Select a date range" className={`relative w-[92vw] max-w-sm rounded-2xl shadow-2xl ${classes.quickModal}`}>
-        <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-          <div className="text-sm font-semibold" style={{ color: 'var(--assistant-text)' }}>Select a date range</div>
+      <button type="button" className={`absolute inset-0 ${classes.modalBackdrop}`} onClick={onCancel} aria-label="Close" />
+      <div role="dialog" aria-label="Select a date range" className={`relative w-[92vw] max-w-sm ${classes.modalCard}`}>
+        <div className={classes.modalHeader}>
+          <div className={classes.modalTitle}>Select a date range</div>
           <div className="text-[12px] mt-1" style={{ color: 'var(--assistant-text-faint)' }}>
             {complete ? getRangeLabel(complete) : from ? 'Now pick the last day' : 'Pick the first day'}
           </div>
         </div>
 
-        <div className="px-4 py-3">
+        <div className="px-6 pt-4">
           <div className="flex flex-wrap gap-1.5 mb-3">
             {presets.map(p => (
               <button
@@ -134,7 +134,7 @@ export function DateRangeDialog({
           </div>
         </div>
 
-        <div className="px-4 py-3 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+        <div className={`${classes.modalFooter} justify-end`}>
           <button type="button" onClick={onCancel} className={`text-[13px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}>
             Cancel
           </button>

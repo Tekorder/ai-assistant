@@ -21,11 +21,11 @@ import {
   writeSelectedProjectBlocks,
   isListVisible,
   getTaskFlag,
-  cycleTaskFlag,
   addTaskUnderList,
   removeTaskAndSubtasks,
   updateBlock,
   type TaskFlagColor,
+  type TaskNoteEntry,
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from '../TaskFlag';
 import { TaskNoteButton } from '../TaskNote';
@@ -53,7 +53,7 @@ type Card = {
   isHidden?: boolean;
   archived?: boolean;
   flag?: TaskFlagColor;
-  note?: string;
+  notes?: TaskNoteEntry[];
 };
 
 /* ===================== Constants ===================== */
@@ -106,15 +106,21 @@ function groupByList(cards: Card[]): { listId: string | null; title: string; car
 
 /* ===================== Row menu (⋮) ===================== */
 
+const FLAG_CHOICES: TaskFlagColor[] = ['blue', 'yellow', 'red'];
+
 function RowMenu({
   x,
   y,
+  flag,
+  onFlag,
   onReschedule,
   onDelete,
   onClose,
 }: {
   x: number;
   y: number;
+  flag?: TaskFlagColor;
+  onFlag: (flag: TaskFlagColor | undefined) => void;
   onReschedule: () => void;
   onDelete: () => void;
   onClose: () => void;
@@ -166,6 +172,37 @@ function RowMenu({
   return (
     <div ref={ref} className="yt-menu" style={{ left: pos.left, top: pos.top }} role="menu">
       {item('Reschedule', onReschedule)}
+      {/* Flag: ⊘ clears it, then the colors (the active one is ringed) — same as Agenda's menu */}
+      <div className="flex items-center gap-1 px-3 py-1.5" role="group" aria-label="Flag">
+        <span className="flex-1 pr-2" style={{ color: 'var(--assistant-text)' }}>Flag</span>
+        <button
+          type="button"
+          role="menuitemradio"
+          aria-checked={!flag}
+          aria-label="No flag"
+          title="No flag"
+          onClick={() => { onFlag(undefined); onClose(); }}
+          className="grid h-6 w-6 place-items-center rounded-md text-[13px] transition-colors hover:bg-[var(--assistant-hover-bg)]"
+          style={{ color: 'var(--assistant-text-faint)', boxShadow: !flag ? 'inset 0 0 0 1px var(--assistant-border-soft)' : undefined }}
+        >
+          ⊘
+        </button>
+        {FLAG_CHOICES.map(c => (
+          <button
+            key={c}
+            type="button"
+            role="menuitemradio"
+            aria-checked={flag === c}
+            aria-label={`${c} flag`}
+            title={`${c[0].toUpperCase()}${c.slice(1)} flag`}
+            onClick={() => { onFlag(flag === c ? undefined : c); onClose(); }}
+            className="grid h-6 w-6 place-items-center rounded-md transition-colors hover:bg-[var(--assistant-hover-bg)]"
+            style={flag === c ? { boxShadow: 'inset 0 0 0 1px var(--assistant-accent)' } : undefined}
+          >
+            <TaskFlagIcon color={c} className="h-3.5 w-3.5" glow={false} />
+          </button>
+        ))}
+      </div>
       {item('Delete', onDelete, true)}
     </div>
   );
@@ -293,7 +330,7 @@ export default function Timeline() {
         isHidden,
         archived: false,
         flag: getTaskFlag(b),
-        note: b.note,
+        notes: b.notes,
       });
     }
     }
@@ -695,10 +732,10 @@ export default function Timeline() {
                                   </span>
                                 ) : null}
                                 {/* Note (only when set), right after the flag — same as Agenda */}
-                                {(card.note || '').trim() ? (
+                                {card.notes?.length ? (
                                   <TaskNoteButton
                                     task={card}
-                                    onChange={note => patchTask(card.id, { note })}
+                                    onChange={notes => patchTask(card.id, { notes })}
                                     // Inline, so it sits on the title's line like the flag
                                     className="ml-1 !inline-flex align-middle"
                                   />
@@ -728,29 +765,8 @@ export default function Timeline() {
                             ) : null}
                           </div>
 
+                          {/* Just the ⋮ (flag lives in its menu), in its own slot so it never covers the title */}
                           <div className="yt-row-actions">
-                            <button
-                              type="button"
-                              className={['yt-row-iconbtn', card.flag ? 'is-flagged' : ''].join(' ')}
-                              onClick={() => setFlag(card.id, cycleTaskFlag(card.flag))}
-                              data-tip={card.flag ? 'Change flag' : 'Add flag'}
-                              aria-label={card.flag ? 'Change flag' : 'Add flag'}
-                            >
-                              {card.flag ? (
-                                <TaskFlagIcon color={card.flag} />
-                              ) : (
-                                <svg viewBox="0 0 20 20" width="16" height="16" fill="none" aria-hidden="true">
-                                  <path
-                                    d="M4 17.5V3.5M4 3.5c1.6-1 3.4-1 5.3-.2 1.9.8 3.7.8 5.7-.3v8.2c-2 1.1-3.8 1.1-5.7.3-1.9-.8-3.7-.8-5.3.2"
-                                    stroke="currentColor"
-                                    strokeWidth="1.3"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              )}
-                            </button>
-
                             <button
                               type="button"
                               className="yt-row-iconbtn"
@@ -790,24 +806,18 @@ export default function Timeline() {
         <div className="fixed inset-0 z-[10050] flex items-center justify-center p-5">
           <button
             type="button"
-            className="fixed inset-0"
-            style={{ background: 'var(--assistant-overlay)' }}
+            className={`fixed inset-0 ${classes.modalBackdrop}`}
             onClick={() => setNewTask(null)}
             aria-label="Cancel"
           />
           <form
             role="dialog"
             aria-label="New task"
-            className="relative z-10 w-full max-w-[360px] rounded-2xl p-4 shadow-2xl"
-            style={{
-              background: 'var(--assistant-bg)',
-              color: 'var(--assistant-text)',
-              border: '1px solid var(--assistant-border-soft)',
-            }}
+            className={`relative z-10 w-full max-w-[360px] p-6 ${classes.modalCard}`}
             onSubmit={e => { e.preventDefault(); submitNewTask(); }}
             onKeyDown={e => { if (e.key === 'Escape') setNewTask(null); }}
           >
-            <h3 className="text-[15px] font-semibold mb-3">New task</h3>
+            <h3 className={`mb-4 ${classes.modalTitle}`}>New task</h3>
 
             <input
               autoFocus
@@ -881,20 +891,15 @@ export default function Timeline() {
         <div className="fixed inset-0 z-[10050] flex items-center justify-center p-5">
           <button
             type="button"
-            className="fixed inset-0"
-            style={{ background: 'var(--assistant-overlay)' }}
+            className={`fixed inset-0 ${classes.modalBackdrop}`}
             onClick={() => setDeleteConfirmId(null)}
             aria-label="Cancel"
           />
           <div
-            className="relative z-10 w-full max-w-[320px] rounded-2xl p-4 shadow-2xl"
-            style={{
-              background: 'var(--assistant-bg)',
-              color: 'var(--assistant-text)',
-              border: '1px solid var(--assistant-border-soft)',
-            }}
+            role="alertdialog"
+            className={`relative z-10 w-full max-w-[320px] p-6 ${classes.modalCard}`}
           >
-            <h3 className="text-[15px] font-semibold mb-1.5">Delete task?</h3>
+            <h3 className={`mb-2 ${classes.modalTitle}`}>Delete task?</h3>
             <p className="text-[13px] mb-4" style={{ color: 'var(--assistant-text-soft)' }}>
               This can&apos;t be undone.
             </p>
@@ -923,6 +928,8 @@ export default function Timeline() {
         <RowMenu
           x={rowMenu.x}
           y={rowMenu.y}
+          flag={cards.find(c => c.id === rowMenu.cardId)?.flag}
+          onFlag={flag => setFlag(rowMenu.cardId, flag)}
           onReschedule={() => setRescheduleCardId(rowMenu.cardId)}
           onDelete={() => setDeleteConfirmId(rowMenu.cardId)}
           onClose={() => setRowMenu(null)}
