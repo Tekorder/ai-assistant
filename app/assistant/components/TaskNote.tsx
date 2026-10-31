@@ -41,7 +41,7 @@ export function TaskNoteButton({
         onClick={(e) => { e.stopPropagation(); setOpen(true); }}
         onMouseDown={(e) => e.stopPropagation()}
         aria-label={hasNote ? 'Notes' : 'Add note'}
-        title={label}
+        data-tip={label}
         className={[
           'relative z-10 shrink-0 h-4 w-4 flex items-center justify-center select-none transition-all duration-150',
           hasNote

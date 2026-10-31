@@ -50,7 +50,7 @@ interface WaldyTaskResponse {
 const norm = (s: string) => s.trim().toLowerCase();
 
 function findListBlock(blocks: Block[], listName: string): Block | undefined {
-  return blocks.find(b => b.indent === 0 && !isUncTitleBlock(b) && norm(b.text) === norm(listName));
+  return blocks.find(b => b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true && norm(b.text) === norm(listName));
 }
 
 /** Adds the task Waldy extracted to the matching list, creating it if it doesn't exist yet. */
@@ -174,7 +174,7 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
     try {
       const { blocks } = readSelectedProject();
       const lists = blocks
-        .filter(b => b.indent === 0 && !isUncTitleBlock(b))
+        .filter(b => b.indent === 0 && !isUncTitleBlock(b) && b.archived !== true)
         .map(listBlock => ({
           name: listBlock.text.trim(),
           tasks: blocks
@@ -254,7 +254,7 @@ export default function ChatBox({ showReminders, onCloseReminders }: ChatBoxProp
             style={{ color: 'var(--assistant-text-soft)' }}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
             onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-soft)')}
-            title="Cancelar"
+            data-tip="Cancelar"
           >
             ✕
           </button>

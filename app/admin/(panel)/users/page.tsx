@@ -22,7 +22,7 @@ function StatusBadge({ plan, paidUntil }: { plan: string; paidUntil: Date | null
   const status = subscriptionStatus(plan, paidUntil);
   if (status === 'active') {
     return (
-      <span className="bg-black px-2 py-0.5 text-xs text-white" title={paidUntil ? `Paid until ${dateFmt.format(paidUntil)}` : undefined}>
+      <span className="bg-black px-2 py-0.5 text-xs text-white" data-tip={paidUntil ? `Paid until ${dateFmt.format(paidUntil)}` : undefined}>
         Active
       </span>
     );
@@ -31,7 +31,7 @@ function StatusBadge({ plan, paidUntil }: { plan: string; paidUntil: Date | null
     return (
       <span
         className="border border-red-600 px-2 py-0.5 text-xs text-red-700"
-        title={paidUntil ? `Expired ${dateFmt.format(paidUntil)}` : 'No payment on record'}
+        data-tip={paidUntil ? `Expired ${dateFmt.format(paidUntil)}` : 'No payment on record'}
       >
         Inactive · unpaid
       </span>
@@ -107,7 +107,7 @@ export default async function AdminUsersPage({
               <th className="py-3 pr-4 font-medium">Login</th>
               <th className="py-3 pr-4 font-medium">Plan</th>
               <th className="py-3 pr-4 font-medium">Status</th>
-              <th className="py-3 pr-4 text-right font-medium" title="Projects · Habits · Reminders · Checklists">
+              <th className="py-3 pr-4 text-right font-medium" data-tip="Projects · Habits · Reminders · Checklists">
                 P · H · R · C
               </th>
               <th className="py-3 text-right font-medium">Joined</th>
@@ -146,7 +146,7 @@ export default async function AdminUsersPage({
                 <td className="py-3 pr-4 text-right tabular-nums text-neutral-700">
                   {u._count.projects} · {u._count.habits} · {u._count.reminders} · {u._count.checklists}
                 </td>
-                <td className="py-3 text-right text-neutral-700" title={u.timezone}>
+                <td className="py-3 text-right text-neutral-700" data-tip={u.timezone}>
                   {dateFmt.format(u.rowCreatedAt)}
                 </td>
               </tr>

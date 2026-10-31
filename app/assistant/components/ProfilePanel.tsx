@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import ProfileDashboard from './ProfileDashboard';
 import CompletedReport from './CompletedReport';
+import ProfileSecurity from './ProfileSecurity';
 import { getProfile } from '@/lib/session';
 
 type ProfilePanelProps = {
@@ -74,7 +75,7 @@ export default function ProfilePanel({ open, onClose }: ProfilePanelProps) {
             onClick={onClose}
             className={`flex h-9 w-9 items-center justify-center rounded-md transition-colors ${classes.panelBtn}`}
             aria-label="Back"
-            title="Back"
+            data-tip="Back"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 3 4.5 8l5 5" />
@@ -125,6 +126,8 @@ export default function ProfilePanel({ open, onClose }: ProfilePanelProps) {
               </div>
             </section>
             </div>
+
+            <ProfileSecurity email={email} />
 
             <div style={{ borderTop: '1px solid var(--assistant-border-soft)' }} />
 

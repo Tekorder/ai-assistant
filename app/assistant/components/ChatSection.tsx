@@ -279,7 +279,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
               border: '1px solid var(--assistant-border-soft)',
               outline: 'none',
             }}
-            title="Enter para enviar, Shift+Enter para nueva línea"
+            data-tip="Enter para enviar, Shift+Enter para nueva línea"
           />
 
           {isSupported && (
@@ -294,7 +294,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
               onMouseEnter={!isListening ? e => { e.currentTarget.style.background = 'var(--assistant-hover-bg)'; } : undefined}
               onMouseLeave={!isListening ? e => { e.currentTarget.style.background = 'var(--assistant-control-bg)'; } : undefined}
               disabled={isLoading}
-              title={isListening ? 'Detener grabación' : 'Iniciar dictado por voz'}
+              data-tip={isListening ? 'Detener grabación' : 'Iniciar dictado por voz'}
             >
               <MicrophoneIcon className={`w-5 h-5 ${isListening ? 'text-white' : ''}`} />
             </button>
@@ -324,7 +324,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ messages, isLoading, onSendMe
             background: 'var(--assistant-control-bg)',
             color: 'var(--assistant-text-faint)',
           }}
-          title="Enviar"
+          data-tip="Enviar"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

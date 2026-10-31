@@ -544,7 +544,7 @@ export default function DayPanel({
                   setNewTaskText('');
                 }}
                 className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
-                title="Cancel"
+                data-tip="Cancel"
               >
                 ✕
               </button>

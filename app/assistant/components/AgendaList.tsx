@@ -9,14 +9,14 @@ import { TaskCheckmark } from './TaskCheckmark';
  * Agenda's list layout, in pieces. Agenda is the reference; the dock panels (Day, Keyword/List)
  * build their lists from these same pieces so every task list in the app looks the same.
  *
- *   List title ─────────────────────────── ⌄
+ *   List title                             ⌄
  *     ○ Task text                    ⚑ ✎ ⋮
  *       October 23, 2026
  */
 
 type DivProps = React.HTMLAttributes<HTMLDivElement>;
 
-/** List title row: 14px semibold, thin rule under it, optional collapse chevron at the end. */
+/** List title row: 14px semibold, optional collapse chevron at the end. */
 export function AgendaListHeader({
   heading,
   collapsed,
@@ -38,7 +38,7 @@ export function AgendaListHeader({
     <div
       {...rest}
       className={`group flex items-center gap-2 px-0.5 py-1 ${className}`}
-      style={{ paddingLeft: 2, borderBottom: '1px solid var(--assistant-border-soft)', ...style }}
+      style={{ paddingLeft: 2, ...style }}
     >
       <div className="min-w-0 flex-1 flex flex-wrap items-center gap-0.5">{heading}</div>
       {onAddSection ? (
@@ -47,7 +47,7 @@ export function AgendaListHeader({
           onClick={(e) => { e.stopPropagation(); onAddSection(); }}
           onMouseDown={(e) => e.stopPropagation()}
           className={`w-3 shrink-0 transition-colors ${classes.quickCollapseBtn}`}
-          title="Add section"
+          data-tip="Add section"
           aria-label="Add section"
         >
           <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -61,7 +61,7 @@ export function AgendaListHeader({
           type="button"
           onClick={onToggleCollapse}
           className={`w-3 shrink-0 mr-1 transition-colors ${classes.quickCollapseBtn}`}
-          title={collapsed ? 'Expand' : 'Collapse'}
+          data-tip={collapsed ? 'Expand' : 'Collapse'}
         >
           <svg viewBox="0 0 16 16" className={`h-3 w-3 transition-transform ${collapsed ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
@@ -115,10 +115,10 @@ export function AgendaTaskRow({
 }
 
 /**
- * A section is a two-line container among a list's rows; its tasks sit between the lines:
- *   Section ───────────────────── ×     ← AgendaSectionRow
+ * A section is a titled group among a list's rows; its tasks sit under the title:
+ *   Section                       ×     ← AgendaSectionRow
  *     ○ Task
- *   ──────────────────────────────      ← AgendaSectionEnd
+ *                                       ← AgendaSectionEnd (spacing / "Drag tasks here")
  */
 export function AgendaSectionRow({
   heading,
@@ -139,7 +139,7 @@ export function AgendaSectionRow({
       style={{ paddingLeft: agendaRowPad(1), ...style }}
     >
       <div className="min-w-0 max-w-[85%] flex items-center">{heading}</div>
-      <span aria-hidden="true" className="h-px min-w-6 flex-1" style={{ background: 'var(--assistant-border-soft)' }} />
+      <span aria-hidden="true" className="min-w-6 flex-1" />
       {onRemove ? (
         <button
           type="button"
@@ -147,7 +147,7 @@ export function AgendaSectionRow({
           onMouseDown={(e) => e.stopPropagation()}
           className="shrink-0 mr-1 h-5 w-5 flex items-center justify-center rounded opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
           style={{ color: 'var(--assistant-text-faint)' }}
-          title="Delete section"
+          data-tip="Delete section"
           aria-label="Delete section"
         >
           <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -159,7 +159,7 @@ export function AgendaSectionRow({
   );
 }
 
-/** A section's closing line; `children` (e.g. "Drag tasks here") sits above it while the section shows no tasks. */
+/** A section's closing gap; `children` (e.g. "Drag tasks here") shows in it while the section shows no tasks. */
 export function AgendaSectionEnd({
   children,
   className = '',
@@ -177,7 +177,6 @@ export function AgendaSectionEnd({
           {children}
         </div>
       ) : null}
-      <div aria-hidden="true" className="h-px mr-1" style={{ background: 'var(--assistant-border-soft)' }} />
     </div>
   );
 }
@@ -206,7 +205,7 @@ export function AgendaCheck({
       onClick={(e) => { e.stopPropagation(); onToggle?.(); }}
       disabled={!onToggle}
       className="relative flex h-[1.45em] w-4 shrink-0 items-center justify-center text-[14px] md:text-sm disabled:cursor-default"
-      title={title ?? (checked ? 'Mark as not done' : 'Complete')}
+      data-tip={title ?? (checked ? 'Mark as not done' : 'Complete')}
     >
       {children}
       <TaskCheckmark checked={checked} />
@@ -283,7 +282,7 @@ export function AgendaDate({
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       onMouseDown={(e) => e.stopPropagation()}
       aria-label="Change due date"
-      title="Change due date"
+      data-tip="Change due date"
       className={`${cls} transition-colors hover:underline`}
       style={style}
     >
@@ -300,7 +299,7 @@ export function AgendaDate({
       type="button"
       onClick={(e) => { e.stopPropagation(); onTimeClick(); }}
       onMouseDown={(e) => e.stopPropagation()}
-      title="Change time"
+      data-tip="Change time"
       className={`${cls} transition-colors hover:underline`}
       style={style}
     >
@@ -329,7 +328,7 @@ export function AgendaDate({
               type="button"
               onClick={(e) => { e.stopPropagation(); onRepeatClick(); }}
               onMouseDown={(e) => e.stopPropagation()}
-              title="Change repeat"
+              data-tip="Change repeat"
               className={`${cls} transition-colors hover:underline`}
               style={style}
             >
@@ -359,7 +358,7 @@ export function AgendaMenuButton({
       onClick={(e) => { e.stopPropagation(); onOpen(e.currentTarget.getBoundingClientRect()); }}
       onMouseDown={(e) => e.stopPropagation()}
       aria-label="Task options"
-      title="Task options"
+      data-tip="Task options"
       aria-haspopup="menu"
       aria-expanded={open}
       className={[

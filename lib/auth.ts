@@ -1,12 +1,12 @@
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
   signInWithPopup,
   GoogleAuthProvider,
   UserCredential,
 } from 'firebase/auth';
 import { auth } from './firebase';
+import { apiUrl } from './api';
 
 export async function loginWithEmail(
   email: string,
@@ -22,8 +22,20 @@ export async function registerWithEmail(
   return createUserWithEmailAndPassword(auth, email, password);
 }
 
-export async function sendFirebaseReset(email: string): Promise<void> {
-  return sendPasswordResetEmail(auth, email);
+/**
+ * Asks our server to email a password reset link (our design, sent via Twilio).
+ * Resolves for unknown emails too, so the UI can't reveal who has an account.
+ */
+export async function sendPasswordReset(email: string): Promise<void> {
+  const res = await fetch(apiUrl('/api/email'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'password_reset', email }),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok || out?.ok === false) {
+    throw new Error(out?.message || 'Failed to send reset email.');
+  }
 }
 
 const googleProvider = new GoogleAuthProvider();

@@ -78,7 +78,7 @@ export function TaskFlagButton({
           ? `${FLAG_META[flag].label} — click to change`
           : 'Add flag — click to set blue'
       }
-      title={
+      data-tip={
         flag
           ? `${FLAG_META[flag].label} — click to change`
           : 'Add flag'
@@ -118,7 +118,7 @@ export function TaskFlagBadge({
           : 'shrink-0 h-4 w-4 flex items-center justify-center',
         className,
       ].join(' ')}
-      title={FLAG_META[flag].label}
+      data-tip={FLAG_META[flag].label}
       aria-label={FLAG_META[flag].label}
     >
       <TaskFlagIcon color={flag} />

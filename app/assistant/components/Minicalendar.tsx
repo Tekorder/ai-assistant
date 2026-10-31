@@ -235,8 +235,9 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay }
             const isToday = ymd === today;
             const isSelected = ymd === selectedDay;
             const dayCards = getVisibleDayCards(ymd);
-            // Only days with pending tasks get a dot
+            // Days with tasks are colored: red while any is pending, green once all are done
             const hasPending = dayCards.some(c => !c.checked);
+            const allDone    = dayCards.length > 0 && !hasPending;
             const [, , day] = ymd.split('-');
             return (
               <button
@@ -250,15 +251,17 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay }
                 ].join(' ')}
                 // Every day in the theme's text color; today keeps only its background.
                 // The selected day (the only one shown) is filled dark
-                style={isSelected
+                style={color: hasPending
+                    ? 'var(--assistant-danger-text)'
+                    : allDone
+                    ? 'var(--assistant-success-text)'
+                    : 'var(--assistant-text)',
+                  isSelected
                   ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }
                   : { color: 'var(--assistant-text)' }}
-                title={isSelected ? `${ymd} · click again to show every date` : ymd}
+                data-tip={isSelected ? `${ymd} · click again to show every date` : ymd}
               >
-                <span className="inline-flex items-center gap-1">
-                  {Number(day)}
-                  {hasPending ? <span className="h-1.5 w-1.5 rounded-full bg-rose-400/80" /> : null}
-                </span>
+                {Number(day)}
               </button>
             );
           })}

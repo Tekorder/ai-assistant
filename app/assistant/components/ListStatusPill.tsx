@@ -54,7 +54,7 @@ export function ListStatusPill({
         }}
         className="shrink-0 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-none"
         style={{ background: meta.bg, color: meta.fg, border: `1px solid ${meta.border}` }}
-        title={status === 'completed' ? 'All tasks done — change status' : 'Change status'}
+        data-tip={status === 'completed' ? 'All tasks done — change status' : 'Change status'}
         aria-haspopup="menu"
         aria-expanded={Boolean(menu)}
       >

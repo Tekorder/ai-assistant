@@ -1721,7 +1721,7 @@ const handleKey = (
 
     let showsUncategorized = false;
     const rows = listBlocks.map(listBlock => {
-          if (pHiddenByList[listBlock.id]) return null;
+          if (pHiddenByList[listBlock.id] || listBlock.archived === true) return null;
           const isUncList = isUncTitleBlock(listBlock);
           if (isUncList && hideUncategorized) return null;
           const tasks = tasksByParent.get(listBlock.id) ?? [];
@@ -1764,7 +1764,7 @@ const handleKey = (
                   collapsed={listCollapsed}
                   onToggleCollapse={() => toggleList(listBlock.id)}
                   onAddSection={sectionsShown && isCurrent ? () => setNewSectionListId(listBlock.id) : undefined}
-                  heading={editingListTitleId === listBlock.id ? (
+                  heading={<>{editingListTitleId === listBlock.id ? (
                       <input
                         ref={el => void (inputRefs.current[listBlock.id] = el)}
                         value={listBlock.text}
@@ -1788,6 +1788,13 @@ const handleKey = (
                         {(listBlock.text || '').trim() ? listBlock.text : 'List…'}
                       </span>
                     )}
+                    {/* "Show all": the group beside each list, so same-named lists stay apart */}
+                    {showAllGroups && project ? (
+                      <span className="ml-1.5 min-w-0 break-words text-[12px] font-normal" style={{ color: 'var(--assistant-text-muted)' }}>
+                        {project.title}
+                      </span>
+                    ) : null}
+                  </>}
                 />
               )}
               {/* ── Tasks belonging to this list ── */}
@@ -2039,7 +2046,7 @@ const handleKey = (
                       )}
 
                       {dateMode === 'range' && (
-                        <button type="button" onClick={() => setRangeDialogOpen(true)} title="Change range" className="font-semibold">
+                        <button type="button" onClick={() => setRangeDialogOpen(true)} data-tip="Change range" className="font-semibold">
                           Range{' '}
                           <span style={{ color: 'var(--assistant-text-faint)', fontWeight: 500 }}>
                             {getRangeLabel(dateRange)}
@@ -2062,7 +2069,7 @@ const handleKey = (
                       <span
                         className="flex min-w-0 items-center gap-1 rounded-full py-0.5 pl-2 pr-1 text-[11px] md:text-[12px] font-semibold uppercase tracking-wide"
                         style={{ color: 'var(--assistant-text)' }}
-                        title={`Showing only ${currentProject?.title} › ${focusList.text}`}
+                        data-tip={`Showing only ${currentProject?.title} › ${focusList.text}`}
                       >
                         {/* Breadcrumbs: group (back to all its lists) › list (current) */}
                         <nav aria-label="Breadcrumb" className="flex min-w-0 flex-wrap items-center gap-1 break-words">
@@ -2070,7 +2077,7 @@ const handleKey = (
                             type="button"
                             onClick={() => setFocusedList(null)}
                             className="uppercase tracking-wide opacity-60 transition-opacity hover:opacity-100 hover:underline"
-                            title={`Show every list in ${currentProject?.title}`}
+                            data-tip={`Show every list in ${currentProject?.title}`}
                           >
                             {currentProject?.title}
                           </button>
@@ -2081,7 +2088,7 @@ const handleKey = (
                           type="button"
                           onClick={() => setFocusedList(null)}
                           className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[13px] leading-none opacity-60 transition-opacity hover:opacity-100"
-                          title="Show every list"
+                          data-tip="Show every list"
                           aria-label="Clear list filter"
                         >
                           ×
@@ -2091,7 +2098,7 @@ const handleKey = (
                       <span
                         className="min-w-0 break-words rounded-full px-2 py-0.5 text-[11px] md:text-[12px] font-semibold uppercase tracking-wide"
                         style={{ color: 'var(--assistant-text-soft)' }}
-                        title={showAllGroups ? 'Showing every group' : `Group: ${currentProject?.title}`}
+                        data-tip={showAllGroups ? 'Showing every group' : `Group: ${currentProject?.title}`}
                       >
                         {showAllGroups ? 'All groups' : currentProject?.title}
                       </span>
@@ -2148,7 +2155,7 @@ const handleKey = (
                         className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[14px] leading-none opacity-50 transition-opacity hover:opacity-100"
                         style={{ color: 'var(--assistant-text)' }}
                         aria-label="Clear search"
-                        title="Clear"
+                        data-tip="Clear"
                       >
                         ×
                       </button>
@@ -2176,7 +2183,7 @@ const handleKey = (
                 ) : showAllGroups ? (
                   // Every group, one after another. Edits act on the selected group, so pointer
                   // or focus inside a group selects it first (the Sidebar works the same way).
-                  <div className="space-y-5">
+                  <div className="space-y-1">
                     {projects.map(p => {
                       const lists = renderNormalList(p);
                       // A group with no list to show is left out entirely
@@ -2188,10 +2195,8 @@ const handleKey = (
                           onFocusCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
                         >
                           {lists.showsUncategorized && (
-                            <div
-                              className="mb-1 px-1 text-[11px] font-bold uppercase tracking-[0.14em]"
-                              style={{ color: 'var(--assistant-accent)' }}
-                            >
+                            // Uncategorized tasks have no list title to carry the group name
+                            <div className="mb-1 px-1 text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>
                               {p.title}
                             </div>
                           )}

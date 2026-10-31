@@ -283,7 +283,7 @@ export default function Menu({
             onClick={onClose}
             className={`absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-md transition-colors ${classes.panelCloseBtn}`}
             aria-label="Close menu"
-            title="Close menu"
+            data-tip="Close menu"
           >
             ✕
           </button>
@@ -301,7 +301,7 @@ export default function Menu({
                   type="button"
                   disabled={soon}
                   aria-disabled={soon}
-                  title={soon ? 'Coming soon' : undefined}
+                  data-tip={soon ? 'Coming soon' : undefined}
                   onClick={onItem(item.label)}
                   className={`flex w-full items-center gap-3.5 rounded-xl px-3.5 py-3 text-left text-[16px] transition-colors ${classes.panelBtn} ${classes.menuItem} ${soon ? 'cursor-default' : ''}`}
                   style={{

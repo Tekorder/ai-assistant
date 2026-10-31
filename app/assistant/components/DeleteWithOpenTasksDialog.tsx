@@ -16,6 +16,7 @@ export type MoveTargetGroup = {
 export function DeleteWithOpenTasksDialog({
   kind,
   name,
+  description,
   openCount,
   targets,
   defaultProjectId,
@@ -26,6 +27,8 @@ export function DeleteWithOpenTasksDialog({
 }: {
   kind: 'list' | 'group';
   name?: string;
+  /** Replaces the standard "no unchecked tasks" text when there's nothing to move */
+  description?: string;
   openCount: number;
   /** Lists the tasks can go to (never the one(s) being deleted) */
   targets: MoveTargetGroup[];
@@ -60,9 +63,9 @@ export function DeleteWithOpenTasksDialog({
           <div className={classes.modalTitle}>Delete {noun}?</div>
           {openCount === 0 ? (
             <p className="text-[13px] mt-2 leading-relaxed" style={{ color: 'var(--assistant-text-soft)' }}>
-              {kind === 'list'
+              {description ?? (kind === 'list'
                 ? 'This list has no unchecked tasks. Deleting it removes it and its completed tasks permanently.'
-                : 'This group has no unchecked tasks. Deleting it removes all its lists and completed tasks permanently.'}
+                : 'This group has no unchecked tasks. Deleting it removes all its lists and completed tasks permanently.')}
             </p>
           ) : step === 'choose' ? (
             <p className="text-[13px] mt-2 leading-relaxed" style={{ color: 'var(--assistant-text-soft)' }}>
@@ -94,7 +97,7 @@ export function DeleteWithOpenTasksDialog({
             </div>
           )}
           {name ? (
-            <div className="text-[12px] mt-2 break-words" title={name} style={{ color: 'var(--assistant-text-faint)' }}>
+            <div className="text-[12px] mt-2 break-words" data-tip={name} style={{ color: 'var(--assistant-text-faint)' }}>
               {kind === 'list' ? 'List' : 'Group'}: {name}
             </div>
           ) : null}

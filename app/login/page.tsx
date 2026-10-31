@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   loginWithEmail,
-  sendFirebaseReset,
+  sendPasswordReset,
   signInWithGoogle,
 } from '@/lib/auth';
 import { openTekOrderLogin } from '@/lib/tekorderSso';
@@ -444,7 +444,7 @@ export default function LoginPage() {
 
       sessionStorage.setItem(TWOFA_KEY, JSON.stringify({ salt, hash, exp }));
 
-      const res = await fetch('/api/brevo', {
+      const res = await fetch('/api/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -510,7 +510,7 @@ export default function LoginPage() {
         return;
       }
 
-      // 2FA temporarily disabled (Brevo not working) — restore these 3 lines to re-enable:
+      // 2FA temporarily disabled (email sending not working) — restore these 3 lines to re-enable:
       // setPstate('exploding');
       // await createAndSend2FA(firebaseEmail);
       // setShow2FA(true);
@@ -715,20 +715,11 @@ export default function LoginPage() {
     setForgotError('');
     setForgotLoading(true);
     try {
-      await sendFirebaseReset(forgotEmail.trim().toLowerCase());
+      // The server answers ok for unknown emails too (doesn't reveal accounts)
+      await sendPasswordReset(forgotEmail.trim().toLowerCase());
       setForgotSuccess(true);
     } catch (e) {
-      const code = (e as { code?: string })?.code;
-      // Don't reveal whether the email exists
-      if (code === 'auth/user-not-found') {
-        setForgotSuccess(true);
-      } else if (code === 'auth/invalid-email' || code === 'auth/missing-email') {
-        setForgotError('Enter a valid email address.');
-      } else if (code === 'auth/too-many-requests') {
-        setForgotError('Too many attempts. Please try again in a few minutes.');
-      } else {
-        setForgotError(code ? `Failed to send reset email (${code}).` : 'Failed to send reset email.');
-      }
+      setForgotError(e instanceof Error ? e.message : 'Failed to send reset email.');
     } finally {
       setForgotLoading(false);
     }

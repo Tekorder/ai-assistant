@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { UpdateChecker } from "@/components/UpdateChecker";
+import { TooltipLayer } from "@/components/Tooltip";
 
 
 
@@ -26,7 +27,7 @@ const thicccboi = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "YouTask by Tekorder",
+  title: "Youtask by Tekorder",
   description: "AI Task ManagerAgent",
 };
 
@@ -40,6 +41,7 @@ export default function RootLayout({
       <body className={`${thicccboi.variable} font-sans antialiased`}>
         {children}
         <UpdateChecker />
+        <TooltipLayer />
       </body>
     </html>
   );

@@ -110,7 +110,7 @@ export default function App() {
 
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
   useEffect(() => {
-    console.log(`YouTask v${APP_VERSION}`);
+    console.log(`Youtask v${APP_VERSION}`);
   }, []);
   useEffect(() => {
     void (async () => {
@@ -759,7 +759,7 @@ export default function App() {
         }}
         aria-expanded={expanded}
         aria-label={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
-        title={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
+        data-tip={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
       >
         <svg
           viewBox="0 0 16 16"
@@ -1339,7 +1339,7 @@ export default function App() {
                           className="grid h-6 place-items-center px-0.5"
                           aria-label={label}
                           aria-current={active ? 'page' : undefined}
-                          title={label}
+                          data-tip={label}
                         >
                           <span
                             className="block h-2 rounded-full transition-all duration-300"
@@ -1547,7 +1547,7 @@ export default function App() {
                     onClick={() => setConfirmClearChat(true)}
                     className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${classes.panelBtn}`}
                     aria-label="Clear chat memory"
-                    title="Clear chat memory"
+                    data-tip="Clear chat memory"
                   >
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="3 6 5 6 21 6" />
@@ -1622,7 +1622,7 @@ export default function App() {
             onClick={openChatOverlay}
             className="hidden md:flex fixed md:bottom-5 right-5 z-[9999] h-14 w-14 items-center justify-center rounded-full shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95"
             aria-label="Open AI chat"
-            title="Chat with Octo Bahama"
+            data-tip="Chat with Octo Bahama"
           >
             {/* Octo avatar — scaled up a bit so the circle crops the image's dark corners */}
             <span className="absolute inset-0 overflow-hidden rounded-full">

@@ -149,7 +149,7 @@ export default function CompletedReport() {
             onClick={print}
             disabled={!current}
             className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] ${classes.panelBtn}`}
-            title="Print this month's report"
+            data-tip="Print this month's report"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
               <path strokeLinejoin="round" d="M4.5 6V2h7v4M4.5 11.5h-2v-5h11v5h-2M4.5 9.5h7V14h-7z" />
@@ -163,7 +163,7 @@ export default function CompletedReport() {
             disabled={active >= months.length - 1}
             className={`flex h-9 w-9 items-center justify-center rounded-md ${classes.panelBtn}`}
             aria-label="Previous month"
-            title="Previous month"
+            data-tip="Previous month"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 3 4.5 8l5 5" />
@@ -175,7 +175,7 @@ export default function CompletedReport() {
             disabled={active === 0}
             className={`flex h-9 w-9 items-center justify-center rounded-md ${classes.panelBtn}`}
             aria-label="Next month"
-            title="Next month"
+            data-tip="Next month"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 3l5 5-5 5" />

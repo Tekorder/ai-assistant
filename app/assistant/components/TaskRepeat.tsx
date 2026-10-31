@@ -97,7 +97,7 @@ export function TaskRepeatModal({
                 style={on ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' } : undefined}
                 aria-pressed={on}
                 aria-label={d.long}
-                title={d.long}
+                data-tip={d.long}
               >
                 {d.letter}
               </button>
@@ -150,7 +150,7 @@ export function TaskRepeatModal({
               type="button"
               onClick={handleStop}
               className={`${classes.modalSecondaryButton} text-[13px] px-3 py-2 rounded-md`}
-              title="Make it a one-time task again"
+              data-tip="Make it a one-time task again"
             >
               Don&apos;t repeat
             </button>

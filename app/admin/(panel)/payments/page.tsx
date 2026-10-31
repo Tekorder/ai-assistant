@@ -79,7 +79,7 @@ export default async function AdminPaymentsPage() {
               <div
                 key={m.start.toISOString()}
                 className="group relative flex h-full flex-1 flex-col justify-end"
-                title={`${monthLongFmt.format(m.start)}: ${formatMoney(m.total)} · ${m.count} payments`}
+                data-tip={`${monthLongFmt.format(m.start)}: ${formatMoney(m.total)} · ${m.count} payments`}
               >
                 <span
                   className={`mb-1 text-center text-xs tabular-nums text-neutral-700 ${

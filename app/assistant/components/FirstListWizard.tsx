@@ -100,7 +100,7 @@ export function FirstListWizard({ onFinish, onClose }: Props) {
             onClick={onClose}
             className={`-mr-2 flex h-8 w-8 items-center justify-center rounded-lg ${classes.panelCloseBtn}`}
             aria-label="Close"
-            title="Close"
+            data-tip="Close"
           >
             ✕
           </button>

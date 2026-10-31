@@ -131,7 +131,7 @@ export function TaskRowMenu({
             role="menuitemradio"
             aria-checked={flag === c}
             aria-label={`${c} flag`}
-            title={`${c[0].toUpperCase()}${c.slice(1)} flag`}
+            data-tip={`${c[0].toUpperCase()}${c.slice(1)} flag`}
             onClick={() => { onFlag(flag === c ? undefined : c); onClose(); }}
             className="grid h-6 w-6 place-items-center rounded-md transition-colors hover:bg-[var(--assistant-hover-bg)]"
             style={flag === c ? { boxShadow: 'inset 0 0 0 1px var(--assistant-accent)' } : undefined}

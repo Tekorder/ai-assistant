@@ -80,7 +80,7 @@ export function DatePickerModal({
         <div className={classes.modalHeader}>
           <div className={classes.modalTitle}>{title}</div>
           {subtitle ? (
-            <div className="mt-0.5 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} title={subtitle}>
+            <div className="mt-0.5 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} data-tip={subtitle}>
               {subtitle}
             </div>
           ) : null}

@@ -32,7 +32,7 @@ export function TaskReminderButton({ task }: { task: ReminderSource }) {
         onClick={(e) => { e.stopPropagation(); setOpen(true); }}
         onMouseDown={(e) => e.stopPropagation()}
         aria-label="Set reminder"
-        title="Set reminder"
+        data-tip="Set reminder"
         className="relative z-10 shrink-0 h-4 w-4 flex items-center justify-center select-none opacity-0 group-hover:opacity-40 hover:!opacity-80 hover:scale-110 transition-all duration-150"
         style={{ color: 'var(--assistant-text)' }}
       >
@@ -97,7 +97,7 @@ export function TaskReminderModal({ task, onClose }: { task: ReminderSource; onC
             <div className={classes.modalHeader}>
               <div className={classes.modalTitle}>Set reminder</div>
               {(task.text || '').trim() ? (
-                <div className="mt-1 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} title={task.text}>
+                <div className="mt-1 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} data-tip={task.text}>
                   {task.text}
                 </div>
               ) : null}
