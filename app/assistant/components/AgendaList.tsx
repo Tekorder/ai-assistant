@@ -9,14 +9,14 @@ import { TaskCheckmark } from './TaskCheckmark';
  * Agenda's list layout, in pieces. Agenda is the reference; the dock panels (Day, Keyword/List)
  * build their lists from these same pieces so every task list in the app looks the same.
  *
- *   List title ─────────────────────────── ⌄
+ *   List title                             ⌄
  *     ○ Task text                    ⚑ ✎ ⋮
  *       October 23, 2026
  */
 
 type DivProps = React.HTMLAttributes<HTMLDivElement>;
 
-/** List title row: 14px semibold, thin rule under it, optional collapse chevron at the end. */
+/** List title row: 14px semibold, optional collapse chevron at the end. */
 export function AgendaListHeader({
   heading,
   collapsed,
@@ -38,7 +38,7 @@ export function AgendaListHeader({
     <div
       {...rest}
       className={`group flex items-center gap-2 px-0.5 py-1 ${className}`}
-      style={{ paddingLeft: 2, borderBottom: '1px solid var(--assistant-border-soft)', ...style }}
+      style={{ paddingLeft: 2, ...style }}
     >
       <div className="min-w-0 flex-1 flex flex-wrap items-center gap-0.5">{heading}</div>
       {onAddSection ? (
@@ -115,10 +115,10 @@ export function AgendaTaskRow({
 }
 
 /**
- * A section is a two-line container among a list's rows; its tasks sit between the lines:
- *   Section ───────────────────── ×     ← AgendaSectionRow
+ * A section is a titled group among a list's rows; its tasks sit under the title:
+ *   Section                       ×     ← AgendaSectionRow
  *     ○ Task
- *   ──────────────────────────────      ← AgendaSectionEnd
+ *                                       ← AgendaSectionEnd (spacing / "Drag tasks here")
  */
 export function AgendaSectionRow({
   heading,
@@ -139,7 +139,7 @@ export function AgendaSectionRow({
       style={{ paddingLeft: agendaRowPad(1), ...style }}
     >
       <div className="min-w-0 max-w-[85%] flex items-center">{heading}</div>
-      <span aria-hidden="true" className="h-px min-w-6 flex-1" style={{ background: 'var(--assistant-border-soft)' }} />
+      <span aria-hidden="true" className="min-w-6 flex-1" />
       {onRemove ? (
         <button
           type="button"
@@ -159,7 +159,7 @@ export function AgendaSectionRow({
   );
 }
 
-/** A section's closing line; `children` (e.g. "Drag tasks here") sits above it while the section shows no tasks. */
+/** A section's closing gap; `children` (e.g. "Drag tasks here") shows in it while the section shows no tasks. */
 export function AgendaSectionEnd({
   children,
   className = '',
@@ -177,7 +177,6 @@ export function AgendaSectionEnd({
           {children}
         </div>
       ) : null}
-      <div aria-hidden="true" className="h-px mr-1" style={{ background: 'var(--assistant-border-soft)' }} />
     </div>
   );
 }

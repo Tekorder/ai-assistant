@@ -1584,7 +1584,7 @@ const handleKey = (
                   collapsed={listCollapsed}
                   onToggleCollapse={() => toggleList(listBlock.id)}
                   onAddSection={sectionsShown && isCurrent ? () => setNewSectionListId(listBlock.id) : undefined}
-                  heading={editingListTitleId === listBlock.id ? (
+                  heading={<>{editingListTitleId === listBlock.id ? (
                       <input
                         ref={el => void (inputRefs.current[listBlock.id] = el)}
                         value={listBlock.text}
@@ -1608,6 +1608,13 @@ const handleKey = (
                         {(listBlock.text || '').trim() ? listBlock.text : 'List…'}
                       </span>
                     )}
+                    {/* "Show all": the group beside each list, so same-named lists stay apart */}
+                    {showAllGroups && project ? (
+                      <span className="ml-1.5 min-w-0 break-words text-[12px] font-normal" style={{ color: 'var(--assistant-text-muted)' }}>
+                        {project.title}
+                      </span>
+                    ) : null}
+                  </>}
                 />
               )}
               {/* ── Tasks belonging to this list ── */}
@@ -2114,7 +2121,7 @@ const handleKey = (
                 ) : showAllGroups ? (
                   // Every group, one after another. Edits act on the selected group, so pointer
                   // or focus inside a group selects it first (the Sidebar works the same way).
-                  <div className="space-y-5">
+                  <div className="space-y-1">
                     {projects.map(p => {
                       const lists = renderNormalList(p);
                       // A group with no list to show is left out entirely
@@ -2125,18 +2132,12 @@ const handleKey = (
                           onMouseDownCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
                           onFocusCapture={() => { if (p.project_id !== selectedProjectId) setSelectedProjectId(p.project_id); }}
                         >
-                          {/* Group header — same-named lists in different groups stay apart */}
-                          <div className="mb-1.5 flex items-center gap-1.5 px-1" role="heading" aria-level={2}>
-                            <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" style={{ color: 'var(--assistant-accent)' }} aria-hidden="true">
-                              <rect x="1.75" y="6.25" width="12.5" height="8" rx="1.5" />
-                              <path d="M3.25 4.25h9.5" />
-                              <path d="M4.75 2.25h6.5" />
-                            </svg>
-                            <span className="min-w-0 break-words text-[12px] font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--assistant-accent)' }}>
+                          {lists.showsUncategorized && (
+                            // Uncategorized tasks have no list title to carry the group name
+                            <div className="mb-1 px-1 text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>
                               {p.title}
-                            </span>
-                            <span className="h-px flex-1" style={{ background: 'color-mix(in srgb, var(--assistant-accent) 25%, transparent)' }} aria-hidden="true" />
-                          </div>
+                            </div>
+                          )}
                           {lists.node}
                         </div>
                       );
