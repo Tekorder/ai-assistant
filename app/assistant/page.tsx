@@ -9,7 +9,7 @@ import ChatBox from './components/Chatbox';
 import Timeline from './components/tabs/Timeline';
 import Quick from './components/tabs/Quick';
 import CalendarView from './components/tabs/Calendar';
-import TopNavBar, { AccountActions, HeaderSearch, IconTip, NAV_ITEMS, PanelsMenuButton, type MenuAnchor } from './components/TopNavBar';
+import TopNavBar, { AccountActions, IconTip, NAV_ITEMS, PanelsMenuButton } from './components/TopNavBar';
 import Menu from './components/Menu';
 import HabitsPanel from './components/HabitsPanel';
 import RemindersPanel from './components/RemindersPanel';
@@ -45,11 +45,11 @@ import { WALDY_CLEAR_CHAT_EVENT } from './_hook/useTaskMessaging';
 import { version as APP_VERSION } from '../../package.json';
 
 
-type View = 'chat' | 'reminders' | 'habits' | 'lists' | 'timeline' | 'archive' | 'quick' | 'calendar';
+type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';
 const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
 const LAYOUT_LS_KEY = 'youtask_workspace_layout_v1';
 const DOCK_LAYOUT_LS_KEY = 'youtask_dock_layout';
-const RESTORABLE_VIEWS: View[] = ['quick', 'timeline', 'calendar', 'lists', 'habits', 'reminders'];
+const RESTORABLE_VIEWS: View[] = ['quick', 'timeline', 'calendar'];
 
 type SavedLayout = Partial<{
   activeView: View;
@@ -103,8 +103,6 @@ export default function App() {
   >([]);
 
   const MIN_SIDEBAR = 360;
-  // Space left of the open sidebar (the sidebar card adds its own 12px margin on top)
-  const RAIL_OPEN_GUTTER = 4;
   const DECK_RIGHT_PAD = 120;
   const PANEL_WIDTH = 320;
 
@@ -259,10 +257,6 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatClosing, setChatClosing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  // Sidebar header search: while open its field replaces the header's icons
-  const [sidebarSearchOpen, setSidebarSearchOpen] = useState(false);
-  // Set → the menu pops from that button (desktop); null → drawer (mobile)
-  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const deckScrollRef = useRef<HTMLDivElement | null>(null);
   const sidebarCloseTimerRef = useRef<number | null>(null);
   const chatCloseTimerRef = useRef<number | null>(null);
@@ -287,27 +281,18 @@ export default function App() {
     }, 200);
   }, [sidebarClosing, sidebarOpen]);
 
-  const openSidebar = useCallback(() => {
+  const toggleSidebar = useCallback(() => {
+    if (sidebarOpen) {
+      requestCloseSidebar();
+      return;
+    }
     if (sidebarCloseTimerRef.current !== null) {
       window.clearTimeout(sidebarCloseTimerRef.current);
       sidebarCloseTimerRef.current = null;
     }
     setSidebarClosing(false);
     setSidebarOpen(true);
-  }, []);
-  // The sidebar was folded by scrolling the deck (not by hand) → scrolling back reopens it
-  const scrollFoldedSidebarRef = useRef(false);
-  const scrollFoldedAtRef = useRef(0);
-
-  const toggleSidebar = useCallback(() => {
-    // A hand toggle overrides the scroll fold: whatever they pick now stays
-    scrollFoldedSidebarRef.current = false;
-    if (sidebarOpen) {
-      requestCloseSidebar();
-      return;
-    }
-    openSidebar();
-  }, [requestCloseSidebar, openSidebar, sidebarOpen]);
+  }, [requestCloseSidebar, sidebarOpen]);
   const toggleHabits = useCallback(() => setHabitsOpen((v) => !v), []);
   const toggleReminders = useCallback(() => setRemindersOpen((v) => !v), []);
   const toggleActivity = useCallback(() => setActivityOpen((v) => !v), []);
@@ -607,17 +592,6 @@ export default function App() {
         />
       );
     }
-    if (activeView === 'lists' || activeView === 'habits' || activeView === 'reminders') {
-      const backToAgenda = () => setActiveView('quick');
-      return (
-        // Same width as the tabs bar, so the tab content uses the whole panel
-        <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col px-3 md:px-8">
-          {activeView === 'lists' ? <ChecklistsPanel variant="tab" open onClose={backToAgenda} />
-            : activeView === 'habits' ? <HabitsPanel variant="tab" open onClose={backToAgenda} />
-            : <RemindersPanel variant="tab" open onClose={backToAgenda} />}
-        </div>
-      );
-    }
     return <Quick onOpenPivot={requestOpenPivot} />;
   };
 
@@ -776,49 +750,6 @@ export default function App() {
     );
   };
 
-  // Panel view (stack): scrolling the deck to the right folds the sidebar into the rail,
-  // which stays pinned on the left. Programmatic scrolls (following a newly opened
-  // panel, or back to 0 when the sidebar opens) don't count. A sidebar folded this way
-  // opens again once the deck is scrolled back to the start; one that was already closed
-  // (or that the person opened/closed by hand meanwhile) is left alone.
-  const [deckScrolled, setDeckScrolled] = useState(false);
-  useEffect(() => {
-    const el = deckScrollRef.current;
-    if (!el || isAccordion || isDesktop !== true) { setDeckScrolled(false); return; }
-    let lastLeft = el.scrollLeft;
-    const reopenIfAutoFolded = () => {
-      if (!scrollFoldedSidebarRef.current || sidebarOpen) return;
-      // While the fold animates the deck narrows and its scroll clamps back toward 0 — not a "scroll back"
-      if (performance.now() - scrollFoldedAtRef.current < 700) return;
-      scrollFoldedSidebarRef.current = false;
-      openSidebar();
-    };
-    const onScroll = () => {
-      const left = el.scrollLeft;
-      const forward = left > lastLeft;
-      lastLeft = left;
-      setDeckScrolled(left > 0);
-      if (forward && left > 24 && followRafRef.current === null && sidebarOpen && !sidebarClosing) {
-        scrollFoldedSidebarRef.current = true;
-        scrollFoldedAtRef.current = performance.now();
-        requestCloseSidebar();
-      } else if (!forward && left <= 0) {
-        reopenIfAutoFolded();
-      }
-    };
-    // Already at the start (or nothing left to scroll): a leftward wheel / swipe still means "back"
-    const onWheel = (e: WheelEvent) => {
-      const leftward = e.deltaX < 0 || (e.shiftKey && e.deltaY < 0);
-      if (leftward && el.scrollLeft <= 0) reopenIfAutoFolded();
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    el.addEventListener('wheel', onWheel, { passive: true });
-    return () => {
-      el.removeEventListener('scroll', onScroll);
-      el.removeEventListener('wheel', onWheel);
-    };
-  }, [isAccordion, isDesktop, requestCloseSidebar, openSidebar, sidebarOpen, sidebarClosing]);
-
   // Entering accordion mode: the deck no longer scrolls sideways, so drop any offset
   useEffect(() => {
     if (isAccordion && deckScrollRef.current) deckScrollRef.current.scrollLeft = 0;
@@ -880,95 +811,12 @@ export default function App() {
 
   // Shared by the sidebar foot and the closed-sidebar rail
   const accountActionsProps = {
-    // A second click on the name / avatar closes the popover
-    onOpenMenu: (anchor?: MenuAnchor) => { setMenuAnchor(anchor ?? null); setMenuOpen(o => (anchor ? !o : true)); },
+    onOpenMenu: () => setMenuOpen(true),
     themeStyle: theme.style,
     // Stay in the same family, flip light <-> dark
     onToggleTheme: () => handleSelectTheme(getThemeCounterpart(selectedTheme)),
     dockLayout,
     onToggleDockLayout: toggleDockLayout,
-  };
-
-  // Sidebar contents (header icons, lists, profile foot): the desktop drawer and the mobile overlay
-  const renderSidebarShell = (mobile: boolean) => {
-    // On mobile Check Lists / Habits / Reminders are tabs, so the panels menu switches tab;
-    // the deck's layout toggle doesn't apply there
-    const showTab = (v: View) => () => { requestCloseSidebar(); handleSetActiveViewFromNav(v); };
-    const panels = mobile
-      ? { ...panelsMenuProps, onToggle: { lists: showTab('lists'), habits: showTab('habits'), reminders: showTab('reminders') } }
-      : panelsMenuProps;
-    const account = mobile ? { ...accountActionsProps, onToggleDockLayout: undefined } : accountActionsProps;
-    return (
-      <>
-        <div className="absolute right-3 top-3 z-[120]">
-          <IconTip label={mobile ? 'Close' : 'Hide sidebar'} side="bottom-end">
-            <button
-              type="button"
-              onClick={mobile ? requestCloseSidebar : toggleSidebar}
-              className="flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-              style={{ color: 'var(--assistant-text-muted)' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
-              aria-label={mobile ? 'Close sidebar' : 'Collapse sidebar'}
-            >
-              {mobile ? (
-                // Mobile: a full-screen overlay → a plain close X
-                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-                  <path strokeLinecap="round" d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
-                </svg>
-              ) : (
-                // Open state: divider sits right — the panel is wide
-                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-                  <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
-                  <path d="M10.5 2.5v11" />
-                </svg>
-              )}
-            </button>
-          </IconTip>
-        </div>
-        {/* Logo — top-left, opposite the collapse button (the menu opens from the name in the foot) */}
-        <div className="absolute left-4 top-3 z-[110] flex h-8 items-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={theme.style === 'dark' ? '/logowhite-clean.png' : '/logoblue.png'}
-            alt="youtask"
-            className="h-[28px] w-auto shrink-0"
-          />
-        </div>
-        {/* Search + reminders bell + Check Lists / Habits / Reminders menu — left of the collapse
-            button. While searching, the field takes the place of all three icons */}
-        <div className="absolute right-[3.25rem] top-3 z-[120] flex items-center gap-1">
-          <HeaderSearch
-            compact
-            open={sidebarSearchOpen}
-            onOpenChange={setSidebarSearchOpen}
-            onSearch={(word) => {
-              if (mobile) requestCloseSidebar();
-              requestOpenPivot({ word, blockId: null, origin: 'header' });
-            }}
-          />
-          {!sidebarSearchOpen && (
-            <>
-              <AccountActions placement="bell" {...account} />
-              <PanelsMenuButton {...panels} side="below" />
-            </>
-          )}
-        </div>
-        {/* Starts under the menu/collapse buttons; its top rule sits on the main panel's tab line */}
-        <div
-          className="mt-[48px] flex min-h-0 flex-1 flex-col"
-          style={{ borderTop: '1px solid var(--assistant-border-soft)' }}
-        >
-          <Sidebar
-            onOpenPivot={requestOpenPivot}
-          />
-        </div>
-        {/* ChatGPT-style foot: profile + layout / theme / reminders / sync */}
-        <div className="shrink-0 px-2 py-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
-          <AccountActions placement="footer" {...account} />
-        </div>
-      </>
-    );
   };
 
   const lastPivot = pivotInstances[pivotInstances.length - 1] ?? null;
@@ -994,8 +842,7 @@ export default function App() {
           activeView={activeView}
           setActiveView={handleSetActiveViewFromNav}
           onHome={() => setActiveView('quick')}
-          // Mobile: the avatar opens the sidelist (same as desktop's); its foot opens the menu popover
-          onOpenMenu={openSidebar}
+          onOpenMenu={() => setMenuOpen(true)}
           onSearchKeyword={(word) => requestOpenPivot({ word, blockId: null, origin: 'header' })}
           timelineOpen={activeView === 'timeline'}
           calendarOpen={activeView === 'calendar'}
@@ -1047,7 +894,25 @@ export default function App() {
                   : 'sidebarMobileIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both',
               }}
             >
-              {isDesktop === false && renderSidebarShell(true)}
+              <button
+                type="button"
+                onClick={requestCloseSidebar}
+                className="absolute right-3 top-4 z-[120] flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                style={{ background: 'color-mix(in srgb, var(--assistant-bg) 85%, transparent)', color: 'var(--assistant-text-muted)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                aria-label="Close sidebar"
+                data-tip="Close sidebar"
+              >
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
+                </svg>
+              </button>
+              <div className="h-full overflow-hidden">
+                <Sidebar
+                  onOpenPivot={requestOpenPivot}
+                />
+              </div>
             </div>
           </>
         )}
@@ -1062,48 +927,37 @@ export default function App() {
         >
           <div className="flex h-full min-h-0 min-w-full">
           {/* Rail: 80px while the sidebar is closed (big icons sit ~36px off the screen edge);
-              just a thin gutter when it's open (its icons are hidden then), so the sidebar sits
-              near the edge. Sticky: it stays put while the panels scroll sideways under it */}
+              back to the original 40px gutter when it's open, so the open layout doesn't shift */}
           <div
-            className="sticky left-0 z-[125] h-full shrink-0"
+            className="relative h-full shrink-0"
             style={{
-              width: sidebarVisualOpen ? RAIL_OPEN_GUTTER : 80,
+              width: sidebarVisualOpen ? 40 : 80,
               transition: 'width 420ms cubic-bezier(0.32, 0.72, 0, 1)',
             }}
           >
-            {/* Scrolled → opaque strip so panels passing underneath don't show through the icons.
-                Fixed (not clipped by the deck) so it also covers the scrollbar's lane at the bottom */}
-            {deckScrolled && (
-              <div
-                aria-hidden="true"
-                className="pointer-events-none fixed bottom-0 left-0 top-0 -z-10"
-                style={{
-                  width: sidebarVisualOpen ? RAIL_OPEN_GUTTER : 80,
-                  // Light themes: frosted glass — the page's glow still shows through, the panels
-                  // behind are blurred away. Dark themes: their flat canvas already blends in.
-                  ...(theme.style === 'light'
-                    ? {
-                        background: 'color-mix(in srgb, var(--assistant-canvas) 30%, transparent)',
-                        backdropFilter: 'blur(28px) saturate(1.2)',
-                        WebkitBackdropFilter: 'blur(28px) saturate(1.2)',
-                      }
-                    : { background: 'var(--assistant-canvas)' }),
-                }}
-              />
-            )}
-            {/* Rail (sidebar closed): short logo, expand and panels stacked at the top, centered; the menu is the avatar at the foot */}
+            {/* Rail (sidebar closed): menu, expand and panels stacked at the top, centered */}
             <div
               // Centered a touch right of the strip's middle → more air from the screen edge
               className="absolute left-7 right-0 top-6 z-[120] flex flex-col items-center gap-1.5 transition-opacity"
               style={{ opacity: sidebarVisualOpen ? 0 : 1, pointerEvents: sidebarVisualOpen ? 'none' : 'auto' }}
               aria-hidden={sidebarVisualOpen}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={theme.style === 'dark' ? '/logoshort-white.png' : '/logoshort-blue.png'}
-                alt="youtask"
-                className="mb-2 h-7 w-auto shrink-0"
-              />
+              <IconTip label="Menu: profile, settings, themes" side="right">
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(true)}
+                  className="flex h-9 w-9 items-center justify-center rounded-md transition-colors"
+                  style={{ color: 'var(--assistant-text-muted)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                  aria-label="Open menu"
+                  tabIndex={sidebarVisualOpen ? -1 : 0}
+                >
+                  <svg viewBox="0 0 16 16" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                    <path strokeLinecap="round" d="M2.75 4.25h10.5M2.75 8h10.5M2.75 11.75h10.5" />
+                  </svg>
+                </button>
+              </IconTip>
               <IconTip label="Show sidebar" side="right">
                 <button
                   type="button"
@@ -1141,7 +995,7 @@ export default function App() {
               width: sidebarVisualOpen ? MIN_SIDEBAR : 0,
               transition: 'width 420ms cubic-bezier(0.32, 0.72, 0, 1)',
             }}
-          >
+          > 
             <div
               // Full height: no bottom room here (that room is for the chat button, on the right)
               className="relative m-3 box-border flex h-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden rounded-2xl"
@@ -1149,7 +1003,61 @@ export default function App() {
                 width: `calc(${MIN_SIDEBAR}px - 1.5rem)`,
               }}
             >
-              {isDesktop === true && renderSidebarShell(false)}
+              <div className="absolute right-3 top-3 z-[120]">
+                <IconTip label="Hide sidebar" side="bottom-end">
+                  <button
+                    type="button"
+                    onClick={toggleSidebar}
+                    className="flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                    style={{ color: 'var(--assistant-text-muted)' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                    aria-label="Collapse sidebar"
+                  >
+                    {/* Open state: divider sits right — the panel is wide */}
+                    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+                      <path d="M10.5 2.5v11" />
+                    </svg>
+                  </button>
+                </IconTip>
+              </div>
+              {/* Reminders bell + Check Lists / Habits / Reminders menu — left of the collapse button */}
+              <div className="absolute right-[3.25rem] top-3 z-[120] flex items-center gap-1">
+                {isDesktop === true && <AccountActions placement="bell" {...accountActionsProps} />}
+                <PanelsMenuButton {...panelsMenuProps} side="below" />
+              </div>
+              {/* Menu — top-left, opposite the collapse button */}
+              <div className="absolute left-3 top-3 z-[120]">
+                <IconTip label="Menu: profile, settings, themes" side="bottom-start">
+                  <button
+                    type="button"
+                    onClick={() => setMenuOpen(true)}
+                    className="flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                    style={{ color: 'var(--assistant-text-muted)' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-muted)')}
+                    aria-label="Open menu"
+                  >
+                    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                      <path strokeLinecap="round" d="M2.75 4.25h10.5M2.75 8h10.5M2.75 11.75h10.5" />
+                    </svg>
+                  </button>
+                </IconTip>
+              </div>
+              {/* Starts under the menu/collapse buttons; its top rule sits on the main panel's tab line */}
+              <div
+                className="mt-[48px] flex min-h-0 flex-1 flex-col"
+                style={{ borderTop: '1px solid var(--assistant-border-soft)' }}
+              >
+                <Sidebar
+                  onOpenPivot={requestOpenPivot}
+                />
+              </div>
+              {/* ChatGPT-style foot: profile + layout / theme / reminders / sync */}
+              <div className="shrink-0 px-2 py-2" style={{ borderTop: '1px solid var(--assistant-border-soft)' }}>
+                {isDesktop === true && <AccountActions placement="footer" {...accountActionsProps} />}
+              </div>
             </div>
           </div>
 
@@ -1441,7 +1349,6 @@ export default function App() {
 
         <Menu
           open={menuOpen}
-          anchor={menuAnchor}
           onClose={() => setMenuOpen(false)}
           themeStyle={theme.style}
           onToggleHabits={toggleHabits}
@@ -1449,10 +1356,9 @@ export default function App() {
           onToggleActivity={toggleActivity}
           onToggleLists={toggleLists}
           onToggleChat={() => (chatOpen ? closeChatOverlay() : openChatOverlay())}
-          // On mobile the sidelist overlay would sit over the dialog → close it first
-          onOpenSettings={() => { if (isDesktop === false) requestCloseSidebar(); setSettingsOpen(true); }}
-          onOpenProfile={() => { if (isDesktop === false) requestCloseSidebar(); setProfileOpen(true); }}
-          onOpenThemes={() => { if (isDesktop === false) requestCloseSidebar(); setThemesOpen(true); }}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenProfile={() => setProfileOpen(true)}
+          onOpenThemes={() => setThemesOpen(true)}
           habitsOpen={habitsOpen}
           remindersOpen={remindersOpen}
           activityOpen={activityOpen}
@@ -1580,15 +1486,20 @@ export default function App() {
           <div className="fixed inset-0 z-[10060] flex items-center justify-center p-5">
             <button
               type="button"
-              className={`fixed inset-0 ${classes.modalBackdrop}`}
+              className="fixed inset-0"
+              style={{ background: 'var(--assistant-overlay)' }}
               onClick={() => setConfirmClearChat(false)}
               aria-label="Cancel"
             />
             <div
-              role="alertdialog"
-              className={`relative z-10 w-full max-w-[360px] p-6 ${classes.modalCard}`}
+              className="relative z-10 w-full max-w-[360px] rounded-2xl p-5 shadow-2xl"
+              style={{
+                background: 'var(--assistant-bg)',
+                color: 'var(--assistant-text)',
+                border: '1px solid var(--assistant-border-soft)',
+              }}
             >
-              <h3 className={`mb-2 ${classes.modalTitle}`}>Clear chat memory?</h3>
+              <h3 className="text-[16px] font-semibold mb-1.5">Clear chat memory?</h3>
               <p className="text-[14px] mb-5" style={{ color: 'var(--assistant-text-soft)' }}>
                 Do you want to clear the chat memory?
               </p>
