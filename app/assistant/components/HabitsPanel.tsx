@@ -13,7 +13,7 @@ import {
   writeHabitsLS,
 } from '@/lib/datacenter';
 import { useHabits } from '@/app/assistant/_hook/useHabits';
-import { isGoalMet, periodTotal } from '@/app/assistant/_utils/habitSchedule';
+import { indexHabitLogs, isGoalMet, periodTotal } from '@/app/assistant/_utils/habitSchedule';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { TaskCheckmark } from './TaskCheckmark';
 
@@ -93,7 +93,8 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
   };
 
   /** Done for its period (today / this week) — toggling logs or clears today's amount. */
-  const isDone = (h: Habit) => isGoalMet(h, periodTotal(h, logs, today));
+  const logIndex = indexHabitLogs(logs);
+  const isDone = (h: Habit) => isGoalMet(h, periodTotal(h, logIndex, today));
   const toggleDone = (h: Habit) => setHabitLogLS(h.id, today, { value: isDone(h) ? 0 : h.goalValue });
 
   const commitText = (h: Habit, el: HTMLInputElement) => {

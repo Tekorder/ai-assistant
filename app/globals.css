@@ -791,6 +791,28 @@ input[type="checkbox"]:not(:disabled):hover {
 [data-theme-style="light"] .yt-pill-tomorrow:hover { background: rgb(16 185 129 / .22); }
 [data-theme-style="light"] .yt-pill-later:hover    { background: rgb(14 165 233 / .20); }
 
+/* ===== Habit colors (habitColorStyle in _utils/habitColors) =====
+   An element with .yt-habit gets the habit's palette color as --habit-base (unset =
+   the theme's own contrast color) and derives everything else from the theme, so
+   one stored key reads well in every light and dark theme:
+     --habit-color  solid fill (lifted a bit on dark themes)
+     --habit-on     text/icons on the solid fill
+     --habit-tint   card background · --habit-tint-strong  hover / progress fill
+     --habit-ink    text in the habit's color on the normal surface */
+.yt-habit {
+  --habit-color: var(--habit-base, var(--assistant-contrast-bg));
+  --habit-on: var(--habit-on-light, var(--assistant-contrast-text));
+  --habit-tint: color-mix(in srgb, var(--habit-color) 13%, var(--assistant-surface));
+  --habit-tint-strong: color-mix(in srgb, var(--habit-color) 30%, var(--assistant-surface));
+  --habit-ink: color-mix(in srgb, var(--habit-color) 70%, var(--assistant-text));
+}
+[data-theme-style="dark"] .yt-habit {
+  --habit-color: color-mix(in srgb, var(--habit-base, var(--assistant-contrast-bg)) 82%, white);
+  --habit-on: var(--habit-on-dark, var(--assistant-contrast-text));
+  --habit-tint: color-mix(in srgb, var(--habit-color) 18%, var(--assistant-surface));
+  --habit-ink: color-mix(in srgb, var(--habit-color) 80%, var(--assistant-text));
+}
+
 .yt-subtasks { margin-top: 6px; }
 .yt-subtask {
   display: flex; gap: 6px; align-items: flex-start;
