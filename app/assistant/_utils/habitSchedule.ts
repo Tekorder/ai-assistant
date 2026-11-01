@@ -51,6 +51,22 @@ export function daysInMonth(year: number, month0: number): number {
   return new Date(year, month0 + 1, 0).getDate();
 }
 
+/** A month as calendar weeks, Monday first: its days, padded with null to whole weeks. */
+export function monthGrid(anyDayOfMonth: string): (string | null)[] {
+  const { from, to } = periodBounds('month', anyDayOfMonth);
+  const days: (string | null)[] = Array(mondayIndex(from)).fill(null);
+  days.push(...eachDay(from, to));
+  while (days.length % 7) days.push(null);
+  return days;
+}
+
+/** First day of the month `delta` months away from the month of `ymd`. */
+export function shiftMonth(ymd: string, delta: number): string {
+  const [y, m] = ymd.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
 /** Every day from `from` to `to`, inclusive. */
 export function eachDay(from: string, to: string): string[] {
   const out: string[] = [];

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CHART_PAD, ChartGrid, ChartTooltip, GoalLine, chartTicks } from './BarChart';
+import { ChartGrid, ChartTooltip, GoalLine, chartPad, chartTicks } from './BarChart';
 import { useElementWidth } from './DashboardPieces';
 
 /** Same props and look as BarChart, drawn as a line with a soft area under it. */
@@ -17,11 +17,11 @@ export function LineChart({ values, xLabel, tickEvery = 1, tooltip, height = 180
 }) {
   const [wrapRef, width] = useElementWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
-  const PAD = CHART_PAD;
   const stroke = color ?? 'var(--assistant-accent)';
+  const { top, ticks } = chartTicks(Math.max(0, ...values, goal?.value ?? 0));
+  const PAD = chartPad(ticks);
   const innerW = Math.max(0, width - PAD.left - PAD.right);
   const innerH = height - PAD.top - PAD.bottom;
-  const { top, ticks } = chartTicks(Math.max(0, ...values, goal?.value ?? 0));
   const band = values.length ? innerW / values.length : 0;
   const x = (i: number) => PAD.left + band * i + band / 2;
   const y = (v: number) => PAD.top + innerH - (v / top) * innerH;
@@ -34,7 +34,7 @@ export function LineChart({ values, xLabel, tickEvery = 1, tooltip, height = 180
     <div ref={wrapRef} className="relative w-full">
       {width > 0 ? (
         <svg width={width} height={height} role="img" aria-label={ariaLabel} style={{ display: 'block' }}>
-          <ChartGrid ticks={ticks} y={y} width={width} />
+          <ChartGrid ticks={ticks} y={y} width={width} pad={PAD} />
           {values.length > 0 ? (
             <>
               <path d={area} style={{ fill: `color-mix(in srgb, ${stroke} 14%, transparent)` }} />
@@ -59,7 +59,7 @@ export function LineChart({ values, xLabel, tickEvery = 1, tooltip, height = 180
               />
             </g>
           ))}
-          {goal && goal.value > 0 ? <GoalLine y={y(goal.value)} width={width} label={goal.label} /> : null}
+          {goal && goal.value > 0 ? <GoalLine y={y(goal.value)} width={width} label={goal.label} pad={PAD} /> : null}
         </svg>
       ) : (
         <div style={{ height }} />

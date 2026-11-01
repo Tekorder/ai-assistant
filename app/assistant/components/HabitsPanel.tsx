@@ -123,7 +123,7 @@ function TodayChecklist() {
   const index = useMemo(() => indexHabitLogs(logs), [logs]);
   const due = useMemo(() => habitsDueOn(habits, today), [habits, today]);
   const { done, due: dueCount } = dayCompletion(habits, index, today, today);
-  const { act, startNew, edit, dialogs } = useHabitDialogs(habits, index);
+  const { act, startNew, open, dialogs } = useHabitDialogs(habits, index);
 
   return (
     <>
@@ -139,7 +139,7 @@ function TodayChecklist() {
       <div className="flex-1 overflow-y-auto px-3 py-3">
         {due.length ? (
           <HabitList habits={due} index={index} ymd={today} today={today} method={checkInMethod} compact
-            onAction={h => act(h, today)} onOpen={edit} />
+            onAction={h => act(h, today)} onOpen={h => open(h, today)} />
         ) : (
           <p className="py-10 text-center text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>
             {habits.some(h => !h.archived) ? 'Nothing due today.' : 'No habits yet — add one with +.'}

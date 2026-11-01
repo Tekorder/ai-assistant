@@ -19,26 +19,36 @@ export function chartTicks(max: number): { top: number; ticks: number[] } {
   return { top, ticks: [0, top / 4, top / 2, (top * 3) / 4, top] };
 }
 
-// top leaves room for the peak's direct label above the tallest bar
-export const CHART_PAD = { top: 22, right: 12, bottom: 24, left: 32 };
+const compactFmt = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+
+/** Y-axis label: "1,875", or "12.5K" once it gets long. */
+export const fmtTick = (v: number) => (v >= 10000 ? compactFmt.format(v) : fmtNum(v, 1));
+
+export type ChartPad = { top: number; right: number; bottom: number; left: number };
+
+/** Chart padding — the left side fits the widest y label; the top leaves room for the peak's label. */
+export function chartPad(ticks: number[]): ChartPad {
+  const longest = Math.max(1, ...ticks.map(t => fmtTick(t).length));
+  return { top: 22, right: 12, bottom: 24, left: Math.max(32, Math.round(longest * 6.6) + 14) };
+}
 
 /** Horizontal gridlines with their labels — shared by the bar and line charts. */
-export function ChartGrid({ ticks, y, width }: { ticks: number[]; y: (v: number) => number; width: number }) {
+export function ChartGrid({ ticks, y, width, pad }: { ticks: number[]; y: (v: number) => number; width: number; pad: ChartPad }) {
   return (
     <>
       {ticks.map(t => (
         <g key={t}>
           <line
-            x1={CHART_PAD.left} x2={width - CHART_PAD.right} y1={y(t)} y2={y(t)}
+            x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)}
             style={{ stroke: 'var(--assistant-border-soft)' }}
             strokeWidth={1}
             opacity={t === 0 ? 1 : 0.6}
           />
           <text
-            x={CHART_PAD.left - 10} y={y(t)} dy="0.32em" textAnchor="end" fontSize={11}
+            x={pad.left - 10} y={y(t)} dy="0.32em" textAnchor="end" fontSize={11}
             style={{ fill: 'var(--assistant-text-faint)', fontVariantNumeric: 'tabular-nums' }}
           >
-            {fmtNum(t, 1)}
+            {fmtTick(t)}
           </text>
         </g>
       ))}
@@ -47,12 +57,12 @@ export function ChartGrid({ ticks, y, width }: { ticks: number[]; y: (v: number)
 }
 
 /** Dashed target line (e.g. a habit's goal per day). */
-export function GoalLine({ y, width, label }: { y: number; width: number; label: string }) {
+export function GoalLine({ y, width, label, pad }: { y: number; width: number; label: string; pad: ChartPad }) {
   return (
     <g>
-      <line x1={CHART_PAD.left} x2={width - CHART_PAD.right} y1={y} y2={y}
+      <line x1={pad.left} x2={width - pad.right} y1={y} y2={y}
         strokeDasharray="4 4" strokeWidth={1} style={{ stroke: 'var(--assistant-text-muted)' }} />
-      <text x={width - CHART_PAD.right} y={y - 4} textAnchor="end" fontSize={10}
+      <text x={width - pad.right} y={y - 4} textAnchor="end" fontSize={10}
         style={{ fill: 'var(--assistant-text-muted)' }}>
         {label}
       </text>
@@ -96,11 +106,11 @@ export function BarChart({ values, xLabel, tickEvery = 1, tooltip, height = 180,
 }) {
   const [wrapRef, width] = useElementWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
-  const PAD = CHART_PAD;
   const fill = color ?? 'var(--assistant-accent)';
+  const { top, ticks } = chartTicks(Math.max(0, ...values, ...(compare ?? []), goal?.value ?? 0));
+  const PAD = chartPad(ticks);
   const innerW = Math.max(0, width - PAD.left - PAD.right);
   const innerH = height - PAD.top - PAD.bottom;
-  const { top, ticks } = chartTicks(Math.max(0, ...values, ...(compare ?? []), goal?.value ?? 0));
   const band = values.length ? innerW / values.length : 0;
   const pair = compare ? 2 : 1;
   const barW = Math.max(2, Math.min((band - 2) / pair - (pair - 1), 36));
@@ -111,7 +121,7 @@ export function BarChart({ values, xLabel, tickEvery = 1, tooltip, height = 180,
     <div ref={wrapRef} className="relative w-full">
       {width > 0 ? (
         <svg width={width} height={height} role="img" aria-label={ariaLabel} style={{ display: 'block' }}>
-          <ChartGrid ticks={ticks} y={y} width={width} />
+          <ChartGrid ticks={ticks} y={y} width={width} pad={PAD} />
 
           {values.map((v, i) => {
             const cx = PAD.left + band * i + band / 2;
@@ -163,7 +173,7 @@ export function BarChart({ values, xLabel, tickEvery = 1, tooltip, height = 180,
             );
           })}
 
-          {goal && goal.value > 0 ? <GoalLine y={y(goal.value)} width={width} label={goal.label} /> : null}
+          {goal && goal.value > 0 ? <GoalLine y={y(goal.value)} width={width} label={goal.label} pad={PAD} /> : null}
         </svg>
       ) : (
         <div style={{ height }} />

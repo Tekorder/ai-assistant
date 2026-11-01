@@ -26,7 +26,7 @@ export default function HabitsView() {
   const inGroup = useMemo(() => (shownGroup === ALL ? active : active.filter(h => h.group === shownGroup)), [active, shownGroup]);
   const due = useMemo(() => habitsDueOn(inGroup, ymd), [inGroup, ymd]);
 
-  const { act, startNew, edit, dialogs } = useHabitDialogs(habits, index);
+  const { act, startNew, open, dialogs } = useHabitDialogs(habits, index);
 
   const isToday = ymd === today;
   const dayLabel = isToday ? 'Today' : parseYMD(ymd).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -81,7 +81,7 @@ export default function HabitsView() {
             method={checkInMethod}
             columns
             onAction={h => act(h, ymd)}
-            onOpen={edit}
+            onOpen={h => open(h, ymd)}
           />
         )}
       </div>
