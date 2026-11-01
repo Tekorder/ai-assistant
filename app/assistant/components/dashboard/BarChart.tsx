@@ -73,14 +73,12 @@ export function GoalLine({ y, width, label, pad }: { y: number; width: number; l
 export function ChartTooltip({ left, top, width, children }: { left: number; top: number; width: number; children: React.ReactNode }) {
   return (
     <div
-      className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12px] shadow-lg"
+      // yt-surface (globals.css): the theme's gradient, like every menu and tooltip
+      className="yt-surface pointer-events-none absolute z-10 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12px]"
       style={{
         left: Math.min(Math.max(left, 60), width - 60),
         top: Math.max(0, top),
         transform: 'translateX(-50%)',
-        background: 'var(--assistant-panel-bg)',
-        border: '1px solid var(--assistant-border-soft)',
-        color: 'var(--assistant-text)',
       }}
     >
       {children}
