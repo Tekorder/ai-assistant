@@ -20,6 +20,7 @@ import { createPortal } from 'react-dom';
 import { TaskFlagButton } from './TaskFlag';
 import { AgendaTaskRow, AgendaCheck, AgendaDate } from './AgendaList';
 import { reminderFallsOn } from '../_utils/reminderSchedule';
+import { HabitRemindersSection } from './habits/HabitRemindersSection';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 /** Mon-first display order; values are JS weekdays (0 = Sun). */
@@ -399,6 +400,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
             );
           })}
         </div>
+        <HabitRemindersSection columns={variant === 'tab'} />
       </div>
 
       {daysModal ? createPortal(
