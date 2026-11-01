@@ -30,7 +30,7 @@ import {
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from '../TaskFlag';
 import { TaskNoteButton } from '../TaskNote';
-import { DatePickerModal } from '../DatePickerModal';
+import { DateField, DatePickerModal } from '../DatePickerModal';
 import { useShowAllGroups } from '../../_hook/useShowAllGroups';
 import { TaskCheckmark } from '../TaskCheckmark';
 import classes from '@/app/assistant/_theme/themes.module.css';
@@ -833,12 +833,11 @@ export default function Timeline() {
 
             <label className="mt-3 block text-[12px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>
               Due date
-              <input
-                type="date"
-                lang="en-US"
+              <DateField
+                title="Due date"
                 value={newTask.deadline}
-                onChange={e => setNewTask({ ...newTask, deadline: e.target.value })}
-                className="mt-1 block w-full rounded-lg px-3 py-2 text-[14px] outline-none"
+                onChange={deadline => setNewTask({ ...newTask, deadline })}
+                className="mt-1 w-full rounded-lg px-3 py-2 text-[14px] outline-none"
                 style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-control-bg)', color: 'var(--assistant-text)' }}
               />
             </label>

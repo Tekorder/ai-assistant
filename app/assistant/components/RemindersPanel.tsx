@@ -19,6 +19,7 @@ import {
 import { createPortal } from 'react-dom';
 import { TaskFlagButton } from './TaskFlag';
 import { AgendaTaskRow, AgendaCheck, AgendaDate } from './AgendaList';
+import { DatePickerModal } from './DatePickerModal';
 import { reminderFallsOn } from '../_utils/reminderSchedule';
 import { HabitRemindersSection } from './habits/HabitRemindersSection';
 import classes from '@/app/assistant/_theme/themes.module.css';
@@ -59,7 +60,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
   const closeTimeoutRef = useRef<number | null>(null);
   const [reminders, setReminders] = useState<ReminderItem[]>([makeDefaultReminder()]);
   const reminderTitleRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
-  const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [pickerId, setPickerId] = useState<string | null>(null);
   const timeRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [newId, setNewId] = useState<string | null>(null);
   const newTimerRef = useRef<number | null>(null);
@@ -367,23 +368,11 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                   ymd={r.daily ? undefined : ymd}
                   time={hhmm}
                   repeatDays={r.daily ? (r.days?.length ? r.days : ALL_DAYS) : undefined}
-                  onClick={() => openPicker(dateRefs.current[r.id])}
+                  onClick={() => setPickerId(r.id)}
                   onTimeClick={() => openPicker(timeRefs.current[r.id])}
                   onRepeatClick={() => openDaysModal(r)}
                 />
-                {/* Native pickers behind the date and the hour */}
-                <input
-                  ref={el => void (dateRefs.current[r.id] = el)}
-                  type="date"
-                  className="sr-only"
-                  tabIndex={-1}
-                  aria-hidden="true"
-                  value={ymd}
-                  onChange={e => {
-                    const v = e.target.value;
-                    if (isValidDateYYYYMMDD(v)) handleUpdateReminder(r.id, { date: v });
-                  }}
-                />
+                {/* Native picker behind the hour */}
                 <input
                   ref={el => void (timeRefs.current[r.id] = el)}
                   type="time"
@@ -403,6 +392,18 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
         <HabitRemindersSection columns={variant === 'tab'} />
       </div>
 
+      {(() => {
+        const r = pickerId ? reminders.find(x => x.id === pickerId) : undefined;
+        return r ? (
+          <DatePickerModal
+            title="Reminder date"
+            subtitle={r.title || undefined}
+            value={isValidDateYYYYMMDD(r.date) ? r.date : todayYMD()}
+            onPick={date => handleUpdateReminder(r.id, { date })}
+            onClose={() => setPickerId(null)}
+          />
+        ) : null;
+      })()}
       {daysModal ? createPortal(
         <div className="fixed inset-0 z-[10050] flex items-center justify-center">
           <button

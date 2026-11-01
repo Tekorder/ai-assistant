@@ -29,6 +29,7 @@ import {
   type TaskNoteEntry,
 } from '@/lib/datacenter';
 import { TaskRepeatModal } from './TaskRepeat';
+import { DatePickerModal } from './DatePickerModal';
 import { TaskFlagButton } from './TaskFlag';
 import { TaskNoteButton, TaskNoteModal } from './TaskNote';
 import { TaskRowMenu } from './TaskRowMenu';
@@ -107,7 +108,7 @@ export default function DayPanel({
   const { sortBy } = useQuickFilters();
   const byCreated = sortBy === 'createdAt';
 
-  const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [pickerCardId, setPickerCardId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [newTaskListId, setNewTaskListId] = useState('');
@@ -313,15 +314,7 @@ export default function DayPanel({
     requestAnimationFrame(() => newTaskInputRef.current?.focus());
   };
 
-  const openPicker = (id: string) => {
-    const el = dateRefs.current[id];
-    if (!el) return;
-    try {
-      (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
-    } catch {
-      el.click();
-    }
-  };
+  const openPicker = (id: string) => setPickerCardId(id);
 
   if (!shouldRender) return null;
 
@@ -474,18 +467,6 @@ export default function DayPanel({
                       onClick={card.archived ? undefined : () => openPicker(card.id)}
                       onRepeatClick={card.archived ? undefined : () => setRepeatCardId(card.id)}
                     />
-                    {/* Native picker behind the date (and the menu's "Change due date") */}
-                    <input
-                      ref={el => void (dateRefs.current[card.id] = el)}
-                      type="date"
-                      className="sr-only"
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
-                      onChange={e => {
-                        if (e.target.value) handleReschedule(card.id, e.target.value);
-                      }}
-                    />
                   </AgendaTaskRow>
                 ))}
               </React.Fragment>
@@ -511,6 +492,18 @@ export default function DayPanel({
             onNote={() => setNoteCardId(card.id)}
             onDelete={() => setDeleteConfirmId(card.id)}
             onClose={() => setTaskMenu(null)}
+          />
+        ) : null;
+      })()}
+      {(() => {
+        const card = pickerCardId ? allCards.find(c => c.id === pickerCardId) : undefined;
+        return card ? (
+          <DatePickerModal
+            title="Due date"
+            subtitle={card.text}
+            value={card.deadline}
+            onPick={ymd => handleReschedule(card.id, ymd)}
+            onClose={() => setPickerCardId(null)}
           />
         ) : null;
       })()}

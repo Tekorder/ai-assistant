@@ -85,6 +85,7 @@ import { TaskRowMenu } from '../TaskRowMenu';
 import { FirstListWizard } from '../FirstListWizard';
 import { DeleteWithOpenTasksDialog, buildMoveTargets } from '../DeleteWithOpenTasksDialog';
 import { DateRangeDialog } from '../DateRangeDialog';
+import { DatePickerModal } from '../DatePickerModal';
 import { NewTaskDialog, type NewTaskListOption, type NewTaskTarget } from '../NewTaskDialog';
 import { HiddenTaskDialog, isHiddenTaskNoticeMuted, type HiddenTaskReason } from '../HiddenTaskDialog';
 import { AgendaListHeader, AgendaTaskRow, AgendaCheck, AgendaDate, AgendaMenuButton, AgendaSectionRow, AgendaSectionEnd, AgendaAddGhost, agendaSectionTitleClass, agendaRowPad } from '../AgendaList';
@@ -445,7 +446,6 @@ export default function Quick(props: QuickProps = {}) {
   const [editingDateTaskId, setEditingDateTaskId] = useState<string | null>(null);
 
   const inputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
-  const inlineDateRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const resizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = '1px';
@@ -458,21 +458,6 @@ export default function Quick(props: QuickProps = {}) {
     });
   });
 
-  useEffect(() => {
-    if (!editingDateTaskId) return;
-    const input = inlineDateRefs.current[editingDateTaskId];
-    if (!input) return;
-    requestAnimationFrame(() => {
-      input.focus();
-      try {
-        const picker = input as HTMLInputElement & { showPicker?: () => void };
-        if (typeof picker.showPicker === 'function') picker.showPicker();
-        else input.click();
-      } catch {
-        input.click();
-      }
-    });
-  }, [editingDateTaskId]);
   const dragRef   = useRef<{ id: string } | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
@@ -1610,35 +1595,16 @@ const handleKey = (
             }
           >
               {renderTaskTextWithWordHover(task)}
-              {editingDateTaskId !== task.id && (
-                <AgendaDate
-                  ymd={occDay ?? task.deadline}
-                  time={task.dueTime}
-                  repeatDays={task.repeatDays}
-                  // "Created October 2, 2026 · Due October 8, 2026" — Agenda goes by both dates
-                  labeled
-                  created={task.createdAt}
-                  onClick={() => setEditingDateTaskId(task.id)}
-                  onRepeatClick={() => setRepeatModalTaskId(task.id)}
-                />
-              )}
-              {editingDateTaskId === task.id && (
-                <input
-                  ref={el => void (inlineDateRefs.current[task.id] = el)}
-                  autoFocus
-                  type="date"
-                  lang="en-US"
-                  className={`shrink-0 mt-0.5 self-start text-[12px] px-1.5 py-0.5 rounded-full outline-none ${classes.quickDatePillInput}`}
-                  value={isValidDateYYYYMMDD(task.deadline) ? task.deadline : ''}
-                  onChange={e => {
-                    const v = e.target.value;
-                    handleUpdateBlock(task.id, { deadline: v ? v : undefined });
-                    setEditingDateTaskId(null);
-                  }}
-                  onBlur={() => setEditingDateTaskId(null)}
-                  onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setEditingDateTaskId(null); }}
-                />
-              )}
+              <AgendaDate
+                ymd={occDay ?? task.deadline}
+                time={task.dueTime}
+                repeatDays={task.repeatDays}
+                // "Created October 2, 2026 · Due October 8, 2026" — Agenda goes by both dates
+                labeled
+                created={task.createdAt}
+                onClick={() => setEditingDateTaskId(task.id)}
+                onRepeatClick={() => setRepeatModalTaskId(task.id)}
+              />
           </AgendaTaskRow>
           {/* Must directly follow the row: CSS reveals it via .quick-add-anchor:hover + .quick-add-ghost */}
           {isCommitted(task) && (hasShownSubtasks
@@ -1863,6 +1829,8 @@ const handleKey = (
 
   // The day the lists are narrowed to (picked in the mini calendar, or Today) — shown dark there
   const miniCalSelectedDay = dateMode === 'today' && taskFilter === 'none' ? focusDay : undefined;
+  // Under Ranges the mini calendar draws the span the way the range picker does
+  const miniCalRange = dateMode === 'range' && taskFilter === 'none' ? dateRange : undefined;
   const handleMiniCalendarPickDay = (ymd: string) => {
     // Clicking the selected day again goes back to every date
     if (ymd === miniCalSelectedDay) {
@@ -1973,7 +1941,7 @@ const handleKey = (
               {/* Hide Completed on → no progress bar */}
               {showCompleted && <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />}
               <div className="mb-3 overflow-hidden rounded-2xl">
-                <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} />
+                <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} range={miniCalRange} />
               </div>
               <ActionsPanel {...actionsPanelProps} />
             </div>
@@ -2219,7 +2187,7 @@ const handleKey = (
                   {/* Hide Completed on → no progress bar */}
                   {showCompleted && <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />}
                   <div className="mb-3 overflow-hidden rounded-2xl">
-                    <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} />
+                    <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} range={miniCalRange} />
                   </div>
                   <ActionsPanel {...actionsPanelProps} />
                 </div>
@@ -2294,6 +2262,19 @@ const handleKey = (
         {(() => {
           const t = reminderModalTaskId ? blocks.find(b => b.id === reminderModalTaskId) : undefined;
           return t ? <TaskReminderModal task={t} onClose={() => setReminderModalTaskId(null)} /> : null;
+        })()}
+        {(() => {
+          const t = editingDateTaskId ? blocks.find(b => b.id === editingDateTaskId) : undefined;
+          return t ? (
+            <DatePickerModal
+              title="Due date"
+              subtitle={t.text}
+              value={t.deadline}
+              onPick={deadline => handleUpdateBlock(t.id, { deadline })}
+              onClear={() => handleUpdateBlock(t.id, { deadline: undefined })}
+              onClose={() => setEditingDateTaskId(null)}
+            />
+          ) : null;
         })()}
         {(() => {
           const t = repeatModalTaskId ? blocks.find(b => b.id === repeatModalTaskId) : undefined;

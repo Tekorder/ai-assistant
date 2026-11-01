@@ -6,6 +6,7 @@ import { HABIT_UNITS } from '@/app/assistant/_constants/habitTemplates';
 import { TIME_RANGES, goalSentence } from '@/app/assistant/_utils/habitSchedule';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { HabitChips, HabitRow, HabitSection, HabitSwitch } from './HabitModal';
+import { DateField } from '../DatePickerModal';
 
 type Patch = (p: Partial<Habit>) => void;
 
@@ -176,15 +177,16 @@ export function TermSection({ draft, patch }: { draft: Habit; patch: Patch }) {
       <div className="grid grid-cols-2 gap-2">
         <label className="flex min-w-0 flex-col gap-1">
           <span className="text-[12px]" style={labelStyle}>Start</span>
-          <input type="date" lang="en-US" value={draft.startDate}
-            onChange={e => { if (e.target.value) patch({ startDate: e.target.value }); }}
+          <DateField title="Start date" value={draft.startDate}
+            onChange={startDate => patch({ startDate })}
             className={`${inputCls} min-w-0 text-[13px]`} />
         </label>
         <label className="flex min-w-0 flex-col gap-1">
           <span className="text-[12px]" style={labelStyle}>End</span>
           <div className="flex min-w-0 items-center gap-1">
-            <input type="date" lang="en-US" value={draft.endDate ?? ''} min={draft.startDate}
-              onChange={e => patch({ endDate: e.target.value || undefined })}
+            <DateField title="End date" value={draft.endDate} min={draft.startDate}
+              onChange={endDate => patch({ endDate })}
+              onClear={() => patch({ endDate: undefined })}
               className={`${inputCls} min-w-0 flex-1 text-[13px]`} />
           </div>
           {!draft.endDate ? <span className="text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>No end</span> : (

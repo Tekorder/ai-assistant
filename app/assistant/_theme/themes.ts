@@ -417,6 +417,7 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	: 'var(--assistant-glass-bg)',
 	'--assistant-danger-text': isLight ? '#be123c' : '#fca5a5',
 	'--assistant-success-text': isLight ? '#047857' : '#6ee7b7',
+	'--assistant-info-text': isLight ? '#1d4ed8' : '#93c5fd',
 	'--assistant-panel-shadow': isLight
 	? hasImage
 	  ? [

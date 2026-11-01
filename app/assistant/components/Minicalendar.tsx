@@ -65,12 +65,14 @@ export type MiniCalendarProps = {
   /** If set, clicking a day invokes this (compact picker; no day sidebar) */
   onPickDay?: (ymd: string) => void;
   compact?: boolean;
-  /** Compact: the day the view is narrowed to — drawn filled in the theme's contrast color */
+  /** Compact: the day the view is narrowed to — drawn like a range picker's edge */
   selectedDay?: string;
+  /** Compact: the range the view is narrowed to — edges filled, days between tinted (as in the range picker) */
+  range?: { from: string; to: string };
 };
 
 /** Compact month grid for side drawer (e.g. Quick). Full app calendar is `Calendar.tsx`. */
-export default function MiniCalendar({ onPickDay, compact = false, selectedDay }: MiniCalendarProps) {
+export default function MiniCalendar({ onPickDay, compact = false, selectedDay, range }: MiniCalendarProps) {
   const [blocks, setBlocks]             = useState<Block[]>([]);
   const [hydrated, setHydrated]         = useState(false);
   const [projectTitle, setProjectTitle] = useState<string>('Group');
@@ -79,6 +81,14 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay }
   const today = todayYMD();
   const [viewYear, setViewYear]   = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth()); // 0-based
+
+  // Show the month a newly applied range starts in
+  useEffect(() => {
+    if (!range) return;
+    const d = parseYMD(range.from);
+    setViewYear(d.getFullYear());
+    setViewMonth(d.getMonth());
+  }, [range?.from]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Load & sync ── */
   useEffect(() => {
@@ -236,32 +246,36 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay }
             if (!ymd) return <div key={`empty-${idx}`} className="h-7 rounded-md bg-transparent" />;
             const isToday = ymd === today;
             const isSelected = ymd === selectedDay;
+            const isEdge = isSelected || (!!range && (ymd === range.from || ymd === range.to));
+            const inRange = !!range && ymd > range.from && ymd < range.to;
             const dayCards = getVisibleDayCards(ymd);
-            // Days with tasks are colored: red while any is pending, green once all are done
+            // Days with tasks are colored: green once all are done, otherwise red when
+            // due today or overdue and blue when still ahead
             const hasPending = dayCards.some(c => !c.checked);
             const allDone    = dayCards.length > 0 && !hasPending;
+            const statusColor = hasPending
+              ? ymd <= today ? 'var(--assistant-danger-text)' : 'var(--assistant-info-text)'
+              : allDone
+              ? 'var(--assistant-success-text)'
+              : 'var(--assistant-text)';
             const [, , day] = ymd.split('-');
             return (
               <button
                 key={ymd}
                 type="button"
                 onClick={() => onPickDay?.(ymd)}
-                aria-pressed={isSelected}
+                aria-pressed={isEdge || inRange}
                 className={[
                   'h-7 rounded-md text-[12px] transition-colors',
-                  isSelected ? 'font-bold' : isToday ? `font-bold ${classes.miniCalDayToday}` : classes.miniCalDayNormal,
+                  isEdge || inRange ? 'font-bold' : isToday ? `font-bold ${classes.miniCalDayToday}` : classes.miniCalDayNormal,
                 ].join(' ')}
-                // The selected day (the only one shown) is filled dark; other days are
-                // red while any task is pending, green once all are done, else the theme's text color
-                style={isSelected
-                  ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }
-                  : {
-                      color: hasPending
-                        ? 'var(--assistant-danger-text)'
-                        : allDone
-                        ? 'var(--assistant-success-text)'
-                        : 'var(--assistant-text)',
-                    }}
+                // Selected day / range edges are filled like the range picker's edges and the days
+                // between are tinted; every other day keeps its status color
+                style={isEdge
+                  ? { background: 'var(--assistant-accent)', color: 'var(--assistant-contrast-text, #fff)' }
+                  : inRange
+                  ? { background: 'var(--assistant-accent-bg)', color: statusColor }
+                  : { color: statusColor }}
                 data-tip={isSelected ? `${ymd} · click again to show every date` : ymd}
               >
                 {Number(day)}

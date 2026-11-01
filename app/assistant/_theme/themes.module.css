@@ -674,12 +674,6 @@
   background: rgba(59,130,246,.30);
 }
 
-.quickDatePillInput {
-  background: color-mix(in srgb, var(--assistant-accent) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--assistant-accent) 35%, transparent);
-  color: var(--assistant-accent);
-}
-
 .quickToast {
   border: 1px solid color-mix(in srgb, var(--assistant-accent) 25%, transparent);
   background: var(--assistant-panel-bg);
