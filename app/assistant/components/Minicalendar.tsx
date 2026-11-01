@@ -69,10 +69,12 @@ export type MiniCalendarProps = {
   selectedDay?: string;
   /** Compact: the range the view is narrowed to — edges filled, days between tinted (as in the range picker) */
   range?: { from: string; to: string };
+  /** Compact: dragging across days hands back that span (a plain click still goes to `onPickDay`) */
+  onPickRange?: (range: { from: string; to: string }) => void;
 };
 
 /** Compact month grid for side drawer (e.g. Quick). Full app calendar is `Calendar.tsx`. */
-export default function MiniCalendar({ onPickDay, compact = false, selectedDay, range }: MiniCalendarProps) {
+export default function MiniCalendar({ onPickDay, compact = false, selectedDay, range, onPickRange }: MiniCalendarProps) {
   const [blocks, setBlocks]             = useState<Block[]>([]);
   const [hydrated, setHydrated]         = useState(false);
   const [projectTitle, setProjectTitle] = useState<string>('Group');
@@ -81,6 +83,18 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay, 
   const today = todayYMD();
   const [viewYear, setViewYear]   = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth()); // 0-based
+
+  // Compact: press on a day and drag to another to pick a range
+  const [drag, setDrag] = useState<{ anchor: string; current: string } | null>(null);
+  const dayAt = (x: number, y: number) =>
+    (document.elementFromPoint(x, y)?.closest('[data-ymd]') as HTMLElement | null)?.dataset.ymd;
+  const endDrag = () => {
+    if (!drag) return;
+    const { anchor, current } = drag;
+    setDrag(null);
+    if (anchor === current || !onPickRange) onPickDay?.(anchor);
+    else onPickRange(anchor < current ? { from: anchor, to: current } : { from: current, to: anchor });
+  };
 
   // Show the month a newly applied range starts in
   useEffect(() => {
@@ -241,13 +255,36 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay, 
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-1">
+        <div
+          className="grid grid-cols-7 gap-1 select-none"
+          // Pointer events + elementFromPoint so the drag also works with touch; no panning here
+          style={{ touchAction: 'none' }}
+          onPointerDown={e => {
+            if (e.button !== 0) return;
+            const ymd = (e.target as HTMLElement).closest<HTMLElement>('[data-ymd]')?.dataset.ymd;
+            if (!ymd) return;
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            setDrag({ anchor: ymd, current: ymd });
+          }}
+          onPointerMove={e => {
+            if (!drag) return;
+            const ymd = dayAt(e.clientX, e.clientY);
+            if (ymd && ymd !== drag.current) setDrag({ ...drag, current: ymd });
+          }}
+          onPointerUp={endDrag}
+          onPointerCancel={() => setDrag(null)}
+        >
           {grid.map((ymd, idx) => {
             if (!ymd) return <div key={`empty-${idx}`} className="h-7 rounded-md bg-transparent" />;
             const isToday = ymd === today;
             const isSelected = ymd === selectedDay;
-            const isEdge = isSelected || (!!range && (ymd === range.from || ymd === range.to));
-            const inRange = !!range && ymd > range.from && ymd < range.to;
+            // While dragging, preview the span being picked instead of the current selection
+            const span = drag
+              ? (drag.anchor < drag.current ? { from: drag.anchor, to: drag.current } : { from: drag.current, to: drag.anchor })
+              : range;
+            const isEdge = drag ? ymd === span!.from || ymd === span!.to : isSelected || (!!range && (ymd === range.from || ymd === range.to));
+            const inRange = !!span && ymd > span.from && ymd < span.to;
             const dayCards = getVisibleDayCards(ymd);
             // Days with tasks are colored: green once all are done, otherwise red when
             // due today or overdue and blue when still ahead
@@ -263,7 +300,9 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay, 
               <button
                 key={ymd}
                 type="button"
-                onClick={() => onPickDay?.(ymd)}
+                data-ymd={ymd}
+                // Mouse/touch picks go through the drag handlers; this covers the keyboard
+                onClick={e => { if (e.detail === 0) onPickDay?.(ymd); }}
                 aria-pressed={isEdge || inRange}
                 className={[
                   'h-7 rounded-md text-[12px] transition-colors',
@@ -276,7 +315,7 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay, 
                   : inRange
                   ? { background: 'var(--assistant-accent-bg)', color: statusColor }
                   : { color: statusColor }}
-                data-tip={isSelected ? `${ymd} · click again to show every date` : ymd}
+                data-tip={isSelected ? `${ymd} · click again to show every date` : `${ymd} · drag to pick a range`}
               >
                 {Number(day)}
               </button>

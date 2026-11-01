@@ -1831,6 +1831,11 @@ const handleKey = (
   const miniCalSelectedDay = dateMode === 'today' && taskFilter === 'none' ? focusDay : undefined;
   // Under Ranges the mini calendar draws the span the way the range picker does
   const miniCalRange = dateMode === 'range' && taskFilter === 'none' ? dateRange : undefined;
+  // Dragging across days in the mini calendar applies that span as the Ranges filter
+  const handleMiniCalendarPickRange = (range: DateRange) => {
+    applyRange(range);
+    closeDrawer();
+  };
   const handleMiniCalendarPickDay = (ymd: string) => {
     // Clicking the selected day again goes back to every date
     if (ymd === miniCalSelectedDay) {
@@ -1941,7 +1946,7 @@ const handleKey = (
               {/* Hide Completed on → no progress bar */}
               {showCompleted && <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />}
               <div className="mb-3 overflow-hidden rounded-2xl">
-                <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} range={miniCalRange} />
+                <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} range={miniCalRange} onPickRange={handleMiniCalendarPickRange} />
               </div>
               <ActionsPanel {...actionsPanelProps} />
             </div>
@@ -2187,7 +2192,7 @@ const handleKey = (
                   {/* Hide Completed on → no progress bar */}
                   {showCompleted && <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />}
                   <div className="mb-3 overflow-hidden rounded-2xl">
-                    <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} range={miniCalRange} />
+                    <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} range={miniCalRange} onPickRange={handleMiniCalendarPickRange} />
                   </div>
                   <ActionsPanel {...actionsPanelProps} />
                 </div>
