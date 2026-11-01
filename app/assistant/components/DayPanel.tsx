@@ -32,6 +32,7 @@ import { TaskRepeatModal } from './TaskRepeat';
 import { TaskFlagButton } from './TaskFlag';
 import { TaskNoteButton, TaskNoteModal } from './TaskNote';
 import { TaskRowMenu } from './TaskRowMenu';
+import { PanelPinButton } from './PanelPinButton';
 import { useShowAllGroups } from '../_hook/useShowAllGroups';
 import { useQuickFilters } from './QuickFiltersContext';
 import classes from '@/app/assistant/_theme/themes.module.css';
@@ -71,9 +72,12 @@ type Props = {
   open: boolean;
   onClose: () => void;
   ymd: string;
-  variant?: 'overlay' | 'dock';
+  /** tab: pinned as a main-panel tab — no frame or header (the tab names it) */
+  variant?: 'overlay' | 'dock' | 'tab';
   /** Weekday, "Nd ago" and date on one line, in a 49px header like the other panels */
   oneLineHeader?: boolean;
+  /** Shows a pin beside ✕ that moves the panel into the main panel's tabs */
+  onPin?: () => void;
 };
 
 function dayDiff(ymd: string): number {
@@ -89,6 +93,7 @@ export default function DayPanel({
   ymd,
   variant = 'overlay',
   oneLineHeader = false,
+  onPin,
 }: Props) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
@@ -354,7 +359,7 @@ export default function DayPanel({
         }
       `}</style>
 
-      {oneLineHeader ? (
+      {variant === 'tab' ? null : oneLineHeader ? (
         // Same 49px header as the other panels, always one row
         <div
           className="flex min-h-[49px] items-center justify-between gap-2 px-4 py-1.5 shrink-0"
@@ -376,6 +381,7 @@ export default function DayPanel({
               {formatPill(ymd)}
             </span>
           </div>
+          {onPin ? <PanelPinButton onPin={onPin} label={formatPill(ymd)} /> : null}
           <button
             type="button"
             onClick={requestClose}
@@ -406,14 +412,17 @@ export default function DayPanel({
             {formatPill(ymd)}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={requestClose}
-          className={`h-8 w-8 shrink-0 rounded-lg ${classes.panelCloseBtn}`}
-          aria-label="Close"
-        >
-          ✕
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          {onPin ? <PanelPinButton onPin={onPin} label={formatPill(ymd)} /> : null}
+          <button
+            type="button"
+            onClick={requestClose}
+            className={`h-8 w-8 shrink-0 rounded-lg ${classes.panelCloseBtn}`}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
       </div>
       )}
 
@@ -645,6 +654,10 @@ export default function DayPanel({
 
     </>
   );
+
+  if (variant === 'tab') {
+    return <div className="flex h-full min-h-0 w-full min-w-0 flex-col" style={{ color: 'var(--assistant-text)' }}>{body}</div>;
+  }
 
   if (variant === 'dock') {
     return (

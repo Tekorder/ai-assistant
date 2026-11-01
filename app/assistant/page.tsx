@@ -32,6 +32,8 @@ import {
   cleanupEmptyTasks,
   updateBlock,
   isValidDateYYYYMMDD,
+  parseYMD,
+  formatPill,
   taskCalendarDay,
   todayYMD,
   LS_KEY_CHECKLISTS,
@@ -56,6 +58,9 @@ const DOCK_LAYOUT_LS_KEY = 'youtask_dock_layout';
 const RESTORABLE_VIEWS: View[] = ['quick', 'timeline', 'calendar', 'lists', 'habits', 'reminders'];
 /** List / keyword panels pinned as tabs (each one its own tab) */
 const PINNED_PIVOTS_LS_KEY = 'youtask_pinned_pivots';
+/** Day panels pinned as tabs (one per day) */
+const PINNED_DAYS_LS_KEY = 'youtask_pinned_days';
+type DayPanelInstance = { id: string; ymd: string };
 type PivotInstance = { id: string; word: string; listId?: string };
 
 type SavedLayout = Partial<{
@@ -90,7 +95,7 @@ export default function App() {
       }
     }
     setActiveView(v);
-    setActivePinnedPivotId(null);
+    setActivePinnedId(null);
   }, [activeView]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -104,13 +109,12 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmClearChat, setConfirmClearChat] = useState(false);
   const [pivotInstances, setPivotInstances] = useState<PivotInstance[]>([]);
-  // Pinned list / keyword panels: tabs after the others; while one is open it replaces the
-  // main view (activeView stays as it was underneath)
+  // Pinned list / keyword and day panels: tabs after the fixed ones; while one is open it
+  // replaces the main view (activeView stays as it was underneath)
   const [pinnedPivots, setPinnedPivots] = useState<PivotInstance[]>([]);
-  const [activePinnedPivotId, setActivePinnedPivotId] = useState<string | null>(null);
-  const [dayPanelInstances, setDayPanelInstances] = useState<
-    Array<{ id: string; ymd: string }>
-  >([]);
+  const [pinnedDays, setPinnedDays] = useState<DayPanelInstance[]>([]);
+  const [activePinnedId, setActivePinnedId] = useState<string | null>(null);
+  const [dayPanelInstances, setDayPanelInstances] = useState<DayPanelInstance[]>([]);
 
   const MIN_SIDEBAR = 360;
   // Space left of the open sidebar (the sidebar card adds its own 12px margin on top)
@@ -343,13 +347,39 @@ export default function App() {
     const existing = pinnedPivots.find(same);
     if (!existing) persistPinnedPivots([...pinnedPivots, pivot]);
     setPivotInstances(prev => prev.filter(p => p.id !== pivot.id));
-    setActivePinnedPivotId(existing?.id ?? pivot.id);
+    setActivePinnedId(existing?.id ?? pivot.id);
   };
   const unpinPivot = (id: string) => {
     persistPinnedPivots(pinnedPivots.filter(p => p.id !== id));
-    if (activePinnedPivotId === id) setActivePinnedPivotId(null);
+    if (activePinnedId === id) setActivePinnedId(null);
   };
-  const activePinnedPivot = pinnedPivots.find(p => p.id === activePinnedPivotId) ?? null;
+  const activePinnedPivot = pinnedPivots.find(p => p.id === activePinnedId) ?? null;
+
+  // Day panels pin the same way, one tab per day
+  useEffect(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PINNED_DAYS_LS_KEY) ?? '[]');
+      if (Array.isArray(raw)) {
+        setPinnedDays(raw.filter((d): d is DayPanelInstance =>
+          Boolean(d) && typeof d.id === 'string' && isValidDateYYYYMMDD(d.ymd)));
+      }
+    } catch {}
+  }, []);
+  const persistPinnedDays = (next: DayPanelInstance[]) => {
+    setPinnedDays(next);
+    try { localStorage.setItem(PINNED_DAYS_LS_KEY, JSON.stringify(next)); } catch {}
+  };
+  const pinDay = (day: DayPanelInstance) => {
+    const existing = pinnedDays.find(d => d.ymd === day.ymd);
+    if (!existing) persistPinnedDays([...pinnedDays, day]);
+    setDayPanelInstances(prev => prev.filter(d => d.id !== day.id));
+    setActivePinnedId(existing?.id ?? day.id);
+  };
+  const unpinDay = (id: string) => {
+    persistPinnedDays(pinnedDays.filter(d => d.id !== id));
+    if (activePinnedId === id) setActivePinnedId(null);
+  };
+  const activePinnedDay = pinnedDays.find(d => d.id === activePinnedId) ?? null;
 
   useEffect(() => {
     return () => {
@@ -625,7 +655,7 @@ export default function App() {
 
   const handleSetActiveViewFromNav = useCallback((v: View) => {
     setActiveView(v);
-    setActivePinnedPivotId(null);
+    setActivePinnedId(null);
   }, []);
 
   const isLight = theme.style === 'light';
@@ -662,6 +692,13 @@ export default function App() {
             onGoTo={handlePivotGoTo}
             onToggleTask={handlePivotToggleTask}
           />
+        </div>
+      );
+    }
+    if (activePinnedDay && isDesktop === true) {
+      return (
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col px-3 md:px-8">
+          <DayPanel variant="tab" open ymd={activePinnedDay.ymd} onClose={() => unpinDay(activePinnedDay.id)} />
         </div>
       );
     }
@@ -829,7 +866,8 @@ export default function App() {
           height: accordionBarHeight(key),
           paddingTop: `calc((${ACCORDION_BAR} - 12px) / 2)`,
           // Leaves the header's right-hand buttons clickable: ✕, plus the pin on pinnable panels
-          right: pivotInstances.some(p => p.id === key) ? '6rem' : '3.5rem',
+          // Panels with a pin beside the ✕ keep both clickable
+          right: pivotInstances.some(p => p.id === key) || dayPanelInstances.some(d => d.id === key) ? '6rem' : '3.5rem',
           color: 'var(--assistant-text-muted)',
         }}
         aria-expanded={expanded}
@@ -1234,9 +1272,9 @@ export default function App() {
             >
               <div className="shrink-0 mx-auto w-full max-w-6xl px-3 md:px-8">
                 <div className={`px-3 ${classes.mainTabsBar}`}>
-                  {/* The fixed tabs (no ✕), then the pinned list / keyword panels */}
+                  {/* The fixed tabs (no ✕), then the pinned list / keyword and day panels */}
                   {NAV_ITEMS.map(item => {
-                    const isActive = activeView === item.id && !activePinnedPivot;
+                    const isActive = activeView === item.id && !activePinnedPivot && !activePinnedDay;
                     return (
                       <button
                         key={item.id}
@@ -1254,12 +1292,12 @@ export default function App() {
                   })}
                   {/* Pinned list / keyword panels, one tab each */}
                   {pinnedPivots.map(p => {
-                    const isActive = activePinnedPivotId === p.id;
+                    const isActive = activePinnedId === p.id;
                     return (
                       <button
                         key={p.id}
                         type="button"
-                        onClick={() => setActivePinnedPivotId(p.id)}
+                        onClick={() => setActivePinnedId(p.id)}
                         className={[
                           'group flex items-center justify-center gap-1 text-[14px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
                           isActive ? classes.mainTabActive : classes.mainTabInactive,
@@ -1269,6 +1307,27 @@ export default function App() {
                       >
                         {p.listId ? p.word : `“${p.word}”`}
                         {renderUnpinX(p.word, () => unpinPivot(p.id))}
+                      </button>
+                    );
+                  })}
+                  {/* Pinned day panels, one tab each ("Nov 9") */}
+                  {pinnedDays.map(d => {
+                    const isActive = activePinnedId === d.id;
+                    const label = parseYMD(d.ymd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setActivePinnedId(d.id)}
+                        className={[
+                          'group flex items-center justify-center gap-1 text-[14px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
+                          isActive ? classes.mainTabActive : classes.mainTabInactive,
+                        ].join(' ')}
+                        aria-current={isActive ? 'page' : undefined}
+                        data-tip={`Day: ${formatPill(d.ymd)}`}
+                      >
+                        {label}
+                        {renderUnpinX(formatPill(d.ymd), () => unpinDay(d.id))}
                       </button>
                     );
                   })}
@@ -1366,6 +1425,7 @@ export default function App() {
                     // Side by side: one-line header like the other panels; the accordion keeps two lines
                     oneLineHeader={!isAccordion}
                     onClose={() => closeDayPanelInstance(day.id)}
+                    onPin={() => pinDay(day)}
                   />
                 </div>
               </div>
