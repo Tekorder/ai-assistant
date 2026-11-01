@@ -42,7 +42,9 @@ import {
 import { validateSession } from '@/lib/session';
 import { useRouter } from 'next/navigation';
 import { WALDY_CLEAR_CHAT_EVENT } from './_hook/useTaskMessaging';
-import { version as APP_VERSION } from '../../package.json';
+import pkg from '../../package.json';
+
+const APP_VERSION = pkg.version;
 
 
 type View = 'chat' | 'reminders' | 'timeline' | 'archive' | 'quick' | 'calendar';

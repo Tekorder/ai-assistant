@@ -34,7 +34,7 @@ export function NewSectionDialog({
       >
         <div className={classes.modalHeader}>
           <label className={`mb-3 block ${classes.modalTitle}`} htmlFor="new-section-name">
-            New section
+            {listName ? `New section in “${listName}”` : 'New section'}
           </label>
           <input
             id="new-section-name"
