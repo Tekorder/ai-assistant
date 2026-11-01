@@ -8,6 +8,7 @@ import {
   LS_KEY_HABIT_LOGS,
   readHabitLogsLS,
   readHabitsLS,
+  todayYMD,
   type Habit,
   type HabitCheckInMethod,
   type HabitLog,
@@ -47,4 +48,19 @@ export function useHabits(): HabitsData {
   }, []);
 
   return data;
+}
+
+/** Today's YYYY-MM-DD, rolling over at midnight and when the tab wakes up. */
+export function useToday(): string {
+  const [today, setToday] = useState(todayYMD);
+  useEffect(() => {
+    const check = () => setToday(todayYMD());
+    const t = window.setInterval(check, 60_000);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, []);
+  return today;
 }

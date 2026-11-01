@@ -93,7 +93,9 @@ export const HABIT_IDEAS: HabitIdea[] = [
 ];
 
 /** The habit fields a template fills in (merge into makeHabit()). */
-export function habitFromTemplate(tpl: HabitTemplate): Partial<Habit> {
+export type TemplateFields = Pick<Habit, 'text' | 'emoji' | 'color' | 'kind' | 'goalValue' | 'goalUnit' | 'goalPeriod' | 'timeRange' | 'barAction' | 'templateKey'>;
+
+export function habitFromTemplate(tpl: HabitTemplate): TemplateFields {
   return {
     text: tpl.name,
     emoji: tpl.emoji,
