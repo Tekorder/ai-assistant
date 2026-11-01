@@ -777,10 +777,10 @@ export function HeaderSearch({
     );
   }
 
-  // compact: as wide as the room between the sidebar logo and the collapse button
+  // compact: from the sidebar logo to the header's right edge (it covers the collapse button while open)
   return (
     <div
-      className={`flex h-8 items-center gap-2 rounded-lg px-2.5 ${compact ? 'drop-in w-[144px]' : 'w-[min(240px,60vw)]'}`}
+      className={`flex h-8 items-center gap-2 rounded-lg px-2.5 ${compact ? 'drop-in w-[184px]' : 'w-[min(240px,60vw)]'}`}
       style={{ background: 'var(--assistant-control-bg)', border: '1px solid var(--assistant-border-soft)' }}
     >
       <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" style={{ color: 'var(--assistant-text-muted)' }} aria-hidden>

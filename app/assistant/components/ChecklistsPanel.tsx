@@ -23,7 +23,6 @@ import {
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { TaskCheckmark } from './TaskCheckmark';
 import { AgendaAddGhost, AGENDA_ADD_ANCHOR } from './AgendaList';
-import { PanelPinButton } from './PanelPinButton';
 
 /** Left padding of an item row by depth (16px per level, like Agenda's subtasks). */
 const itemRowPad = (indent: number) => 6 + (indent - 1) * 16;
@@ -35,11 +34,9 @@ type Props = {
   onClose: () => void;
   /** tab: a main-panel tab — no frame, title or close button; lists in a column beside the items */
   variant?: 'overlay' | 'dock' | 'tab';
-  /** Shows a pin beside ✕ that moves the panel into the main panel's tabs */
-  onPin?: () => void;
 };
 
-export default function ChecklistsPanel({ open, onClose, variant = 'overlay', onPin }: Props) {
+export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: Props) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
@@ -562,13 +559,10 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay', on
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1">
-            {onPin ? <PanelPinButton onPin={onPin} label="Checklists" /> : null}
-            <button type="button" onClick={requestClose}
-              className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close lists">
-              ✕
-            </button>
-          </div>
+          <button type="button" onClick={requestClose}
+            className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close lists">
+            ✕
+          </button>
         </div>
       )}
 

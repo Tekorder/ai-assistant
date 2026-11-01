@@ -18,6 +18,7 @@ import {
   uid,
   makeTaskBlock,
   makePersonalProject,
+  ensureDefaultGroups,
   // Persistence
   readProjectsLS,
   cleanupEmptyTasks,
@@ -577,18 +578,19 @@ export default function Quick(props: QuickProps = {}) {
         setHydrated(true);
         return;
       }
-      const personal = makePersonalProject();
-      setProjects([personal]);
-      setSelectedProjectId(personal.project_id);
-      const boot = { projects: [personal], selectedProjectId: personal.project_id };
+      // Nothing stored yet: boot with the starter groups (Personal, Work, Family), same as the Sidebar
+      const all = ensureDefaultGroups([]);
+      setProjects(all);
+      setSelectedProjectId(all[0].project_id);
+      const boot = { projects: all, selectedProjectId: all[0].project_id };
       lastWrittenRef.current = JSON.stringify(boot);
       writeProjectsLS(boot);
       setHydrated(true);
     } catch {
-      const personal = makePersonalProject();
-      setProjects([personal]);
-      setSelectedProjectId(personal.project_id);
-      const boot = { projects: [personal], selectedProjectId: personal.project_id };
+      const all = ensureDefaultGroups([]);
+      setProjects(all);
+      setSelectedProjectId(all[0].project_id);
+      const boot = { projects: all, selectedProjectId: all[0].project_id };
       lastWrittenRef.current = JSON.stringify(boot);
       writeProjectsLS(boot);
       setHydrated(true);

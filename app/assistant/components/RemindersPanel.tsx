@@ -19,7 +19,6 @@ import {
 import { createPortal } from 'react-dom';
 import { TaskFlagButton } from './TaskFlag';
 import { AgendaTaskRow, AgendaCheck, AgendaDate } from './AgendaList';
-import { PanelPinButton } from './PanelPinButton';
 import { reminderFallsOn } from '../_utils/reminderSchedule';
 import { HabitRemindersSection } from './habits/HabitRemindersSection';
 import classes from '@/app/assistant/_theme/themes.module.css';
@@ -52,11 +51,9 @@ type Props = {
   onClose: () => void;
   /** tab: a main-panel tab — no frame, title or close button */
   variant?: 'overlay' | 'dock' | 'tab';
-  /** Shows a pin beside ✕ that moves the panel into the main panel's tabs */
-  onPin?: () => void;
 };
 
-export default function RemindersPanel({ open, onClose, variant = 'overlay', onPin }: Props) {
+export default function RemindersPanel({ open, onClose, variant = 'overlay' }: Props) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
@@ -267,13 +264,10 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay', onP
         <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
           style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
           <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Reminders</h2>
-          <div className="flex items-center gap-1">
-            {onPin ? <PanelPinButton onPin={onPin} label="Reminders" /> : null}
-            <button type="button" onClick={requestClose}
-              className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
-              ✕
-            </button>
-          </div>
+          <button type="button" onClick={requestClose}
+            className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
+            ✕
+          </button>
         </div>
       )}
 

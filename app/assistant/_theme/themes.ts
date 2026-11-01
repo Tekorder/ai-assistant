@@ -397,9 +397,10 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	? 'linear-gradient(rgba(255,255,255,.25), rgba(255,255,255,.2))'
 	// Modals, menus and tooltips (it only feeds --assistant-overlay-panel-bg): the theme's
 	// color rises from the bottom-left corner and fades out toward the top-right.
-	// Light: a strong tint, and the white wash grows toward the top-right to keep it bright there
+	// Light: tinted with the page's glow color (light themes' tone-1 is the dark text color,
+	// which read as gray); the white wash grows toward the top-right to keep it bright there
 	: isLight ? [
-	    'linear-gradient(to top right, color-mix(in srgb, var(--assistant-tone-1) 45%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 18%, transparent) 45%, transparent 85%)',
+	    'linear-gradient(to top right, color-mix(in srgb, var(--assistant-bg-glow-color) 55%, transparent) 0%, color-mix(in srgb, var(--assistant-bg-glow-color) 22%, transparent) 45%, transparent 85%)',
 	    'linear-gradient(to top right, rgba(255,255,255,.15) 0%, rgba(255,255,255,.75) 100%)',
 	    'color-mix(in srgb, var(--assistant-bg) 95%, white)',
 	].join(', ') : [
@@ -409,7 +410,7 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	].join(', '),
 	'--assistant-overlay-panel-bg': hasImage
 	? [
-	    'linear-gradient(to top right, color-mix(in srgb, var(--assistant-tone-1) 35%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 12%, transparent) 45%, transparent 85%)',
+	    'linear-gradient(to top right, color-mix(in srgb, var(--assistant-bg-glow-color) 40%, transparent) 0%, color-mix(in srgb, var(--assistant-bg-glow-color) 14%, transparent) 45%, transparent 85%)',
 	    'linear-gradient(to top right, rgba(255,255,255,.80) 0%, rgba(255,255,255,.95) 100%)',
 	    'color-mix(in srgb, var(--assistant-bg) 95%, white)',
 	].join(', ')

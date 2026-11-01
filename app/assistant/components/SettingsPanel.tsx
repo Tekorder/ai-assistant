@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { exportAllData, importAllData, deleteAllData, type ImportMode } from '@/lib/datacenter';
+import { buildDemoData } from '@/lib/demoData';
 import NotificationSettings from './NotificationSettings';
 
 /** Typed to unlock the delete button — a deliberate step for an irreversible action. */
@@ -18,6 +19,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   const pendingModeRef = useRef<ImportMode>('merge');
   const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(null);
   const [confirmOverride, setConfirmOverride] = useState(false);
+  const [confirmDemo, setConfirmDemo] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteWord, setDeleteWord] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -77,6 +79,17 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
       setStatus({ text: 'Data imported successfully.' });
     } catch {
       setStatus({ text: 'Could not import that file — make sure it is a valid backup JSON.', error: true });
+    }
+  }, []);
+
+  // Replaces everything, like an override import, with the demo workspace dated around today
+  const handleLoadDemo = useCallback(() => {
+    setConfirmDemo(false);
+    try {
+      importAllData(buildDemoData(), 'override');
+      setStatus({ text: 'Demo data loaded.' });
+    } catch {
+      setStatus({ text: 'Could not load the demo data.', error: true });
     }
   }, []);
 
@@ -205,6 +218,24 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 
             <div style={{ borderTop: '1px solid var(--assistant-border-soft)' }} />
 
+            <section>
+              <h2 className="text-[14px] font-medium mb-1.5" style={{ color: 'var(--assistant-text-muted)' }}>
+                Demo data
+              </h2>
+              <p className="text-[14px] mb-3" style={{ color: 'var(--assistant-text-soft)' }}>
+                Fill the app with sample groups, lists, tasks, habits, reminders and checklists, dated around today.
+              </p>
+              <button
+                type="button"
+                onClick={() => setConfirmDemo(true)}
+                className={`w-full max-w-[280px] rounded-lg px-3.5 py-2.5 text-left text-[14px] font-medium transition-colors ${classes.panelBtn}`}
+              >
+                Load demo data
+              </button>
+            </section>
+
+            <div style={{ borderTop: '1px solid var(--assistant-border-soft)' }} />
+
             <section
               className="rounded-xl p-4"
               style={{
@@ -276,6 +307,43 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                 style={{ background: '#f87171', color: '#1a0505' }}
               >
                 Override
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDemo && (
+        <div className="fixed inset-0 z-[10060] flex items-center justify-center p-5">
+          <button
+            type="button"
+            className={`fixed inset-0 ${classes.modalBackdrop}`}
+            onClick={() => setConfirmDemo(false)}
+            aria-label="Cancel"
+          />
+          <div
+            role="alertdialog"
+            className={`relative z-10 w-full max-w-[360px] p-6 ${classes.modalCard}`}
+          >
+            <h3 className={`mb-2 ${classes.modalTitle}`}>Load demo data?</h3>
+            <p className="text-[14px] mb-5" style={{ color: 'var(--assistant-text-soft)' }}>
+              This will replace all your current lists, habits, reminders and checklists with the demo data. Export a backup first if you want to keep them.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDemo(false)}
+                className={`flex-1 rounded-lg px-3.5 py-2.5 text-[14px] font-medium transition-colors ${classes.panelBtn}`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLoadDemo}
+                className="flex-1 rounded-lg px-3.5 py-2.5 text-[14px] font-medium transition-colors"
+                style={{ background: '#f87171', color: '#1a0505' }}
+              >
+                Load demo
               </button>
             </div>
           </div>

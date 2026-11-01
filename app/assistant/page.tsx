@@ -54,10 +54,6 @@ const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
 const LAYOUT_LS_KEY = 'youtask_workspace_layout_v1';
 const DOCK_LAYOUT_LS_KEY = 'youtask_dock_layout';
 const RESTORABLE_VIEWS: View[] = ['quick', 'timeline', 'calendar', 'lists', 'habits', 'reminders'];
-/** Panels that can be pinned as main-panel tabs (desktop); the other tabs are always there */
-const PINNABLE_VIEWS = ['lists', 'habits', 'reminders'] as const;
-type PinnableView = (typeof PINNABLE_VIEWS)[number];
-const PINNED_TABS_LS_KEY = 'youtask_pinned_tabs';
 /** List / keyword panels pinned as tabs (each one its own tab) */
 const PINNED_PIVOTS_LS_KEY = 'youtask_pinned_pivots';
 type PivotInstance = { id: string; word: string; listId?: string };
@@ -327,39 +323,8 @@ export default function App() {
   const toggleActivity = useCallback(() => setActivityOpen((v) => !v), []);
   const toggleLists = useCallback(() => setListsOpen((v) => !v), []);
 
-  // Pinned panels (desktop): Checklists / Habits / Reminders shown as main-panel tabs.
-  // A panel's pin closes it in the dock and opens its tab; the tab's ✕ unpins it.
-  // Remembered per browser.
-  const [pinnedTabs, setPinnedTabs] = useState<PinnableView[]>([]);
-  const [pinnedLoaded, setPinnedLoaded] = useState(false);
-  useEffect(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(PINNED_TABS_LS_KEY) ?? '[]');
-      if (Array.isArray(raw)) setPinnedTabs(PINNABLE_VIEWS.filter(v => raw.includes(v)));
-    } catch {}
-    setPinnedLoaded(true);
-  }, []);
-  useEffect(() => {
-    if (!pinnedLoaded) return;
-    try { localStorage.setItem(PINNED_TABS_LS_KEY, JSON.stringify(pinnedTabs)); } catch {}
-  }, [pinnedTabs, pinnedLoaded]);
-  const isPinned = (v: View) => (pinnedTabs as View[]).includes(v);
-  const closeDockPanel: Record<PinnableView, () => void> = {
-    lists: () => setListsOpen(false),
-    habits: () => setHabitsOpen(false),
-    reminders: () => setRemindersOpen(false),
-  };
-  const pinPanel = (v: PinnableView) => {
-    setPinnedTabs(prev => (prev.includes(v) ? prev : PINNABLE_VIEWS.filter(p => p === v || prev.includes(p))));
-    closeDockPanel[v]();
-    handleSetActiveView(v);
-  };
-  const unpinTab = (v: PinnableView) => {
-    setPinnedTabs(prev => prev.filter(p => p !== v));
-    if (activeView === v) setActiveView('quick');
-  };
-
-  // List / keyword panels pin the same way, each as its own tab (one per list / word)
+  // Pinned list / keyword panels (desktop): a panel's pin closes it in the dock and adds it
+  // as its own main-panel tab (one per list / word); the tab's ✕ unpins it. Remembered per browser.
   useEffect(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(PINNED_PIVOTS_LS_KEY) ?? '[]');
@@ -385,14 +350,6 @@ export default function App() {
     if (activePinnedPivotId === id) setActivePinnedPivotId(null);
   };
   const activePinnedPivot = pinnedPivots.find(p => p.id === activePinnedPivotId) ?? null;
-  // Desktop: a panel view only shows as a tab while it's pinned (e.g. a restored layout
-  // that was on a tab since unpinned) → back to Agenda
-  useEffect(() => {
-    if (isDesktop !== true || !pinnedLoaded) return;
-    if ((PINNABLE_VIEWS as readonly View[]).includes(activeView) && !(pinnedTabs as View[]).includes(activeView)) {
-      setActiveView('quick');
-    }
-  }, [isDesktop, pinnedLoaded, activeView, pinnedTabs]);
 
   useEffect(() => {
     return () => {
@@ -872,7 +829,7 @@ export default function App() {
           height: accordionBarHeight(key),
           paddingTop: `calc((${ACCORDION_BAR} - 12px) / 2)`,
           // Leaves the header's right-hand buttons clickable: ✕, plus the pin on pinnable panels
-          right: (PINNABLE_VIEWS as readonly string[]).includes(key) || pivotInstances.some(p => p.id === key) ? '6rem' : '3.5rem',
+          right: pivotInstances.some(p => p.id === key) ? '6rem' : '3.5rem',
           color: 'var(--assistant-text-muted)',
         }}
         aria-expanded={expanded}
@@ -989,18 +946,9 @@ export default function App() {
   ]);
 
   // Checklists / Habits / Reminders toggles (sidebar header + closed-sidebar rail)
-  // A pinned one lives in the tabs, so the menu switches to its tab instead of opening a dock panel
   const panelsMenuProps = {
-    open: {
-      lists: isPinned('lists') ? activeView === 'lists' : listsOpen,
-      habits: isPinned('habits') ? activeView === 'habits' : habitsOpen,
-      reminders: isPinned('reminders') ? activeView === 'reminders' : remindersOpen,
-    },
-    onToggle: {
-      lists: isPinned('lists') ? () => handleSetActiveView('lists') : toggleLists,
-      habits: isPinned('habits') ? () => handleSetActiveView('habits') : toggleHabits,
-      reminders: isPinned('reminders') ? () => handleSetActiveView('reminders') : toggleReminders,
-    },
+    open: { lists: listsOpen, habits: habitsOpen, reminders: remindersOpen },
+    onToggle: { lists: toggleLists, habits: toggleHabits, reminders: toggleReminders },
   };
 
   // Shared by the sidebar foot and the closed-sidebar rail
@@ -1061,8 +1009,9 @@ export default function App() {
           />
         </div>
         {/* Search + reminders bell + Checklists / Habits / Reminders menu — left of the collapse
-            button. While searching, the field takes the place of all three icons */}
-        <div className="absolute right-[3.25rem] top-3 z-[120] flex items-center gap-1">
+            button. While searching, the field takes the place of all three icons and runs to the
+            header's right edge, over the collapse button */}
+        <div className={`absolute top-3 flex items-center gap-1 ${sidebarSearchOpen ? 'right-3 z-[130]' : 'right-[3.25rem] z-[120]'}`}>
           <HeaderSearch
             compact
             open={sidebarSearchOpen}
@@ -1285,10 +1234,9 @@ export default function App() {
             >
               <div className="shrink-0 mx-auto w-full max-w-6xl px-3 md:px-8">
                 <div className={`px-3 ${classes.mainTabsBar}`}>
-                  {/* Agenda / Timeline / Calendar always; Checklists / Habits / Reminders only once pinned */}
-                  {NAV_ITEMS.filter(item => !(PINNABLE_VIEWS as readonly View[]).includes(item.id) || isPinned(item.id)).map(item => {
+                  {/* The fixed tabs (no ✕), then the pinned list / keyword panels */}
+                  {NAV_ITEMS.map(item => {
                     const isActive = activeView === item.id && !activePinnedPivot;
-                    const pinned = (PINNABLE_VIEWS as readonly View[]).includes(item.id);
                     return (
                       <button
                         key={item.id}
@@ -1301,8 +1249,6 @@ export default function App() {
                         aria-current={isActive ? 'page' : undefined}
                       >
                         {item.label}
-                        {/* ✕ unpins: the tab goes away (it opens as a panel again from the panels menu) */}
-                        {pinned ? renderUnpinX(item.label, () => unpinTab(item.id as PinnableView)) : null}
                       </button>
                     );
                   })}
@@ -1341,7 +1287,7 @@ export default function App() {
             <div className={dockSlotInnerClass('habits')}>
               {accordionBar('habits', 'Habits')}
               {isDesktop && habitsOpen && (
-                <HabitsPanel variant="dock" open onClose={() => setHabitsOpen(false)} onPin={() => pinPanel('habits')} />
+                <HabitsPanel variant="dock" open onClose={() => setHabitsOpen(false)} />
               )}
             </div>
           </div>
@@ -1350,7 +1296,7 @@ export default function App() {
             <div className={dockSlotInnerClass('reminders')}>
               {accordionBar('reminders', 'Reminders')}
               {isDesktop && remindersOpen && (
-                <RemindersPanel variant="dock" open onClose={() => setRemindersOpen(false)} onPin={() => pinPanel('reminders')} />
+                <RemindersPanel variant="dock" open onClose={() => setRemindersOpen(false)} />
               )}
             </div>
           </div>
@@ -1373,7 +1319,7 @@ export default function App() {
             <div className={dockSlotInnerClass('lists')}>
               {accordionBar('lists', 'Checklists')}
               {isDesktop && listsOpen && (
-                <ChecklistsPanel variant="dock" open onClose={() => setListsOpen(false)} onPin={() => pinPanel('lists')} />
+                <ChecklistsPanel variant="dock" open onClose={() => setListsOpen(false)} />
               )}
             </div>
           </div>

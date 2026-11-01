@@ -676,7 +676,10 @@ export function ensureDefaultGroups(projects: Project[]): Project[] {
   return [...defaults, ...rest];
 }
 
+/** Per account (not per browser): a new account on this browser, or one whose data was
+ *  cleared, still gets its starter groups. The old browser-wide key is ignored. */
 const LS_KEY_GROUPS_SEEDED = 'youtask_groups_seeded';
+const groupsSeededKey = () => `${LS_KEY_GROUPS_SEEDED}__${getCurrentUid() || 'local'}`;
 
 /** Adds the starter groups to this device's projects (and uploads, once synced). */
 function seedDefaultGroups(): void {
@@ -688,9 +691,9 @@ function seedDefaultGroups(): void {
 /** No server to remember it (local mode / testuser) → this browser remembers instead. */
 function seedDefaultGroupsLocallyOnce(): void {
   try {
-    if (localStorage.getItem(LS_KEY_GROUPS_SEEDED)) return;
+    if (localStorage.getItem(groupsSeededKey())) return;
     seedDefaultGroups();
-    localStorage.setItem(LS_KEY_GROUPS_SEEDED, '1');
+    localStorage.setItem(groupsSeededKey(), '1');
   } catch {}
 }
 
