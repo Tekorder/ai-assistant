@@ -227,23 +227,34 @@ export function isPerfectWeek(habit: Habit, index: HabitLogIndex, monday: string
 
 /* ===================== All habits together ===================== */
 
-export type OverallMonth = {
-  /** done ÷ judged check-ins over the month so far (null = nothing judged) */
+export type Overall = {
+  /** done ÷ judged check-ins over the range so far (null = nothing judged) */
   rate: number | null;
   /** Days on which every due habit was done */
   perfectDays: number;
-  /** Longest run of perfect days in the month */
+  /** Longest run of perfect days in the range */
   bestPerfectStreak: number;
-  /** Done check-ins in the month */
+  /** Done check-ins in the range */
   habitsDone: number;
   /** Done check-ins per elapsed day */
   dailyAverage: number;
-  /** Per day of the month: done/due (due 0 = nothing scheduled) */
+  /** Per day: done/due (due 0 = nothing scheduled) */
   days: { date: string; done: number; due: number }[];
 };
 
-export function overallMonth(habits: Habit[], index: HabitLogIndex, anyDayOfMonth: string, today: string): OverallMonth {
+/** A day where every due habit got done. */
+export function isPerfectDay(d: { date: string; done: number; due: number }, today: string): boolean {
+  return d.date <= today && d.due > 0 && d.done === d.due;
+}
+
+/** All habits together over a month. */
+export function overallMonth(habits: Habit[], index: HabitLogIndex, anyDayOfMonth: string, today: string): Overall {
   const { from, to } = periodBounds('month', anyDayOfMonth);
+  return overallRange(habits, index, from, to, today);
+}
+
+/** All habits together over any range of days (the tracker's week, the Stats month). */
+export function overallRange(habits: Habit[], index: HabitLogIndex, from: string, to: string, today: string): Overall {
   const days = eachDay(from, to).map(date => ({ date, ...dayCompletion(habits, index, date, today) }));
   let perfectDays = 0;
   let run = 0;

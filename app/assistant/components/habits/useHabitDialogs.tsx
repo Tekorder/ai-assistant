@@ -8,6 +8,7 @@ import { checkInHabit } from '@/app/assistant/_utils/habitActions';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { HabitDetail, type HabitDetailActions } from './HabitDetail';
 import { HabitEditor } from './HabitEditor';
+import { HabitManager } from './HabitManager';
 import { HabitModal } from './HabitModal';
 import { NewHabitDialog } from './NewHabitDialog';
 import { ValueEntryDialog } from './ValueEntryDialog';
@@ -29,6 +30,7 @@ export function useHabitDialogs(habits: Habit[], index: HabitLogIndex) {
   const today = useToday();
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [detail, setDetail] = useState<{ id: string; ymd: string } | null>(null);
+  const [managing, setManaging] = useState(false);
   const close = useCallback(() => setDialog(null), []);
 
   /** The card's main action on `ymd`: an amount prompt, or a check-in (then the memo prompt). */
@@ -45,6 +47,8 @@ export function useHabitDialogs(habits: Habit[], index: HabitLogIndex) {
   const edit = useCallback((habit: Habit) => setDialog({ kind: 'edit', habit, isNew: false }), []);
   /** Opens the habit's page, its progress ring on `ymd` (default today). */
   const open = useCallback((habit: Habit, ymd?: string) => setDetail({ id: habit.id, ymd: ymd ?? today }), [today]);
+
+  const manage = useCallback(() => setManaging(true), []);
 
   const groups = useMemo(() => [...new Set(habits.map(h => h.group).filter((g): g is string => Boolean(g)))].sort(), [habits]);
 
@@ -94,8 +98,18 @@ export function useHabitDialogs(habits: Habit[], index: HabitLogIndex) {
     );
   }
 
+  // Bottom → top: manager, a habit's page, then any dialog
   const dialogs = (
     <>
+      {managing ? (
+        <HabitManager
+          habits={habits}
+          onClose={() => setManaging(false)}
+          onOpen={h => open(h)}
+          onEdit={edit}
+          onDelete={habit => setDialog({ kind: 'delete', habit })}
+        />
+      ) : null}
       {detailHabit && detail ? (
         <HabitDetail
           key={detailHabit.id}
@@ -111,7 +125,7 @@ export function useHabitDialogs(habits: Habit[], index: HabitLogIndex) {
     </>
   );
 
-  return { act, startNew, edit, open, dialogs };
+  return { act, startNew, edit, open, manage, dialogs };
 }
 
 function DeleteHabitDialog({ habit, onCancel, onDelete }: { habit: Habit; onCancel: () => void; onDelete: () => void }) {
