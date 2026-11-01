@@ -4,6 +4,7 @@
 // everything reads the --assistant-* variables.
 
 import React, { useLayoutEffect, useRef, useState } from 'react';
+import classes from '@/app/assistant/_theme/themes.module.css';
 
 export const fmtPct = (v: number | null) => (v == null ? '—' : `${Math.round(v * 100)}%`);
 export const fmtNum = (v: number, digits = 0) =>
@@ -31,8 +32,7 @@ export function Card({ title, aside, children, className = '' }: {
 }) {
   return (
     <section
-      className={`rounded-xl p-4 ${className}`}
-      style={{ background: 'var(--assistant-surface)', border: '1px solid var(--assistant-border-soft)' }}
+      className={`rounded-xl p-4 ${classes.dashCard} ${className}`}
     >
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h3 className="text-[13px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>{title}</h3>
@@ -81,8 +81,7 @@ export function KpiTile({ label, value, sub, icon }: {
 }) {
   return (
     <div
-      className="flex min-w-0 flex-col gap-1 rounded-xl px-4 py-3.5"
-      style={{ background: 'var(--assistant-surface)', border: '1px solid var(--assistant-border-soft)' }}
+      className={`flex min-w-0 flex-col gap-1 rounded-xl px-4 py-3.5 ${classes.dashCard}`}
     >
       {icon ? <div className="text-[18px] leading-none" aria-hidden="true">{icon}</div> : null}
       <div className="break-words text-[12px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>{label}</div>

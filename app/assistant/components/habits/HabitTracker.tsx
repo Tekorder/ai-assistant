@@ -149,8 +149,7 @@ function Summary({ items }: { items: { label: string; value: string }[] }) {
   return (
     <div className="grid grid-cols-3 gap-2">
       {items.map(i => (
-        <div key={i.label} className="rounded-xl px-3 py-2.5 text-center"
-          style={{ background: 'var(--assistant-surface)', border: '1px solid var(--assistant-border-soft)' }}>
+        <div key={i.label} className={`rounded-xl px-3 py-2.5 text-center ${classes.dashCard}`}>
           <div className="text-[22px] font-bold tabular-nums" style={{ color: 'var(--assistant-text)' }}>{i.value}</div>
           <div className="text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>{i.label}</div>
         </div>
