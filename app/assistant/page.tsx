@@ -1015,7 +1015,8 @@ export default function App() {
           <IconTip label={mobile ? 'Close' : 'Hide sidebar'} side="bottom-end">
             <button
               type="button"
-              onClick={mobile ? requestCloseSidebar : toggleSidebar}
+              // Same as the rail's expand button: don't keep the focus on a button that hides
+              onClick={e => { e.currentTarget.blur(); if (mobile) requestCloseSidebar(); else toggleSidebar(); }}
               className="flex h-8 w-8 items-center justify-center rounded-md transition-colors"
               style={{ color: 'var(--assistant-text-muted)' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
@@ -1194,7 +1195,9 @@ export default function App() {
               <IconTip label="Show sidebar" side="right">
                 <button
                   type="button"
-                  onClick={toggleSidebar}
+                  // Let go of the focus: the button hides while the sidebar is open, and when the
+                  // sidebar folds back on its own it would reappear still focused (with the ring)
+                  onClick={e => { e.currentTarget.blur(); toggleSidebar(); }}
                   className="flex h-9 w-9 items-center justify-center rounded-md transition-colors"
                   style={{ color: 'var(--assistant-text-muted)' }}
                   onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}

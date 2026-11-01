@@ -367,6 +367,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                 label="Checklist…"
                 ariaLabel="Add checklist"
                 className="max-md:hidden"
+                icon="plus"
               />
             )}
             </React.Fragment>
@@ -491,6 +492,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                     paddingLeft={ghostPad(depth + 1)}
                     label="Sub-item…"
                     ariaLabel="Add sub-item"
+                    icon="plus"
                   />
                 ) : (
                   <AgendaAddGhost
@@ -498,6 +500,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                     paddingLeft={ghostPad(depth)}
                     label={depth > 1 ? 'Sub-item…' : 'Item…'}
                     ariaLabel={depth > 1 ? 'Add sub-item' : 'Add item'}
+                    icon="plus"
                   />
                 ))}
                 </React.Fragment>
