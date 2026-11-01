@@ -382,8 +382,8 @@ export default function CalendarView({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <SourceToggle value={source} onChange={setSource} />
-            {/* View by: due date or creation date (shared with Workspace's "View by") */}
+            {/* View by: due date or creation date (shared with Workspace's "View by").
+                Left of the source toggle so switching source doesn't shift it. */}
             {isTasks ? <div
               role="radiogroup"
               aria-label="Place tasks by"
@@ -408,6 +408,7 @@ export default function CalendarView({
                 );
               })}
             </div> : null}
+            <SourceToggle value={source} onChange={setSource} />
             <button
               type="button"
               onClick={goToday}
