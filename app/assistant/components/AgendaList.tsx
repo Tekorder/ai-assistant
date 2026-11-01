@@ -202,6 +202,7 @@ export function AgendaAddGhost({
   label,
   ariaLabel,
   className = '',
+  icon = 'circle',
 }: {
   onClick: () => void;
   paddingLeft: number;
@@ -209,6 +210,8 @@ export function AgendaAddGhost({
   label: string;
   ariaLabel: string;
   className?: string;
+  /** circle: an empty check (Agenda tasks) · plus: a "+" (checklist items and lists) */
+  icon?: 'circle' | 'plus';
 }) {
   return (
     <button
@@ -219,7 +222,14 @@ export function AgendaAddGhost({
       style={{ paddingLeft, marginTop: 0, marginBottom: 0 }}
     >
       <span className="h-4 w-4 shrink-0 flex items-center justify-center">
-        <span className="h-3.5 w-3.5 rounded-full border border-dashed" style={{ borderColor: 'var(--assistant-text-faint)' }} />
+        {icon === 'plus' ? (
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"
+            style={{ color: 'var(--assistant-text-faint)' }}>
+            <path strokeLinecap="round" d="M8 3.5v9M3.5 8h9" />
+          </svg>
+        ) : (
+          <span className="h-3.5 w-3.5 rounded-full border border-dashed" style={{ borderColor: 'var(--assistant-text-faint)' }} />
+        )}
       </span>
       <span className="text-[14px] md:text-sm leading-[1.45]" style={{ color: 'var(--assistant-text-faint)' }}>
         {label}
