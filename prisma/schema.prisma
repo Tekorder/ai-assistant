@@ -63,6 +63,9 @@ model Block {
   order         Int      @default(0)
   checked       Boolean?
   deadline      String?
+  /// YYYY-MM-DD the task was checked; null while open. Reports, Timeline and Calendar place
+  /// done tasks by it (the due date no longer moves to the completion day)
+  completedAt   String?
   /// Optional time on the due date, "HH:MM" (24h); deadline stays a plain YYYY-MM-DD
   dueTime       String?
   /// Weekdays a recurring task repeats on (0 = Sun … 6 = Sat); empty = not recurring.
@@ -89,6 +92,7 @@ model Block {
   @@index([projectId, parentLocalId, order])
   @@index([projectId])
   @@index([deadline])
+  @@index([completedAt])
   @@index([archived])
 }
 

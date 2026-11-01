@@ -34,6 +34,8 @@ import {
   moveOpenTasksToList,
   updateBlock as updateBlockArr,
   removeTaskWithSubtasks,
+  hasSubtasks,
+  syncParentsFromSubtasks,
   addTaskUnderList as addTaskUnderListArr,
   createList as createListArr,
   createBlankList,
@@ -84,7 +86,7 @@ import { DeleteWithOpenTasksDialog, buildMoveTargets } from '../DeleteWithOpenTa
 import { DateRangeDialog } from '../DateRangeDialog';
 import { NewTaskDialog, type NewTaskListOption, type NewTaskTarget } from '../NewTaskDialog';
 import { HiddenTaskDialog, isHiddenTaskNoticeMuted, type HiddenTaskReason } from '../HiddenTaskDialog';
-import { AgendaListHeader, AgendaTaskRow, AgendaCheck, AgendaDate, AgendaMenuButton, AgendaSectionRow, AgendaSectionEnd, agendaSectionTitleClass, agendaRowPad } from '../AgendaList';
+import { AgendaListHeader, AgendaTaskRow, AgendaCheck, AgendaDate, AgendaMenuButton, AgendaSectionRow, AgendaSectionEnd, AgendaAddGhost, agendaSectionTitleClass, agendaRowPad } from '../AgendaList';
 import { NewSectionDialog } from '../NewSectionDialog';
 
 /**
@@ -487,7 +489,7 @@ export default function Quick(props: QuickProps = {}) {
   const [noteModalTaskId, setNoteModalTaskId] = useState<string | null>(null);
   const [reminderModalTaskId, setReminderModalTaskId] = useState<string | null>(null);
   const [repeatModalTaskId, setRepeatModalTaskId] = useState<string | null>(null);
-  const checkUndoRef = useRef<Array<Array<Pick<Block, 'id' | 'checked' | 'deadline' | 'isHidden' | 'doneDates'>>>>([]);
+  const checkUndoRef = useRef<Array<Array<Pick<Block, 'id' | 'checked' | 'deadline' | 'completedAt' | 'isHidden' | 'doneDates'>>>>([]);
   const undoLastCheckRef = useRef<() => boolean>(() => false);
   useEffect(() => () => {
     if (armTimerRef.current) window.clearTimeout(armTimerRef.current);
@@ -536,7 +538,8 @@ export default function Quick(props: QuickProps = {}) {
       const next    = prev.map(p => ({ ...p }));
       const old     = next[safeIdx].blocks ?? moveUncToTop(ensureUncExists([]));
       let newBlocks = typeof nextFn === 'function' ? nextFn(old) : nextFn;
-      newBlocks     = sortBlocksByOrder(moveUncToTop(ensureUncExists(newBlocks)));
+      // Any change (new subtask, drag, date…) keeps parents in step with their subtasks
+      newBlocks     = syncParentsFromSubtasks(sortBlocksByOrder(moveUncToTop(ensureUncExists(newBlocks))));
       next[safeIdx] = { ...next[safeIdx], blocks: newBlocks };
       return next;
     });
@@ -806,7 +809,7 @@ export default function Quick(props: QuickProps = {}) {
         .filter(b => before.has(b.id) && (Boolean(before.get(b.id)!.checked) !== Boolean(b.checked) || before.get(b.id)!.doneDates !== b.doneDates))
         .map(b => {
           const old = before.get(b.id)!;
-          return { id: b.id, checked: old.checked, deadline: old.deadline, isHidden: old.isHidden, doneDates: old.doneDates };
+          return { id: b.id, checked: old.checked, deadline: old.deadline, completedAt: old.completedAt, isHidden: old.isHidden, doneDates: old.doneDates };
         });
       if (changed.length) {
         checkUndoRef.current.push(changed);
@@ -846,7 +849,7 @@ export default function Quick(props: QuickProps = {}) {
     setCurrentBlocks(prev => prev.map(b => {
       const e = byId.get(b.id);
       // Undoing a recurring completion keeps doneDates as a (possibly empty) list, so the server drops that row
-      return e ? { ...b, checked: e.checked, deadline: e.deadline, isHidden: e.isHidden, ...(b.doneDates ? { doneDates: e.doneDates ?? [] } : {}) } : b;
+      return e ? { ...b, checked: e.checked, deadline: e.deadline, completedAt: e.completedAt, isHidden: e.isHidden, ...(b.doneDates ? { doneDates: e.doneDates ?? [] } : {}) } : b;
     }));
     return true;
   };
@@ -1471,20 +1474,13 @@ const handleKey = (
       label = 'Task…',
     ) => (dragRef.current && !visible) ? null : (
       // Hover ghosts aren't offered mid-drag (the dragged row would keep suggesting one)
-      <button
-        type="button"
+      <AgendaAddGhost
         onClick={onClick}
-        aria-label={label === 'Task…' ? 'Add task' : 'Add subtask'}
-        className={`${visible ? 'py-1' : 'quick-add-ghost'} w-full flex items-center px-0.5 gap-1 text-left`}
-        style={{ paddingLeft, marginTop: 0, marginBottom: 0 }}
-      >
-        <span className="h-4 w-4 shrink-0 flex items-center justify-center">
-          <span className="h-3.5 w-3.5 rounded-full border border-dashed" style={{ borderColor: 'var(--assistant-text-faint)' }} />
-        </span>
-        <span className="text-[14px] md:text-sm leading-[1.45]" style={{ color: 'var(--assistant-text-faint)' }}>
-          {label}
-        </span>
-      </button>
+        paddingLeft={paddingLeft}
+        visible={visible}
+        label={label}
+        ariaLabel={label === 'Task…' ? 'Add task' : 'Add subtask'}
+      />
     );
     // Sections (and the button that adds them) only exist in the "All" view
     const sectionsShown = dateMode === 'all';
@@ -1561,6 +1557,7 @@ const handleKey = (
       const nextRow = i !== undefined ? shownRows?.[i + 1] : undefined;
       const hasShownSubtasks = Boolean(nextRow && !nextRow.section && nextRow.indent > task.indent);
       const occDay = occurrenceDay(task);
+      const isParent = !isRecurringTask(task) && hasSubtasks(pBlocks, task.id);
       const toggleDone = occDay
         ? () => { const next = toggleOccurrence(task, occDay); handleUpdateBlock(task.id, { doneDates: next.doneDates, deadline: next.deadline }); }
         : () => handleUpdateBlock(task.id, { checked: !task.checked });
@@ -1574,7 +1571,9 @@ const handleKey = (
             onDragEnd={onDragEndRow}
             className={[tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) ? 'quick-add-anchor' : ''].join(' ')}
             indent={task.indent}
-            check={
+            // A parent completes through its subtasks only, so it has no check of its own
+            // (its text starts where the check would be)
+            check={isParent ? null : (
               <AgendaCheck checked={isTaskDone(task)} onToggle={toggleDone}>
                 {pulseId === task.id ? (
                   <>
@@ -1585,7 +1584,7 @@ const handleKey = (
                   </>
                 ) : null}
               </AgendaCheck>
-            }
+            )}
             right={
               <>
                 {/* Pinned on the right (only when set): flag, then note — everything else lives in the ⋮ menu */}
@@ -1922,22 +1921,6 @@ const handleKey = (
         .quick-search-icon { color: var(--assistant-text-faint); transition: color 0.15s ease; }
         .quick-search:focus-within .quick-search-icon { color: var(--assistant-accent); }
         .quick-search input::placeholder { color: var(--assistant-text-faint); }
-        .quick-add-ghost {
-          max-height: 0; opacity: 0; overflow: hidden; cursor: text;
-          transition: max-height 0.15s ease 0.25s, opacity 0.15s ease 0.25s, padding 0.15s ease 0.25s;
-        }
-        .quick-add-anchor:hover + .quick-add-ghost,
-        .quick-add-ghost:hover,
-        .quick-add-ghost:focus-visible {
-          max-height: 2rem; opacity: 1; padding-top: 0.25rem; padding-bottom: 0.25rem;
-          transition-delay: 0s;
-        }
-        /* Hovering the row only reveals it after resting there 1s (like the keyword links),
-           so sweeping the pointer across the list doesn't make rows jump. Once shown,
-           moving onto the ghost itself keeps it open right away (rule above). */
-        .quick-add-anchor:hover + .quick-add-ghost:not(:hover):not(:focus-visible) {
-          transition-delay: 1s;
-        }
       `}</style>
 
       {/* Filters bottom sheet — mobile, or a desktop main panel too narrow for the filters column */}
@@ -2005,7 +1988,8 @@ const handleKey = (
 
               {/* Date pagination header — fixed above the scroll area, never overlapped by the tasks */}
               <div className="shrink-0 z-30">
-                <div className={`flex items-center justify-between gap-1 px-3 py-1 md:gap-3 md:px-4 md:py-1.5 ${classes.quickHeaderBar}`}>
+                {/* Wraps when the date doesn't leave room: New Task drops to its own row */}
+                <div className={`flex flex-wrap items-center justify-between gap-x-1 gap-y-1 px-3 py-1 md:gap-x-3 md:px-4 md:py-1.5 ${classes.quickHeaderBar}`}>
 
                   {/* Left: ‹ date › */}
                   <div className="flex items-center gap-1 sm:gap-2 min-w-0">
@@ -2106,7 +2090,7 @@ const handleKey = (
                   </div>
 
                   {/* Right: New Task */}
-                  <div className="flex items-center justify-end gap-2 shrink-0">
+                  <div className="ml-auto flex items-center justify-end gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={openNewTaskDialog}

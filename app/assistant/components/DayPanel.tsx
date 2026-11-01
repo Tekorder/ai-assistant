@@ -6,6 +6,7 @@ import {
   LS_KEY_V2,
   LS_KEY_V1,
   isValidDateYYYYMMDD,
+  taskCalendarDay,
   startOfLocalDay,
   parseYMD,
   readViewSources,
@@ -174,7 +175,9 @@ export default function DayPanel({
         if (b.indent !== 1 || b.section) continue;
         if (currentListId && !currentListVisible) continue;
         if (b.archived) continue;
-        if (!isValidDateYYYYMMDD(byCreated ? b.createdAt : b.deadline)) continue;
+        // Done tasks sit on the day they were completed (taskCalendarDay)
+        const onDay = byCreated ? b.createdAt : taskCalendarDay(b);
+        if (!isValidDateYYYYMMDD(onDay)) continue;
         const listTitle = currentListTitle || groupTitle || 'General';
         out.push({
           id: b.id,
@@ -183,7 +186,7 @@ export default function DayPanel({
           text: b.text || '',
           checked: Boolean(b.checked),
           deadline: b.deadline ?? '',
-          day: (byCreated ? b.createdAt : b.deadline)!,
+          day: onDay,
           isHidden: b.isHidden === true,
           archived: b.archived,
           flag: getTaskFlag(b),

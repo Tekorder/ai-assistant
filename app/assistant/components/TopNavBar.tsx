@@ -84,7 +84,7 @@ export const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: Re
   },
   {
     id: 'lists',
-    label: 'Check Lists',
+    label: 'Checklists',
     mobileLabel: 'Lists',
     icon: (
       <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -124,7 +124,7 @@ export const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: Re
 
 export type PanelId = 'lists' | 'habits' | 'reminders';
 
-/** Check Lists / Habits / Reminders: the panels menu and the sidebar's panel rows */
+/** Checklists / Habits / Reminders: the panels menu and the sidebar's panel rows */
 export const CENTER_NAV: {
   id: PanelId;
   label: string;
@@ -132,7 +132,7 @@ export const CENTER_NAV: {
 }[] = [
   {
     id: 'lists',
-    label: 'Check Lists',
+    label: 'Checklists',
     icon: (
       <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
         <circle cx="2.5" cy="4" r="1" fill="currentColor" stroke="none" />
@@ -246,7 +246,7 @@ export function IconTip({
 }
 
 /**
- * Icon button that pops a small menu with the Check Lists / Habits / Reminders
+ * Icon button that pops a small menu with the Checklists / Habits / Reminders
  * toggles (they used to sit in the header). The menu is portaled because the
  * sidebar and the rail clip their content; it stays open so several can be toggled.
  */
@@ -301,7 +301,7 @@ export function PanelsMenuButton({
       style={{ color: menuOpen || anyOpen ? 'var(--assistant-text)' : 'var(--assistant-text-muted)' }}
       aria-haspopup="menu"
       aria-expanded={menuOpen}
-      aria-label="Panels: Check Lists, Habits, Reminders"
+      aria-label="Panels: Checklists, Habits, Reminders"
     >
       <svg viewBox="0 0 16 16" className={side === 'right' ? 'h-6 w-6' : 'h-4 w-4'} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
         <rect x="2" y="2" width="5" height="5" rx="1.2" />
@@ -315,7 +315,7 @@ export function PanelsMenuButton({
   return (
     <>
       {menuOpen ? btn : (
-        <IconTip label="Open Check Lists, Habits or Reminders" side={side === 'right' ? 'right' : 'bottom-end'}>
+        <IconTip label="Open Checklists, Habits or Reminders" side={side === 'right' ? 'right' : 'bottom-end'}>
           {btn}
         </IconTip>
       )}
@@ -323,8 +323,8 @@ export function PanelsMenuButton({
         <div
           ref={menuRef}
           role="menu"
-          className="drop-in fixed z-[10060] w-[200px] rounded-xl p-1.5 shadow-2xl"
-          style={{ ...pos, background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
+          className="yt-surface drop-in fixed z-[10060] w-[200px] rounded-xl p-1.5"
+          style={pos}
         >
           {CENTER_NAV.map(item => {
             const isOn = open[item.id];
@@ -537,16 +537,12 @@ export function AccountActions({
     <div
       ref={menuRef}
       className={[
-        'drop-in rounded-xl shadow-2xl overflow-hidden z-[10060] isolate',
+        'yt-surface drop-in rounded-xl overflow-hidden z-[10060] isolate',
         placement === 'top'
           ? 'fixed left-3 right-3 top-14 md:absolute md:left-auto md:right-0 md:top-10 md:w-72'
           : 'fixed w-72',
       ].join(' ')}
-      style={{
-        background: 'var(--assistant-panel-bg)',
-        border: '1px solid var(--assistant-border-soft)',
-        ...(placement === 'top' ? {} : dropPos),
-      }}
+      style={placement === 'top' ? undefined : dropPos}
     >
       <div
         className="flex items-center justify-between px-4 py-2.5 border-b"
@@ -930,7 +926,7 @@ export default function TopNavBar({
           />
         </div>
 
-        {/* Check Lists / Habits / Reminders moved to the sidebar's panels menu (PanelsMenuButton);
+        {/* Checklists / Habits / Reminders moved to the sidebar's panels menu (PanelsMenuButton);
             on mobile they're in the drawer */}
         <div className="flex-1" />
 

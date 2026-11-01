@@ -729,11 +729,11 @@
 }
 
 .modalCard {
+  /* Just the theme's gradient — no border (same as .yt-surface in globals.css) */
   background: var(--assistant-overlay-panel-bg, var(--assistant-panel-bg));
   color: var(--assistant-text);
-  border: 1px solid var(--assistant-border-soft);
   border-radius: 1rem;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .28);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .22);
   animation: modalIn .28s cubic-bezier(.25, .9, .3, 1) both;
 }
 /* Inside the card: no rules between parts, big title, roomy 1.5rem sides */

@@ -5,7 +5,7 @@ import {
   type Block,
   LS_KEY_V2,
   LS_KEY_V1,
-  isValidDateYYYYMMDD,
+  taskCalendarDay,
   startOfLocalDay,
   todayYMD,
   parseYMD,
@@ -117,14 +117,16 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay }
 
     if (b.indent !== 1 || b.section) continue;
     if (b.archived) continue;
-    if (!isValidDateYYYYMMDD(b.deadline)) continue;
+    // Done tasks sit on the day they were completed (taskCalendarDay)
+    const day = taskCalendarDay(b);
+    if (!day) continue;
 
     const card = {
       id:        b.id,
       listTitle: currentListTitle || projectTitle || 'General',
       text:      b.text || '',
       checked:   Boolean(b.checked),
-      deadline:  b.deadline!,
+      deadline:  day,
       isHidden:  b.isHidden === true,
       archived:  b.archived
     };
@@ -249,16 +251,19 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay }
                   'h-7 rounded-md text-[12px] transition-colors',
                   isSelected ? 'font-bold' : isToday ? `font-bold ${classes.miniCalDayToday}` : classes.miniCalDayNormal,
                 ].join(' ')}
-                // Every day in the theme's text color; today keeps only its background.
-                // The selected day (the only one shown) is filled dark
-                style={color: hasPending
-                    ? 'var(--assistant-danger-text)'
-                    : allDone
-                    ? 'var(--assistant-success-text)'
-                    : 'var(--assistant-text)',
+                // The selected day (the only one shown) is filled dark; today keeps only its background.
+                // Other days take their task color, or the theme's text color when they have none
+                style={
                   isSelected
-                  ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }
-                  : { color: 'var(--assistant-text)' }}
+                    ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }
+                    : {
+                        color: hasPending
+                          ? 'var(--assistant-danger-text)'
+                          : allDone
+                          ? 'var(--assistant-success-text)'
+                          : 'var(--assistant-text)',
+                      }
+                }
                 data-tip={isSelected ? `${ymd} · click again to show every date` : ymd}
               >
                 {Number(day)}

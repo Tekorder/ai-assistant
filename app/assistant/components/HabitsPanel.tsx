@@ -18,15 +18,18 @@ import {
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { TaskCheckmark } from './TaskCheckmark';
+import { PanelPinButton } from './PanelPinButton';
 
 type Props = {
   open: boolean;
   onClose: () => void;
   /** tab: a main-panel tab — no frame, title or close button */
   variant?: 'overlay' | 'dock' | 'tab';
+  /** Shows a pin beside ✕ that moves the panel into the main panel's tabs */
+  onPin?: () => void;
 };
 
-export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Props) {
+export default function HabitsPanel({ open, onClose, variant = 'overlay', onPin }: Props) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
@@ -217,9 +220,12 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
         <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
           style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
           <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Habits</h2>
-          <button type="button" onClick={requestClose} className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
-            ✕
-          </button>
+          <div className="flex items-center gap-1">
+            {onPin ? <PanelPinButton onPin={onPin} label="Habits" /> : null}
+            <button type="button" onClick={requestClose} className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
+              ✕
+            </button>
+          </div>
         </div>
       )}
 

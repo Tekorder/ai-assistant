@@ -245,14 +245,11 @@ function BarChart({ values, xLabel, tickEvery = 1, tooltip, height = 180, ariaLa
 
       {hover != null && width > 0 ? (
         <div
-          className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12px] shadow-lg"
+          className="yt-surface pointer-events-none absolute z-10 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12px]"
           style={{
             left: Math.min(Math.max(PAD.left + band * hover + band / 2, 60), width - 60),
             top: Math.max(0, y(values[hover]) - 44),
             transform: 'translateX(-50%)',
-            background: 'var(--assistant-panel-bg)',
-            border: '1px solid var(--assistant-border-soft)',
-            color: 'var(--assistant-text)',
           }}
         >
           {tooltip(hover)}
@@ -264,7 +261,8 @@ function BarChart({ values, xLabel, tickEvery = 1, tooltip, height = 180, ariaLa
 
 function StatusBar({ s }: { s: MonthStats }) {
   const segments = [
-    { key: 'done', label: 'Completed', value: s.completed, color: 'var(--assistant-accent)' },
+    // The month's due tasks split three ways, so "done" here is the due ones that are done
+    { key: 'done', label: 'Completed', value: s.dueCompleted, color: 'var(--assistant-accent)' },
     { key: 'pending', label: 'Pending', value: s.pending, color: 'color-mix(in srgb, var(--assistant-text-faint) 45%, transparent)' },
     { key: 'overdue', label: 'Overdue', value: s.overdue, color: STATUS.overdue },
   ];

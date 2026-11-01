@@ -153,8 +153,7 @@ export function NewTaskDialog({
                   ref={listboxRef}
                   id="new-task-list-options"
                   role="listbox"
-                  className="absolute left-0 right-0 top-full z-10 mt-1 max-h-56 overflow-auto rounded-xl p-1 shadow-xl"
-                  style={{ background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
+                  className="yt-surface absolute left-0 right-0 top-full z-10 mt-1 max-h-56 overflow-auto rounded-xl p-1"
                   // Keep the focus in the input so the click lands before blur closes the list
                   onMouseDown={e => e.preventDefault()}
                 >

@@ -46,11 +46,12 @@ export function AgendaListHeader({
           type="button"
           onClick={(e) => { e.stopPropagation(); onAddSection(); }}
           onMouseDown={(e) => e.stopPropagation()}
-          className={`w-3 shrink-0 transition-colors ${classes.quickCollapseBtn}`}
+          // Same box as the list's drag handle (20px, 14px icon)
+          className={`h-5 w-5 shrink-0 flex items-center justify-center transition-colors ${classes.quickCollapseBtn}`}
           data-tip="Add section"
           aria-label="Add section"
         >
-          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
             <path strokeLinecap="round" d="M3 6h10M3 10.5h10" />
           </svg>
         </button>
@@ -60,10 +61,10 @@ export function AgendaListHeader({
         <button
           type="button"
           onClick={onToggleCollapse}
-          className={`w-3 shrink-0 mr-1 transition-colors ${classes.quickCollapseBtn}`}
+          className={`h-5 w-5 shrink-0 mr-1 flex items-center justify-center transition-colors ${classes.quickCollapseBtn}`}
           data-tip={collapsed ? 'Expand' : 'Collapse'}
         >
-          <svg viewBox="0 0 16 16" className={`h-3 w-3 transition-transform ${collapsed ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <svg viewBox="0 0 16 16" className={`h-3.5 w-3.5 transition-transform ${collapsed ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="1.8">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
           </svg>
         </button>
@@ -186,6 +187,46 @@ export const agendaSectionTitleClass = 'text-[13px] font-medium leading-[1.45]';
 
 /** Left padding of a task row at a given depth (also used by rows that sit between tasks). */
 export const agendaRowPad = (indent: number) => 8 + (Math.max(1, indent) - 1) * 16;
+
+/** Class for the row a hover ghost hangs off; the ghost must be its very next sibling. */
+export const AGENDA_ADD_ANCHOR = 'quick-add-anchor';
+
+/**
+ * Ghost "Task…" row under a task: resting the pointer on the row for a second reveals it
+ * (globals.css: .quick-add-anchor:hover + .quick-add-ghost), or it's always shown when `visible`.
+ */
+export function AgendaAddGhost({
+  onClick,
+  paddingLeft,
+  visible = false,
+  label,
+  ariaLabel,
+  className = '',
+}: {
+  onClick: () => void;
+  paddingLeft: number;
+  visible?: boolean;
+  label: string;
+  ariaLabel: string;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      className={`${visible ? 'py-1' : 'quick-add-ghost'} w-full flex items-center px-0.5 gap-1 text-left ${className}`}
+      style={{ paddingLeft, marginTop: 0, marginBottom: 0 }}
+    >
+      <span className="h-4 w-4 shrink-0 flex items-center justify-center">
+        <span className="h-3.5 w-3.5 rounded-full border border-dashed" style={{ borderColor: 'var(--assistant-text-faint)' }} />
+      </span>
+      <span className="text-[14px] md:text-sm leading-[1.45]" style={{ color: 'var(--assistant-text-faint)' }}>
+        {label}
+      </span>
+    </button>
+  );
+}
 
 /** The checkmark button, sized to the text's first line. `children` overlays it (e.g. Agenda's pulse). */
 export function AgendaCheck({

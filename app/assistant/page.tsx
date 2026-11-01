@@ -31,6 +31,7 @@ import {
   cleanupEmptyTasks,
   updateBlock,
   isValidDateYYYYMMDD,
+  taskCalendarDay,
   todayYMD,
   LS_KEY_CHECKLISTS,
   readChecklistsLS,
@@ -52,6 +53,13 @@ const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
 const LAYOUT_LS_KEY = 'youtask_workspace_layout_v1';
 const DOCK_LAYOUT_LS_KEY = 'youtask_dock_layout';
 const RESTORABLE_VIEWS: View[] = ['quick', 'timeline', 'calendar', 'lists', 'habits', 'reminders'];
+/** Panels that can be pinned as main-panel tabs (desktop); the other tabs are always there */
+const PINNABLE_VIEWS = ['lists', 'habits', 'reminders'] as const;
+type PinnableView = (typeof PINNABLE_VIEWS)[number];
+const PINNED_TABS_LS_KEY = 'youtask_pinned_tabs';
+/** List / keyword panels pinned as tabs (each one its own tab) */
+const PINNED_PIVOTS_LS_KEY = 'youtask_pinned_pivots';
+type PivotInstance = { id: string; word: string; listId?: string };
 
 type SavedLayout = Partial<{
   activeView: View;
@@ -85,6 +93,7 @@ export default function App() {
       }
     }
     setActiveView(v);
+    setActivePinnedPivotId(null);
   }, [activeView]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -97,9 +106,11 @@ export default function App() {
   const [themesOpen, setThemesOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmClearChat, setConfirmClearChat] = useState(false);
-  const [pivotInstances, setPivotInstances] = useState<
-    Array<{ id: string; word: string; listId?: string }>
-  >([]);
+  const [pivotInstances, setPivotInstances] = useState<PivotInstance[]>([]);
+  // Pinned list / keyword panels: tabs after the others; while one is open it replaces the
+  // main view (activeView stays as it was underneath)
+  const [pinnedPivots, setPinnedPivots] = useState<PivotInstance[]>([]);
+  const [activePinnedPivotId, setActivePinnedPivotId] = useState<string | null>(null);
   const [dayPanelInstances, setDayPanelInstances] = useState<
     Array<{ id: string; ymd: string }>
   >([]);
@@ -314,6 +325,73 @@ export default function App() {
   const toggleReminders = useCallback(() => setRemindersOpen((v) => !v), []);
   const toggleActivity = useCallback(() => setActivityOpen((v) => !v), []);
   const toggleLists = useCallback(() => setListsOpen((v) => !v), []);
+
+  // Pinned panels (desktop): Checklists / Habits / Reminders shown as main-panel tabs.
+  // A panel's pin closes it in the dock and opens its tab; the tab's ✕ unpins it.
+  // Remembered per browser.
+  const [pinnedTabs, setPinnedTabs] = useState<PinnableView[]>([]);
+  const [pinnedLoaded, setPinnedLoaded] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PINNED_TABS_LS_KEY) ?? '[]');
+      if (Array.isArray(raw)) setPinnedTabs(PINNABLE_VIEWS.filter(v => raw.includes(v)));
+    } catch {}
+    setPinnedLoaded(true);
+  }, []);
+  useEffect(() => {
+    if (!pinnedLoaded) return;
+    try { localStorage.setItem(PINNED_TABS_LS_KEY, JSON.stringify(pinnedTabs)); } catch {}
+  }, [pinnedTabs, pinnedLoaded]);
+  const isPinned = (v: View) => (pinnedTabs as View[]).includes(v);
+  const closeDockPanel: Record<PinnableView, () => void> = {
+    lists: () => setListsOpen(false),
+    habits: () => setHabitsOpen(false),
+    reminders: () => setRemindersOpen(false),
+  };
+  const pinPanel = (v: PinnableView) => {
+    setPinnedTabs(prev => (prev.includes(v) ? prev : PINNABLE_VIEWS.filter(p => p === v || prev.includes(p))));
+    closeDockPanel[v]();
+    handleSetActiveView(v);
+  };
+  const unpinTab = (v: PinnableView) => {
+    setPinnedTabs(prev => prev.filter(p => p !== v));
+    if (activeView === v) setActiveView('quick');
+  };
+
+  // List / keyword panels pin the same way, each as its own tab (one per list / word)
+  useEffect(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PINNED_PIVOTS_LS_KEY) ?? '[]');
+      if (Array.isArray(raw)) {
+        setPinnedPivots(raw.filter((p): p is PivotInstance =>
+          Boolean(p) && typeof p.id === 'string' && typeof p.word === 'string'));
+      }
+    } catch {}
+  }, []);
+  const persistPinnedPivots = (next: PivotInstance[]) => {
+    setPinnedPivots(next);
+    try { localStorage.setItem(PINNED_PIVOTS_LS_KEY, JSON.stringify(next)); } catch {}
+  };
+  const pinPivot = (pivot: PivotInstance) => {
+    const same = (p: PivotInstance) => (pivot.listId ? p.listId === pivot.listId : !p.listId && p.word === pivot.word);
+    const existing = pinnedPivots.find(same);
+    if (!existing) persistPinnedPivots([...pinnedPivots, pivot]);
+    setPivotInstances(prev => prev.filter(p => p.id !== pivot.id));
+    setActivePinnedPivotId(existing?.id ?? pivot.id);
+  };
+  const unpinPivot = (id: string) => {
+    persistPinnedPivots(pinnedPivots.filter(p => p.id !== id));
+    if (activePinnedPivotId === id) setActivePinnedPivotId(null);
+  };
+  const activePinnedPivot = pinnedPivots.find(p => p.id === activePinnedPivotId) ?? null;
+  // Desktop: a panel view only shows as a tab while it's pinned (e.g. a restored layout
+  // that was on a tab since unpinned) → back to Agenda
+  useEffect(() => {
+    if (isDesktop !== true || !pinnedLoaded) return;
+    if ((PINNABLE_VIEWS as readonly View[]).includes(activeView) && !(pinnedTabs as View[]).includes(activeView)) {
+      setActiveView('quick');
+    }
+  }, [isDesktop, pinnedLoaded, activeView, pinnedTabs]);
 
   useEffect(() => {
     return () => {
@@ -538,22 +616,23 @@ export default function App() {
 
   const pivotRowsById = useMemo<Record<string, PivotTreeRow[]>>(() => {
     const out: Record<string, PivotTreeRow[]> = {};
-    for (const p of pivotInstances) {
+    for (const p of [...pivotInstances, ...pinnedPivots]) {
       out[p.id] = p.listId
         ? buildListPivotTree(projectBlocks, p.listId, { uncTitle: UNC_TITLE })
         : buildPrunedPivotTree(projectBlocks, p.word, { uncTitle: UNC_TITLE });
     }
     return out;
-  }, [pivotInstances, projectBlocks]);
+  }, [pivotInstances, pinnedPivots, projectBlocks]);
 
   const activityTasks = useMemo(
     () =>
       projectBlocks
-        .filter((b) => b.indent > 0 && b.checked === true && isValidDateYYYYMMDD(b.deadline))
+        // Done tasks, by the day they were completed
+        .filter((b) => b.indent > 0 && b.checked === true && isValidDateYYYYMMDD(taskCalendarDay(b)))
         .map((b) => ({
           id: b.id,
           text: b.text ?? '',
-          date: b.deadline as string,
+          date: taskCalendarDay(b) as string,
           flag: getTaskFlag(b),
         })),
     [projectBlocks],
@@ -588,11 +667,46 @@ export default function App() {
 
   const handleSetActiveViewFromNav = useCallback((v: View) => {
     setActiveView(v);
+    setActivePinnedPivotId(null);
   }, []);
 
   const isLight = theme.style === 'light';
 
+  /** The small ✕ inside a pinned tab (a span: the tab itself is the button) */
+  const renderUnpinX = (label: string, onUnpin: () => void) => (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={e => { e.stopPropagation(); onUnpin(); }}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onUnpin(); }
+      }}
+      className="-mr-1 grid h-4 w-4 place-items-center rounded text-[11px] leading-none opacity-50 transition-opacity hover:opacity-100 focus-visible:opacity-100"
+      aria-label={`Unpin ${label}`}
+      data-tip="Unpin"
+    >
+      ✕
+    </span>
+  );
+
   const renderView = () => {
+    if (activePinnedPivot && isDesktop === true) {
+      return (
+        // Same width as the tabs bar
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col px-3 md:px-8">
+          <PivotPanel
+            variant="tab"
+            open
+            word={activePinnedPivot.word}
+            pivotKind={activePinnedPivot.listId ? 'list' : 'word'}
+            rows={pivotRowsById[activePinnedPivot.id] ?? []}
+            onClose={() => unpinPivot(activePinnedPivot.id)}
+            onGoTo={handlePivotGoTo}
+            onToggleTask={handlePivotToggleTask}
+          />
+        </div>
+      );
+    }
     if (activeView === 'timeline') {
       return (
         <div className="mx-auto h-full min-h-0 w-full max-w-6xl px-3 md:px-8">
@@ -741,7 +855,7 @@ export default function App() {
       : isAccordionExpanded(key)
       ? 'relative mx-3 mt-3 box-border flex h-auto w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden border-t [border-top-color:var(--assistant-border-soft)]'
       : 'relative mx-3 mt-3 box-border flex h-[calc(100%-0.75rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden border-t [border-top-color:var(--assistant-border-soft)]';
-  // Clicking a panel's title bar toggles it; the ✕ (right 3.5rem) stays clickable.
+  // Clicking a panel's title bar toggles it; the ✕ (and pin) on the right stay clickable.
   // The chevron sits in the header's left padding, just before the title.
   const accordionBar = (key: string, label: string) => {
     if (!isAccordion) return null;
@@ -756,7 +870,8 @@ export default function App() {
         style={{
           height: accordionBarHeight(key),
           paddingTop: `calc((${ACCORDION_BAR} - 12px) / 2)`,
-          right: '3.5rem',
+          // Leaves the header's right-hand buttons clickable: ✕, plus the pin on pinnable panels
+          right: (PINNABLE_VIEWS as readonly string[]).includes(key) || pivotInstances.some(p => p.id === key) ? '6rem' : '3.5rem',
           color: 'var(--assistant-text-muted)',
         }}
         aria-expanded={expanded}
@@ -783,10 +898,9 @@ export default function App() {
   // panel, or back to 0 when the sidebar opens) don't count. A sidebar folded this way
   // opens again once the deck is scrolled back to the start; one that was already closed
   // (or that the person opened/closed by hand meanwhile) is left alone.
-  const [deckScrolled, setDeckScrolled] = useState(false);
   useEffect(() => {
     const el = deckScrollRef.current;
-    if (!el || isAccordion || isDesktop !== true) { setDeckScrolled(false); return; }
+    if (!el || isAccordion || isDesktop !== true) return;
     let lastLeft = el.scrollLeft;
     const reopenIfAutoFolded = () => {
       if (!scrollFoldedSidebarRef.current || sidebarOpen) return;
@@ -799,7 +913,6 @@ export default function App() {
       const left = el.scrollLeft;
       const forward = left > lastLeft;
       lastLeft = left;
-      setDeckScrolled(left > 0);
       if (forward && left > 24 && followRafRef.current === null && sidebarOpen && !sidebarClosing) {
         scrollFoldedSidebarRef.current = true;
         scrollFoldedAtRef.current = performance.now();
@@ -874,10 +987,19 @@ export default function App() {
     dockOrderSignature,
   ]);
 
-  // Check Lists / Habits / Reminders toggles (sidebar header + closed-sidebar rail)
+  // Checklists / Habits / Reminders toggles (sidebar header + closed-sidebar rail)
+  // A pinned one lives in the tabs, so the menu switches to its tab instead of opening a dock panel
   const panelsMenuProps = {
-    open: { lists: listsOpen, habits: habitsOpen, reminders: remindersOpen },
-    onToggle: { lists: toggleLists, habits: toggleHabits, reminders: toggleReminders },
+    open: {
+      lists: isPinned('lists') ? activeView === 'lists' : listsOpen,
+      habits: isPinned('habits') ? activeView === 'habits' : habitsOpen,
+      reminders: isPinned('reminders') ? activeView === 'reminders' : remindersOpen,
+    },
+    onToggle: {
+      lists: isPinned('lists') ? () => handleSetActiveView('lists') : toggleLists,
+      habits: isPinned('habits') ? () => handleSetActiveView('habits') : toggleHabits,
+      reminders: isPinned('reminders') ? () => handleSetActiveView('reminders') : toggleReminders,
+    },
   };
 
   // Shared by the sidebar foot and the closed-sidebar rail
@@ -893,7 +1015,7 @@ export default function App() {
 
   // Sidebar contents (header icons, lists, profile foot): the desktop drawer and the mobile overlay
   const renderSidebarShell = (mobile: boolean) => {
-    // On mobile Check Lists / Habits / Reminders are tabs, so the panels menu switches tab;
+    // On mobile Checklists / Habits / Reminders are tabs, so the panels menu switches tab;
     // the deck's layout toggle doesn't apply there
     const showTab = (v: View) => () => { requestCloseSidebar(); handleSetActiveViewFromNav(v); };
     const panels = mobile
@@ -937,7 +1059,7 @@ export default function App() {
             className="h-[28px] w-auto shrink-0"
           />
         </div>
-        {/* Search + reminders bell + Check Lists / Habits / Reminders menu — left of the collapse
+        {/* Search + reminders bell + Checklists / Habits / Reminders menu — left of the collapse
             button. While searching, the field takes the place of all three icons */}
         <div className="absolute right-[3.25rem] top-3 z-[120] flex items-center gap-1">
           <HeaderSearch
@@ -1054,49 +1176,24 @@ export default function App() {
           </>
         )}
 
-        <div
-          ref={deckScrollRef}
-          // The dock's horizontal scrollbar is the one visible scrollbar in the app, pinned to the bottom
-          // Accordion mode is three columns that fit the window (sidebar | main | accordion) → no horizontal scroll
-          className={`deck-scrollbar hidden min-h-0 flex-1 overflow-y-hidden md:block ${
-            isAccordion ? 'overflow-x-hidden' : 'overflow-x-auto touch-pan-x [-webkit-overflow-scrolling:touch]'
-          }`}
-        >
-          <div className="flex h-full min-h-0 min-w-full">
+        {/* Desktop: rail | deck. The rail sits beside the deck, not inside it, so panels
+            scrolling sideways are clipped at its edge instead of passing under it — that's
+            what lets it go without a background */}
+        <div className="hidden min-h-0 flex-1 md:flex">
           {/* Rail: 80px while the sidebar is closed (big icons sit ~36px off the screen edge);
               just a thin gutter when it's open (its icons are hidden then), so the sidebar sits
-              near the edge. Sticky: it stays put while the panels scroll sideways under it */}
+              near the edge */}
           <div
-            className="sticky left-0 z-[125] h-full shrink-0"
+            className="relative z-[125] h-full shrink-0"
             style={{
               width: sidebarVisualOpen ? RAIL_OPEN_GUTTER : 80,
               transition: 'width 420ms cubic-bezier(0.32, 0.72, 0, 1)',
             }}
           >
-            {/* Scrolled → opaque strip so panels passing underneath don't show through the icons.
-                Fixed (not clipped by the deck) so it also covers the scrollbar's lane at the bottom */}
-            {deckScrolled && (
-              <div
-                aria-hidden="true"
-                className="pointer-events-none fixed bottom-0 left-0 top-0 -z-10"
-                style={{
-                  width: sidebarVisualOpen ? RAIL_OPEN_GUTTER : 80,
-                  // Light themes: frosted glass — the page's glow still shows through, the panels
-                  // behind are blurred away. Dark themes: their flat canvas already blends in.
-                  ...(theme.style === 'light'
-                    ? {
-                        background: 'color-mix(in srgb, var(--assistant-canvas) 30%, transparent)',
-                        backdropFilter: 'blur(28px) saturate(1.2)',
-                        WebkitBackdropFilter: 'blur(28px) saturate(1.2)',
-                      }
-                    : { background: 'var(--assistant-canvas)' }),
-                }}
-              />
-            )}
             {/* Rail (sidebar closed): short logo, expand and panels stacked at the top, centered; the menu is the avatar at the foot */}
             <div
-              // Centered a touch right of the strip's middle → more air from the screen edge
-              className="absolute left-7 right-0 top-6 z-[120] flex flex-col items-center gap-1.5 transition-opacity"
+              // Centered in the strip
+              className="absolute inset-x-0 top-6 z-[120] flex flex-col items-center gap-1.5 transition-opacity"
               style={{ opacity: sidebarVisualOpen ? 0 : 1, pointerEvents: sidebarVisualOpen ? 'none' : 'auto' }}
               aria-hidden={sidebarVisualOpen}
             >
@@ -1128,13 +1225,23 @@ export default function App() {
             </div>
             {/* Sidebar closed → its footer controls stack here, level with the sidebar's foot */}
             <div
-              className="absolute bottom-3 left-7 right-0 z-[120] flex justify-center pb-2 transition-opacity"
+              className="absolute bottom-3 inset-x-0 z-[120] flex justify-center pb-2 transition-opacity"
               style={{ opacity: sidebarVisualOpen ? 0 : 1, pointerEvents: sidebarVisualOpen ? 'none' : 'auto' }}
               aria-hidden={sidebarVisualOpen}
             >
               {isDesktop === true && <AccountActions placement="rail" {...accountActionsProps} />}
             </div>
           </div>
+
+        <div
+          ref={deckScrollRef}
+          // The dock's horizontal scrollbar is the one visible scrollbar in the app, pinned to the bottom
+          // Accordion mode is three columns that fit the window (sidebar | main | accordion) → no horizontal scroll
+          className={`deck-scrollbar min-h-0 min-w-0 flex-1 overflow-y-hidden ${
+            isAccordion ? 'overflow-x-hidden' : 'overflow-x-auto touch-pan-x [-webkit-overflow-scrolling:touch]'
+          }`}
+        >
+          <div className="flex h-full min-h-0 min-w-full">
           {/* Drawer: the panel is pinned to the slot's right edge, so as the slot narrows the
               panel slides out to the left (and back in) — no fade, it stays solid the whole way */}
           <div
@@ -1177,20 +1284,44 @@ export default function App() {
             >
               <div className="shrink-0 mx-auto w-full max-w-6xl px-3 md:px-8">
                 <div className={`px-3 ${classes.mainTabsBar}`}>
-                  {NAV_ITEMS.map(item => {
-                    const isActive = activeView === item.id;
+                  {/* Agenda / Timeline / Calendar always; Checklists / Habits / Reminders only once pinned */}
+                  {NAV_ITEMS.filter(item => !(PINNABLE_VIEWS as readonly View[]).includes(item.id) || isPinned(item.id)).map(item => {
+                    const isActive = activeView === item.id && !activePinnedPivot;
+                    const pinned = (PINNABLE_VIEWS as readonly View[]).includes(item.id);
                     return (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => handleSetActiveView(item.id)}
                         className={[
-                          'flex items-center justify-center text-[14px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
+                          'group flex items-center justify-center gap-1 text-[14px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
                           isActive ? classes.mainTabActive : classes.mainTabInactive,
                         ].join(' ')}
                         aria-current={isActive ? 'page' : undefined}
                       >
                         {item.label}
+                        {/* ✕ unpins: the tab goes away (it opens as a panel again from the panels menu) */}
+                        {pinned ? renderUnpinX(item.label, () => unpinTab(item.id as PinnableView)) : null}
+                      </button>
+                    );
+                  })}
+                  {/* Pinned list / keyword panels, one tab each */}
+                  {pinnedPivots.map(p => {
+                    const isActive = activePinnedPivotId === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setActivePinnedPivotId(p.id)}
+                        className={[
+                          'group flex items-center justify-center gap-1 text-[14px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
+                          isActive ? classes.mainTabActive : classes.mainTabInactive,
+                        ].join(' ')}
+                        aria-current={isActive ? 'page' : undefined}
+                        data-tip={p.listId ? `List: ${p.word}` : `Keyword: ${p.word}`}
+                      >
+                        {p.listId ? p.word : `“${p.word}”`}
+                        {renderUnpinX(p.word, () => unpinPivot(p.id))}
                       </button>
                     );
                   })}
@@ -1209,7 +1340,7 @@ export default function App() {
             <div className={dockSlotInnerClass('habits')}>
               {accordionBar('habits', 'Habits')}
               {isDesktop && habitsOpen && (
-                <HabitsPanel variant="dock" open onClose={() => setHabitsOpen(false)} />
+                <HabitsPanel variant="dock" open onClose={() => setHabitsOpen(false)} onPin={() => pinPanel('habits')} />
               )}
             </div>
           </div>
@@ -1218,7 +1349,7 @@ export default function App() {
             <div className={dockSlotInnerClass('reminders')}>
               {accordionBar('reminders', 'Reminders')}
               {isDesktop && remindersOpen && (
-                <RemindersPanel variant="dock" open onClose={() => setRemindersOpen(false)} />
+                <RemindersPanel variant="dock" open onClose={() => setRemindersOpen(false)} onPin={() => pinPanel('reminders')} />
               )}
             </div>
           </div>
@@ -1239,9 +1370,9 @@ export default function App() {
 
           <div className="h-full shrink-0 overflow-hidden" data-dock-key="lists" style={dockSlotStyle('lists', listsOpen, listsPanelWidth)}>
             <div className={dockSlotInnerClass('lists')}>
-              {accordionBar('lists', 'Check Lists')}
+              {accordionBar('lists', 'Checklists')}
               {isDesktop && listsOpen && (
-                <ChecklistsPanel variant="dock" open onClose={() => setListsOpen(false)} />
+                <ChecklistsPanel variant="dock" open onClose={() => setListsOpen(false)} onPin={() => pinPanel('lists')} />
               )}
             </div>
           </div>
@@ -1265,6 +1396,7 @@ export default function App() {
                     onClose={() => closePivotInstance(pivot.id)}
                     onGoTo={handlePivotGoTo}
                     onToggleTask={handlePivotToggleTask}
+                    onPin={() => pinPivot(pivot)}
                   />
                 </div>
               </div>
@@ -1397,6 +1529,7 @@ export default function App() {
           {/* Fixed tail room so the last panel scrolls fully clear of the window edge */}
           <div className="h-full shrink-0" style={{ order: Number.MAX_SAFE_INTEGER, width: isAccordion ? 0 : DECK_RIGHT_PAD }} aria-hidden="true" />
           </div>
+        </div>
         </div>
 
         {isDesktop === false && (

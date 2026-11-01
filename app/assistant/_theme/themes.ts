@@ -395,22 +395,22 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	: 'rgba(255,255,255,.10)',
 	'--assistant-glass-bg': hasImage
 	? 'linear-gradient(rgba(255,255,255,.25), rgba(255,255,255,.2))'
+	// Modals, menus and tooltips (it only feeds --assistant-overlay-panel-bg): the theme's
+	// color rises from the bottom-left corner and fades out toward the top-right.
+	// Light: a strong tint, and the white wash grows toward the top-right to keep it bright there
 	: isLight ? [
-	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 12%, transparent) 0%, transparent 42%)',
-	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 8%, transparent) 0%, transparent 55%)',
-	    'linear-gradient(to bottom, rgba(255,255,255,.80) 0%, rgba(255,255,255,.60) 100%)',
+	    'linear-gradient(to top right, color-mix(in srgb, var(--assistant-tone-1) 45%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 18%, transparent) 45%, transparent 85%)',
+	    'linear-gradient(to top right, rgba(255,255,255,.15) 0%, rgba(255,255,255,.75) 100%)',
 	    'color-mix(in srgb, var(--assistant-bg) 95%, white)',
 	].join(', ') : [
-	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 16%, transparent) 0%, transparent 42%)',
-	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 12%, transparent) 0%, transparent 55%)',
+	    'linear-gradient(to top right, color-mix(in srgb, var(--assistant-tone-1) 18%, transparent) 0%, transparent 60%)',
 	    'linear-gradient(to bottom, rgba(255,255,255,.08) 0%, rgba(255,255,255,.02) 24%, rgba(0,0,0,.22) 100%)',
 	    'color-mix(in srgb, var(--assistant-bg) 80%, black)',
 	].join(', '),
 	'--assistant-overlay-panel-bg': hasImage
 	? [
-	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 12%, transparent) 0%, transparent 42%)',
-	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 8%, transparent) 0%, transparent 55%)',
-	    'linear-gradient(to bottom, rgba(255,255,255,.95) 0%, rgba(255,255,255,.90) 100%)',
+	    'linear-gradient(to top right, color-mix(in srgb, var(--assistant-tone-1) 35%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 12%, transparent) 45%, transparent 85%)',
+	    'linear-gradient(to top right, rgba(255,255,255,.80) 0%, rgba(255,255,255,.95) 100%)',
 	    'color-mix(in srgb, var(--assistant-bg) 95%, white)',
 	].join(', ')
 	: 'var(--assistant-glass-bg)',

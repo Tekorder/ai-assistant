@@ -742,15 +742,24 @@ input[type="checkbox"]:not(:disabled):hover {
 .yt-row-iconbtn:focus-visible { opacity: 1; }
 .yt-row-iconbtn:hover { color: var(--assistant-text); }
 
+/* ===== Floating surfaces: menus, popovers, dropdowns, tooltips =====
+   Same look as the modals (.modalCard): just the theme's gradient, light or dark — no
+   border, no backdrop blur; a soft shadow only to lift it off the page.
+   Every floating box uses this instead of a flat --assistant-panel-bg. */
+.yt-surface,
+.yt-menu {
+  background: var(--assistant-overlay-panel-bg, var(--assistant-panel-bg, rgba(17, 24, 39, .95)));
+  color: var(--assistant-text, #fff);
+  border: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .14);
+}
+
 /* ===== Row menu ===== */
 .yt-menu {
   position: fixed; z-index: 9999;
   min-width: 150px; padding: 4px 0;
   border-radius: 10px; overflow: hidden;
   font-size: 13px;
-  background: var(--assistant-overlay-panel-bg, var(--assistant-panel-bg));
-  border: 1px solid var(--assistant-border-soft);
-  box-shadow: 0 12px 28px rgba(17, 37, 77, .22);
 }
 .yt-menu-item {
   display: block; width: 100%;
@@ -760,6 +769,25 @@ input[type="checkbox"]:not(:disabled):hover {
 }
 .yt-menu-item:hover { background: var(--assistant-hover-bg); }
 .yt-menu-item.is-danger { color: var(--assistant-danger-text); }
+
+/* ===== Hover "add" ghost (AgendaAddGhost) — Agenda tasks, checklist items =====
+   The ghost row sits right after its anchor row and stays collapsed. */
+.quick-add-ghost {
+  max-height: 0; opacity: 0; overflow: hidden; cursor: text;
+  transition: max-height 0.15s ease 0.25s, opacity 0.15s ease 0.25s, padding 0.15s ease 0.25s;
+}
+.quick-add-anchor:hover + .quick-add-ghost,
+.quick-add-ghost:hover,
+.quick-add-ghost:focus-visible {
+  max-height: 2rem; opacity: 1; padding-top: 0.25rem; padding-bottom: 0.25rem;
+  transition-delay: 0s;
+}
+/* Hovering the row only reveals it after resting there 1s (like the keyword links),
+   so sweeping the pointer across the list doesn't make rows jump. Once shown,
+   moving onto the ghost itself keeps it open right away (rule above). */
+.quick-add-anchor:hover + .quick-add-ghost:not(:hover):not(:focus-visible) {
+  transition-delay: 1s;
+}
 
 /* ===== Subtasks ===== */
 /* ===== Date pills (pillClass in lib/datacenter) =====

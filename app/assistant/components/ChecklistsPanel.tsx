@@ -16,18 +16,30 @@ import {
   removeChecklistItem as removeChecklistItemArr,
   updateChecklistItem as updateChecklistItemArr,
   moveChecklistItem as moveChecklistItemArr,
+  indentChecklistItem as indentChecklistItemArr,
+  moveChecklist as moveChecklistArr,
+  checklistIndent,
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { TaskCheckmark } from './TaskCheckmark';
+import { AgendaAddGhost, AGENDA_ADD_ANCHOR } from './AgendaList';
+import { PanelPinButton } from './PanelPinButton';
+
+/** Left padding of an item row by depth (16px per level, like Agenda's subtasks). */
+const itemRowPad = (indent: number) => 6 + (indent - 1) * 16;
+/** The ghost's dashed circle lines up with the row's checkmark (the row itself is the drag handle). */
+const ghostPad = itemRowPad;
 
 type Props = {
   open: boolean;
   onClose: () => void;
   /** tab: a main-panel tab — no frame, title or close button; lists in a column beside the items */
   variant?: 'overlay' | 'dock' | 'tab';
+  /** Shows a pin beside ✕ that moves the panel into the main panel's tabs */
+  onPin?: () => void;
 };
 
-export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: Props) {
+export default function ChecklistsPanel({ open, onClose, variant = 'overlay', onPin }: Props) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
@@ -43,6 +55,8 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
   const tabInputRef   = useRef<HTMLInputElement | null>(null);
   const dragRef = useRef<{ id: string; fromIndex: number } | null>(null);
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
+  const listDragRef = useRef<number | null>(null);
+  const [dragOverListId, setDragOverListId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = () => {
@@ -117,8 +131,9 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
     });
   };
 
-  const handleAddList = () => {
-    const { lists: next, newList } = addChecklistArr(lists);
+  /** New checklist at the end, or right after `afterId` (the hover "Checklist…") — named on the spot */
+  const handleAddList = (afterId?: string) => {
+    const { lists: next, newList } = addChecklistArr(lists, undefined, afterId);
     persist(next, newList.id);
     setEditingTabId(newList.id);
     setEditingTabValue(newList.name);
@@ -127,7 +142,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
 
   const commitTabRename = () => {
     if (!editingTabId) return;
-    const trimmed = editingTabValue.trim() || 'New list';
+    const trimmed = editingTabValue.trim() || 'New checklist';
     const next = renameChecklistArr(lists, editingTabId, trimmed);
     persist(next, selectedId);
     setEditingTabId(null);
@@ -157,8 +172,9 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
     if (newItem) focusItem(newItem.id);
   };
 
-  const handleInsertAfter = (listId: string, afterId: string) => {
-    const { lists: next, newItem } = insertChecklistItemAfterArr(lists, listId, afterId);
+  /** A sibling after the item (and its sub-items), or — `asFirstSubItem` — its first sub-item */
+  const handleInsertAfter = (listId: string, afterId: string, asFirstSubItem = false) => {
+    const { lists: next, newItem } = insertChecklistItemAfterArr(lists, listId, afterId, asFirstSubItem);
     persist(next, selectedId);
     if (newItem) focusItem(newItem.id);
   };
@@ -168,8 +184,8 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
     persist(next, selectedId);
   };
 
-  const handleRemoveItem = (listId: string, itemId: string) => {
-    const result = removeChecklistItemArr(lists, listId, itemId);
+  const handleRemoveItem = (listId: string, itemId: string, withSubItems = false) => {
+    const result = removeChecklistItemArr(lists, listId, itemId, withSubItems);
     persist(result.lists, selectedId);
     if (result.focusId) focusItem(result.focusId, true);
   };
@@ -182,6 +198,13 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
     if (e.key === 'Enter') {
       e.preventDefault();
       handleInsertAfter(listId, item.id);
+      return;
+    }
+    // Tab makes it a sub-item of the item above, Shift+Tab moves it back out
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      persist(indentChecklistItemArr(lists, listId, item.id, e.shiftKey ? -1 : 1), selectedId);
+      focusItem(item.id, true);
       return;
     }
     if (e.key === 'Backspace' && item.text === '') {
@@ -219,6 +242,30 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
     setDragOverItemId(null);
   };
 
+  // Lists reorder by dragging too; their order is the array order (saved as `position`)
+  const onDragStartList = (e: React.DragEvent, index: number) => {
+    listDragRef.current = index;
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', lists[index].id); } catch {}
+  };
+  const onDragOverList = (e: React.DragEvent, overId: string) => {
+    if (listDragRef.current === null) return;
+    e.preventDefault();
+    if (dragOverListId !== overId) setDragOverListId(overId);
+  };
+  const onDropList = (e: React.DragEvent, toIndex: number) => {
+    e.preventDefault();
+    const from = listDragRef.current;
+    listDragRef.current = null;
+    setDragOverListId(null);
+    if (from === null || from === toIndex) return;
+    persist(moveChecklistArr(lists, from, toIndex), selectedId);
+  };
+  const onDragEndList = () => {
+    listDragRef.current = null;
+    setDragOverListId(null);
+  };
+
   const activeList = useMemo<Checklist | null>(
     () => lists.find(l => l.id === selectedId) ?? null,
     [lists, selectedId],
@@ -238,19 +285,49 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
         : 'px-3 pt-2 pb-2 shrink-0'}
       style={isTab ? { borderColor: 'var(--assistant-border-soft)' } : { borderBottom: '1px solid var(--assistant-border-soft)' }}
     >
+      {/* Column (desktop tab): no gap — the tabs space themselves, so the collapsed hover
+          ghosts between them don't add room */}
       <div className={isTab
-        ? 'flex items-center gap-1 overflow-x-auto scrollbar-none md:flex-col md:items-stretch md:overflow-x-visible'
+        ? 'flex items-center gap-1 overflow-x-auto scrollbar-none md:flex-col md:items-stretch md:gap-0 md:overflow-x-visible'
         : 'flex items-center gap-1 overflow-x-auto scrollbar-none'}>
-        {lists.map(l => {
+        {/* New checklist comes first */}
+        {isTab ? (
+          <button type="button" onClick={() => handleAddList()}
+            className={`shrink-0 whitespace-nowrap text-left text-[13px] px-2.5 py-1.5 rounded-lg md:mb-1 md:w-full ${classes.panelEmptyAddBtn}`}>
+            + New Checklist
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => handleAddList()}
+            className={`shrink-0 flex items-center justify-center h-7 w-7 rounded-lg ${classes.panelBtn}`}
+            data-tip="New checklist"
+            aria-label="New checklist"
+          >
+            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" d="M8 3.5v9M3.5 8h9" />
+            </svg>
+          </button>
+        )}
+        {lists.map((l, listIdx) => {
           const isActive = l.id === selectedId;
           const isEditing = editingTabId === l.id;
+          // Desktop column only: resting on a list offers "Checklist…" right under it, like Agenda's tasks
+          const offersGhost = isTab && !isEditing && listDragRef.current === null;
           return (
+            <React.Fragment key={l.id}>
             <div
-              key={l.id}
+              draggable={!isEditing}
+              onDragStart={e => onDragStartList(e, listIdx)}
+              onDragOver={e => onDragOverList(e, l.id)}
+              onDrop={e => onDropList(e, listIdx)}
+              onDragEnd={onDragEndList}
               className={[
                 'group relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium shrink-0',
-                isTab ? 'whitespace-nowrap md:justify-between md:whitespace-normal' : 'whitespace-nowrap',
+                isTab ? 'whitespace-nowrap md:my-0.5 md:justify-between md:whitespace-normal' : 'whitespace-nowrap',
                 isActive ? classes.panelTabActive : classes.panelTabInactive,
+                dragOverListId === l.id && listDragRef.current !== listIdx ? classes.dragOver : '',
+                offersGhost ? AGENDA_ADD_ANCHOR : '',
               ].join(' ')}
               onClick={() => {
                 if (!isActive && !isEditing) {
@@ -276,7 +353,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                   style={{ color: 'var(--assistant-text)' }}
                 />
               ) : (
-                <span className={`break-words ${isTab ? 'min-w-0' : 'max-w-40'}`}>{l.name || 'List'}</span>
+                <span className={`break-words ${isTab ? 'min-w-0' : 'max-w-40'}`}>{l.name || 'Checklist'}</span>
               )}
               {(isActive || isTab) && !isEditing && (
                 <span className="text-[11px] tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
@@ -284,37 +361,30 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                 </span>
               )}
             </div>
+            {/* Must directly follow the tab: CSS reveals it via .quick-add-anchor:hover + .quick-add-ghost.
+                Phones show the lists as a row, where a ghost row doesn't fit */}
+            {offersGhost && (
+              <AgendaAddGhost
+                onClick={() => handleAddList(l.id)}
+                paddingLeft={10}
+                label="Checklist…"
+                ariaLabel="Add checklist"
+                className="max-md:hidden"
+              />
+            )}
+            </React.Fragment>
           );
         })}
-
-        {isTab ? (
-          <button type="button" onClick={handleAddList}
-            className={`shrink-0 whitespace-nowrap text-left text-[13px] px-2.5 py-1.5 rounded-lg md:mt-1 md:w-full ${classes.panelEmptyAddBtn}`}>
-            + New list
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleAddList}
-            className={`shrink-0 flex items-center justify-center h-7 w-7 rounded-lg ${classes.panelBtn}`}
-            data-tip="New list"
-            aria-label="New list"
-          >
-            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path strokeLinecap="round" d="M8 3.5v9M3.5 8h9" />
-            </svg>
-          </button>
-        )}
       </div>
     </div>
   );
 
   const emptyState = (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
-      <div className="text-[14px]" style={{ color: 'var(--assistant-text-muted)' }}>No lists yet</div>
-      <button type="button" onClick={handleAddList}
+      <div className="text-[14px]" style={{ color: 'var(--assistant-text-muted)' }}>No checklists yet</div>
+      <button type="button" onClick={() => handleAddList()}
         className={`px-3 py-1.5 rounded-lg text-[13px] ${classes.panelBtn}`}>
-        + Create your first list
+        + Create your first checklist
       </button>
     </div>
   );
@@ -323,31 +393,31 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
     <div className="flex-1 min-h-0 flex flex-col">
       <div className="px-4 py-2.5 shrink-0 flex items-center justify-between gap-2"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <div className="flex items-center gap-2 min-w-0">
-          <button type="button" onClick={() => handleAddItem(activeList.id)}
-            className={`h-7 w-7 shrink-0 rounded-md flex items-center justify-center ${classes.panelBtn}`}
-            data-tip="New item" aria-label="New item">
-            +
-          </button>
-          <button type="button" onClick={() => startTabRename(activeList)}
-            className={`text-[13px] break-words ${classes.panelEmptyAddBtn}`} data-tip="Rename list">
-            Rename
-          </button>
-        </div>
-
+        {/* Renaming is a double-click on the list's tab */}
+        <button type="button" onClick={() => handleAddItem(activeList.id)}
+          className={`shrink-0 whitespace-nowrap text-[13px] px-2.5 py-1 rounded-lg ${classes.panelEmptyAddBtn}`}>
+          + Item
+        </button>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-[11px] tabular-nums mr-1" style={{ color: 'var(--assistant-text-faint)' }}>
             {completedCount}/{totalCount}
           </span>
           <button type="button" onClick={() => handleEmptyList(activeList.id)}
-            className={`text-[12px] px-2 py-1 rounded-md ${classes.panelBtn}`}
-            data-tip="Remove every item from this list">
-            Empty
+            className={`h-7 w-7 rounded-md flex items-center justify-center ${classes.panelBtn}`}
+            data-tip="Remove every item from this checklist" aria-label="Empty checklist">
+            {/* Eraser */}
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+              <path d="M9.5 2.5l4 4L7 13H4l-1.5-1.5a1 1 0 010-1.4z" />
+              <path strokeLinecap="round" d="M6 6l4 4M7 13h7" />
+            </svg>
           </button>
           <button type="button" onClick={() => setConfirmDeleteId(activeList.id)}
-            className={`text-[12px] px-2 py-1 rounded-md ${classes.panelBtnDanger}`}
-            data-tip="Delete this list">
-            Delete
+            className={`h-7 w-7 rounded-md flex items-center justify-center ${classes.panelBtnDanger}`}
+            data-tip="Delete this checklist" aria-label="Delete checklist">
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4" />
+              <path d="M6.7 6.5v4.5M9.3 6.5v4.5" />
+            </svg>
           </button>
         </div>
       </div>
@@ -363,9 +433,16 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
             {activeList.items.map((item, idx) => {
               const isDraggingOver = dragOverItemId === item.id && dragRef.current?.id !== item.id;
               const isDraggingMe   = dragRef.current?.id === item.id;
+              const depth = checklistIndent(item);
+              // Same as Agenda: an item shown with sub-items offers "Sub-item…" as their first;
+              // otherwise a sibling right below it (a sub-item's sibling is a sub-item too)
+              const nextItem = activeList.items[idx + 1];
+              const hasSubItems = Boolean(nextItem && checklistIndent(nextItem) > depth);
+              // Only under items with text, and not mid-drag
+              const offersGhost = item.text.trim() !== '' && !dragRef.current;
               return (
+                <React.Fragment key={item.id}>
                 <div
-                  key={item.id}
                   draggable
                   onDragStart={e => onDragStartItem(e, item.id, idx)}
                   onDragOver={e => onDragOverItem(e, item.id)}
@@ -375,16 +452,10 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                     'group flex items-center gap-2 px-1.5 py-1.5 rounded-md',
                     isDraggingOver ? classes.dragOver : '',
                     isDraggingMe ? 'opacity-60' : '',
+                    offersGhost ? AGENDA_ADD_ANCHOR : '',
                   ].join(' ')}
+                  style={{ paddingLeft: itemRowPad(depth) }}
                 >
-                  <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`}
-                    data-tip="Drag to reorder">
-                    <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
-                      <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-                      <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
-                      <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
-                    </svg>
-                  </div>
                   <button
                     type="button"
                     onClick={() => handleUpdateItem(activeList.id, item.id, { checked: !item.checked })}
@@ -408,20 +479,33 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
                   />
                   <button
                     type="button"
-                    onClick={() => handleRemoveItem(activeList.id, item.id)}
+                    onClick={() => handleRemoveItem(activeList.id, item.id, true)}
                     className={`shrink-0 opacity-0 group-hover:opacity-100 text-[12px] px-1.5 py-0.5 rounded ${classes.panelItemDelete}`}
                     aria-label="Remove item"
-                    data-tip="Remove item"
+                    data-tip={hasSubItems ? 'Remove item and its sub-items' : 'Remove item'}
                   >
                     ✕
                   </button>
                 </div>
+                {/* Must directly follow the row: CSS reveals it via .quick-add-anchor:hover + .quick-add-ghost */}
+                {offersGhost && (hasSubItems ? (
+                  <AgendaAddGhost
+                    onClick={() => handleInsertAfter(activeList.id, item.id, true)}
+                    paddingLeft={ghostPad(depth + 1)}
+                    label="Sub-item…"
+                    ariaLabel="Add sub-item"
+                  />
+                ) : (
+                  <AgendaAddGhost
+                    onClick={() => handleInsertAfter(activeList.id, item.id)}
+                    paddingLeft={ghostPad(depth)}
+                    label={depth > 1 ? 'Sub-item…' : 'Item…'}
+                    ariaLabel={depth > 1 ? 'Add sub-item' : 'Add item'}
+                  />
+                ))}
+                </React.Fragment>
               );
             })}
-            <button type="button" onClick={() => handleAddItem(activeList.id)}
-              className={`w-full text-left text-[13px] px-2 py-1.5 rounded-md mt-1 ${classes.panelEmptyAddBtn}`}>
-              + Add item
-            </button>
           </div>
         )}
       </div>
@@ -431,9 +515,9 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
   const confirmDelete = confirmDeleteId ? (
     <div className={`absolute inset-0 z-10 flex items-center justify-center ${classes.modalBackdrop}`}>
       <div role="alertdialog" className={`w-65 p-4 text-center ${classes.modalCard}`}>
-        <div className="text-[14px] mb-1 font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Delete list?</div>
+        <div className="text-[14px] mb-1 font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Delete checklist?</div>
         <div className="text-[12px] mb-3" style={{ color: 'var(--assistant-text-muted)' }}>
-          This will permanently remove the list and all its items.
+          This will permanently remove the checklist and all its items.
         </div>
         <div className="flex items-center justify-center gap-2">
           <button type="button" onClick={() => setConfirmDeleteId(null)}
@@ -471,17 +555,20 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
         <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
           style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
           <div className="flex items-baseline gap-2">
-            <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Check Lists</h2>
+            <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Checklists</h2>
             {lists.length > 0 && (
               <span className="text-[12px] tabular-nums" style={{ color: 'var(--assistant-text-faint)' }}>
                 {lists.length} {lists.length === 1 ? 'list' : 'lists'}
               </span>
             )}
           </div>
-          <button type="button" onClick={requestClose}
-            className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close lists">
-            ✕
-          </button>
+          <div className="flex items-center gap-1">
+            {onPin ? <PanelPinButton onPin={onPin} label="Checklists" /> : null}
+            <button type="button" onClick={requestClose}
+              className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close lists">
+              ✕
+            </button>
+          </div>
         </div>
       )}
 

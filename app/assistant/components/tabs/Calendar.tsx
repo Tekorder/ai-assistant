@@ -5,6 +5,7 @@ import {
   LS_KEY_V2,
   LS_KEY_V1,
   isValidDateYYYYMMDD,
+  taskCalendarDay,
   startOfLocalDay,
   todayYMD,
   parseYMD,
@@ -185,7 +186,8 @@ export default function CalendarView({
       if (b.indent !== 1 || b.section) continue;
       if (currentListId && !currentListVisible) continue;
       if (b.archived) continue; // 👈 ocultar archivados
-      const day = byCreated ? b.createdAt : b.deadline;
+      // Done tasks sit on the day they were completed (taskCalendarDay)
+      const day = byCreated ? b.createdAt : taskCalendarDay(b);
       if (!isValidDateYYYYMMDD(day)) continue;
 
       const listTitle = currentListTitle || groupTitle || 'General';

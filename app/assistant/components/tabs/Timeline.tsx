@@ -9,6 +9,7 @@ import {
   LS_KEY_V1,
   // Utilities
   isValidDateYYYYMMDD,
+  taskCalendarDay,
   startOfLocalDay,
   todayYMD,
   toYMD,
@@ -295,7 +296,9 @@ export default function Timeline() {
 
       if (b.indent !== 1 || b.section) continue;
       if (currentSectionId && !currentSectionVisible) continue;
-      if (!isValidDateYYYYMMDD(b.deadline)) continue;
+      // Done tasks sit on the day they were completed, open ones on their due date
+      const day = taskCalendarDay(b);
+      if (!day) continue;
       if (b.archived === true) continue;
 
       const checked = Boolean(b.checked);
@@ -325,7 +328,7 @@ export default function Timeline() {
         projectTitle: showAll ? `${projectTitle} · ${listTitle}` : listTitle,
         text: b.text || '',
         checked,
-        deadline: b.deadline!,
+        deadline: day,
         subtasks,
         isHidden,
         archived: false,
