@@ -20,6 +20,7 @@ import SettingsPanel from './components/SettingsPanel';
 import { ThemePicker } from './components/ThemePicker';
 import { ShiftScrollHint } from './components/ShiftScrollHint';
 import ProfilePanel from './components/ProfilePanel';
+import ReminderNotifier from './components/ReminderNotifier';
 import { assistantThemes, getAssistantThemeVars, getThemeCounterpart, type AssistantThemeName } from './_theme/themes';
 import classes from './_theme/themes.module.css';
 import { PivotPanel, buildPrunedPivotTree, buildListPivotTree, type PivotTreeRow } from './components/Pivot';
@@ -1473,6 +1474,8 @@ export default function App() {
           />
         ) : null}
         <ProfilePanel open={profileOpen} onClose={() => setProfileOpen(false)} />
+        {/* Toasts / browser notifications as reminders come due */}
+        <ReminderNotifier />
 
         {(chatOpen || chatClosing) && (
           <>
