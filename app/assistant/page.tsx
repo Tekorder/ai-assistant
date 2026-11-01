@@ -9,7 +9,7 @@ import ChatBox from './components/Chatbox';
 import Timeline from './components/tabs/Timeline';
 import Quick from './components/tabs/Quick';
 import CalendarView from './components/tabs/Calendar';
-import TopNavBar, { AccountActions, HeaderSearch, IconTip, NAV_ITEMS, PanelsMenuButton, type MenuAnchor } from './components/TopNavBar';
+import TopNavBar, { AccountActions, HeaderSearch, IconTip, NAV_ITEMS, type MenuAnchor } from './components/TopNavBar';
 import Menu from './components/Menu';
 import HabitsPanel from './components/HabitsPanel';
 import RemindersPanel from './components/RemindersPanel';
@@ -983,12 +983,6 @@ export default function App() {
     dockOrderSignature,
   ]);
 
-  // Checklists / Habits / Reminders toggles (sidebar header + closed-sidebar rail)
-  const panelsMenuProps = {
-    open: { lists: listsOpen, habits: habitsOpen, reminders: remindersOpen },
-    onToggle: { lists: toggleLists, habits: toggleHabits, reminders: toggleReminders },
-  };
-
   // Shared by the sidebar foot and the closed-sidebar rail
   const accountActionsProps = {
     // A second click on the name / avatar closes the popover
@@ -1002,12 +996,7 @@ export default function App() {
 
   // Sidebar contents (header icons, lists, profile foot): the desktop drawer and the mobile overlay
   const renderSidebarShell = (mobile: boolean) => {
-    // On mobile Checklists / Habits / Reminders are tabs, so the panels menu switches tab;
-    // the deck's layout toggle doesn't apply there
-    const showTab = (v: View) => () => { requestCloseSidebar(); handleSetActiveViewFromNav(v); };
-    const panels = mobile
-      ? { ...panelsMenuProps, onToggle: { lists: showTab('lists'), habits: showTab('habits'), reminders: showTab('reminders') } }
-      : panelsMenuProps;
+    // On mobile the deck's layout toggle doesn't apply
     const account = mobile ? { ...accountActionsProps, onToggleDockLayout: undefined } : accountActionsProps;
     return (
       <>
@@ -1047,9 +1036,8 @@ export default function App() {
             className="h-[28px] w-auto shrink-0"
           />
         </div>
-        {/* Search + reminders bell + Checklists / Habits / Reminders menu — left of the collapse
-            button. While searching, the field takes the place of all three icons and runs to the
-            header's right edge, over the collapse button */}
+        {/* Search + reminders bell — left of the collapse button. While searching, the field takes
+            the place of the bell and runs to the header's right edge, over the collapse button */}
         <div className={`absolute top-3 flex items-center gap-1 ${sidebarSearchOpen ? 'right-3 z-[130]' : 'right-[3.25rem] z-[120]'}`}>
           <HeaderSearch
             compact
@@ -1060,12 +1048,7 @@ export default function App() {
               requestOpenPivot({ word, blockId: null, origin: 'header' });
             }}
           />
-          {!sidebarSearchOpen && (
-            <>
-              <AccountActions placement="bell" {...account} />
-              <PanelsMenuButton {...panels} side="below" />
-            </>
-          )}
+          {!sidebarSearchOpen && <AccountActions placement="bell" {...account} />}
         </div>
         {/* Starts under the menu/collapse buttons; its top rule sits on the main panel's tab line */}
         <div
@@ -1212,7 +1195,6 @@ export default function App() {
                   </svg>
                 </button>
               </IconTip>
-              {isDesktop === true && <PanelsMenuButton {...panelsMenuProps} side="right" />}
             </div>
             {/* Sidebar closed → its footer controls stack here, level with the sidebar's foot */}
             <div

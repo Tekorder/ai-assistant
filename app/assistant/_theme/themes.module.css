@@ -91,8 +91,10 @@
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
+  /* Inverse of the theme: text-colored badge, background-colored number — readable in light
+     and dark (a fixed white number vanished on dark themes' light badge) */
   background: var(--assistant-text);
-  color: #fff;
+  color: var(--assistant-bg);
   font-size: 10px;
   font-weight: 700;
   line-height: 1;

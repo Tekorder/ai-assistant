@@ -32,6 +32,7 @@ import { TaskFlagIcon } from '../TaskFlag';
 import { TaskNoteButton } from '../TaskNote';
 import { DateField, DatePickerModal } from '../DatePickerModal';
 import { useShowAllGroups } from '../../_hook/useShowAllGroups';
+import { useQuickFilters } from '../QuickFiltersContext';
 import { TaskCheckmark } from '../TaskCheckmark';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
@@ -216,6 +217,9 @@ export default function Timeline() {
   const [sources, setSources] = useState<ViewSource[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [showAll] = useShowAllGroups();
+  // Same "View by" as Calendar and Workspace: tasks sit on their due date or their creation date
+  const { sortBy, setSortBy } = useQuickFilters();
+  const byCreated = sortBy === 'createdAt';
   const [showCompleted, setShowCompleted] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => monthStart(new Date()));
   const [rescheduleCardId, setRescheduleCardId] = useState<string | null>(null);
@@ -296,8 +300,9 @@ export default function Timeline() {
 
       if (b.indent !== 1 || b.section) continue;
       if (currentSectionId && !currentSectionVisible) continue;
-      // Done tasks sit on the day they were completed, open ones on their due date
-      const day = taskCalendarDay(b);
+      // By due date: done tasks sit on the day they were completed, open ones on their due
+      // date. By created: every task on the day it was created
+      const day = byCreated ? (isValidDateYYYYMMDD(b.createdAt) ? b.createdAt : undefined) : taskCalendarDay(b);
       if (!day) continue;
       if (b.archived === true) continue;
 
@@ -339,7 +344,7 @@ export default function Timeline() {
     }
 
     return out;
-  }, [sources, showCompleted, showAll]);
+  }, [sources, showCompleted, showAll, byCreated]);
 
   /* ── Range normal (modo timeline clásico) ── */
   const normalRange = useMemo(() => {
@@ -380,8 +385,9 @@ export default function Timeline() {
         continue;
       }
 
+      // A past creation day isn't overdue: by created, every day keeps its own column
       const cd = startOfLocalDay(parseYMD(c.deadline)).getTime();
-      const key = cd < t0 ? OVERDUE_KEY : c.deadline;
+      const key = cd < t0 && !byCreated ? OVERDUE_KEY : c.deadline;
       if (!map[key]) map[key] = [];
       map[key].push(c);
     }
@@ -400,7 +406,7 @@ export default function Timeline() {
     }
 
     return map;
-  }, [cards, showCompleted, completedMonthRange]);
+  }, [cards, showCompleted, completedMonthRange, byCreated]);
 
   const overdueCount = useMemo(
     () => (showCompleted ? 0 : (cardsByDate[OVERDUE_KEY]?.length ?? 0)),
@@ -604,6 +610,28 @@ export default function Timeline() {
         </div>
 
         <div className="youtask-timeline-actions">
+          {/* View by: due date or creation date — same control as Calendar (shared setting) */}
+          <div role="radiogroup" aria-label="Place tasks by" className="flex items-center rounded-xl p-0.5">
+            {([['dueDate', 'Due date'], ['createdAt', 'Created']] as const).map(([value, label]) => {
+              const on = sortBy === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setSortBy(value)}
+                  className="rounded-[10px] px-2.5 py-1 text-[12px] transition-colors"
+                  style={on
+                    ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)', fontWeight: 600 }
+                    : { color: 'var(--assistant-text-soft)' }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
           <button
             type="button"
             className={['youtask-timeline-toggle', showCompleted ? 'is-on' : ''].join(' ')}
