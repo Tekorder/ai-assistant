@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { exportAllData, importAllData, deleteAllData, type ImportMode } from '@/lib/datacenter';
+import NotificationSettings from './NotificationSettings';
 
 /** Typed to unlock the delete button — a deliberate step for an irreversible action. */
 const DELETE_CONFIRM_WORD = 'DELETE';
@@ -148,6 +149,10 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 
         <div className="mx-auto w-full max-w-[560px] flex-1 px-4 py-6 md:px-8">
           <div className="space-y-6">
+            <NotificationSettings />
+
+            <div style={{ borderTop: '1px solid var(--assistant-border-soft)' }} />
+
             <section>
               <h2 className="text-[14px] font-medium mb-1.5" style={{ color: 'var(--assistant-text-muted)' }}>
                 Export data

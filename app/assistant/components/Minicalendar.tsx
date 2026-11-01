@@ -251,19 +251,17 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay }
                   'h-7 rounded-md text-[12px] transition-colors',
                   isSelected ? 'font-bold' : isToday ? `font-bold ${classes.miniCalDayToday}` : classes.miniCalDayNormal,
                 ].join(' ')}
-                // The selected day (the only one shown) is filled dark; today keeps only its background.
-                // Other days take their task color, or the theme's text color when they have none
-                style={
-                  isSelected
-                    ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }
-                    : {
-                        color: hasPending
-                          ? 'var(--assistant-danger-text)'
-                          : allDone
-                          ? 'var(--assistant-success-text)'
-                          : 'var(--assistant-text)',
-                      }
-                }
+                // The selected day (the only one shown) is filled dark; other days are
+                // red while any task is pending, green once all are done, else the theme's text color
+                style={isSelected
+                  ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }
+                  : {
+                      color: hasPending
+                        ? 'var(--assistant-danger-text)'
+                        : allDone
+                        ? 'var(--assistant-success-text)'
+                        : 'var(--assistant-text)',
+                    }}
                 data-tip={isSelected ? `${ymd} · click again to show every date` : ymd}
               >
                 {Number(day)}

@@ -6,8 +6,8 @@ import { getProfile, hasSession, signOutAndClear, subscribeSessionChange } from 
 import {
   readProjectsLS, writeProjectsLS, cleanupEmptyTasks,
   getSyncStatus, loadFromDatabase, SYNC_STATUS_EVENT, type SyncStatus, type SyncState,
-  readRemindersLS, writeRemindersLS, LS_KEY_REMINDERS, type ReminderItem,
 } from '@/lib/datacenter';
+import { useTodayReminders, type TodayReminder } from '../_hook/useTodayReminders';
 import { TaskFlagBadge } from './TaskFlag';
 import type { TipSide } from '@/components/Tooltip';
 import classes from '@/app/assistant/_theme/themes.module.css';
@@ -28,21 +28,6 @@ interface TopNavBarProps {
   onToggleTheme?: () => void;
 }
 
-
-function todayYMD() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function weekdayOf(ymd: string): number {
-  const [y, m, d] = ymd.split('-').map(Number);
-  return new Date(y, m - 1, d).getDay();
-}
-
-function isReminderToday(r: ReminderItem, today: string): boolean {
-  if (r.daily) return !r.days?.length || r.days.includes(weekdayOf(today));
-  return r.date === today;
-}
 
 export const NAV_ITEMS: { id: View; label: string; mobileLabel: string; icon: React.ReactNode }[] = [
   {
@@ -393,31 +378,15 @@ export function AccountActions({
     setUserAvatar(avatarUrl);
   }, []);
 
-  // ── Reminders state ──
-  const [reminders, setReminders] = useState<ReminderItem[]>([]);
+  // ── Reminders: today's standalone + habit reminders, counted once their time has passed ──
+  const { items: todayItems, dismiss, checkIn } = useTodayReminders();
   const [hydrated, setHydrated]   = useState(false);
   const [dropOpen, setDropOpen]   = useState(false);
   const [dropPos, setDropPos]     = useState<React.CSSProperties>({});
   const dropRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const today = todayYMD();
-
-  const load = useCallback(() => {
-    setReminders(readRemindersLS().reminders);
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    load();
-    const handler = (e: StorageEvent) => { if (e.key === LS_KEY_REMINDERS) load(); };
-    window.addEventListener('storage', handler);
-    window.addEventListener('youtask_reminders_updated', load);
-    return () => {
-      window.removeEventListener('storage', handler);
-      window.removeEventListener('youtask_reminders_updated', load);
-    };
-  }, [load]);
+  useEffect(() => { setHydrated(true); }, []);
 
   // Close dropdown on outside click (the menu is portaled, so check it too)
   useEffect(() => {
@@ -444,23 +413,16 @@ export function AccountActions({
     setDropOpen(o => !o);
   };
 
-  const todayReminders = hydrated
-    ? reminders.filter(r => isReminderToday(r, today) && r.title.trim().length > 0)
-    : [];
-  const pendingCount = todayReminders.filter(r => r.dismissedOn !== today).length;
-  const hasPending   = pendingCount > 0;
+  const todayReminders = hydrated ? todayItems : [];
+  const dueReminders   = todayReminders.filter(r => r.state === 'due');
+  const upcomingCount  = todayReminders.filter(r => r.state === 'upcoming').length;
+  const pendingCount   = dueReminders.length;
+  const hasPending     = pendingCount > 0;
 
-  const dismissOne = (id: string) => {
-    const next = reminders.map(r => r.id === id ? { ...r, dismissedOn: today } : r);
-    setReminders(next);
-    writeRemindersLS({ reminders: next });
-  };
+  const dismissOne = (r: TodayReminder) => dismiss([r]);
 
   const dismissAll = () => {
-    const todayIds = new Set(todayReminders.map(r => r.id));
-    const next = reminders.map(r => todayIds.has(r.id) ? { ...r, dismissedOn: today } : r);
-    setReminders(next);
-    writeRemindersLS({ reminders: next });
+    dismiss(dueReminders);
     setDropOpen(false);
   };
 
@@ -559,7 +521,7 @@ export function AccountActions({
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-accent)')}
             onMouseLeave={e => (e.currentTarget.style.color = 'var(--assistant-text-faint)')}
           >
-            Dismiss all
+            Dismiss due
           </button>
         )}
       </div>
@@ -571,40 +533,51 @@ export function AccountActions({
           </div>
         ) : (
           todayReminders.map(r => {
-            const isDone = r.dismissedOn === today;
+            const isDone = r.state === 'done';
+            const isUpcoming = r.state === 'upcoming';
             return (
               <div
-                key={r.id}
+                key={r.key}
                 className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 group"
                 style={{ borderBottomColor: 'var(--assistant-border-soft)' }}
               >
                 <span
                   className="shrink-0 w-2 h-2 rounded-full mt-0.5"
-                  style={{ background: isDone ? 'rgba(52,211,153,.6)' : '#f87171' }}
+                  style={{ background: isDone ? 'rgba(52,211,153,.6)' : isUpcoming ? 'var(--assistant-text-faint)' : '#f87171' }}
                 />
                 <div className="flex-1 min-w-0">
                   <div
                     className="text-[14px] font-medium leading-snug break-words"
                     style={{
-                      color: isDone ? 'var(--assistant-text-faint)' : 'var(--assistant-text)',
+                      color: isDone || isUpcoming ? 'var(--assistant-text-faint)' : 'var(--assistant-text)',
                       textDecoration: isDone ? 'line-through' : 'none',
                     }}
                   >
-                    <TaskFlagBadge source={r} inline />
+                    {r.emoji ? <span className="mr-1" aria-hidden="true">{r.emoji}</span> : <TaskFlagBadge source={r} inline />}
                     {r.title}
                   </div>
-                  {(r.time || r.daily) && (
-                    <div className="text-[12px] mt-0.5" style={{ color: 'var(--assistant-text-faint)' }}>
-                      {r.time && <span>{r.time}</span>}
-                      {r.daily  && <span className="ml-1">· daily</span>}
-                    </div>
-                  )}
+                  <div className="text-[12px] mt-0.5" style={{ color: 'var(--assistant-text-faint)' }}>
+                    <span>{isUpcoming ? `at ${r.time}` : r.time}</span>
+                    {r.kind === 'habit' && <span className="ml-1">· habit{r.message ? ` — ${r.message}` : ''}</span>}
+                  </div>
                 </div>
+                {!isDone && r.kind === 'habit' && r.habit?.kind === 'build' && (
+                  <button
+                    onClick={() => checkIn(r)}
+                    className="shrink-0 text-[12px] font-medium px-2 py-1 rounded-md transition-colors"
+                    style={{ background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }}
+                    data-tip="Check the habit in for today"
+                  >
+                    Done
+                  </button>
+                )}
                 {!isDone ? (
                   <button
-                    onClick={() => dismissOne(r.id)}
-                    className="shrink-0 opacity-0 group-hover:opacity-100 text-[12px] px-2 py-1 rounded-md transition-all"
+                    onClick={() => dismissOne(r)}
+                    className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 text-[12px] px-2 py-1 rounded-md transition-all"
                     style={{ background: 'var(--assistant-control-bg)', color: 'var(--assistant-text-muted)' }}
+                    aria-label={`Dismiss ${r.title}`}
+                    data-tip="Dismiss for today"
                   >
                     <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3.2 8.4l3 3 6.6-7" />
@@ -628,7 +601,7 @@ export function AccountActions({
           className="px-4 py-2.5 border-t text-center text-[12px]"
           style={{ borderTopColor: 'var(--assistant-border-soft)', color: 'var(--assistant-tone-1)' }}
         >
-          All done for today
+          {upcomingCount ? `Nothing due right now · ${upcomingCount} later today` : 'All done for today'}
         </div>
       )}
     </div>
@@ -636,7 +609,8 @@ export function AccountActions({
 
   const bellStatus =
     !todayReminders.length ? 'No reminders today'
-    : hasPending ? `${pendingCount} reminder${pendingCount > 1 ? 's' : ''} pending`
+    : hasPending ? `${pendingCount} reminder${pendingCount > 1 ? 's' : ''} due`
+    : upcomingCount ? `${upcomingCount} reminder${upcomingCount > 1 ? 's' : ''} later today`
     : 'All reminders done today';
   const bellButton = (
       <button

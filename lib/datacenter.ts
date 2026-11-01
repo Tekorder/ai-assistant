@@ -12,6 +12,9 @@ import { getCurrentUid } from './sessionStore';
 export const LS_KEY_V2        = 'youtask_projects_v1';
 export const LS_KEY_V1        = 'youtask_blocks_v1';      // legacy migration
 export const LS_KEY_HABITS    = 'youtask_habits_v1';
+export const LS_KEY_HABIT_LOGS = 'youtask_habit_logs_v1';
+/** Habit-log changes not yet confirmed by Postgres (the logs lane uploads only these) */
+export const LS_KEY_HABIT_LOGS_PENDING = 'youtask_habit_logs_pending_v1';
 export const LS_KEY_REMINDERS = 'youtask_reminders_v1';
 export const LS_KEY_CHECKLISTS = 'youtask_checklists_v1';
 export const UNC_TITLE        = 'Uncategorized';
@@ -142,19 +145,64 @@ export type ProjectsPayload = {
   selectedProjectId?: string;
 };
 
-export type HabitBlock = {
+export type HabitKind = 'build' | 'quit';
+/** The window goalValue has to be reached in */
+export type HabitPeriod = 'day' | 'week' | 'month';
+export type HabitTimeRange = 'anytime' | 'morning' | 'afternoon' | 'evening';
+export type HabitCheckInMethod = 'tap' | 'swipe';
+
+export type Habit = {
   id: string;
+  /** The habit's name */
   text: string;
-  indent: 1;
-  checked: boolean;
-  weekly?: boolean;
+  description?: string;
+  emoji?: string;
+  /** Palette key (habitColors.ts); unset = the theme's accent */
+  color?: string;
+  group?: string;
+  kind: HabitKind;
+  goalPeriod: HabitPeriod;
+  /** Amount per period (build), or the most allowed (quit) */
+  goalValue: number;
+  goalUnit: string;
+  /** Weekdays it's due (0 = Sun … 6 = Sat); empty = every day */
+  taskDays: number[];
+  timeRange: HabitTimeRange;
+  remindersOn: boolean;
+  /** "HH:MM" (24h), sorted */
+  reminderTimes: string[];
+  reminderMessage?: string;
+  memoOnComplete: boolean;
+  /** What the card's button does: complete the goal, or log an amount */
+  barAction: 'done' | 'add';
+  chartType: 'bar' | 'line';
+  /** YYYY-MM-DD; due days start here */
+  startDate: string;
+  /** YYYY-MM-DD; unset = no end */
+  endDate?: string;
+  archived: boolean;
+  templateKey?: string;
+  createdAt?: string;
 };
 
 export type HabitsPayload = {
-  habits: HabitBlock[];
-  lastDailyResetYMD?: string;
-  lastWeeklyResetYMD?: string;
+  habits: Habit[];
+  checkInMethod?: HabitCheckInMethod;
 };
+
+/** One day of one habit. A day with no log has nothing logged. */
+export type HabitLog = {
+  habitId: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** Amount logged that day, in the habit's goalUnit */
+  value: number;
+  /** Skipped on purpose — counts as neither done nor missed */
+  skipped?: boolean;
+  memo?: string;
+};
+
+export type HabitLogsPayload = { logs: HabitLog[] };
 
 export type ReminderItem = {
   id: string;
@@ -889,6 +937,13 @@ function describeDataset(path: SyncPath | string, raw: unknown): string {
       return `${groups} group(s), ${lists} list(s), ${tasks} task(s)${blank ? ` + ${blank} blank` : ''}`;
     }
     if (path === '/api/data/habits') return `${((data.habits as unknown[]) ?? []).length} habit(s)`;
+    if (path === '/api/data/habit-logs') {
+      if (Array.isArray(data.logs)) return `${data.logs.length} habit log(s)`;
+      if (Array.isArray(data.upserts)) {
+        return `${data.upserts.length} changed + ${((data.deletes as unknown[]) ?? []).length} cleared habit day(s)`;
+      }
+      return `${Object.keys(data).length} pending habit day(s)`;   // the pending-ops map
+    }
     if (path === '/api/data/reminders') return `${((data.reminders as unknown[]) ?? []).length} reminder(s)`;
     if (path === '/api/data/checklists') return `${((data.lists as unknown[]) ?? []).length} checklist(s)`;
     return 'data';
@@ -928,7 +983,7 @@ function syncLog(message: string, details?: Record<string, unknown>): void {
 
 export const DATA_OWNER_KEY = 'youtask_data_owner_uid';
 
-const USER_DATA_KEYS = [LS_KEY_V2, LS_KEY_V1, LS_KEY_HABITS, LS_KEY_REMINDERS, LS_KEY_CHECKLISTS];
+const USER_DATA_KEYS = [LS_KEY_V2, LS_KEY_V1, LS_KEY_HABITS, LS_KEY_HABIT_LOGS, LS_KEY_HABIT_LOGS_PENDING, LS_KEY_REMINDERS, LS_KEY_CHECKLISTS];
 
 export function getDataOwner(): string {
   try { return localStorage.getItem(DATA_OWNER_KEY) ?? ''; } catch { return ''; }
@@ -1074,7 +1129,7 @@ export function clearLocalAccountData(): void {
     Object.keys(data).forEach(k => localStorage.removeItem(k));
     localStorage.removeItem(DATA_OWNER_KEY);
     closeSyncGates();
-    for (const ev of ['youtask_projects_updated', 'youtask_blocks_updated', 'youtask_habits_updated', 'youtask_reminders_updated', 'youtask_checklists_updated']) {
+    for (const ev of ['youtask_projects_updated', 'youtask_blocks_updated', 'youtask_habits_updated', HABIT_LOGS_EVENT, 'youtask_reminders_updated', 'youtask_checklists_updated']) {
       window.dispatchEvent(new Event(ev));
     }
   } catch {}
@@ -1088,11 +1143,12 @@ export function clearLocalAccountData(): void {
  * boot state. The gate is bound to the uid it was opened for so a stale tab
  * can't post another account's defaults after a re-login.
  */
-type SyncPath = '/api/data/projects' | '/api/data/habits' | '/api/data/reminders' | '/api/data/checklists';
+type SyncPath = '/api/data/projects' | '/api/data/habits' | '/api/data/habit-logs' | '/api/data/reminders' | '/api/data/checklists';
 
 const syncGate: Record<SyncPath, boolean> = {
   '/api/data/projects': false,
   '/api/data/habits': false,
+  '/api/data/habit-logs': false,
   '/api/data/reminders': false,
   '/api/data/checklists': false,
 };
@@ -1118,6 +1174,7 @@ export function closeSyncGates(): void {
   resetUploadLanes();
   syncGate['/api/data/projects'] = false;
   syncGate['/api/data/habits'] = false;
+  syncGate['/api/data/habit-logs'] = false;
   syncGate['/api/data/reminders'] = false;
   syncGate['/api/data/checklists'] = false;
   hydratedUid = '';
@@ -1183,6 +1240,7 @@ export function getSyncStatus(): SyncStatus {
 const LS_KEY_FOR_PATH: Record<SyncPath, string> = {
   '/api/data/projects':   LS_KEY_V2,
   '/api/data/habits':     LS_KEY_HABITS,
+  '/api/data/habit-logs': LS_KEY_HABIT_LOGS_PENDING,
   '/api/data/reminders':  LS_KEY_REMINDERS,
   '/api/data/checklists': LS_KEY_CHECKLISTS,
 };
@@ -1199,6 +1257,7 @@ const newLane = (): UploadLane => ({ inFlight: null, pending: false, timer: null
 const lanes: Record<SyncPath, UploadLane> = {
   '/api/data/projects': newLane(),
   '/api/data/habits': newLane(),
+  '/api/data/habit-logs': newLane(),
   '/api/data/reminders': newLane(),
   '/api/data/checklists': newLane(),
 };
@@ -1228,7 +1287,7 @@ function sendLane(path: SyncPath): Promise<boolean> {
   const lane = lanes[path];
   if (lane.inFlight) { lane.pending = true; return lane.inFlight; }
   const uid = canUpload(path);
-  const body = uid ? localStorage.getItem(LS_KEY_FOR_PATH[path]) : null;
+  const body = uid ? laneBody(path) : null;
   lane.pending = false;
   if (!uid || !body) return Promise.resolve(true);
 
@@ -1251,6 +1310,7 @@ function sendLane(path: SyncPath): Promise<boolean> {
       if (ok) {
         lane.failures = 0;
         lane.confirmedBody = body;
+        if (path === '/api/data/habit-logs') dropConfirmedHabitLogOps(body);
         syncLog(`✅ Postgres saved ${path} (${summary}) in ${ms}ms`, { account: uid, ...(path === '/api/data/projects' ? { tasks: taskTitles(body) } : {}) });
         if (lane.pending) scheduleUpload(path, 0);     // newer state arrived while sending
       } else {
@@ -1271,6 +1331,12 @@ function scheduleUpload(path: SyncPath, delay = COALESCE_MS): void {
   if (lane.timer) clearTimeout(lane.timer);
   lane.timer = setTimeout(() => { lane.timer = null; void sendLane(path); }, delay);
   notifySyncStatus();
+}
+
+/** What a lane uploads: the dataset as stored — except habit logs, which send only their pending changes. */
+function laneBody(path: SyncPath): string | null {
+  const raw = localStorage.getItem(LS_KEY_FOR_PATH[path]);
+  return path === '/api/data/habit-logs' ? habitLogOpsBody(raw) : raw;
 }
 
 /** Drop queued uploads (logout / account switch) — nothing may go out under the next account. */
@@ -1376,6 +1442,13 @@ function dbSyncHabits(): void {
   } catch {}
 }
 
+function dbSyncHabitLogs(): void {
+  try {
+    if (habitLogOpsBody(localStorage.getItem(LS_KEY_HABIT_LOGS_PENDING)) === null) return;
+    dbPost('/api/data/habit-logs');
+  } catch {}
+}
+
 function dbSyncReminders(): void {
   try {
     const raw = localStorage.getItem(LS_KEY_REMINDERS);
@@ -1439,9 +1512,10 @@ export async function loadFromDatabase(): Promise<void> {
 
   const needProjects   = !syncGate['/api/data/projects'];
   const needHabits     = !syncGate['/api/data/habits'];
+  const needHabitLogs  = !syncGate['/api/data/habit-logs'];
   const needReminders  = !syncGate['/api/data/reminders'];
   const needChecklists = !syncGate['/api/data/checklists'];
-  if (!needProjects && !needHabits && !needReminders && !needChecklists) return;
+  if (!needProjects && !needHabits && !needHabitLogs && !needReminders && !needChecklists) return;
 
   const openGate = (path: SyncPath) => {
     hydratedUid = uid;
@@ -1455,9 +1529,10 @@ export async function loadFromDatabase(): Promise<void> {
   loadInProgress = true;
   notifySyncStatus();
   try {
-    const [projectsRes, habitsRes, remindersRes, checklistsRes] = await Promise.all([
+    const [projectsRes, habitsRes, habitLogsRes, remindersRes, checklistsRes] = await Promise.all([
       needProjects   ? apiFetch('/api/data/projects',   { uid }).catch(() => null) : null,
       needHabits     ? apiFetch('/api/data/habits',     { uid }).catch(() => null) : null,
+      needHabitLogs  ? apiFetch('/api/data/habit-logs', { uid }).catch(() => null) : null,
       needReminders  ? apiFetch('/api/data/reminders',  { uid }).catch(() => null) : null,
       needChecklists ? apiFetch('/api/data/checklists', { uid }).catch(() => null) : null,
     ]);
@@ -1469,6 +1544,7 @@ export async function loadFromDatabase(): Promise<void> {
     if (needProjects && !projectsRes) syncLog('❌ load FAILED /api/data/projects — network error; uploads stay blocked', { account: uid });
     logGetFailure('/api/data/projects', projectsRes);
     logGetFailure('/api/data/habits', habitsRes);
+    logGetFailure('/api/data/habit-logs', habitLogsRes);
     logGetFailure('/api/data/reminders', remindersRes);
     logGetFailure('/api/data/checklists', checklistsRes);
 
@@ -1517,6 +1593,13 @@ export async function loadFromDatabase(): Promise<void> {
       }
     }
 
+    if (habitLogsRes?.ok) {
+      const data = await habitLogsRes.json() as { logs?: unknown[] };
+      hydrateHabitLogs(normalizeHabitLogs(data.logs));
+      openGate('/api/data/habit-logs');
+      dbSyncHabitLogs();
+    }
+
     if (remindersRes?.ok) {
       const data = await remindersRes.json() as { reminders?: unknown[] };
       if (Array.isArray(data.reminders) && data.reminders.length > 0) {
@@ -1545,6 +1628,7 @@ export async function loadFromDatabase(): Promise<void> {
     syncLog(`✔ load finished for ${uid}`, {
       projects: syncGate['/api/data/projects'] ? 'ready' : 'NOT loaded',
       habits: syncGate['/api/data/habits'] ? 'ready' : 'NOT loaded',
+      habitLogs: syncGate['/api/data/habit-logs'] ? 'ready' : 'NOT loaded',
       reminders: syncGate['/api/data/reminders'] ? 'ready' : 'NOT loaded',
       checklists: syncGate['/api/data/checklists'] ? 'ready' : 'NOT loaded',
       localNow: describeDataset('/api/data/projects', localStorage.getItem(LS_KEY_V2)),
@@ -1555,7 +1639,7 @@ export async function loadFromDatabase(): Promise<void> {
 
   // If any GET failed its gate is still closed — retry when we're back
   loadInProgress = false;
-  loadFailed = !syncGate['/api/data/projects'] || !syncGate['/api/data/habits'] ||
+  loadFailed = !syncGate['/api/data/projects'] || !syncGate['/api/data/habits'] || !syncGate['/api/data/habit-logs'] ||
     !syncGate['/api/data/reminders'] || !syncGate['/api/data/checklists'];
   if (loadFailed) hookHydrationRetry();
   notifySyncStatus();
@@ -2341,32 +2425,89 @@ export function isValidTimeHHMM(s: unknown): s is string {
   return typeof s === 'string' && /^\d{2}:\d{2}$/.test(s);
 }
 
-export function isMondayLocal(): boolean {
-  return new Date().getDay() === 1;
-}
-
 /* ===================== Habits — normalization ===================== */
 
-function normalizeHabits(raw: unknown): HabitBlock[] {
+const HABIT_PERIODS: readonly HabitPeriod[] = ['day', 'week', 'month'];
+const HABIT_TIME_RANGES: readonly HabitTimeRange[] = ['anytime', 'morning', 'afternoon', 'evening'];
+
+function pickOne<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
+}
+
+function optText(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() !== '' ? v : undefined;
+}
+
+/** Any stored habit → a v2 Habit. v1 habits ({ text, checked, weekly }) come through
+ *  here too: "weekly" becomes a once-a-week goal (their check-ins are server-side logs). */
+function normalizeHabit(x: Record<string, unknown>): Habit {
+  const goal = x.goalValue;
+  const created = typeof x.createdAt === 'string' ? x.createdAt.slice(0, 10) : '';
+  return {
+    id:              typeof x.id === 'string' && x.id ? x.id : uid(),
+    text:            typeof x.text === 'string' ? x.text : '',
+    description:     optText(x.description),
+    emoji:           optText(x.emoji),
+    color:           optText(x.color),
+    group:           optText(x.group),
+    kind:            x.kind === 'quit' ? 'quit' : 'build',
+    goalPeriod:      pickOne(x.goalPeriod, HABIT_PERIODS, x.weekly === true ? 'week' : 'day'),
+    goalValue:       typeof goal === 'number' && Number.isFinite(goal) && goal >= 0 ? goal : 1,
+    goalUnit:        optText(x.goalUnit) ?? 'times',
+    taskDays:        parseRepeatDays(x.taskDays),
+    timeRange:       pickOne(x.timeRange, HABIT_TIME_RANGES, 'anytime'),
+    remindersOn:     Boolean(x.remindersOn),
+    reminderTimes:   Array.isArray(x.reminderTimes)
+      ? [...new Set((x.reminderTimes as unknown[]).filter(isValidTimeHHMM))].sort()
+      : [],
+    reminderMessage: optText(x.reminderMessage),
+    memoOnComplete:  Boolean(x.memoOnComplete),
+    barAction:       x.barAction === 'add' ? 'add' : 'done',
+    chartType:       x.chartType === 'line' ? 'line' : 'bar',
+    startDate:       isValidDateYYYYMMDD(x.startDate) ? x.startDate
+      : isValidDateYYYYMMDD(created) ? created : todayYMD(),
+    endDate:         isValidDateYYYYMMDD(x.endDate) ? x.endDate : undefined,
+    archived:        Boolean(x.archived),
+    templateKey:     optText(x.templateKey),
+    createdAt:       optText(x.createdAt),
+  };
+}
+
+function normalizeHabits(raw: unknown): Habit[] {
   if (!Array.isArray(raw)) return [];
-  return (raw as Record<string, unknown>[]).map(x => ({
-    id:      typeof x?.id === 'string'      ? x.id      : uid(),
-    text:    typeof x?.text === 'string'    ? x.text    : '',
-    indent:  1 as const,
-    checked: Boolean(x?.checked),
-    weekly:  typeof x?.weekly === 'boolean' ? x.weekly  : false,
-  }));
+  return (raw as unknown[])
+    .filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null)
+    .map(normalizeHabit)
+    // v1 kept a blank placeholder row; v2 has none
+    .filter(h => h.text.trim() !== '');
 }
 
-export function makeDefaultHabit(): HabitBlock {
-  return { id: uid(), text: '', indent: 1, checked: false, weekly: false };
-}
-
-export function ensureOneHabit(habits: HabitBlock[]): HabitBlock[] {
-  return habits.length ? habits : [makeDefaultHabit()];
+/** A new habit with the defaults ("1 time a day, every day, from today"), plus `patch`. */
+export function makeHabit(patch: Partial<Habit> = {}): Habit {
+  return {
+    id: uid(),
+    text: '',
+    kind: 'build',
+    goalPeriod: 'day',
+    goalValue: 1,
+    goalUnit: 'times',
+    taskDays: [],
+    timeRange: 'anytime',
+    remindersOn: false,
+    reminderTimes: [],
+    memoOnComplete: false,
+    barAction: 'done',
+    chartType: 'bar',
+    startDate: todayYMD(),
+    archived: false,
+    createdAt: todayYMD(),
+    ...patch,
+  };
 }
 
 /* ===================== Habits — persistence ===================== */
+
+export const HABITS_EVENT = 'youtask_habits_updated';
 
 export function readHabitsLS(): HabitsPayload {
   try {
@@ -2374,9 +2515,8 @@ export function readHabitsLS(): HabitsPayload {
     if (!raw) return { habits: [] };
     const parsed = JSON.parse(raw);
     return {
-      habits:              normalizeHabits(parsed?.habits ?? parsed),
-      lastDailyResetYMD:   typeof parsed?.lastDailyResetYMD  === 'string' ? parsed.lastDailyResetYMD  : undefined,
-      lastWeeklyResetYMD:  typeof parsed?.lastWeeklyResetYMD === 'string' ? parsed.lastWeeklyResetYMD : undefined,
+      habits:        normalizeHabits(parsed?.habits ?? parsed),
+      checkInMethod: parsed?.checkInMethod === 'swipe' ? 'swipe' : 'tap',
     };
   } catch {
     return { habits: [] };
@@ -2389,75 +2529,216 @@ export function writeHabitsLS(payload: HabitsPayload): void {
     const prevCount = prevRaw ? (JSON.parse(prevRaw) as HabitsPayload).habits?.length ?? 0 : 0;
     backupBeforeShrink('habits', prevRaw, prevCount, payload.habits?.length ?? 0);
     localStorage.setItem(LS_KEY_HABITS, JSON.stringify(payload));
-    window.dispatchEvent(new Event('youtask_habits_updated'));
+    window.dispatchEvent(new Event(HABITS_EVENT));
     dbSyncHabits();
   } catch {}
 }
 
-/* ===================== Habits — resets ===================== */
-
-export function applyHabitResets(payload: HabitsPayload): HabitsPayload {
-  const today = todayYMD();
-  let habits      = payload.habits.map(h => ({ ...h }));
-  let lastDaily   = payload.lastDailyResetYMD;
-  let lastWeekly  = payload.lastWeeklyResetYMD;
-
-  if (lastDaily !== today) {
-    habits    = habits.map(h => h.weekly ? h : { ...h, checked: false });
-    lastDaily = today;
-  }
-  if (isMondayLocal() && lastWeekly !== today) {
-    habits     = habits.map(h => h.weekly ? { ...h, checked: false } : h);
-    lastWeekly = today;
-  }
-
-  return { habits, lastDailyResetYMD: lastDaily, lastWeeklyResetYMD: lastWeekly };
-}
-
-export function forceResetHabits(
-  habits: HabitBlock[],
-  meta: { lastDaily?: string; lastWeekly?: string },
-): HabitsPayload {
-  const today    = todayYMD();
-  let next       = habits.map(h => h.weekly ? h : { ...h, checked: false });
-  let lastWeekly = meta.lastWeekly;
-
-  if (isMondayLocal()) {
-    next       = next.map(h => h.weekly ? { ...h, checked: false } : h);
-    lastWeekly = today;
-  }
-
-  return { habits: next, lastDailyResetYMD: today, lastWeeklyResetYMD: lastWeekly };
-}
-
 /* ===================== Habits — mutations ===================== */
 
-export function insertHabitAfter(
-  habits: HabitBlock[],
-  afterId: string,
-): { habits: HabitBlock[]; newHabit: HabitBlock } {
-  const newHabit = makeDefaultHabit();
-  const i        = habits.findIndex(h => h.id === afterId);
-  const next     = habits.slice();
-  next.splice(i + 1, 0, newHabit);
-  return { habits: next, newHabit };
-}
-
-export function removeHabit(
-  habits: HabitBlock[],
-  id: string,
-): { habits: HabitBlock[]; focusId: string } {
-  if (habits.length === 1) {
-    const replacement = makeDefaultHabit();
-    return { habits: [replacement], focusId: replacement.id };
-  }
-  const idx  = habits.findIndex(h => h.id === id);
-  const next = habits.filter(h => h.id !== id);
-  return { habits: next, focusId: next[Math.max(0, idx - 1)]?.id ?? next[0].id };
-}
-
-export function updateHabit(habits: HabitBlock[], id: string, patch: Partial<HabitBlock>): HabitBlock[] {
+export function updateHabit(habits: Habit[], id: string, patch: Partial<Habit>): Habit[] {
   return habits.map(h => h.id === id ? { ...h, ...patch } : h);
+}
+
+/** Saves one habit: replaces it if it exists, else appends it. */
+export function upsertHabitLS(habit: Habit): void {
+  const payload = readHabitsLS();
+  const exists = payload.habits.some(h => h.id === habit.id);
+  writeHabitsLS({
+    ...payload,
+    habits: exists ? payload.habits.map(h => h.id === habit.id ? habit : h) : [...payload.habits, habit],
+  });
+}
+
+/** Deletes habits for good, history included (the server drops the logs with the habit). */
+export function deleteHabitsLS(ids: string[]): void {
+  const drop = new Set(ids);
+  const payload = readHabitsLS();
+  writeHabitsLS({ ...payload, habits: payload.habits.filter(h => !drop.has(h.id)) });
+  const { logs } = readHabitLogsLS();
+  const kept = logs.filter(l => !drop.has(l.habitId));
+  if (kept.length !== logs.length) writeHabitLogsLocal(kept);
+  const ops = readHabitLogOps();
+  for (const k of Object.keys(ops)) if (drop.has(k.slice(0, k.indexOf('|')))) delete ops[k];
+  writeHabitLogOps(ops);
+}
+
+export function setCheckInMethodLS(method: HabitCheckInMethod): void {
+  writeHabitsLS({ ...readHabitsLS(), checkInMethod: method });
+}
+
+/* ===================== Habit logs =====================
+ * One entry per habit per day, stored as a list. History only grows, so unlike
+ * the other datasets it isn't re-uploaded whole: every change is also queued in
+ * LS_KEY_HABIT_LOGS_PENDING (habitId|date → log, or null = cleared), and the
+ * habit-logs lane uploads just that queue. Hydration replays the queue over the
+ * server's logs, so changes made before the load (or offline) aren't lost. */
+
+export const HABIT_LOGS_EVENT = 'youtask_habit_logs_updated';
+
+type HabitLogOps = Record<string, HabitLog | null>;
+
+const habitLogKey = (habitId: string, date: string) => `${habitId}|${date}`;
+
+function normalizeHabitLog(x: unknown): HabitLog | null {
+  if (typeof x !== 'object' || x === null) return null;
+  const r = x as Record<string, unknown>;
+  if (typeof r.habitId !== 'string' || !r.habitId || !isValidDateYYYYMMDD(r.date)) return null;
+  const value = typeof r.value === 'number' && Number.isFinite(r.value) && r.value >= 0 ? r.value : 0;
+  return {
+    habitId: r.habitId,
+    date: r.date,
+    value,
+    ...(r.skipped === true ? { skipped: true } : {}),
+    ...(typeof r.memo === 'string' && r.memo.trim() !== '' ? { memo: r.memo } : {}),
+  };
+}
+
+function normalizeHabitLogs(raw: unknown): HabitLog[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(normalizeHabitLog).filter((l): l is HabitLog => l !== null);
+}
+
+/** A log with nothing in it is the same as no log. */
+function isEmptyHabitLog(l: HabitLog): boolean {
+  return l.value === 0 && !l.skipped && !l.memo;
+}
+
+export function readHabitLogsLS(): HabitLogsPayload {
+  try {
+    const raw = localStorage.getItem(LS_KEY_HABIT_LOGS);
+    return { logs: raw ? normalizeHabitLogs(JSON.parse(raw)?.logs) : [] };
+  } catch {
+    return { logs: [] };
+  }
+}
+
+/** Writes the logs on this device only (no upload). */
+function writeHabitLogsLocal(logs: HabitLog[]): void {
+  try {
+    localStorage.setItem(LS_KEY_HABIT_LOGS, JSON.stringify({ logs } satisfies HabitLogsPayload));
+    window.dispatchEvent(new Event(HABIT_LOGS_EVENT));
+  } catch {}
+}
+
+function readHabitLogOps(): HabitLogOps {
+  try {
+    const raw = localStorage.getItem(LS_KEY_HABIT_LOGS_PENDING);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed as HabitLogOps : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeHabitLogOps(ops: HabitLogOps): void {
+  try {
+    if (Object.keys(ops).length === 0) localStorage.removeItem(LS_KEY_HABIT_LOGS_PENDING);
+    else localStorage.setItem(LS_KEY_HABIT_LOGS_PENDING, JSON.stringify(ops));
+  } catch {}
+}
+
+/** The pending queue as an upload body, or null when nothing is pending. */
+function habitLogOpsBody(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const ops = JSON.parse(raw) as HabitLogOps;
+    const upserts: HabitLog[] = [];
+    const deletes: { habitId: string; date: string }[] = [];
+    for (const [key, log] of Object.entries(ops)) {
+      if (log) upserts.push(log);
+      else {
+        const cut = key.indexOf('|');
+        deletes.push({ habitId: key.slice(0, cut), date: key.slice(cut + 1) });
+      }
+    }
+    return upserts.length || deletes.length ? JSON.stringify({ upserts, deletes }) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** After an upload: forget the queued changes it carried — unless they changed again meanwhile. */
+function dropConfirmedHabitLogOps(sentBody: string): void {
+  try {
+    const sent = JSON.parse(sentBody) as { upserts: HabitLog[]; deletes: { habitId: string; date: string }[] };
+    const ops = readHabitLogOps();
+    for (const l of sent.upserts) {
+      const k = habitLogKey(l.habitId, l.date);
+      if (ops[k] && JSON.stringify(ops[k]) === JSON.stringify(l)) delete ops[k];
+    }
+    for (const d of sent.deletes) {
+      const k = habitLogKey(d.habitId, d.date);
+      if (ops[k] === null) delete ops[k];
+    }
+    writeHabitLogOps(ops);
+  } catch {}
+}
+
+/** Server logs + this device's unconfirmed changes on top. A server with no logs at
+ *  all next to a device that has some (local mode → database) gets them all queued. */
+function hydrateHabitLogs(serverLogs: HabitLog[]): void {
+  const ops = readHabitLogOps();
+  if (serverLogs.length === 0) {
+    for (const l of readHabitLogsLS().logs) {
+      const k = habitLogKey(l.habitId, l.date);
+      if (!(k in ops)) ops[k] = l;
+    }
+    writeHabitLogOps(ops);
+  }
+  const byKey = new Map(serverLogs.map(l => [habitLogKey(l.habitId, l.date), l]));
+  for (const [k, log] of Object.entries(ops)) {
+    if (log) byKey.set(k, log);
+    else byKey.delete(k);
+  }
+  writeHabitLogsLocal([...byKey.values()]);
+}
+
+/** Empties the logs and their upload queue on this device (after the server dropped them). */
+function clearHabitLogsLocal(): void {
+  writeHabitLogOps({});
+  writeHabitLogsLocal([]);
+}
+
+/** Puts logs (e.g. from a backup) over what's here, each queued for upload. */
+function mergeHabitLogsLS(incoming: HabitLog[]): void {
+  const byKey = new Map(readHabitLogsLS().logs.map(l => [habitLogKey(l.habitId, l.date), l]));
+  const ops = readHabitLogOps();
+  for (const raw of incoming) {
+    const l = normalizeHabitLog(raw);
+    if (!l) continue;
+    const k = habitLogKey(l.habitId, l.date);
+    byKey.set(k, l);
+    if (isDatabaseMode()) ops[k] = l;
+  }
+  writeHabitLogsLocal([...byKey.values()]);
+  writeHabitLogOps(ops);
+  dbSyncHabitLogs();
+}
+
+export function getHabitLog(logs: HabitLog[], habitId: string, date: string): HabitLog | undefined {
+  return logs.find(l => l.habitId === habitId && l.date === date);
+}
+
+/**
+ * Sets (or, once it holds nothing, clears) one habit's day and queues it for upload.
+ * `patch` merges into what's logged that day: setHabitLogLS(id, ymd, { value: 3 }).
+ */
+export function setHabitLogLS(habitId: string, date: string, patch: Partial<Omit<HabitLog, 'habitId' | 'date'>>): void {
+  const { logs } = readHabitLogsLS();
+  const prev = getHabitLog(logs, habitId, date);
+  const next = normalizeHabitLog({ ...(prev ?? { value: 0 }), ...patch, habitId, date });
+  if (!next) return;
+  const empty = isEmptyHabitLog(next);
+  const rest = logs.filter(l => l !== prev);
+  writeHabitLogsLocal(empty ? rest : [...rest, next]);
+
+  if (isDatabaseMode()) {
+    const ops = readHabitLogOps();
+    ops[habitLogKey(habitId, date)] = empty ? null : next;
+    writeHabitLogOps(ops);
+    dbSyncHabitLogs();
+  }
 }
 
 /* ===================== Reminders — normalization ===================== */
@@ -3515,7 +3796,8 @@ export async function deleteAllData(): Promise<{ ok: true } | { ok: false; messa
       clearLocal: () => writeProjectsLS({ projects: fresh, selectedProjectId: fresh[0].project_id }) },
     { label: 'habits', path: '/api/data/habits' as SyncPath,
       body: { habits: [] } as HabitsPayload,
-      clearLocal: () => writeHabitsLS({ ...readHabitsLS(), habits: [] }) },
+      // The server drops every habit log along with the habits
+      clearLocal: () => { writeHabitsLS({ ...readHabitsLS(), habits: [] }); clearHabitLogsLocal(); } },
     { label: 'reminders', path: '/api/data/reminders' as SyncPath,
       body: { reminders: [] } as RemindersPayload,
       clearLocal: () => writeRemindersLS({ reminders: [] }) },
@@ -3557,6 +3839,8 @@ export type BackupData = {
   exportedAt: string;
   projects: ProjectsPayload;
   habits: HabitsPayload;
+  /** Since habits v2; older backups have none */
+  habitLogs?: HabitLogsPayload;
   reminders: RemindersPayload;
   checklists: ChecklistsPayload;
 };
@@ -3569,6 +3853,7 @@ export function exportAllData(): BackupData {
     exportedAt: new Date().toISOString(),
     projects: readProjectsLS() ?? { projects: [makePersonalProject()] },
     habits: readHabitsLS(),
+    habitLogs: readHabitLogsLS(),
     reminders: readRemindersLS(),
     checklists: readChecklistsLS(),
   };
@@ -3628,12 +3913,21 @@ export function importAllData(raw: unknown, mode: ImportMode): void {
   }
 
   if (Array.isArray(data.habits?.habits)) {
+    const backupLogs = normalizeHabitLogs(data.habitLogs?.logs);
     if (mode === 'override') {
-      writeHabitsLS(data.habits!);
+      writeHabitsLS({ habits: normalizeHabits(data.habits!.habits), checkInMethod: readHabitsLS().checkInMethod });
+      mergeHabitLogsLS(backupLogs);
     } else {
+      // Merged habits get new ids — their history follows them
       const current = readHabitsLS();
-      const incoming = data.habits!.habits.map(h => ({ ...h, id: uid() }));
+      const newIds = new Map<string, string>();
+      const incoming = normalizeHabits(data.habits!.habits).map(h => {
+        const id = uid();
+        newIds.set(h.id, id);
+        return { ...h, id };
+      });
       writeHabitsLS({ ...current, habits: [...current.habits, ...incoming] });
+      mergeHabitLogsLS(backupLogs.flatMap(l => newIds.has(l.habitId) ? [{ ...l, habitId: newIds.get(l.habitId)! }] : []));
     }
   }
 

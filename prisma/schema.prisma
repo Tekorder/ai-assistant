@@ -27,6 +27,7 @@ model User {
   reminders              Reminder[]
   checklists             Checklist[]
   taskCompletions        TaskCompletion[]
+  habitLogs              HabitLog[]
   habitMeta              HabitMeta?
   rowCreatedAt           DateTime   @default(now())
   rowUpdatedAt           DateTime   @updatedAt
@@ -113,27 +114,90 @@ model TaskCompletion {
 }
 
 model Habit {
-  id           String   @id @default(cuid())
-  userId       String
-  localId      String
-  text         String   @default("")
-  checked      Boolean  @default(false)
-  weekly       Boolean  @default(false)
-  position     Int      @default(0)
-  createdAt    String?
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  rowCreatedAt DateTime @default(now())
-  rowUpdatedAt DateTime @updatedAt
+  id              String   @id @default(cuid())
+  userId          String
+  localId         String
+  /// The habit's name
+  text            String   @default("")
+  /// Deprecated (habits v1): done-state now lives in HabitLog. Kept for the backfill; drop later.
+  checked         Boolean  @default(false)
+  /// Deprecated (habits v1): replaced by goalPeriod = "week". Kept for the backfill; drop later.
+  weekly          Boolean  @default(false)
+  description     String?
+  emoji           String?
+  /// Palette key (see habitColors.ts); null = the theme's accent
+  color           String?
+  groupName       String?
+  /// build | quit
+  kind            String   @default("build")
+  /// day | week | month — the window goalValue has to be reached in
+  goalPeriod      String   @default("day")
+  /// Amount per period (build), or the most allowed (quit)
+  goalValue       Float    @default(1)
+  /// times | min | h | ml | km | steps | pages | any custom unit
+  goalUnit        String   @default("times")
+  /// Weekdays it's due (0 = Sun … 6 = Sat); empty = every day
+  taskDays        Int[]    @default([])
+  /// anytime | morning | afternoon | evening
+  timeRange       String   @default("anytime")
+  remindersOn     Boolean  @default(false)
+  /// "HH:MM" (24h) times the reminder fires on due days
+  reminderTimes   String[] @default([])
+  reminderMessage String?
+  /// Ask for a memo after checking it in
+  memoOnComplete  Boolean  @default(false)
+  /// What the card's button does: done (complete the goal) | add (log an amount)
+  barAction       String   @default("done")
+  /// bar | line
+  chartType       String   @default("bar")
+  /// YYYY-MM-DD; due days start here
+  startDate       String?
+  /// YYYY-MM-DD; null = no end
+  endDate         String?
+  archived        Boolean  @default(false)
+  /// Template it was created from (habitTemplates.ts), if any
+  templateKey     String?
+  position        Int      @default(0)
+  createdAt       String?
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rowCreatedAt    DateTime @default(now())
+  rowUpdatedAt    DateTime @updatedAt
 
   @@unique([userId, localId])
   @@index([userId, position])
 }
 
+/// One day of one habit ("Drink water" on 2026-10-31: 1500 ml). A day with no row
+/// has nothing logged. Keyed by the habit's localId, not Habit.id — the sync
+/// recreates Habit rows on every save, so a FK there would wipe the history.
+model HabitLog {
+  id           String   @id @default(cuid())
+  userId       String
+  habitLocalId String
+  /// YYYY-MM-DD
+  date         String
+  /// Amount logged that day, in the habit's goalUnit
+  value        Float    @default(0)
+  /// The day was skipped on purpose — doesn't count as done or missed
+  skipped      Boolean  @default(false)
+  memo         String?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rowCreatedAt DateTime @default(now())
+  rowUpdatedAt DateTime @updatedAt
+
+  @@unique([userId, habitLocalId, date])
+  @@index([userId, date])
+}
+
 model HabitMeta {
   id                 String   @id @default(cuid())
   userId             String   @unique
+  /// Deprecated (habits v1 daily reset). Kept for the backfill; drop later.
   lastDailyResetYMD  String?
+  /// Deprecated (habits v1 weekly reset). Kept for the backfill; drop later.
   lastWeeklyResetYMD String?
+  /// How a habit is checked in: tap | swipe
+  checkInMethod      String   @default("tap")
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   rowCreatedAt       DateTime @default(now())
   rowUpdatedAt       DateTime @updatedAt
