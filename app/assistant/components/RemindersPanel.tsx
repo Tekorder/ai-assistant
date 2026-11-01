@@ -19,6 +19,8 @@ import {
 import { createPortal } from 'react-dom';
 import { TaskFlagButton } from './TaskFlag';
 import { AgendaTaskRow, AgendaCheck, AgendaDate } from './AgendaList';
+import { reminderFallsOn } from '../_utils/reminderSchedule';
+import { HabitRemindersSection } from './habits/HabitRemindersSection';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 /** Mon-first display order; values are JS weekdays (0 = Sun). */
@@ -286,6 +288,8 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
             const hhmm = isValidTimeHHMM(r.time) ? r.time : '11:00';
             // One-off reminders whose date + time already went by (zero-padded, so string compare works)
             const isPast = !r.daily && r.title.trim() !== '' && `${ymd}T${hhmm}` < nowKey;
+            // Today's, its time passed, not dismissed yet — what the bell counts
+            const isDue = reminderFallsOn(r, nowKey.slice(0, 10)) && hhmm <= nowKey.slice(11) && r.dismissedOn !== nowKey.slice(0, 10);
             return (
               <AgendaTaskRow
                 key={r.id}
@@ -310,6 +314,13 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                 }
                 right={
                   <>
+                    {isDue ? (
+                      <span className="shrink-0 rounded-full px-1.5 py-px text-[11px] font-semibold"
+                        style={{ background: 'color-mix(in srgb, var(--assistant-danger-text) 14%, transparent)', color: 'var(--assistant-danger-text)' }}
+                        data-tip="Its time has come — check it to dismiss">
+                        Due
+                      </span>
+                    ) : null}
                     <TaskFlagButton
                       source={r}
                       onChange={(next) => handleUpdateReminder(r.id, { flag: next, priority: undefined })}
@@ -349,7 +360,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                   onChange={e => handleUpdateReminder(r.id, { title: e.target.value })}
                   onKeyDown={e => handleReminderKey(e, r)}
                   className="w-full resize-none overflow-hidden whitespace-pre-wrap break-words bg-transparent outline-none text-[14px] md:text-sm leading-[1.45] min-h-[1.45em]"
-                  style={{ color: isPast ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)' }}
+                  style={{ color: isPast && !isDue ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)' }}
                 />
                 {/* Repeating reminders fire on their weekdays — the date only matters for "Once" */}
                 <AgendaDate
@@ -389,6 +400,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
             );
           })}
         </div>
+        <HabitRemindersSection columns={variant === 'tab'} />
       </div>
 
       {daysModal ? createPortal(

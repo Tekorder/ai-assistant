@@ -21,6 +21,16 @@ import {
 import { TaskFlagIcon } from '../TaskFlag';
 import { useQuickFilters } from '../QuickFiltersContext';
 import { useShowAllGroups } from '../../_hook/useShowAllGroups';
+import { HabitDayDialog } from '../habits/HabitDayDialog';
+import {
+  HabitDayPills,
+  ReminderDayDialog,
+  ReminderDayPills,
+  SourceToggle,
+  useCalendarSource,
+  useHabitCalendar,
+  useReminderCalendar,
+} from './CalendarSources';
 
 /* ===================== Local types ===================== */
 
@@ -130,8 +140,15 @@ export default function CalendarView({
   const [showAll]               = useShowAllGroups();
   // Same "View by" as Workspace: tasks sit on their due date or their creation date
   const { sortBy, setSortBy }   = useQuickFilters();
-  const byCreated               = sortBy === 'createdAt';
-  const projectTitle            = sources[0]?.focusListTitle
+  // What the calendar shows: tasks (by list), habits, or reminders
+  const [source, setSource]     = useCalendarSource();
+  const isTasks                 = source === 'tasks';
+  const byCreated               = isTasks && sortBy === 'createdAt';
+  const [habitDay, setHabitDay]       = useState<string | null>(null);
+  const [reminderDay, setReminderDay] = useState<string | null>(null);
+  const projectTitle            = !isTasks
+    ? (source === 'habits' ? 'Your habits' : 'Reminders & habit reminders')
+    : sources[0]?.focusListTitle
     ? `${sources[0].title} › ${sources[0].focusListTitle}`
     : showAll ? 'All groups' : (sources[0]?.title || 'Group');
 
@@ -244,6 +261,17 @@ export default function CalendarView({
 
   /* ── Month grid ── */
   const grid = useMemo(() => getMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
+  const habitDays    = useHabitCalendar(grid, today);
+  const reminderDays = useReminderCalendar(grid);
+  /** Something to show on the day, for the current source */
+  const dayHasItems = (ymd: string) =>
+    source === 'habits' ? Boolean(habitDays[ymd]) : source === 'reminders' ? Boolean(reminderDays[ymd]) : Boolean(cardsByDate[ymd]?.length);
+  const isDaySelected = (ymd: string) =>
+    source === 'habits' ? habitDay === ymd : source === 'reminders' ? reminderDay === ymd : openDaySet.has(ymd);
+  const renderSourcePills = (ymd: string) =>
+    source === 'habits' ? <HabitDayPills items={habitDays[ymd] ?? []} />
+    : source === 'reminders' ? <ReminderDayPills items={reminderDays[ymd] ?? []} past={ymd < today} />
+    : renderDayPills(ymd);
 
   /* ── Navigation ── */
   const prevMonth = () => {
@@ -257,12 +285,15 @@ export default function CalendarView({
   const goToday = () => {
     setViewYear(new Date().getFullYear());
     setViewMonth(new Date().getMonth());
-    onOpenDayPanel?.(today);
+    handleDayClick(today);
   };
 
-  const handleDayClick = (ymd: string) => {
-    onOpenDayPanel?.(ymd);
-  };
+  // Tasks open the day panel; habits and reminders their own day view
+  function handleDayClick(ymd: string) {
+    if (source === 'habits') setHabitDay(ymd);
+    else if (source === 'reminders') setReminderDay(ymd);
+    else onOpenDayPanel?.(ymd);
+  }
 
   /* ── Unique list titles (for color assignment) ── */
   const listTitleIndex = useMemo(() => {
@@ -332,7 +363,8 @@ export default function CalendarView({
   }
 
   return (
-    <div className="relative h-full w-full overflow-y-auto bg-transparent" style={{ color: 'var(--assistant-text)' }}>
+    // inline-size containment: day contents (long reminder titles) wrap instead of widening the panel
+    <div className="relative h-full w-full overflow-y-auto bg-transparent" style={{ color: 'var(--assistant-text)', contain: 'inline-size' }}>
       {/* Fills the tab's height so the month grid can stretch down (desktop) */}
       <div className="mx-auto flex min-h-full max-w-6xl flex-col px-3 pt-3 pb-20 md:px-8 md:py-8">
 
@@ -349,9 +381,10 @@ export default function CalendarView({
             <p className="text-[13px] mt-1" style={{ color: 'var(--assistant-text-faint)' }}>{projectTitle}</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* View by: due date or creation date (shared with Workspace's "View by") */}
-            <div
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/* View by: due date or creation date (shared with Workspace's "View by").
+                Left of the source toggle so switching source doesn't shift it. */}
+            {isTasks ? <div
               role="radiogroup"
               aria-label="Place tasks by"
               className="flex items-center rounded-xl p-0.5"
@@ -374,7 +407,8 @@ export default function CalendarView({
                   </button>
                 );
               })}
-            </div>
+            </div> : null}
+            <SourceToggle value={source} onChange={setSource} />
             <button
               type="button"
               onClick={goToday}
@@ -420,9 +454,9 @@ export default function CalendarView({
         <div className="hidden md:grid flex-1 grid-cols-7 auto-rows-fr gap-[3px] rounded-2xl overflow-hidden p-[3px] bg-transparent">
           {grid.map((ymd, idx) => {
             const isToday    = ymd === today;
-            const isSelected = ymd ? openDaySet.has(ymd) : false;
-            const dayCards   = ymd ? (cardsByDate[ymd] ?? []) : [];
-            const hasCards   = dayCards.length > 0;
+            const isSelected = ymd ? isDaySelected(ymd) : false;
+            const dayCards   = ymd && isTasks ? (cardsByDate[ymd] ?? []) : [];
+            const hasCards   = ymd ? dayHasItems(ymd) : false;
             const isPast     = ymd ? dayDiff(ymd) < 0 : false;
             // "Overdue" only means something when placing by due date
             const isOverdue  = !byCreated && isPast && hasCards && dayCards.some(c => !c.checked);
@@ -500,7 +534,7 @@ export default function CalendarView({
                     </div>
 
                     {/* Pills */}
-                    {renderDayPills(ymd)}
+                    {renderSourcePills(ymd)}
                   </>
                 )}
               </div>
@@ -513,11 +547,11 @@ export default function CalendarView({
           {grid.filter(Boolean).map((ymd) => {
             if (!ymd) return null;
             const isToday    = ymd === today;
-            const isSelected = openDaySet.has(ymd);
-            const groups     = getGroupsForDay(ymd);
+            const isSelected = isDaySelected(ymd);
+            const groups     = isTasks ? getGroupsForDay(ymd) : [];
             const [,, dayNum] = ymd.split('-');
             const weekday    = new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
-            const hasAnyTask = groups.length > 0;
+            const hasAnyTask = dayHasItems(ymd);
             const isPast     = dayDiff(ymd) < 0;
             const isOverdue  = !byCreated && isPast && hasAnyTask && groups.flatMap(g => g.cards).some(c => !c.checked);
 
@@ -577,7 +611,9 @@ export default function CalendarView({
                 </div>
 
                 {/* Pills — all of them, no cap */}
-                {groups.length > 0 ? (
+                {!isTasks ? (
+                  hasAnyTask ? renderSourcePills(ymd) : <div className="text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>—</div>
+                ) : groups.length > 0 ? (
                   <div className="space-y-[4px]">
                     {groups.map((g, gi) => {
                       const done  = g.cards.filter(c => c.checked).length;
@@ -619,6 +655,10 @@ export default function CalendarView({
 
       </div>
 
+      {habitDay ? <HabitDayDialog ymd={habitDay} onClose={() => setHabitDay(null)} /> : null}
+      {reminderDay ? (
+        <ReminderDayDialog ymd={reminderDay} items={reminderDays[reminderDay] ?? []} today={today} onClose={() => setReminderDay(null)} />
+      ) : null}
     </div>
   );
 }
