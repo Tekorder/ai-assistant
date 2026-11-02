@@ -499,17 +499,6 @@
   background: color-mix(in srgb, var(--assistant-text) 10%, transparent);
 }
 
-.quickNewListBtn {
-  color: var(--assistant-text);
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-.quickNewListBtn:hover {
-  background: color-mix(in srgb, var(--assistant-text) 8%, transparent);
-}
-
 .quickNavArrow {
   color: var(--assistant-accent);
 }
@@ -732,9 +721,9 @@
   box-shadow: 0 24px 60px rgba(0, 0, 0, .22);
   animation: modalIn .28s cubic-bezier(.25, .9, .3, 1) both;
 }
-/* Dashboard / stats cards: the dialogs' theme-tinted gradient, resting on the page */
+/* Dashboard / stats cards: the dialogs' theme tint (an even wash, see --assistant-card-bg), resting on the page */
 .dashCard {
-  background: var(--assistant-overlay-panel-bg, var(--assistant-surface));
+  background: var(--assistant-card-bg, var(--assistant-surface));
   border: 1px solid var(--assistant-border-soft);
   box-shadow: 0 6px 20px rgba(0, 0, 0, .06);
 }

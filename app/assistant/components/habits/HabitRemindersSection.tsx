@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { repeatDaysLabel, type Habit } from '@/lib/datacenter';
+import { formatTime12, repeatDaysLabel, upsertHabitLS, type Habit } from '@/lib/datacenter';
 import { useHabits } from '../../_hook/useHabits';
 import { useTodayReminders, type TodayReminder } from '../../_hook/useTodayReminders';
 import { habitColorStyle } from '../../_utils/habitColors';
 import { indexHabitLogs, isDueOn } from '../../_utils/habitSchedule';
 import { isCheckedIn } from '../../_utils/habitActions';
 import { useHabitDialogs } from './useHabitDialogs';
+import { TaskFlagButton } from '../TaskFlag';
+import { ReminderRow, ReminderIcon, ReminderTimeChip, ReminderDoneButton, ReminderDismissButton } from '../ReminderRow';
 
 /** When a habit reminds: its task days, or every day. */
 function scheduleLabel(h: Habit): string {
@@ -53,67 +55,33 @@ export function HabitRemindersSection({ columns = false }: { columns?: boolean }
             const canCheckIn = h.kind === 'build' && isDueOn(h, today) && !isCheckedIn(h, index, today);
             const color = habitColorStyle(h.color);
             return (
-              <div key={h.id} className={`${color.className} group flex items-start gap-2.5 rounded-lg px-1.5 py-1.5`} style={color.style}>
-                <button type="button" onClick={() => edit(h)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[16px]"
-                  style={{ background: 'var(--habit-tint)' }}
-                  aria-label={`Edit ${h.text}`} data-tip="Edit habit & reminders">
-                  {h.emoji ?? '•'}
-                </button>
-
-                <div className="min-w-0 flex-1">
+              <ReminderRow
+                key={h.id}
+                className={color.className}
+                style={color.style}
+                icon={<ReminderIcon onClick={() => edit(h)} label={`Edit ${h.text}`} tip="Edit habit & reminders">{h.emoji ?? '•'}</ReminderIcon>}
+                title={
                   <button type="button" onClick={() => edit(h)} className="block max-w-full text-left">
                     <span className="break-words text-[14px] font-medium" style={{ color: 'var(--assistant-text-soft)' }}>{h.text}</span>
                   </button>
-                  <div className="text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
-                    {h.reminderMessage ? <span className="break-words">{h.reminderMessage} · </span> : null}
-                    {scheduleLabel(h)}
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {todays.map(({ time, item }) => <TimeChip key={time} time={time} item={item} />)}
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {canCheckIn ? (
-                    <button type="button" onClick={() => act(h, today)}
-                      className="rounded-full px-2.5 py-1 text-[12px] font-semibold"
-                      style={{ background: 'var(--habit-color)', color: 'var(--habit-on)' }}
-                      data-tip="Check the habit in for today">
-                      Done
-                    </button>
-                  ) : null}
-                  {due.length ? (
-                    <button type="button" onClick={() => dismiss(due)}
-                      className="rounded-md px-2 py-1 text-[12px]"
-                      style={{ background: 'var(--assistant-control-bg)', color: 'var(--assistant-text-muted)' }}
-                      aria-label={`Dismiss ${h.text}`} data-tip="Dismiss for today">
-                      Dismiss
-                    </button>
-                  ) : null}
-                </div>
-              </div>
+                }
+                meta={<>{h.reminderMessage ? <span className="break-words">{h.reminderMessage} · </span> : null}{scheduleLabel(h)}</>}
+                chips={todays.map(({ time, item }) => (
+                  <ReminderTimeChip key={time} label={formatTime12(time)} state={item?.state ?? 'off'} />
+                ))}
+                actions={
+                  <>
+                    <TaskFlagButton source={h} onChange={flag => upsertHabitLS({ ...h, flag })} />
+                    {canCheckIn ? <ReminderDoneButton onClick={() => act(h, today)} tip="Check the habit in for today" /> : null}
+                    {due.length ? <ReminderDismissButton onClick={() => dismiss(due)} label={`Dismiss ${h.text}`} /> : null}
+                  </>
+                }
+              />
             );
           })}
         </div>
       )}
       {dialogs}
     </section>
-  );
-}
-
-/** A reminder time, marked with how it stands today (no mark: not one of the habit's days). */
-function TimeChip({ time, item }: { time: string; item?: TodayReminder }) {
-  const state = item?.state;
-  const style: React.CSSProperties =
-    state === 'due' ? { background: 'color-mix(in srgb, var(--assistant-danger-text) 14%, transparent)', color: 'var(--assistant-danger-text)', fontWeight: 600 }
-    : state === 'done' ? { background: 'var(--habit-tint)', color: 'var(--assistant-text-faint)' }
-    : state === 'upcoming' ? { background: 'var(--habit-tint)', color: 'var(--habit-ink)' }
-    : { background: 'var(--assistant-control-bg)', color: 'var(--assistant-text-faint)' };
-  const tip = state === 'due' ? 'Due' : state === 'done' ? 'Done for today' : state === 'upcoming' ? 'Later today' : 'Not today';
-  return (
-    <span className="rounded-full px-2 py-px text-[11px] tabular-nums" style={style} data-tip={tip}>
-      {state === 'done' ? '✓ ' : ''}{time}{state === 'due' ? ' · Due' : ''}
-    </span>
   );
 }

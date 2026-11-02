@@ -2,20 +2,25 @@
 
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { addDaysYMD, formatPill, isValidDateYYYYMMDD, monthStartYMD, todayYMD } from '@/lib/datacenter';
+import { addDaysYMD, formatPill, formatTime12, isValidDateYYYYMMDD, isValidTimeHHMM, monthStartYMD, todayYMD } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { CalendarIcon } from '@/app/assistant/_icons/CalendarIcon';
 import { CalendarMonth } from './CalendarMonth';
+import { TimePicker } from './TimePicker';
 
 /**
  * Single-day picker in the same look as the date range dialog: pick a day
  * (or a preset), then Apply. Double-clicking a day applies it right away.
+ * `withTime` adds the hour under the calendar (optional unless `timeRequired`).
  */
 export function DatePickerModal({
   title = 'Select a date',
   subtitle,
   value,
   min,
+  withTime = false,
+  time,
+  timeRequired = false,
   onPick,
   onClear,
   onClose,
@@ -26,7 +31,13 @@ export function DatePickerModal({
   value?: string;
   /** Days before this can't be picked */
   min?: string;
-  onPick: (ymd: string) => void;
+  /** Date + time variant: pick the hour too ("HH:MM", '' = no time) */
+  withTime?: boolean;
+  time?: string;
+  /** With `withTime`: there's no "No time" choice */
+  timeRequired?: boolean;
+  /** `time` is passed in the date + time variant ('' when none was picked) */
+  onPick: (ymd: string, time?: string) => void;
   /** Adds a "Clear" button that removes the date */
   onClear?: () => void;
   onClose: () => void;
@@ -34,6 +45,8 @@ export function DatePickerModal({
   const today = todayYMD();
   const [selected, setSelected] = useState<string | null>(isValidDateYYYYMMDD(value) ? value : null);
   const [month, setMonth] = useState(monthStartYMD(selected ?? today));
+  const [hhmm, setHhmm] = useState(isValidTimeHHMM(time) ? time : timeRequired ? '09:00' : '');
+  const timeOk = !withTime || (timeRequired ? isValidTimeHHMM(hhmm) : hhmm === '' || isValidTimeHHMM(hhmm));
 
   useEffect(() => {
     // Capture + stop so Escape closes only the picker, not the modal it was opened from
@@ -47,8 +60,9 @@ export function DatePickerModal({
   }, [onClose]);
 
   const apply = (ymd: string | null) => {
-    if (!ymd) return;
-    onPick(ymd);
+    if (!ymd || !timeOk) return;
+    if (withTime) onPick(ymd, hhmm);
+    else onPick(ymd);
     onClose();
   };
 
@@ -71,11 +85,13 @@ export function DatePickerModal({
       onKeyDown={stop}
     >
       <button type="button" className={`absolute inset-0 ${classes.modalBackdrop}`} onClick={onClose} aria-label="Close" />
-      <div role="dialog" aria-label={title} className={`relative w-[92vw] max-w-sm ${classes.modalCard}`}>
+      <div role="dialog" aria-label={title} className={`relative w-[92vw] max-w-sm max-h-[94vh] overflow-y-auto ${classes.modalCard}`}>
         <div className={classes.modalHeader}>
           <div className={classes.modalTitle}>{title}</div>
           <div className="mt-1 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
-            {subtitle || (selected ? formatPill(selected) : 'Pick a day')}
+            {subtitle || (selected
+              ? `${formatPill(selected)}${withTime && isValidTimeHHMM(hhmm) ? ` · ${formatTime12(hhmm)}` : ''}`
+              : 'Pick a day')}
           </div>
         </div>
 
@@ -103,6 +119,13 @@ export function DatePickerModal({
             onPick={setSelected}
             onDoublePick={apply}
           />
+
+          {withTime ? (
+            <div className="mt-4">
+              <div className="mb-2 text-[13px] font-semibold" style={{ color: 'var(--assistant-text)' }}>Time</div>
+              <TimePicker value={hhmm} onChange={setHhmm} optional={!timeRequired} />
+            </div>
+          ) : null}
         </div>
 
         <div className={classes.modalFooter}>
@@ -120,7 +143,7 @@ export function DatePickerModal({
           </button>
           <button
             type="button"
-            disabled={!selected}
+            disabled={!selected || !timeOk}
             onClick={() => apply(selected)}
             className={`text-[13px] font-semibold px-3 py-2 rounded-md disabled:opacity-40 ${classes.quickModalPrimary}`}
           >

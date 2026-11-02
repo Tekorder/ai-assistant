@@ -144,6 +144,8 @@ model Habit {
   /// "HH:MM" (24h) times the reminder fires on due days
   reminderTimes   String[] @default([])
   reminderMessage String?
+  /// Urgency flag on its reminders: blue | yellow | red; null = none
+  flag            String?
   /// Ask for a memo after checking it in
   memoOnComplete  Boolean  @default(false)
   /// What the card's button does: done (complete the goal) | add (log an amount)

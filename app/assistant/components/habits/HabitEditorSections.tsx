@@ -7,6 +7,7 @@ import { TIME_RANGES, goalSentence } from '@/app/assistant/_utils/habitSchedule'
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { HabitChips, HabitRow, HabitSection, HabitSwitch } from './HabitModal';
 import { DateField } from '../DatePickerModal';
+import { TimeField } from '../TimePicker';
 
 type Patch = (p: Partial<Habit>) => void;
 
@@ -125,7 +126,7 @@ export function ReminderSection({ draft, patch }: { draft: Habit; patch: Patch }
               </span>
             ))}
             <span className="inline-flex items-center gap-1">
-              <input type="time" value={time} onChange={e => setTime(e.target.value)} aria-label="Reminder time"
+              <TimeField title="Reminder time" value={time} onChange={setTime}
                 className={`${inputCls} py-1 text-[13px]`} />
               <button type="button" onClick={addTime} aria-label="Add time" data-tip="Add time"
                 className={`flex h-7 w-7 items-center justify-center rounded-full ${classes.modalSecondaryButton}`}>

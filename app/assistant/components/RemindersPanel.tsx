@@ -8,6 +8,9 @@ import {
   isValidDateYYYYMMDD,
   isValidTimeHHMM,
   todayYMD,
+  formatPill,
+  formatTime12,
+  repeatDaysLabel,
   makeDefaultReminder,
   ensureOneReminder,
   readRemindersLS,
@@ -18,8 +21,10 @@ import {
 } from '@/lib/datacenter';
 import { createPortal } from 'react-dom';
 import { TaskFlagButton } from './TaskFlag';
-import { AgendaTaskRow, AgendaCheck, AgendaDate } from './AgendaList';
+import { AddButton } from './AddButton';
+import { ReminderRow, ReminderIcon, ReminderTimeChip, ReminderDoneButton, type ReminderChipState } from './ReminderRow';
 import { DatePickerModal } from './DatePickerModal';
+import { TimePickerModal } from './TimePicker';
 import { reminderFallsOn } from '../_utils/reminderSchedule';
 import { HabitRemindersSection } from './habits/HabitRemindersSection';
 import classes from '@/app/assistant/_theme/themes.module.css';
@@ -43,6 +48,13 @@ function localNowKey(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+const BellIcon = () => (
+  <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 11.5V7a4 4 0 1 1 8 0v4.5l1 1H3z" />
+    <path d="M6.75 14a1.4 1.4 0 0 0 2.5 0" />
+  </svg>
+);
+
 /** Small icon buttons on the right of a row: show on hover. */
 const hoverIconClass =
   'shrink-0 h-5 w-5 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity';
@@ -60,8 +72,8 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
   const closeTimeoutRef = useRef<number | null>(null);
   const [reminders, setReminders] = useState<ReminderItem[]>([makeDefaultReminder()]);
   const reminderTitleRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  // Reminder whose date + time (or, when repeating, just time) picker is open
   const [pickerId, setPickerId] = useState<string | null>(null);
-  const timeRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [newId, setNewId] = useState<string | null>(null);
   const newTimerRef = useRef<number | null>(null);
   const dragRef = useRef<{ id: string; fromIndex: number } | null>(null);
@@ -152,15 +164,6 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
         el.setSelectionRange(len, len);
       } else el.setSelectionRange(0, 0);
     });
-  };
-
-  const openPicker = (el: HTMLInputElement | null | undefined) => {
-    if (!el) return;
-    try {
-      (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
-    } catch {
-      el.click();
-    }
   };
 
   const openDaysModal = (r: ReminderItem) =>
@@ -273,10 +276,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
       )}
 
       <div className="px-4 py-3 shrink-0 flex items-center justify-end">
-        <button type="button" onClick={handleAddReminder}
-          className={`h-8 w-8 shrink-0 rounded-md ${classes.panelBtn}`} data-tip="New reminder">
-          +
-        </button>
+        <AddButton label="New reminder" onClick={handleAddReminder} compact={variant !== 'tab'} />
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -289,43 +289,52 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
             const hhmm = isValidTimeHHMM(r.time) ? r.time : '11:00';
             // One-off reminders whose date + time already went by (zero-padded, so string compare works)
             const isPast = !r.daily && r.title.trim() !== '' && `${ymd}T${hhmm}` < nowKey;
-            // Today's, its time passed, not dismissed yet — what the bell counts
-            const isDue = reminderFallsOn(r, nowKey.slice(0, 10)) && hhmm <= nowKey.slice(11) && r.dismissedOn !== nowKey.slice(0, 10);
+            // Today's time chip: same states as the habit reminders below
+            const today = nowKey.slice(0, 10);
+            const chip: ReminderChipState = !reminderFallsOn(r, today) ? 'off'
+              : r.dismissedOn === today ? 'done'
+              : hhmm <= nowKey.slice(11) ? 'due'
+              : 'upcoming';
             return (
-              <AgendaTaskRow
+              <ReminderRow
                 key={r.id}
                 draggable
                 onDragStart={e => onDragStartRow(e, r.id, idx)}
                 onDragOver={e => onDragOverRow(e, r.id)}
                 onDrop={e => onDropRow(e, r.id)}
                 onDragEnd={onDragEndRow}
+                // A plain reminder reads like a habit without a color of its own
                 className={[
-                  'rounded-md',
+                  'yt-habit',
                   isDraggingOver ? classes.dragOver : '',
                   isDraggingMe ? 'opacity-60' : '',
                   newId === r.id ? 'wadu-line-in' : '',
                 ].join(' ')}
-                // Checking a reminder dismisses it
-                check={
-                  <AgendaCheck
-                    checked={false}
-                    onToggle={() => handleRemoveReminder(r.id)}
-                    title={isPast ? 'This reminder already passed — dismiss it' : 'Done — dismiss'}
+                icon={<ReminderIcon><BellIcon /></ReminderIcon>}
+                title={
+                  <textarea
+                    ref={el => void (reminderTitleRefs.current[r.id] = el)}
+                    rows={1}
+                    value={r.title}
+                    placeholder="Reminder…"
+                    onChange={e => handleUpdateReminder(r.id, { title: e.target.value })}
+                    onKeyDown={e => handleReminderKey(e, r)}
+                    className="block w-full resize-none overflow-hidden whitespace-pre-wrap break-words bg-transparent outline-none text-[14px] font-medium leading-[1.45] min-h-[1.45em]"
+                    style={{ color: isPast ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)' }}
                   />
                 }
-                right={
-                  <>
-                    {isDue ? (
-                      <span className="shrink-0 rounded-full px-1.5 py-px text-[11px] font-semibold"
-                        style={{ background: 'color-mix(in srgb, var(--assistant-danger-text) 14%, transparent)', color: 'var(--assistant-danger-text)' }}
-                        data-tip="Its time has come — check it to dismiss">
-                        Due
-                      </span>
-                    ) : null}
-                    <TaskFlagButton
-                      source={r}
-                      onChange={(next) => handleUpdateReminder(r.id, { flag: next, priority: undefined })}
-                    />
+                // Repeating reminders fire on their weekdays — the date only matters for "Once"
+                meta={
+                  <span className="inline-flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => (r.daily ? openDaysModal(r) : setPickerId(r.id))}
+                      className="hover:underline"
+                      data-tip={r.daily ? 'Change days' : 'Change date'}
+                    >
+                      {r.daily ? repeatDaysLabel(r.days?.length ? r.days : ALL_DAYS) : formatPill(ymd)}
+                    </button>
+                    {/* A one-off can be turned into a repeating one right from its date */}
                     {r.daily ? null : (
                       <button
                         type="button"
@@ -338,6 +347,22 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                         <span className="text-[13px] leading-none">↻</span>
                       </button>
                     )}
+                  </span>
+                }
+                chips={<ReminderTimeChip label={formatTime12(hhmm)} state={chip} onClick={() => setPickerId(r.id)} />}
+                actions={
+                  <>
+                    <TaskFlagButton
+                      source={r}
+                      onChange={(next) => handleUpdateReminder(r.id, { flag: next, priority: undefined })}
+                    />
+                    {/* Done: a one-off goes away, a repeating one is handled for today */}
+                    {chip === 'due' || isPast ? (
+                      <ReminderDoneButton
+                        onClick={() => (r.daily ? handleUpdateReminder(r.id, { dismissedOn: today }) : handleRemoveReminder(r.id))}
+                        tip={r.daily ? 'Done for today' : 'Done — remove it'}
+                      />
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => handleRemoveReminder(r.id)}
@@ -352,40 +377,7 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
                     </button>
                   </>
                 }
-              >
-                <textarea
-                  ref={el => void (reminderTitleRefs.current[r.id] = el)}
-                  rows={1}
-                  value={r.title}
-                  placeholder="Reminder…"
-                  onChange={e => handleUpdateReminder(r.id, { title: e.target.value })}
-                  onKeyDown={e => handleReminderKey(e, r)}
-                  className="w-full resize-none overflow-hidden whitespace-pre-wrap break-words bg-transparent outline-none text-[14px] md:text-sm leading-[1.45] min-h-[1.45em]"
-                  style={{ color: isPast && !isDue ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)' }}
-                />
-                {/* Repeating reminders fire on their weekdays — the date only matters for "Once" */}
-                <AgendaDate
-                  ymd={r.daily ? undefined : ymd}
-                  time={hhmm}
-                  repeatDays={r.daily ? (r.days?.length ? r.days : ALL_DAYS) : undefined}
-                  onClick={() => setPickerId(r.id)}
-                  onTimeClick={() => openPicker(timeRefs.current[r.id])}
-                  onRepeatClick={() => openDaysModal(r)}
-                />
-                {/* Native picker behind the hour */}
-                <input
-                  ref={el => void (timeRefs.current[r.id] = el)}
-                  type="time"
-                  className="sr-only"
-                  tabIndex={-1}
-                  aria-hidden="true"
-                  value={hhmm}
-                  onChange={e => {
-                    const v = e.target.value;
-                    if (isValidTimeHHMM(v)) handleUpdateReminder(r.id, { time: v });
-                  }}
-                />
-              </AgendaTaskRow>
+              />
             );
           })}
         </div>
@@ -394,15 +386,29 @@ export default function RemindersPanel({ open, onClose, variant = 'overlay' }: P
 
       {(() => {
         const r = pickerId ? reminders.find(x => x.id === pickerId) : undefined;
-        return r ? (
-          <DatePickerModal
-            title="Reminder date"
+        if (!r) return null;
+        const time = isValidTimeHHMM(r.time) ? r.time : '11:00';
+        // Repeating reminders go by weekday, so they only pick the hour
+        return r.daily ? (
+          <TimePickerModal
+            title="Reminder time"
             subtitle={r.title || undefined}
-            value={isValidDateYYYYMMDD(r.date) ? r.date : todayYMD()}
-            onPick={date => handleUpdateReminder(r.id, { date })}
+            value={time}
+            onPick={t => handleUpdateReminder(r.id, { time: t })}
             onClose={() => setPickerId(null)}
           />
-        ) : null;
+        ) : (
+          <DatePickerModal
+            title="Reminder"
+            subtitle={r.title || undefined}
+            value={isValidDateYYYYMMDD(r.date) ? r.date : todayYMD()}
+            withTime
+            timeRequired
+            time={time}
+            onPick={(date, t) => handleUpdateReminder(r.id, { date, time: t || time })}
+            onClose={() => setPickerId(null)}
+          />
+        );
       })()}
       {daysModal ? createPortal(
         <div className="fixed inset-0 z-[10050] flex items-center justify-center">

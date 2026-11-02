@@ -172,6 +172,8 @@ export type Habit = {
   /** "HH:MM" (24h), sorted */
   reminderTimes: string[];
   reminderMessage?: string;
+  /** Urgency flag shown on its reminders (same flags as tasks and reminders) */
+  flag?: TaskFlagColor;
   memoOnComplete: boolean;
   /** What the card's button does: complete the goal, or log an amount */
   barAction: 'done' | 'add';
@@ -2464,6 +2466,7 @@ function normalizeHabit(x: Record<string, unknown>): Habit {
       ? [...new Set((x.reminderTimes as unknown[]).filter(isValidTimeHHMM))].sort()
       : [],
     reminderMessage: optText(x.reminderMessage),
+    flag:            parseTaskFlag(x.flag),
     memoOnComplete:  Boolean(x.memoOnComplete),
     barAction:       x.barAction === 'add' ? 'add' : 'done',
     chartType:       x.chartType === 'line' ? 'line' : 'bar',

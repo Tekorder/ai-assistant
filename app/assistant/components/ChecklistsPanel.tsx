@@ -23,6 +23,7 @@ import {
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { TaskCheckmark } from './TaskCheckmark';
 import { AgendaAddGhost, AGENDA_ADD_ANCHOR } from './AgendaList';
+import { AddButton } from './AddButton';
 
 /** Left padding of an item row by depth (16px per level, like Agenda's subtasks). */
 const itemRowPad = (indent: number) => 6 + (indent - 1) * 16;
@@ -289,22 +290,9 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
         : 'flex items-center gap-1 overflow-x-auto scrollbar-none'}>
         {/* New checklist comes first */}
         {isTab ? (
-          <button type="button" onClick={() => handleAddList()}
-            className={`shrink-0 whitespace-nowrap text-left text-[13px] px-2.5 py-1.5 rounded-lg md:mb-1 md:w-full ${classes.panelEmptyAddBtn}`}>
-            + New Checklist
-          </button>
+          <AddButton label="New checklist" onClick={() => handleAddList()} className="md:mb-2 md:self-start" />
         ) : (
-          <button
-            type="button"
-            onClick={() => handleAddList()}
-            className={`shrink-0 flex items-center justify-center h-7 w-7 rounded-lg ${classes.panelBtn}`}
-            data-tip="New checklist"
-            aria-label="New checklist"
-          >
-            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path strokeLinecap="round" d="M8 3.5v9M3.5 8h9" />
-            </svg>
-          </button>
+          <AddButton label="New checklist" onClick={() => handleAddList()} compact />
         )}
         {lists.map((l, listIdx) => {
           const isActive = l.id === selectedId;
@@ -392,10 +380,7 @@ export default function ChecklistsPanel({ open, onClose, variant = 'overlay' }: 
       <div className="px-4 py-2.5 shrink-0 flex items-center justify-between gap-2"
         style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         {/* Renaming is a double-click on the list's tab */}
-        <button type="button" onClick={() => handleAddItem(activeList.id)}
-          className={`shrink-0 whitespace-nowrap text-[13px] px-2.5 py-1 rounded-lg ${classes.panelEmptyAddBtn}`}>
-          + Item
-        </button>
+        <AddButton label="New item" onClick={() => handleAddItem(activeList.id)} />
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-[11px] tabular-nums mr-1" style={{ color: 'var(--assistant-text-faint)' }}>
             {completedCount}/{totalCount}

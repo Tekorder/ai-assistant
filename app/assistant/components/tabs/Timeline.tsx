@@ -31,6 +31,7 @@ import {
 import { TaskFlagIcon } from '../TaskFlag';
 import { TaskNoteButton } from '../TaskNote';
 import { DateField, DatePickerModal } from '../DatePickerModal';
+import { AddButton } from '../AddButton';
 import { useShowAllGroups } from '../../_hook/useShowAllGroups';
 import { useQuickFilters } from '../QuickFiltersContext';
 import { TaskCheckmark } from '../TaskCheckmark';
@@ -201,7 +202,7 @@ function RowMenu({
             className="grid h-6 w-6 place-items-center rounded-md transition-colors hover:bg-[var(--assistant-hover-bg)]"
             style={flag === c ? { boxShadow: 'inset 0 0 0 1px var(--assistant-accent)' } : undefined}
           >
-            <TaskFlagIcon color={c} className="h-3.5 w-3.5" glow={false} />
+            <TaskFlagIcon color={c} className="h-3.5 w-3.5" />
           </button>
         ))}
       </div>
@@ -641,15 +642,7 @@ export default function Timeline() {
             {showCompleted ? '✓ Show Completed' : 'Show Completed'}
           </button>
 
-          <button
-            type="button"
-            className="youtask-timeline-addbtn"
-            onClick={handleCreateTask}
-            data-tip="Add task"
-            aria-label="Add task"
-          >
-            +
-          </button>
+          <AddButton label="New task" onClick={handleCreateTask} />
         </div>
       </div>
 

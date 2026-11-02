@@ -86,6 +86,7 @@ import { FirstListWizard } from '../FirstListWizard';
 import { DeleteWithOpenTasksDialog, buildMoveTargets } from '../DeleteWithOpenTasksDialog';
 import { DateRangeDialog } from '../DateRangeDialog';
 import { DatePickerModal } from '../DatePickerModal';
+import { AddButton } from '../AddButton';
 import { NewTaskDialog, type NewTaskListOption, type NewTaskTarget } from '../NewTaskDialog';
 import { HiddenTaskDialog, isHiddenTaskNoticeMuted, type HiddenTaskReason } from '../HiddenTaskDialog';
 import { AgendaListHeader, AgendaTaskRow, AgendaCheck, AgendaDate, AgendaMenuButton, AgendaSectionRow, AgendaSectionEnd, AgendaAddGhost, agendaSectionTitleClass, agendaRowPad } from '../AgendaList';
@@ -1574,17 +1575,18 @@ const handleKey = (
             )}
             right={
               <>
-                {/* Pinned on the right (only when set): flag, then note — everything else lives in the ⋮ menu */}
-                {getTaskFlag(task) ? (
-                  <TaskFlagButton
-                    source={task}
-                    onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
-                  />
-                ) : null}
+                {/* Pinned on the right (only when set): note, then flag — the flag sits next to ⋮ so
+                    flags line up down the list; everything else lives in the ⋮ menu */}
                 {task.notes?.length ? (
                   <TaskNoteButton
                     task={task}
                     onChange={(notes) => handleUpdateBlock(task.id, { notes })}
+                  />
+                ) : null}
+                {getTaskFlag(task) ? (
+                  <TaskFlagButton
+                    source={task}
+                    onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
                   />
                 ) : null}
                 <AgendaMenuButton
@@ -2066,16 +2068,7 @@ const handleKey = (
 
                   {/* Right: New Task */}
                   <div className="ml-auto flex items-center justify-end gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={openNewTaskDialog}
-                      className={`hidden md:flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-all hover:scale-105 ${classes.quickNewListBtn}`}
-                    >
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" d="M8 3v10M3 8h10" />
-                      </svg>
-                      <span>New Task</span>
-                    </button>
+                    <AddButton label="New task" onClick={openNewTaskDialog} className="hidden md:flex" />
 
                     {/* Mobile settings */}
                     <button
@@ -2275,8 +2268,10 @@ const handleKey = (
               title="Due date"
               subtitle={t.text}
               value={t.deadline}
-              onPick={deadline => handleUpdateBlock(t.id, { deadline })}
-              onClear={() => handleUpdateBlock(t.id, { deadline: undefined })}
+              withTime
+              time={t.dueTime}
+              onPick={(deadline, time) => handleUpdateBlock(t.id, { deadline, dueTime: time || undefined })}
+              onClear={() => handleUpdateBlock(t.id, { deadline: undefined, dueTime: undefined })}
               onClose={() => setEditingDateTaskId(null)}
             />
           ) : null;

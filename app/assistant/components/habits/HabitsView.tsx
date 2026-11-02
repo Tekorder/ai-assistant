@@ -11,6 +11,7 @@ import { HabitList } from './HabitList';
 import { HabitStats } from './HabitStats';
 import { HabitTracker } from './HabitTracker';
 import { useHabitDialogs } from './useHabitDialogs';
+import { AddButton } from '../AddButton';
 
 const ALL = '__all__';
 type Pane = 'today' | 'tracker' | 'stats';
@@ -43,11 +44,7 @@ export default function HabitsView() {
                 Manage
               </button>
             ) : null}
-            <button type="button" onClick={() => startNew()}
-              className="shrink-0 rounded-full px-4 py-1.5 text-[13px] font-semibold transition-opacity hover:opacity-90"
-              style={{ background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }}>
-              + New habit
-            </button>
+            <AddButton label="New habit" onClick={() => startNew()} />
           </div>
         </div>
 
@@ -145,10 +142,7 @@ function EmptyState({ onNew, onIdeas }: { onNew: () => void; onIdeas: () => void
         Pick one from the templates, or let a goal pack set up a few for you.
       </p>
       <div className="flex gap-2">
-        <button type="button" onClick={onNew} className="rounded-full px-4 py-2 text-[13px] font-semibold"
-          style={{ background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }}>
-          + New habit
-        </button>
+        <AddButton label="New habit" onClick={onNew} />
         <button type="button" onClick={onIdeas} className={`rounded-full px-4 py-2 text-[13px] font-medium ${classes.modalSecondaryButton}`}>
           💡 Habit ideas
         </button>

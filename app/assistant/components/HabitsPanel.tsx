@@ -7,6 +7,7 @@ import classes from '@/app/assistant/_theme/themes.module.css';
 import HabitsView from './habits/HabitsView';
 import { HabitList } from './habits/HabitList';
 import { useHabitDialogs } from './habits/useHabitDialogs';
+import { AddButton } from './AddButton';
 
 type Props = {
   open: boolean;
@@ -131,10 +132,7 @@ function TodayChecklist() {
         <span className="text-[13px]" style={{ color: 'var(--assistant-text-muted)' }}>
           Today{dueCount ? ` · ${done}/${dueCount} done` : ''}
         </span>
-        <button type="button" onClick={() => startNew()} className={`h-8 w-8 shrink-0 rounded-md ${classes.panelBtn}`}
-          data-tip="New habit" aria-label="New habit">
-          +
-        </button>
+        <AddButton label="New habit" onClick={() => startNew()} compact />
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-3">
         {due.length ? (

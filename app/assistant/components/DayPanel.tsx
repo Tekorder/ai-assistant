@@ -30,6 +30,7 @@ import {
 } from '@/lib/datacenter';
 import { TaskRepeatModal } from './TaskRepeat';
 import { DatePickerModal } from './DatePickerModal';
+import { AddButton } from './AddButton';
 import { TaskFlagButton } from './TaskFlag';
 import { TaskNoteButton, TaskNoteModal } from './TaskNote';
 import { TaskRowMenu } from './TaskRowMenu';
@@ -284,14 +285,6 @@ export default function DayPanel({
     mutateHolding(cardId, bl => removeTaskAndSubtasks(bl, cardId));
   };
 
-  const handleReschedule = (cardId: string, newDeadline: string) => {
-    if (!isValidDateYYYYMMDD(newDeadline)) return;
-    // Rescheduling also un-hides the task
-    mutateHolding(cardId, bl => bl.map(b => (
-      b.id === cardId && b.indent === 1 ? { ...b, deadline: newDeadline, isHidden: false } : b
-    )));
-  };
-
   const patchTask = (cardId: string, patch: Partial<Block>) =>
     mutateHolding(cardId, bl => bl.map(b => (b.id === cardId && b.indent === 1 ? { ...b, ...patch } : b)));
 
@@ -445,11 +438,12 @@ export default function DayPanel({
                         <span className="shrink-0 text-[11px] leading-[1.45rem]" style={{ color: 'var(--assistant-text-faint)' }}>archived</span>
                       ) : (
                         <>
-                          {card.flag ? (
-                            <TaskFlagButton source={{ flag: card.flag }} onChange={next => patchTask(card.id, { flag: next, priority: undefined })} />
-                          ) : null}
+                          {/* Note, then flag — the flag next to ⋮ so flags line up down the list */}
                           {card.notes?.length ? (
                             <TaskNoteButton task={card} onChange={notes => patchTask(card.id, { notes })} />
+                          ) : null}
+                          {card.flag ? (
+                            <TaskFlagButton source={{ flag: card.flag }} onChange={next => patchTask(card.id, { flag: next, priority: undefined })} />
                           ) : null}
                           <AgendaMenuButton
                             open={taskMenu?.cardId === card.id}
@@ -502,7 +496,10 @@ export default function DayPanel({
             title="Due date"
             subtitle={card.text}
             value={card.deadline}
-            onPick={ymd => handleReschedule(card.id, ymd)}
+            withTime
+            time={card.dueTime}
+            // Rescheduling also un-hides the task
+            onPick={(deadline, time) => patchTask(card.id, { deadline, dueTime: time || undefined, isHidden: false })}
             onClose={() => setPickerCardId(null)}
           />
         ) : null;
@@ -590,18 +587,7 @@ export default function DayPanel({
             </div>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="w-full text-[14px] font-semibold px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] flex items-center justify-center gap-1.5"
-            style={{
-              color: 'var(--assistant-tone-1)',
-              background:
-                'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1) 16%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 8%, transparent) 100%)',
-            }}
-          >
-            <span className="text-[16px] leading-none">+</span> Add task
-          </button>
+          <AddButton label="New task" onClick={() => setAddOpen(true)} className="mx-auto" />
         )}
       </div>
 

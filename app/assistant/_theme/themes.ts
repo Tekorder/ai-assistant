@@ -415,9 +415,20 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	    'color-mix(in srgb, var(--assistant-bg) 95%, white)',
 	].join(', ')
 	: 'var(--assistant-glass-bg)',
+	// Dashboard / stats cards: the dialogs' tint and base, but as a top-to-bottom wash so
+	// small tiles and wide charts look alike (a corner-to-corner gradient follows each box's shape)
+	'--assistant-card-bg': isLight || hasImage ? [
+	    'linear-gradient(to bottom, color-mix(in srgb, var(--assistant-bg-glow-color) 8%, transparent) 0%, color-mix(in srgb, var(--assistant-bg-glow-color) 24%, transparent) 100%)',
+	    ...(hasImage ? ['linear-gradient(rgba(255,255,255,.85), rgba(255,255,255,.85))'] : []),
+	    'color-mix(in srgb, var(--assistant-bg) 95%, white)',
+	].join(', ') : [
+	    'linear-gradient(to bottom, color-mix(in srgb, var(--assistant-tone-1) 6%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 16%, transparent) 100%)',
+	    'color-mix(in srgb, var(--assistant-bg) 80%, black)',
+	].join(', '),
 	'--assistant-danger-text': isLight ? '#be123c' : '#fca5a5',
 	'--assistant-success-text': isLight ? '#047857' : '#6ee7b7',
 	'--assistant-info-text': isLight ? '#1d4ed8' : '#93c5fd',
+	'--assistant-warning-text': isLight ? '#b45309' : '#fcd34d',
 	'--assistant-panel-shadow': isLight
 	? hasImage
 	  ? [

@@ -14,6 +14,7 @@ import {
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { DateField } from './DatePickerModal';
+import { TimeField } from './TimePicker';
 
 const ALL_DAYS = WEEKDAYS.map(d => d.value);
 
@@ -135,10 +136,11 @@ export function TaskRepeatModal({
           </label>
           <label className="flex min-w-0 flex-col gap-1">
             <span className="text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>Time (optional)</span>
-            <input
-              type="time"
+            <TimeField
+              title="Time"
+              optional
               value={time}
-              onChange={e => setTime(e.target.value)}
+              onChange={setTime}
               className={`min-w-0 text-[13px] px-2 py-1.5 rounded-md ${classes.panelInput}`}
             />
           </label>
