@@ -580,7 +580,7 @@ export default function DayPanel({
                 onClick={submitNewTask}
                 disabled={!newTaskText.trim() || !newTaskListId}
                 className="text-[13px] font-semibold px-3 py-2 rounded-lg shrink-0 transition-opacity disabled:opacity-40"
-                style={{ color: '#0a0a0a', background: '#d5fc43' }}
+                style={{ color: 'var(--assistant-contrast-text)', background: 'var(--assistant-contrast-bg)' }}
               >
                 Add
               </button>

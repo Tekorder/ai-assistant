@@ -19,7 +19,30 @@
   --text-2xl: 1.5625rem;  /* 25px */
   --text-3xl: 1.9375rem;  /* 31px */
   --text-4xl: 2.3125rem;  /* 37px */
+
+  /* Text roles — use these instead of text-[Npx]. Sizes are the ones the app already
+     uses most, so swapping a text-[13px] for text-ui changes nothing on screen. */
+  --text-caption: 0.6875rem; /* 11px — tiny counts, chip labels */
+  --text-meta: 0.75rem;      /* 12px — dates, hints, secondary lines */
+  --text-ui: 0.8125rem;      /* 13px — buttons, menus, dense rows */
+  --text-body: 0.875rem;     /* 14px — task text, form fields, body copy */
+  --text-title: 1rem;        /* 16px — dialog and card titles */
+  --text-heading: 1.25rem;   /* 20px — panel and page headings */
+  --text-display: 1.75rem;   /* 28px — big numbers on the dashboard */
   --font-mono: var(--font-geist-mono);
+}
+
+/* Stacking levels, bottom → top — use z-(--z-modal) etc. instead of z-[10050].
+   Values keep today's order so swapping them in changes nothing. */
+:root {
+  --z-raised: 10;        /* sticky headers, a row above its siblings */
+  --z-dock: 200;         /* dock panels, drawers and their backdrops */
+  --z-menu: 300;         /* dropdowns and popovers over the dock */
+  --z-wizard: 9000;      /* first-list wizard */
+  --z-modal: 10050;      /* dialogs */
+  --z-modal-nested: 10060; /* a confirm opened from a dialog */
+  --z-toast: 10070;
+  --z-tooltip: 10100;    /* components/Tooltip.tsx */
 }
 
 @media (prefers-color-scheme: dark) {

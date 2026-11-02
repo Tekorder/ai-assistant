@@ -214,15 +214,15 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay, 
             {total} {total === 1 ? 'task' : 'tasks'}
           </span>
           <span
-            className={`text-[9px] tabular-nums shrink-0 ${allDone ? 'text-emerald-400/95' : ''}`}
-            style={!allDone ? { color: 'var(--assistant-text-faint)' } : undefined}
+            className="text-[9px] tabular-nums shrink-0"
+            style={{ color: allDone ? 'var(--assistant-accent)' : 'var(--assistant-text-faint)' }}
           >
             {allDone ? '✓' : `${done}/${total}`}
           </span>
         </div>
         <div className={`h-0.75 w-full shrink-0 overflow-hidden rounded-full ${classes.miniCalProgressBg}`}>
           <div
-            className={`h-full rounded-full transition-all duration-300 ${allDone ? 'bg-emerald-400/95' : classes.miniCalProgressFill}`}
+            className={`h-full rounded-full transition-all duration-300 ${allDone ? 'bg-[var(--assistant-accent)]' : classes.miniCalProgressFill}`}
             style={{ width: `${pct}%`, minWidth: pct > 0 ? '4px' : undefined }}
           />
         </div>

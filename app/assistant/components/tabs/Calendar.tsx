@@ -118,6 +118,9 @@ const CALENDAR_CELL_FILL_COLORS = [
   'bg-orange-400',
 ] as const;
 
+/** Progress bar of a day (or list pill) with everything done: the theme accent with a soft glow */
+const DONE_FILL = 'bg-[var(--assistant-accent)] shadow-[0_0_8px_color-mix(in_srgb,var(--assistant-accent)_35%,transparent)]';
+
 const WEEKDAYS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTH_NAMES = [
   'January','February','March','April','May','June',
@@ -342,7 +345,7 @@ export default function CalendarView({
               {/* Progress track */}
               <div className="h-[3px] w-full rounded-full overflow-hidden" style={{ background: 'var(--assistant-control-bg)' }}>
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${allDone ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.35)]' : fillColor}`}
+                  className={`h-full rounded-full transition-all duration-500 ${allDone ? DONE_FILL : fillColor}`}
                   style={{ width: `${pct}%`, opacity: allDone ? 0.95 : 0.8 }}
                 />
               </div>
@@ -636,7 +639,7 @@ export default function CalendarView({
                           </div>
                           <div className="h-[3px] w-full rounded-full overflow-hidden" style={{ background: 'var(--assistant-control-bg)' }}>
                             <div
-                              className={`h-full rounded-full transition-all duration-500 ${pillDone ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.35)]' : fillColor}`}
+                              className={`h-full rounded-full transition-all duration-500 ${pillDone ? DONE_FILL : fillColor}`}
                               style={{ width: `${pct}%`, opacity: pillDone ? 0.95 : 0.8 }}
                             />
                           </div>
