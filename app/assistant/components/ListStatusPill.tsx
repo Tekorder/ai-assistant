@@ -64,8 +64,13 @@ export function ListStatusPill({
       {menu ? createPortal(
         <div
           role="menu"
-          className="yt-surface fixed z-[10040] min-w-[140px] overflow-hidden rounded-lg py-1"
-          style={{ left: menu.x, top: menu.y }}
+          className="fixed z-[10040] min-w-[140px] overflow-hidden rounded-lg py-1 shadow-xl"
+          style={{
+            left: menu.x,
+            top: menu.y,
+            background: 'var(--assistant-panel-bg)',
+            border: '1px solid var(--assistant-border-soft)',
+          }}
           onMouseDown={e => e.stopPropagation()}
         >
           {LIST_STATUSES.map(s => {

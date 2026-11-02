@@ -18,7 +18,6 @@ import {
   uid,
   makeTaskBlock,
   makePersonalProject,
-  ensureDefaultGroups,
   // Persistence
   readProjectsLS,
   cleanupEmptyTasks,
@@ -35,8 +34,6 @@ import {
   moveOpenTasksToList,
   updateBlock as updateBlockArr,
   removeTaskWithSubtasks,
-  hasSubtasks,
-  syncParentsFromSubtasks,
   addTaskUnderList as addTaskUnderListArr,
   createList as createListArr,
   createBlankList,
@@ -85,11 +82,9 @@ import { TaskRowMenu } from '../TaskRowMenu';
 import { FirstListWizard } from '../FirstListWizard';
 import { DeleteWithOpenTasksDialog, buildMoveTargets } from '../DeleteWithOpenTasksDialog';
 import { DateRangeDialog } from '../DateRangeDialog';
-import { DatePickerModal } from '../DatePickerModal';
-import { AddButton } from '../AddButton';
 import { NewTaskDialog, type NewTaskListOption, type NewTaskTarget } from '../NewTaskDialog';
 import { HiddenTaskDialog, isHiddenTaskNoticeMuted, type HiddenTaskReason } from '../HiddenTaskDialog';
-import { AgendaListHeader, AgendaTaskRow, AgendaCheck, AgendaDate, AgendaMenuButton, AgendaSectionRow, AgendaSectionEnd, AgendaAddGhost, agendaSectionTitleClass, agendaRowPad } from '../AgendaList';
+import { AgendaListHeader, AgendaTaskRow, AgendaCheck, AgendaDate, AgendaMenuButton, AgendaSectionRow, AgendaSectionEnd, agendaSectionTitleClass, agendaRowPad } from '../AgendaList';
 import { NewSectionDialog } from '../NewSectionDialog';
 
 /**
@@ -447,6 +442,7 @@ export default function Quick(props: QuickProps = {}) {
   const [editingDateTaskId, setEditingDateTaskId] = useState<string | null>(null);
 
   const inputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
+  const inlineDateRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const resizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = '1px';
@@ -459,6 +455,21 @@ export default function Quick(props: QuickProps = {}) {
     });
   });
 
+  useEffect(() => {
+    if (!editingDateTaskId) return;
+    const input = inlineDateRefs.current[editingDateTaskId];
+    if (!input) return;
+    requestAnimationFrame(() => {
+      input.focus();
+      try {
+        const picker = input as HTMLInputElement & { showPicker?: () => void };
+        if (typeof picker.showPicker === 'function') picker.showPicker();
+        else input.click();
+      } catch {
+        input.click();
+      }
+    });
+  }, [editingDateTaskId]);
   const dragRef   = useRef<{ id: string } | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
@@ -476,7 +487,7 @@ export default function Quick(props: QuickProps = {}) {
   const [noteModalTaskId, setNoteModalTaskId] = useState<string | null>(null);
   const [reminderModalTaskId, setReminderModalTaskId] = useState<string | null>(null);
   const [repeatModalTaskId, setRepeatModalTaskId] = useState<string | null>(null);
-  const checkUndoRef = useRef<Array<Array<Pick<Block, 'id' | 'checked' | 'deadline' | 'completedAt' | 'isHidden' | 'doneDates'>>>>([]);
+  const checkUndoRef = useRef<Array<Array<Pick<Block, 'id' | 'checked' | 'deadline' | 'isHidden' | 'doneDates'>>>>([]);
   const undoLastCheckRef = useRef<() => boolean>(() => false);
   useEffect(() => () => {
     if (armTimerRef.current) window.clearTimeout(armTimerRef.current);
@@ -525,8 +536,7 @@ export default function Quick(props: QuickProps = {}) {
       const next    = prev.map(p => ({ ...p }));
       const old     = next[safeIdx].blocks ?? moveUncToTop(ensureUncExists([]));
       let newBlocks = typeof nextFn === 'function' ? nextFn(old) : nextFn;
-      // Any change (new subtask, drag, date…) keeps parents in step with their subtasks
-      newBlocks     = syncParentsFromSubtasks(sortBlocksByOrder(moveUncToTop(ensureUncExists(newBlocks))));
+      newBlocks     = sortBlocksByOrder(moveUncToTop(ensureUncExists(newBlocks)));
       next[safeIdx] = { ...next[safeIdx], blocks: newBlocks };
       return next;
     });
@@ -564,19 +574,18 @@ export default function Quick(props: QuickProps = {}) {
         setHydrated(true);
         return;
       }
-      // Nothing stored yet: boot with the starter groups (Personal, Work, Family), same as the Sidebar
-      const all = ensureDefaultGroups([]);
-      setProjects(all);
-      setSelectedProjectId(all[0].project_id);
-      const boot = { projects: all, selectedProjectId: all[0].project_id };
+      const personal = makePersonalProject();
+      setProjects([personal]);
+      setSelectedProjectId(personal.project_id);
+      const boot = { projects: [personal], selectedProjectId: personal.project_id };
       lastWrittenRef.current = JSON.stringify(boot);
       writeProjectsLS(boot);
       setHydrated(true);
     } catch {
-      const all = ensureDefaultGroups([]);
-      setProjects(all);
-      setSelectedProjectId(all[0].project_id);
-      const boot = { projects: all, selectedProjectId: all[0].project_id };
+      const personal = makePersonalProject();
+      setProjects([personal]);
+      setSelectedProjectId(personal.project_id);
+      const boot = { projects: [personal], selectedProjectId: personal.project_id };
       lastWrittenRef.current = JSON.stringify(boot);
       writeProjectsLS(boot);
       setHydrated(true);
@@ -797,7 +806,7 @@ export default function Quick(props: QuickProps = {}) {
         .filter(b => before.has(b.id) && (Boolean(before.get(b.id)!.checked) !== Boolean(b.checked) || before.get(b.id)!.doneDates !== b.doneDates))
         .map(b => {
           const old = before.get(b.id)!;
-          return { id: b.id, checked: old.checked, deadline: old.deadline, completedAt: old.completedAt, isHidden: old.isHidden, doneDates: old.doneDates };
+          return { id: b.id, checked: old.checked, deadline: old.deadline, isHidden: old.isHidden, doneDates: old.doneDates };
         });
       if (changed.length) {
         checkUndoRef.current.push(changed);
@@ -837,7 +846,7 @@ export default function Quick(props: QuickProps = {}) {
     setCurrentBlocks(prev => prev.map(b => {
       const e = byId.get(b.id);
       // Undoing a recurring completion keeps doneDates as a (possibly empty) list, so the server drops that row
-      return e ? { ...b, checked: e.checked, deadline: e.deadline, completedAt: e.completedAt, isHidden: e.isHidden, ...(b.doneDates ? { doneDates: e.doneDates ?? [] } : {}) } : b;
+      return e ? { ...b, checked: e.checked, deadline: e.deadline, isHidden: e.isHidden, ...(b.doneDates ? { doneDates: e.doneDates ?? [] } : {}) } : b;
     }));
     return true;
   };
@@ -1462,13 +1471,20 @@ const handleKey = (
       label = 'Task…',
     ) => (dragRef.current && !visible) ? null : (
       // Hover ghosts aren't offered mid-drag (the dragged row would keep suggesting one)
-      <AgendaAddGhost
+      <button
+        type="button"
         onClick={onClick}
-        paddingLeft={paddingLeft}
-        visible={visible}
-        label={label}
-        ariaLabel={label === 'Task…' ? 'Add task' : 'Add subtask'}
-      />
+        aria-label={label === 'Task…' ? 'Add task' : 'Add subtask'}
+        className={`${visible ? 'py-1' : 'quick-add-ghost'} w-full flex items-center px-0.5 gap-1 text-left`}
+        style={{ paddingLeft, marginTop: 0, marginBottom: 0 }}
+      >
+        <span className="h-4 w-4 shrink-0 flex items-center justify-center">
+          <span className="h-3.5 w-3.5 rounded-full border border-dashed" style={{ borderColor: 'var(--assistant-text-faint)' }} />
+        </span>
+        <span className="text-[14px] md:text-sm leading-[1.45]" style={{ color: 'var(--assistant-text-faint)' }}>
+          {label}
+        </span>
+      </button>
     );
     // Sections (and the button that adds them) only exist in the "All" view
     const sectionsShown = dateMode === 'all';
@@ -1545,7 +1561,6 @@ const handleKey = (
       const nextRow = i !== undefined ? shownRows?.[i + 1] : undefined;
       const hasShownSubtasks = Boolean(nextRow && !nextRow.section && nextRow.indent > task.indent);
       const occDay = occurrenceDay(task);
-      const isParent = !isRecurringTask(task) && hasSubtasks(pBlocks, task.id);
       const toggleDone = occDay
         ? () => { const next = toggleOccurrence(task, occDay); handleUpdateBlock(task.id, { doneDates: next.doneDates, deadline: next.deadline }); }
         : () => handleUpdateBlock(task.id, { checked: !task.checked });
@@ -1559,9 +1574,7 @@ const handleKey = (
             onDragEnd={onDragEndRow}
             className={[tDragOver ? classes.dragOver : '', tDragMe ? 'opacity-60' : '', isCommitted(task) ? 'quick-add-anchor' : ''].join(' ')}
             indent={task.indent}
-            // A parent completes through its subtasks only, so it has no check of its own
-            // (its text starts where the check would be)
-            check={isParent ? null : (
+            check={
               <AgendaCheck checked={isTaskDone(task)} onToggle={toggleDone}>
                 {pulseId === task.id ? (
                   <>
@@ -1572,21 +1585,20 @@ const handleKey = (
                   </>
                 ) : null}
               </AgendaCheck>
-            )}
+            }
             right={
               <>
-                {/* Pinned on the right (only when set): note, then flag — the flag sits next to ⋮ so
-                    flags line up down the list; everything else lives in the ⋮ menu */}
-                {task.notes?.length ? (
-                  <TaskNoteButton
-                    task={task}
-                    onChange={(notes) => handleUpdateBlock(task.id, { notes })}
-                  />
-                ) : null}
+                {/* Pinned on the right (only when set): flag, then note — everything else lives in the ⋮ menu */}
                 {getTaskFlag(task) ? (
                   <TaskFlagButton
                     source={task}
                     onChange={(next) => handleUpdateBlock(task.id, { flag: next, priority: undefined })}
+                  />
+                ) : null}
+                {task.notes?.length ? (
+                  <TaskNoteButton
+                    task={task}
+                    onChange={(notes) => handleUpdateBlock(task.id, { notes })}
                   />
                 ) : null}
                 <AgendaMenuButton
@@ -1597,16 +1609,35 @@ const handleKey = (
             }
           >
               {renderTaskTextWithWordHover(task)}
-              <AgendaDate
-                ymd={occDay ?? task.deadline}
-                time={task.dueTime}
-                repeatDays={task.repeatDays}
-                // "Created October 2, 2026 · Due October 8, 2026" — Agenda goes by both dates
-                labeled
-                created={task.createdAt}
-                onClick={() => setEditingDateTaskId(task.id)}
-                onRepeatClick={() => setRepeatModalTaskId(task.id)}
-              />
+              {editingDateTaskId !== task.id && (
+                <AgendaDate
+                  ymd={occDay ?? task.deadline}
+                  time={task.dueTime}
+                  repeatDays={task.repeatDays}
+                  // "Created October 2, 2026 · Due October 8, 2026" — Agenda goes by both dates
+                  labeled
+                  created={task.createdAt}
+                  onClick={() => setEditingDateTaskId(task.id)}
+                  onRepeatClick={() => setRepeatModalTaskId(task.id)}
+                />
+              )}
+              {editingDateTaskId === task.id && (
+                <input
+                  ref={el => void (inlineDateRefs.current[task.id] = el)}
+                  autoFocus
+                  type="date"
+                  lang="en-US"
+                  className={`shrink-0 mt-0.5 self-start text-[12px] px-1.5 py-0.5 rounded-full outline-none ${classes.quickDatePillInput}`}
+                  value={isValidDateYYYYMMDD(task.deadline) ? task.deadline : ''}
+                  onChange={e => {
+                    const v = e.target.value;
+                    handleUpdateBlock(task.id, { deadline: v ? v : undefined });
+                    setEditingDateTaskId(null);
+                  }}
+                  onBlur={() => setEditingDateTaskId(null)}
+                  onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setEditingDateTaskId(null); }}
+                />
+              )}
           </AgendaTaskRow>
           {/* Must directly follow the row: CSS reveals it via .quick-add-anchor:hover + .quick-add-ghost */}
           {isCommitted(task) && (hasShownSubtasks
@@ -1831,13 +1862,6 @@ const handleKey = (
 
   // The day the lists are narrowed to (picked in the mini calendar, or Today) — shown dark there
   const miniCalSelectedDay = dateMode === 'today' && taskFilter === 'none' ? focusDay : undefined;
-  // Under Ranges the mini calendar draws the span the way the range picker does
-  const miniCalRange = dateMode === 'range' && taskFilter === 'none' ? dateRange : undefined;
-  // Dragging across days in the mini calendar applies that span as the Ranges filter
-  const handleMiniCalendarPickRange = (range: DateRange) => {
-    applyRange(range);
-    closeDrawer();
-  };
   const handleMiniCalendarPickDay = (ymd: string) => {
     // Clicking the selected day again goes back to every date
     if (ymd === miniCalSelectedDay) {
@@ -1898,6 +1922,22 @@ const handleKey = (
         .quick-search-icon { color: var(--assistant-text-faint); transition: color 0.15s ease; }
         .quick-search:focus-within .quick-search-icon { color: var(--assistant-accent); }
         .quick-search input::placeholder { color: var(--assistant-text-faint); }
+        .quick-add-ghost {
+          max-height: 0; opacity: 0; overflow: hidden; cursor: text;
+          transition: max-height 0.15s ease 0.25s, opacity 0.15s ease 0.25s, padding 0.15s ease 0.25s;
+        }
+        .quick-add-anchor:hover + .quick-add-ghost,
+        .quick-add-ghost:hover,
+        .quick-add-ghost:focus-visible {
+          max-height: 2rem; opacity: 1; padding-top: 0.25rem; padding-bottom: 0.25rem;
+          transition-delay: 0s;
+        }
+        /* Hovering the row only reveals it after resting there 1s (like the keyword links),
+           so sweeping the pointer across the list doesn't make rows jump. Once shown,
+           moving onto the ghost itself keeps it open right away (rule above). */
+        .quick-add-anchor:hover + .quick-add-ghost:not(:hover):not(:focus-visible) {
+          transition-delay: 1s;
+        }
       `}</style>
 
       {/* Filters bottom sheet — mobile, or a desktop main panel too narrow for the filters column */}
@@ -1948,7 +1988,7 @@ const handleKey = (
               {/* Hide Completed on → no progress bar */}
               {showCompleted && <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />}
               <div className="mb-3 overflow-hidden rounded-2xl">
-                <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} range={miniCalRange} onPickRange={handleMiniCalendarPickRange} />
+                <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} />
               </div>
               <ActionsPanel {...actionsPanelProps} />
             </div>
@@ -1965,8 +2005,7 @@ const handleKey = (
 
               {/* Date pagination header — fixed above the scroll area, never overlapped by the tasks */}
               <div className="shrink-0 z-30">
-                {/* Wraps when the date doesn't leave room: New Task drops to its own row */}
-                <div className={`flex flex-wrap items-center justify-between gap-x-1 gap-y-1 px-3 py-1 md:gap-x-3 md:px-4 md:py-1.5 ${classes.quickHeaderBar}`}>
+                <div className={`flex items-center justify-between gap-1 px-3 py-1 md:gap-3 md:px-4 md:py-1.5 ${classes.quickHeaderBar}`}>
 
                   {/* Left: ‹ date › */}
                   <div className="flex items-center gap-1 sm:gap-2 min-w-0">
@@ -2067,8 +2106,17 @@ const handleKey = (
                   </div>
 
                   {/* Right: New Task */}
-                  <div className="ml-auto flex items-center justify-end gap-2 shrink-0">
-                    <AddButton label="New task" onClick={openNewTaskDialog} className="hidden md:flex" />
+                  <div className="flex items-center justify-end gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={openNewTaskDialog}
+                      className={`hidden md:flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-all hover:scale-105 ${classes.quickNewListBtn}`}
+                    >
+                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" d="M8 3v10M3 8h10" />
+                      </svg>
+                      <span>New Task</span>
+                    </button>
 
                     {/* Mobile settings */}
                     <button
@@ -2185,7 +2233,7 @@ const handleKey = (
                   {/* Hide Completed on → no progress bar */}
                   {showCompleted && <QuickProgressBlock progress={progress} label={progressLabel} className="mb-3" />}
                   <div className="mb-3 overflow-hidden rounded-2xl">
-                    <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} range={miniCalRange} onPickRange={handleMiniCalendarPickRange} />
+                    <MiniCalendar onPickDay={handleMiniCalendarPickDay} compact selectedDay={miniCalSelectedDay} />
                   </div>
                   <ActionsPanel {...actionsPanelProps} />
                 </div>
@@ -2260,21 +2308,6 @@ const handleKey = (
         {(() => {
           const t = reminderModalTaskId ? blocks.find(b => b.id === reminderModalTaskId) : undefined;
           return t ? <TaskReminderModal task={t} onClose={() => setReminderModalTaskId(null)} /> : null;
-        })()}
-        {(() => {
-          const t = editingDateTaskId ? blocks.find(b => b.id === editingDateTaskId) : undefined;
-          return t ? (
-            <DatePickerModal
-              title="Due date"
-              subtitle={t.text}
-              value={t.deadline}
-              withTime
-              time={t.dueTime}
-              onPick={(deadline, time) => handleUpdateBlock(t.id, { deadline, dueTime: time || undefined })}
-              onClear={() => handleUpdateBlock(t.id, { deadline: undefined, dueTime: undefined })}
-              onClose={() => setEditingDateTaskId(null)}
-            />
-          ) : null;
         })()}
         {(() => {
           const t = repeatModalTaskId ? blocks.find(b => b.id === repeatModalTaskId) : undefined;

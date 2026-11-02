@@ -336,9 +336,7 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 
 '--assistant-panel-blur': hasImage ? 'blur(16px)' : 'none',
 
-// "Today" in the mini calendar — tone-1, like the main Calendar's today (was a fixed lime
-// left over from the Matrix theme, unreadable on light themes)
-'--assistant-active-text': theme.tone1,
+'--assistant-active-text': '#d5fc43',
 
 '--assistant-active-bg': theme.tone2,
 
@@ -397,51 +395,27 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	: 'rgba(255,255,255,.10)',
 	'--assistant-glass-bg': hasImage
 	? 'linear-gradient(rgba(255,255,255,.25), rgba(255,255,255,.2))'
-	// Modals, menus and tooltips (it only feeds --assistant-overlay-panel-bg): the theme's
-	// color rises from the bottom-left corner and fades out toward the top-right.
-	// Light: tinted with the page's glow color (light themes' tone-1 is the dark text color,
-	// which read as gray); the white wash grows toward the top-right to keep it bright there
 	: isLight ? [
-	    'linear-gradient(to top right, color-mix(in srgb, var(--assistant-bg-glow-color) 55%, transparent) 0%, color-mix(in srgb, var(--assistant-bg-glow-color) 22%, transparent) 45%, transparent 85%)',
-	    'linear-gradient(to top right, rgba(255,255,255,.15) 0%, rgba(255,255,255,.75) 100%)',
+	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 12%, transparent) 0%, transparent 42%)',
+	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 8%, transparent) 0%, transparent 55%)',
+	    'linear-gradient(to bottom, rgba(255,255,255,.80) 0%, rgba(255,255,255,.60) 100%)',
 	    'color-mix(in srgb, var(--assistant-bg) 95%, white)',
 	].join(', ') : [
-	    'linear-gradient(to top right, color-mix(in srgb, var(--assistant-tone-1) 18%, transparent) 0%, transparent 60%)',
+	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 16%, transparent) 0%, transparent 42%)',
+	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 12%, transparent) 0%, transparent 55%)',
 	    'linear-gradient(to bottom, rgba(255,255,255,.08) 0%, rgba(255,255,255,.02) 24%, rgba(0,0,0,.22) 100%)',
 	    'color-mix(in srgb, var(--assistant-bg) 80%, black)',
 	].join(', '),
 	'--assistant-overlay-panel-bg': hasImage
 	? [
-	    'linear-gradient(to top right, color-mix(in srgb, var(--assistant-bg-glow-color) 40%, transparent) 0%, color-mix(in srgb, var(--assistant-bg-glow-color) 14%, transparent) 45%, transparent 85%)',
-	    'linear-gradient(to top right, rgba(255,255,255,.80) 0%, rgba(255,255,255,.95) 100%)',
+	    'linear-gradient(160deg, color-mix(in srgb, var(--assistant-tone-1) 12%, transparent) 0%, transparent 42%)',
+	    'linear-gradient(12deg, color-mix(in srgb, var(--assistant-tone-3) 8%, transparent) 0%, transparent 55%)',
+	    'linear-gradient(to bottom, rgba(255,255,255,.95) 0%, rgba(255,255,255,.90) 100%)',
 	    'color-mix(in srgb, var(--assistant-bg) 95%, white)',
 	].join(', ')
 	: 'var(--assistant-glass-bg)',
-	// Dashboard / stats cards: the dialogs' tint and base, but as a top-to-bottom wash so
-	// small tiles and wide charts look alike (a corner-to-corner gradient follows each box's shape)
-	'--assistant-card-bg': isLight || hasImage ? [
-	    'linear-gradient(to bottom, color-mix(in srgb, var(--assistant-bg-glow-color) 8%, transparent) 0%, color-mix(in srgb, var(--assistant-bg-glow-color) 24%, transparent) 100%)',
-	    ...(hasImage ? ['linear-gradient(rgba(255,255,255,.85), rgba(255,255,255,.85))'] : []),
-	    'color-mix(in srgb, var(--assistant-bg) 95%, white)',
-	].join(', ') : [
-	    'linear-gradient(to bottom, color-mix(in srgb, var(--assistant-tone-1) 6%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 16%, transparent) 100%)',
-	    'color-mix(in srgb, var(--assistant-bg) 80%, black)',
-	].join(', '),
 	'--assistant-danger-text': isLight ? '#be123c' : '#fca5a5',
 	'--assistant-success-text': isLight ? '#047857' : '#6ee7b7',
-	'--assistant-info-text': isLight ? '#1d4ed8' : '#93c5fd',
-	'--assistant-warning-text': isLight ? '#b45309' : '#fcd34d',
-	// Status fills (danger button, done bar, sync dot, status pill) — the *-text tokens above
-	// are for words; these are for shapes. *-bg is the soft tint behind a row or day cell.
-	'--assistant-danger': isLight ? '#dc2626' : '#f87171',
-	'--assistant-success': isLight ? '#059669' : '#34d399',
-	'--assistant-warning': isLight ? '#d97706' : '#fbbf24',
-	'--assistant-info': isLight ? '#2563eb' : '#60a5fa',
-	// Label on a solid --assistant-danger (matches the delete buttons: white on red / near-black on light red)
-	'--assistant-on-danger': isLight ? '#ffffff' : '#1a0505',
-	'--assistant-danger-bg': 'color-mix(in srgb, var(--assistant-danger) 8%, transparent)',
-	'--assistant-success-bg': 'color-mix(in srgb, var(--assistant-success) 10%, transparent)',
-	'--assistant-warning-bg': 'color-mix(in srgb, var(--assistant-warning) 10%, transparent)',
 	'--assistant-panel-shadow': isLight
 	? hasImage
 	  ? [

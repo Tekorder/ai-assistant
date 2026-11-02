@@ -57,27 +57,18 @@ export default function ProfilePanel({ open, onClose }: ProfilePanelProps) {
         }
       `}</style>
       <div
-        // Same backdrop as the main layout: the canvas plus the theme's glow (isolate keeps the
-        // glow's z-index:-1 behind this screen's content)
-        className="fixed inset-0 z-[10050] isolate flex flex-col overflow-y-auto"
+        className="fixed inset-0 z-[10050] flex flex-col overflow-y-auto"
         style={{
-          background: 'var(--assistant-canvas)',
+          background: 'var(--assistant-bg)',
           color: 'var(--assistant-text)',
           animation: isClosing
             ? 'profileScreenOut 0.22s ease-out both'
             : 'profileScreenIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both',
         }}
       >
-        <div aria-hidden="true" className="assistant-bg-glow" />
         <div
-          className="sticky top-0 z-10 flex items-center gap-3 px-4 py-4 md:px-8"
-          // See-through so the gradient runs under it
-          style={{
-            borderBottom: '1px solid var(--assistant-border-soft)',
-            background: 'color-mix(in srgb, var(--assistant-canvas) 55%, transparent)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-          }}
+          className="sticky top-0 flex items-center gap-3 px-4 py-4 md:px-8"
+          style={{ borderBottom: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-bg)' }}
         >
           <button
             type="button"

@@ -1,197 +1,179 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { addDaysYMD, formatPill, formatTime12, isValidDateYYYYMMDD, isValidTimeHHMM, monthStartYMD, todayYMD } from '@/lib/datacenter';
+import { isValidDateYYYYMMDD, parseYMD, todayYMD, toYMD } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
-import { CalendarIcon } from '@/app/assistant/_icons/CalendarIcon';
-import { CalendarMonth } from './CalendarMonth';
-import { TimePicker } from './TimePicker';
 
-/**
- * Single-day picker in the same look as the date range dialog: pick a day
- * (or a preset), then Apply. Double-clicking a day applies it right away.
- * `withTime` adds the hour under the calendar (optional unless `timeRequired`).
- */
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+function addDaysYMD(ymd: string, delta: number): string {
+  const d = parseYMD(ymd);
+  return toYMD(new Date(d.getFullYear(), d.getMonth(), d.getDate() + delta));
+}
+
+/** Modal month calendar — clicking a day picks it and closes. */
 export function DatePickerModal({
-  title = 'Select a date',
+  title,
   subtitle,
   value,
-  min,
-  withTime = false,
-  time,
-  timeRequired = false,
   onPick,
-  onClear,
   onClose,
 }: {
-  title?: string;
-  /** Shown under the title instead of the picked date (e.g. the task's text) */
+  title: string;
   subtitle?: string;
   value?: string;
-  /** Days before this can't be picked */
-  min?: string;
-  /** Date + time variant: pick the hour too ("HH:MM", '' = no time) */
-  withTime?: boolean;
-  time?: string;
-  /** With `withTime`: there's no "No time" choice */
-  timeRequired?: boolean;
-  /** `time` is passed in the date + time variant ('' when none was picked) */
-  onPick: (ymd: string, time?: string) => void;
-  /** Adds a "Clear" button that removes the date */
-  onClear?: () => void;
+  onPick: (ymd: string) => void;
   onClose: () => void;
 }) {
   const today = todayYMD();
-  const [selected, setSelected] = useState<string | null>(isValidDateYYYYMMDD(value) ? value : null);
-  const [month, setMonth] = useState(monthStartYMD(selected ?? today));
-  const [hhmm, setHhmm] = useState(isValidTimeHHMM(time) ? time : timeRequired ? '09:00' : '');
-  const timeOk = !withTime || (timeRequired ? isValidTimeHHMM(hhmm) : hhmm === '' || isValidTimeHHMM(hhmm));
+  const initial = parseYMD(isValidDateYYYYMMDD(value) ? value! : today);
+  const [viewYear, setViewYear] = useState(initial.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initial.getMonth()); // 0-based
 
   useEffect(() => {
-    // Capture + stop so Escape closes only the picker, not the modal it was opened from
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.stopPropagation();
-      onClose();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const apply = (ymd: string | null) => {
-    if (!ymd || !timeOk) return;
-    if (withTime) onPick(ymd, hhmm);
-    else onPick(ymd);
+  // 6 weeks always, so the modal doesn't jump in height between months
+  const cells = useMemo(() => {
+    const first = new Date(viewYear, viewMonth, 1);
+    const start = new Date(viewYear, viewMonth, 1 - first.getDay());
+    return Array.from({ length: 42 }, (_, i) => {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      return { ymd: toYMD(d), day: d.getDate(), inMonth: d.getMonth() === viewMonth };
+    });
+  }, [viewYear, viewMonth]);
+
+  const shiftMonth = (delta: number) => {
+    const d = new Date(viewYear, viewMonth + delta, 1);
+    setViewYear(d.getFullYear());
+    setViewMonth(d.getMonth());
+  };
+
+  const pick = (ymd: string) => {
+    onPick(ymd);
     onClose();
   };
 
-  const presets: [string, string][] = [
+  const quick: [string, string][] = [
     ['Today', today],
     ['Tomorrow', addDaysYMD(today, 1)],
     ['Next week', addDaysYMD(today, 7)],
   ];
-  const preset = (ymd: string) => { setSelected(ymd); setMonth(monthStartYMD(ymd)); };
-
-  // React events bubble through the portal to whatever row/form opened the picker — keep them here
-  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[10060] flex items-center justify-center"
-      onClick={stop}
-      onMouseDown={stop}
-      onPointerDown={stop}
-      onKeyDown={stop}
-    >
-      <button type="button" className={`absolute inset-0 ${classes.modalBackdrop}`} onClick={onClose} aria-label="Close" />
-      <div role="dialog" aria-label={title} className={`relative w-[92vw] max-w-sm max-h-[94vh] overflow-y-auto ${classes.modalCard}`}>
+    <div className="fixed inset-0 z-[10050] flex items-center justify-center p-5">
+      <button
+        type="button"
+        className={`fixed inset-0 ${classes.modalBackdrop}`}
+        onClick={onClose}
+        aria-label="Close"
+      />
+      <div
+        role="dialog"
+        aria-label={title}
+        className={`relative z-10 w-full max-w-[340px] ${classes.modalCard}`}
+      >
         <div className={classes.modalHeader}>
           <div className={classes.modalTitle}>{title}</div>
-          <div className="mt-1 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>
-            {subtitle || (selected
-              ? `${formatPill(selected)}${withTime && isValidTimeHHMM(hhmm) ? ` · ${formatTime12(hhmm)}` : ''}`
-              : 'Pick a day')}
-          </div>
-        </div>
-
-        <div className="px-6 pt-4">
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {presets.map(([label, ymd]) => (
+          {subtitle ? (
+            <div className="mt-0.5 break-words text-[12px]" style={{ color: 'var(--assistant-text-faint)' }} data-tip={subtitle}>
+              {subtitle}
+            </div>
+          ) : null}
+          <div className="mt-3 flex gap-1.5">
+            {quick.map(([label, ymd]) => (
               <button
                 key={label}
                 type="button"
-                disabled={!!min && ymd < min}
-                onClick={() => preset(ymd)}
-                className={`text-[12px] px-2.5 py-1 rounded-full disabled:opacity-40 ${classes.quickFilterInactive}`}
+                onClick={() => pick(ymd)}
+                className="rounded-full px-2.5 py-1 text-[12px] transition-colors"
+                style={
+                  value === ymd
+                    ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }
+                    : { color: 'var(--assistant-text-soft)' }
+                }
               >
                 {label}
               </button>
             ))}
           </div>
-
-          <CalendarMonth
-            month={month}
-            onMonthChange={setMonth}
-            lo={selected}
-            hi={selected}
-            min={min}
-            onPick={setSelected}
-            onDoublePick={apply}
-          />
-
-          {withTime ? (
-            <div className="mt-4">
-              <div className="mb-2 text-[13px] font-semibold" style={{ color: 'var(--assistant-text)' }}>Time</div>
-              <TimePicker value={hhmm} onChange={setHhmm} optional={!timeRequired} />
-            </div>
-          ) : null}
         </div>
 
-        <div className={classes.modalFooter}>
-          {onClear && isValidDateYYYYMMDD(value) ? (
+        <div className="px-6 pt-4">
+          <div className="mb-2 flex items-center justify-between">
             <button
               type="button"
-              onClick={() => { onClear(); onClose(); }}
-              className={`mr-auto text-[13px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}
+              onClick={() => shiftMonth(-1)}
+              className="h-7 w-7 rounded-md text-[16px] transition-opacity hover:opacity-70"
+              style={{ color: 'var(--assistant-text-soft)' }}
+              aria-label="Previous month"
             >
-              Clear
+              ‹
             </button>
-          ) : null}
-          <button type="button" onClick={onClose} className={`ml-auto text-[13px] px-3 py-2 rounded-md ${classes.quickModalSecondary}`}>
-            Cancel
-          </button>
+            <div className="text-[14px] font-semibold">
+              {new Date(viewYear, viewMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </div>
+            <button
+              type="button"
+              onClick={() => shiftMonth(1)}
+              className="h-7 w-7 rounded-md text-[16px] transition-opacity hover:opacity-70"
+              style={{ color: 'var(--assistant-text-soft)' }}
+              aria-label="Next month"
+            >
+              ›
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-0.5 text-center">
+            {WEEKDAYS.map(w => (
+              <div key={w} className="py-1 text-[11px] font-medium" style={{ color: 'var(--assistant-text-faint)' }}>
+                {w}
+              </div>
+            ))}
+            {cells.map(c => {
+              const selected = c.ymd === value;
+              const isToday = c.ymd === today;
+              return (
+                <button
+                  key={c.ymd}
+                  type="button"
+                  onClick={() => pick(c.ymd)}
+                  aria-label={c.ymd}
+                  aria-pressed={selected}
+                  className="mx-auto flex h-9 w-9 items-center justify-center rounded-full text-[13px] tabular-nums transition-colors hover:bg-[color-mix(in_srgb,var(--assistant-text)_8%,transparent)]"
+                  style={
+                    selected
+                      ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)', fontWeight: 600 }
+                      : {
+                          color: c.inMonth ? 'var(--assistant-text)' : 'var(--assistant-text-faint)',
+                          fontWeight: isToday ? 700 : 400,
+                          boxShadow: isToday ? 'inset 0 0 0 1px var(--assistant-accent)' : undefined,
+                        }
+                  }
+                >
+                  {c.day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className={`${classes.modalFooter} justify-end`}>
           <button
             type="button"
-            disabled={!selected || !timeOk}
-            onClick={() => apply(selected)}
-            className={`text-[13px] font-semibold px-3 py-2 rounded-md disabled:opacity-40 ${classes.quickModalPrimary}`}
+            onClick={onClose}
+            className="text-[13px] px-3 py-2 rounded-lg"
+            style={{ color: 'var(--assistant-text-muted)' }}
           >
-            Apply
+            Cancel
           </button>
         </div>
       </div>
     </div>,
     document.querySelector('[data-assistant-root]') ?? document.body,
-  );
-}
-
-/** Form field that shows the date and opens the picker — stands in for `<input type="date">`. */
-export function DateField({
-  value,
-  onChange,
-  onClear,
-  min,
-  title,
-  placeholder = 'Pick a date',
-  className = '',
-  style,
-}: {
-  value?: string;
-  onChange: (ymd: string) => void;
-  onClear?: () => void;
-  min?: string;
-  title?: string;
-  placeholder?: string;
-  className?: string;
-  style?: React.CSSProperties;
-}) {
-  const [open, setOpen] = useState(false);
-  const label = formatPill(value);
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={`flex items-center justify-between gap-2 text-left ${className}`}
-        style={style}
-      >
-        <span className="truncate" style={label ? undefined : { color: 'var(--assistant-text-faint)' }}>{label || placeholder}</span>
-        <CalendarIcon className="size-3.5 shrink-0 opacity-60" />
-      </button>
-      {open ? (
-        <DatePickerModal title={title} value={value} min={min} onPick={onChange} onClear={onClear} onClose={() => setOpen(false)} />
-      ) : null}
-    </>
   );
 }

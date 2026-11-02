@@ -2,9 +2,7 @@ import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import type { Block as PrismaBlock } from '@prisma/client';
-import { assumedCompletedAt, isDefaultGroup, parseListStatus, parseRepeatDays, parseTaskNotes, todayYMD, type TaskNoteEntry } from '@/lib/datacenter';
-
-const isYMD = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+import { isDefaultGroup, parseListStatus, parseRepeatDays, parseTaskNotes, todayYMD, type TaskNoteEntry } from '@/lib/datacenter';
 
 function getUid(req: NextRequest) {
   return req.headers.get('X-Firebase-UID') ?? '';
@@ -81,7 +79,6 @@ export async function GET(req: NextRequest) {
         order: b.order,
         ...(b.checked != null ? { checked: b.checked } : {}),
         ...(b.deadline ? { deadline: b.deadline } : {}),
-        ...(b.checked && b.completedAt ? { completedAt: b.completedAt } : {}),
         ...(b.dueTime ? { dueTime: b.dueTime } : {}),
         ...(b.repeatDays.length ? { repeatDays: b.repeatDays } : {}),
         ...(b.isSection ? { section: true } : {}),
@@ -164,21 +161,14 @@ export async function POST(req: NextRequest) {
       : [];
 
     // A tab still on the single-note code sends `note` but no `notes`: keep the notes
-    // already stored for those tasks instead of collapsing them to one. Likewise a tab from
-    // before completedAt sends done tasks without it: keep the stored completion day
+    // already stored for those tasks instead of collapsing them to one
     const storedNotes = new Map<string, unknown>();
-    const storedCompletedAt = new Map<string, string>();
-    const needsNotes = blocks.some(b => Number(b.indent ?? 0) > 0 && !Array.isArray(b.notes));
-    const needsCompleted = blocks.some(b => Number(b.indent ?? 0) > 0 && b.checked === true && !isYMD(b.completedAt));
-    if (needsNotes || needsCompleted) {
+    if (blocks.some(b => Number(b.indent ?? 0) > 0 && !Array.isArray(b.notes))) {
       const rows = await prisma.block.findMany({
         where: { projectId: project.id, indent: { gt: 0 } },
-        select: { localId: true, notes: true, note: true, createdAt: true, completedAt: true },
+        select: { localId: true, notes: true, note: true, createdAt: true },
       });
-      for (const r of rows) {
-        storedNotes.set(r.localId, parseTaskNotes(r.notes, r.note, r.createdAt ?? todayYMD()));
-        if (r.completedAt) storedCompletedAt.set(r.localId, r.completedAt);
-      }
+      for (const r of rows) storedNotes.set(r.localId, parseTaskNotes(r.notes, r.note, r.createdAt ?? todayYMD()));
     }
 
     // Derive parentLocalId from the flat array order + indent level.
@@ -215,12 +205,6 @@ export async function POST(req: NextRequest) {
           order:         Number(b.order ?? 0),
           checked:       typeof b.checked === 'boolean' ? b.checked : null,
           deadline:      typeof b.deadline === 'string' ? b.deadline : null,
-          // Only done tasks have one; an older tab's done task keeps the stored day, and one
-          // with none at all gets the assumed day (its due date — same rule as the client)
-          completedAt:   indent > 0 && b.checked === true
-            ? (isYMD(b.completedAt) ? b.completedAt
-              : storedCompletedAt.get(bLocalId) ?? assumedCompletedAt({ deadline: b.deadline, createdAt }))
-            : null,
           dueTime:       indent > 0 && typeof b.dueTime === 'string' && /^\d{2}:\d{2}$/.test(b.dueTime) ? b.dueTime : null,
           repeatDays:    indent > 0 ? parseRepeatDays(b.repeatDays) : [],
           isSection:     indent > 0 && b.section === true,

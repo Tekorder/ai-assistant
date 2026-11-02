@@ -1,6 +1,6 @@
 // Monthly productivity stats for the Profile dashboard.
-// Completions count on the day the task was checked (completedAt, same as the Activity
-// panel); "due" figures and the completion rate go by the due date.
+// Tasks have no completion timestamp, so a checked task counts as done on its due date
+// (same convention as the Activity panel).
 import {
   type Project,
   type ReminderItem,
@@ -16,8 +16,6 @@ export type TaskRow = {
   id: string;
   done: boolean;
   due?: string;
-  /** Day it was checked (done tasks only) */
-  completed?: string;
   created?: string;
   flag?: TaskFlagColor;
   listId: string;
@@ -38,10 +36,7 @@ export type MonthStats = {
   /** Day of month that is "today" when this is the current month, else daysInMonth (or 0 for future). */
   elapsedDays: number;
   due: number;
-  /** Checked this month (by completion day) */
   completed: number;
-  /** Of the tasks due this month, how many are done — the rest are pending / overdue */
-  dueCompleted: number;
   pending: number;
   overdue: number;
   completionRate: number | null; // 0-1, null when nothing was due
@@ -75,7 +70,6 @@ export function collectTasks(projects: Project[]): TaskRow[] {
         id: b.id,
         done: b.checked === true,
         due: isValidDateYYYYMMDD(b.deadline) ? b.deadline : undefined,
-        completed: b.checked === true && isValidDateYYYYMMDD(b.completedAt) ? b.completedAt : undefined,
         created: isValidDateYYYYMMDD(b.createdAt) ? b.createdAt : undefined,
         flag: getTaskFlag(b),
         listId: `${p.project_id}:${listId}`,
@@ -103,7 +97,7 @@ export function monthRange(tasks: TaskRow[], now = new Date()): MonthRef[] {
   let first = addMonths(current, -5);
   const floor = addMonths(current, -23);
   for (const t of tasks) {
-    for (const d of [t.due, t.completed, t.created]) {
+    for (const d of [t.due, t.created]) {
       if (!d) continue;
       const mr = parseMonth(d);
       if (cmpMonth(mr, first) < 0) first = mr;
@@ -150,15 +144,12 @@ export function computeMonthStats(
 
   const inMonth = (d?: string) => !!d && d.startsWith(key);
   const dueRows = tasks.filter(t => inMonth(t.due));
-  // Completed this month, whenever they were due
-  const doneRows = tasks.filter(t => t.done && inMonth(t.completed));
-  // Of the tasks due this month, the ones done (whenever) — for the completion rate
-  const dueDone = dueRows.filter(t => t.done).length;
+  const doneRows = dueRows.filter(t => t.done);
 
   const daily = new Array(daysInMonth).fill(0);
   const weekday = new Array(7).fill(0);
   for (const t of doneRows) {
-    const day = Number(t.completed!.slice(8, 10));
+    const day = Number(t.due!.slice(8, 10));
     daily[day - 1]++;
     const wd = new Date(month.y, month.m, day).getDay(); // 0 = Sun
     weekday[(wd + 6) % 7]++;
@@ -200,10 +191,9 @@ export function computeMonthStats(
     elapsedDays,
     due: dueRows.length,
     completed: doneRows.length,
-    dueCompleted: dueDone,
     pending: open.length - overdue,
     overdue,
-    completionRate: dueRows.length ? dueDone / dueRows.length : null,
+    completionRate: dueRows.length ? doneRows.length / dueRows.length : null,
     created: tasks.filter(t => inMonth(t.created)).length,
     reminders: reminders.filter(r => (r.title || '').trim() && inMonth(r.date)).length,
     activeDays,

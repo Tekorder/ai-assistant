@@ -1,18 +1,28 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useHabits, useToday } from '@/app/assistant/_hook/useHabits';
-import { dayCompletion, habitsDueOn, indexHabitLogs } from '@/app/assistant/_utils/habitSchedule';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  type HabitBlock,
+  type HabitsPayload,
+  LS_KEY_HABITS,
+  arrayMove,
+  makeDefaultHabit,
+  ensureOneHabit,
+  readHabitsLS,
+  writeHabitsLS,
+  applyHabitResets,
+  forceResetHabits,
+  insertHabitAfter as insertHabitAfterArr,
+  removeHabit as removeHabitArr,
+  updateHabit as updateHabitArr,
+} from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
-import HabitsView from './habits/HabitsView';
-import { HabitList } from './habits/HabitList';
-import { useHabitDialogs } from './habits/useHabitDialogs';
-import { AddButton } from './AddButton';
+import { TaskCheckmark } from './TaskCheckmark';
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** tab: the full Habits view in the main panel · dock/overlay: today's check-in list */
+  /** tab: a main-panel tab — no frame, title or close button */
   variant?: 'overlay' | 'dock' | 'tab';
 };
 
@@ -20,9 +30,42 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
+  const [habits, setHabits] = useState<HabitBlock[]>([makeDefaultHabit()]);
+  const [habitsMeta, setHabitsMeta] = useState<{ lastDaily?: string; lastWeekly?: string }>({});
+  const habitInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [newId, setNewId] = useState<string | null>(null);
+  const newTimerRef = useRef<number | null>(null);
+  const dragRef = useRef<{ id: string; fromIndex: number } | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = () => {
+      const raw = readHabitsLS();
+      const payload = applyHabitResets(raw);
+      const next = ensureOneHabit(payload.habits);
+      setHabits(next);
+      setHabitsMeta({ lastDaily: payload.lastDailyResetYMD, lastWeekly: payload.lastWeeklyResetYMD });
+      const needWrite =
+        raw.lastDailyResetYMD !== payload.lastDailyResetYMD ||
+        raw.lastWeeklyResetYMD !== payload.lastWeeklyResetYMD ||
+        JSON.stringify(raw.habits) !== JSON.stringify(next);
+      if (needWrite) writeHabitsLS({ ...payload, habits: next });
+    };
+    load();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LS_KEY_HABITS) load();
+    };
+    window.addEventListener('youtask_habits_updated', load);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('youtask_habits_updated', load);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
+      if (newTimerRef.current) window.clearTimeout(newTimerRef.current);
       if (closeTimeoutRef.current) window.clearTimeout(closeTimeoutRef.current);
     };
   }, []);
@@ -52,9 +95,103 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
     }, 220);
   };
 
-  if (variant === 'tab') {
-    return <HabitsView />;
-  }
+  const focusHabit = (id: string, caretToEnd = false) => {
+    requestAnimationFrame(() => {
+      const el = habitInputRefs.current[id];
+      if (!el) return;
+      el.focus();
+      if (caretToEnd) {
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+      } else el.setSelectionRange(0, 0);
+    });
+  };
+
+  const triggerNewLineAnim = (id: string) => {
+    setNewId(id);
+    if (newTimerRef.current) window.clearTimeout(newTimerRef.current);
+    newTimerRef.current = window.setTimeout(() => setNewId(null), 220);
+  };
+
+  const persistHabits = (next: HabitBlock[], metaOverride?: Partial<HabitsPayload>) => {
+    setHabits(next);
+    writeHabitsLS({
+      habits: next,
+      lastDailyResetYMD: metaOverride?.lastDailyResetYMD ?? habitsMeta.lastDaily,
+      lastWeeklyResetYMD: metaOverride?.lastWeeklyResetYMD ?? habitsMeta.lastWeekly,
+    });
+  };
+
+  const handleAddHabit = () => {
+    const next = makeDefaultHabit();
+    persistHabits([...habits, next]);
+    focusHabit(next.id, false);
+  };
+
+  const handleUpdateHabit = (id: string, patch: Partial<HabitBlock>) => {
+    persistHabits(updateHabitArr(habits, id, patch));
+  };
+
+  const handleRemoveHabit = (id: string) => {
+    const result = removeHabitArr(habits, id);
+    persistHabits(result.habits);
+    focusHabit(result.focusId, result.habits.length === 1);
+  };
+
+  const handleInsertHabitAfter = (id: string) => {
+    const result = insertHabitAfterArr(habits, id);
+    persistHabits(result.habits);
+    triggerNewLineAnim(result.newHabit.id);
+    focusHabit(result.newHabit.id, false);
+  };
+
+  const handleForceResetHabits = () => {
+    const payload = forceResetHabits(habits, { lastDaily: habitsMeta.lastDaily, lastWeekly: habitsMeta.lastWeekly });
+    setHabitsMeta({ lastDaily: payload.lastDailyResetYMD, lastWeekly: payload.lastWeeklyResetYMD });
+    persistHabits(payload.habits, payload);
+  };
+
+  const handleHabitKey = (e: React.KeyboardEvent<HTMLInputElement>, h: HabitBlock) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleInsertHabitAfter(h.id);
+      return;
+    }
+    if (e.key === 'Backspace' && h.text === '') {
+      e.preventDefault();
+      handleRemoveHabit(h.id);
+    }
+  };
+
+  const onDragStartRow = (e: React.DragEvent, id: string, index: number) => {
+    dragRef.current = { id, fromIndex: index };
+    setDragOverId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', id); } catch {}
+  };
+
+  const onDragOverRow = (e: React.DragEvent, overId: string) => {
+    e.preventDefault();
+    if (!dragRef.current) return;
+    if (dragOverId !== overId) setDragOverId(overId);
+  };
+
+  const onDropRow = (e: React.DragEvent, overId: string) => {
+    e.preventDefault();
+    const drag = dragRef.current;
+    if (!drag) return;
+    const toIndex = habits.findIndex(h => h.id === overId);
+    if (toIndex < 0) return;
+    const next = arrayMove(habits, drag.fromIndex, toIndex);
+    persistHabits(next);
+    dragRef.current = null;
+    setDragOverId(null);
+  };
+
+  const onDragEndRow = () => {
+    dragRef.current = null;
+    setDragOverId(null);
+  };
 
   if (!shouldRender) return null;
 
@@ -75,16 +212,98 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
           to { transform: translateX(14px); opacity: 0; filter: blur(1px); }
         }
       `}</style>
-      <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
-        style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Habits</h2>
-        <button type="button" onClick={requestClose} className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
-          ✕
-        </button>
+
+      {variant !== 'tab' && (
+        <div className="flex h-[49px] items-center justify-between px-4 shrink-0"
+          style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+          <h2 className="text-[16px] font-semibold" style={{ color: 'var(--assistant-text-soft)' }}>Habits</h2>
+          <button type="button" onClick={requestClose} className={`h-8 w-8 rounded-lg ${classes.panelCloseBtn}`} aria-label="Close">
+            ✕
+          </button>
+        </div>
+      )}
+
+      <div className="px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={handleAddHabit}
+            className={`h-8 w-8 shrink-0 rounded-md ${classes.panelBtn}`} data-tip="New habit">
+            +
+          </button>
+          <button type="button" onClick={handleForceResetHabits}
+            className={`text-[12px] px-2 py-1 rounded-md ${classes.panelBtn}`} data-tip="Reset now">
+            Reset
+          </button>
+        </div>
+        <div className="mt-2 text-[11px]" style={{ color: 'var(--assistant-text-faint)' }}>
+          Daily reset: {habitsMeta.lastDaily || '—'} · Weekly reset (Monday): {habitsMeta.lastWeekly || '—'}
+        </div>
       </div>
-      <TodayChecklist />
+
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        {/* As a main tab there's room for two columns */}
+        <div className={variant === 'tab' ? 'grid grid-cols-1 gap-x-8 gap-y-1 lg:grid-cols-2' : 'space-y-1'}>
+          {habits.map((h, idx) => {
+            const isDraggingOver = dragOverId === h.id && dragRef.current?.id !== h.id;
+            const isDraggingMe = dragRef.current?.id === h.id;
+            return (
+              <div
+                key={h.id}
+                draggable
+                onDragStart={e => onDragStartRow(e, h.id, idx)}
+                onDragOver={e => onDragOverRow(e, h.id)}
+                onDrop={e => onDropRow(e, h.id)}
+                onDragEnd={onDragEndRow}
+                className={[
+                  'group flex items-center gap-2 px-0.5 py-1 rounded-md',
+                  isDraggingOver ? classes.dragOver : '',
+                  isDraggingMe ? 'opacity-60' : '',
+                  newId === h.id ? 'wadu-line-in' : '',
+                ].join(' ')}
+              >
+                <div className={`w-3 shrink-0 select-none opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing ${classes.dragHandle}`} data-tip="Drag">
+                  <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor" aria-hidden="true">
+                    <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+                    <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
+                    <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
+                  </svg>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateHabit(h.id, { checked: !h.checked })}
+                  className="check-glow h-4 w-4 rounded-full flex items-center justify-center shrink-0 transition-[transform,box-shadow] duration-150 ease-out group-hover:scale-[1.06]"
+                >
+                  <TaskCheckmark checked={Boolean(h.checked)} />
+                </button>
+                <input
+                  ref={el => void (habitInputRefs.current[h.id] = el)}
+                  value={h.text}
+                  placeholder="Habit…"
+                  onChange={e => handleUpdateHabit(h.id, { text: e.target.value })}
+                  onKeyDown={e => handleHabitKey(e, h)}
+                  className="w-full bg-transparent outline-none text-sm cursor-pointer transition-opacity duration-150"
+                  style={{
+                    color: h.checked ? 'var(--assistant-text-faint)' : 'var(--assistant-text-soft)',
+                    textDecoration: h.checked ? 'line-through' : 'none',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleUpdateHabit(h.id, { weekly: !h.weekly })}
+                  className={`shrink-0 text-[12px] px-2 py-1 rounded-full ${h.weekly ? classes.panelAccentBadge : classes.panelNeutralBadge}`}
+                >
+                  {h.weekly ? 'Weekly' : 'Daily'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </>
   );
+
+  if (variant === 'tab') {
+    return <div className="flex h-full min-h-0 w-full min-w-0 flex-col">{body}</div>;
+  }
 
   if (variant === 'dock') {
     return (
@@ -113,38 +332,6 @@ export default function HabitsPanel({ open, onClose, variant = 'overlay' }: Prop
         `}</style>
         {body}
       </div>
-    </>
-  );
-}
-
-/** Dock / overlay body: today's due habits as compact cards, to check in quickly. */
-function TodayChecklist() {
-  const { habits, logs, checkInMethod } = useHabits();
-  const today = useToday();
-  const index = useMemo(() => indexHabitLogs(logs), [logs]);
-  const due = useMemo(() => habitsDueOn(habits, today), [habits, today]);
-  const { done, due: dueCount } = dayCompletion(habits, index, today, today);
-  const { act, startNew, open, dialogs } = useHabitDialogs(habits, index);
-
-  return (
-    <>
-      <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
-        <span className="text-[13px]" style={{ color: 'var(--assistant-text-muted)' }}>
-          Today{dueCount ? ` · ${done}/${dueCount} done` : ''}
-        </span>
-        <AddButton label="New habit" onClick={() => startNew()} compact />
-      </div>
-      <div className="flex-1 overflow-y-auto px-3 py-3">
-        {due.length ? (
-          <HabitList habits={due} index={index} ymd={today} today={today} method={checkInMethod} compact
-            onAction={h => act(h, today)} onOpen={h => open(h, today)} />
-        ) : (
-          <p className="py-10 text-center text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>
-            {habits.some(h => !h.archived) ? 'Nothing due today.' : 'No habits yet — add one with +.'}
-          </p>
-        )}
-      </div>
-      {dialogs}
     </>
   );
 }

@@ -91,10 +91,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  /* Inverse of the theme: text-colored badge, background-colored number — readable in light
-     and dark (a fixed white number vanished on dark themes' light badge) */
   background: var(--assistant-text);
-  color: var(--assistant-bg);
+  color: #fff;
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
@@ -499,6 +497,17 @@
   background: color-mix(in srgb, var(--assistant-text) 10%, transparent);
 }
 
+.quickNewListBtn {
+  color: var(--assistant-text);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.quickNewListBtn:hover {
+  background: color-mix(in srgb, var(--assistant-text) 8%, transparent);
+}
+
 .quickNavArrow {
   color: var(--assistant-accent);
 }
@@ -665,6 +674,12 @@
   background: rgba(59,130,246,.30);
 }
 
+.quickDatePillInput {
+  background: color-mix(in srgb, var(--assistant-accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--assistant-accent) 35%, transparent);
+  color: var(--assistant-accent);
+}
+
 .quickToast {
   border: 1px solid color-mix(in srgb, var(--assistant-accent) 25%, transparent);
   background: var(--assistant-panel-bg);
@@ -714,18 +729,12 @@
 }
 
 .modalCard {
-  /* Just the theme's gradient — no border (same as .yt-surface in globals.css) */
   background: var(--assistant-overlay-panel-bg, var(--assistant-panel-bg));
   color: var(--assistant-text);
-  border-radius: 1rem;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .22);
-  animation: modalIn .28s cubic-bezier(.25, .9, .3, 1) both;
-}
-/* Dashboard / stats cards: the dialogs' theme tint (an even wash, see --assistant-card-bg), resting on the page */
-.dashCard {
-  background: var(--assistant-card-bg, var(--assistant-surface));
   border: 1px solid var(--assistant-border-soft);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, .06);
+  border-radius: 1rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .28);
+  animation: modalIn .28s cubic-bezier(.25, .9, .3, 1) both;
 }
 /* Inside the card: no rules between parts, big title, roomy 1.5rem sides */
 .modalHeader { padding: 1.25rem 1.5rem .25rem; }
@@ -895,9 +904,9 @@
 }
 
 .miniCalDayNumToday {
-  background: color-mix(in srgb, var(--assistant-active-text) 22%, transparent);
-  color: var(--assistant-active-text);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--assistant-active-text) 18%, transparent);
+  background: color-mix(in srgb, var(--assistant-active-text, #d5fc43) 22%, transparent);
+  color: var(--assistant-active-text, #d5fc43);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--assistant-active-text, #d5fc43) 18%, transparent);
 }
 
 .miniCalDayNumDefault {

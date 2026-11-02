@@ -9,7 +9,6 @@ import {
   getTaskFlag,
   isListVisible,
   isValidDateYYYYMMDD,
-  taskCalendarDay,
   formatPill,
   weekdayLabel,
 } from '@/lib/datacenter';
@@ -52,8 +51,7 @@ export function RangeTasksDialog({
         continue;
       }
       if (b.indent !== 1 || b.section || !listVisible || b.archived) continue;
-      // By due date, a done task counts on the day it was completed (like Timeline / Calendar)
-      const date = by === 'createdAt' ? b.createdAt : taskCalendarDay(b);
+      const date = by === 'createdAt' ? b.createdAt : b.deadline;
       if (!isValidDateYYYYMMDD(date) || date < range.from || date > range.to) continue;
       (byDate[date] ??= []).push({
         id: b.id,

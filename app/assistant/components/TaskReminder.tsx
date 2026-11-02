@@ -8,13 +8,11 @@ import {
   todayYMD,
   isValidDateYYYYMMDD,
   isValidTimeHHMM,
-  formatPill,
   getTaskFlag,
   readRemindersLS,
   writeRemindersLS,
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
-import { TimePicker } from './TimePicker';
 
 type ReminderSource = {
   text?: string;
@@ -105,11 +103,17 @@ export function TaskReminderModal({ task, onClose }: { task: ReminderSource; onC
               ) : null}
             </div>
 
-            <div className="px-6 pt-4">
-              <div className="mb-2 text-[13px] font-semibold" style={{ color: 'var(--assistant-text)' }}>
-                {formatPill(date)}
-              </div>
-              <TimePicker value={time} onChange={setTime} />
+            <div className="flex items-center gap-2 px-6 pt-4">
+              <span className="shrink-0 text-[13px] tabular-nums" style={{ color: 'var(--assistant-text-muted)' }}>
+                {date.slice(5, 7)}/{date.slice(8, 10)}/{date.slice(0, 4)}
+              </span>
+              <input
+                autoFocus
+                type="time"
+                value={time}
+                onChange={e => setTime(e.target.value)}
+                className={`min-w-0 flex-1 text-[28px] font-semibold tabular-nums text-center px-3 py-2 rounded-lg ${classes.panelInput}`}
+              />
             </div>
 
             <div className={`${classes.modalFooter} justify-end`}>

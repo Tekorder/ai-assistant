@@ -5,7 +5,6 @@ import { getTaskFlag, type TaskFlagColor } from '@/lib/datacenter';
 import { TaskFlagBadge } from './TaskFlag';
 import classes from '@/app/assistant/_theme/themes.module.css';
 import { AgendaListHeader, AgendaListTitle, AgendaTaskRow, AgendaCheck, AgendaTaskText, AgendaDate } from './AgendaList';
-import { PanelPinButton } from './PanelPinButton';
 
 export type PivotTreeRow = {
   key: string;
@@ -190,8 +189,7 @@ export function buildListPivotTree<T extends { id: string; text: string; indent:
 
 export type PivotPanelProps = {
   open: boolean;
-  /** tab: pinned as a main-panel tab — no frame or header (the tab names it) */
-  variant?: 'dock' | 'overlay' | 'tab';
+  variant?: 'dock' | 'overlay';
   word: string;
   /** Keyword search vs whole list subtree */
   pivotKind?: 'word' | 'list';
@@ -199,12 +197,10 @@ export type PivotPanelProps = {
   onClose: () => void;
   onGoTo: (blockId: string) => void;
   onToggleTask?: (blockId: string, nextChecked: boolean) => void;
-  /** Shows a pin beside ✕ that moves the panel into the main panel's tabs */
-  onPin?: () => void;
 };
 
-function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'> & { hideHeader?: boolean }) {
-  const { word, pivotKind = 'word', rows, onClose, onGoTo, onToggleTask, onPin, hideHeader } = props;
+function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'>) {
+  const { word, pivotKind = 'word', rows, onClose, onGoTo, onToggleTask } = props;
   const [showCompleted, setShowCompleted] = useState(false);
 
   const visibleRows = useMemo(() => {
@@ -269,13 +265,11 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'> & { hid
 
   return (
     <>
-      {hideHeader ? null : (
       <div className="flex h-[49px] shrink-0 items-center gap-2 px-4" style={{ borderBottom: '1px solid var(--assistant-border-soft)' }}>
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           <span className="shrink-0 text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--assistant-accent)' }}>{pivotKind === 'list' ? 'List' : 'Keyword'}</span>
           <h2 className="min-w-0 break-words text-[16px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }} data-tip={word}>&ldquo;{word}&rdquo;</h2>
         </div>
-        {onPin ? <PanelPinButton onPin={onPin} label={`“${word}”`} /> : null}
         <button
           type="button"
           onClick={onClose}
@@ -286,7 +280,6 @@ function PivotPanelBody(props: Omit<PivotPanelProps, 'open' | 'variant'> & { hid
           ✕
         </button>
       </div>
-      )}
 
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-3">
         {hasRows ? (
@@ -331,7 +324,6 @@ export function PivotPanel({
   onClose,
   onGoTo,
   onToggleTask,
-  onPin,
 }: PivotPanelProps) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
@@ -378,14 +370,8 @@ export function PivotPanel({
       onClose={requestClose}
       onGoTo={onGoTo}
       onToggleTask={onToggleTask}
-      onPin={onPin}
-      hideHeader={variant === 'tab'}
     />
   );
-
-  if (variant === 'tab') {
-    return <div className="flex h-full min-h-0 w-full min-w-0 flex-col" style={{ color: 'var(--assistant-text)' }}>{body}</div>;
-  }
 
   if (variant === 'dock') {
     return (

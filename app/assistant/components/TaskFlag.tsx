@@ -1,37 +1,48 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { cycleTaskFlag, getTaskFlag, type TaskFlagColor } from '@/lib/datacenter';
 
-// Flat pennants in the theme's status colors (blue → info, yellow → warning, red → danger)
-const FLAG_META: Record<TaskFlagColor, { color: string; label: string }> = {
-  blue:   { color: 'var(--assistant-info-text, #3b82f6)', label: 'Blue flag' },
-  yellow: { color: 'var(--assistant-warning-text, #d97706)', label: 'Yellow flag' },
-  red:    { color: 'var(--assistant-danger-text, #e11d48)', label: 'Red flag — urgent' },
+const FLAG_META: Record<TaskFlagColor, { src: string; label: string; glow: string }> = {
+  blue: {
+    src: '/flags/bflag.png',
+    label: 'Blue flag',
+    glow: 'drop-shadow(0 0 4px rgba(59,130,246,0.55)) drop-shadow(0 0 10px rgba(59,130,246,0.22))',
+  },
+  yellow: {
+    src: '/flags/yflag.png',
+    label: 'Yellow flag',
+    glow: 'drop-shadow(0 0 4px rgba(234,179,8,0.55)) drop-shadow(0 0 10px rgba(250,204,21,0.2))',
+  },
+  red: {
+    src: '/flags/rflag.png',
+    label: 'Red flag — urgent',
+    glow: 'drop-shadow(0 0 4px rgba(239,68,68,0.55)) drop-shadow(0 0 10px rgba(244,63,94,0.22))',
+  },
 };
 
 export function TaskFlagIcon({
   color,
   className = 'h-4 w-4',
+  glow = true,
 }: {
   color: TaskFlagColor;
   className?: string;
+  glow?: boolean;
 }) {
+  const meta = FLAG_META[color];
   return (
-    <svg
-      viewBox="0 0 16 16"
+    <Image
+      src={meta.src}
+      alt=""
       aria-hidden
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ color: FLAG_META[color].color }}
-    >
-      <path d="M3.75 14.25V2" />
-      <path d="M3.75 2.75h8.5l-2 3.25 2 3.25h-8.5" fill="currentColor" fillOpacity=".28" />
-    </svg>
+      width={16}
+      height={16}
+      draggable={false}
+      className={[className, 'object-contain'].join(' ')}
+      style={glow ? { filter: meta.glow } : undefined}
+    />
   );
 }
 

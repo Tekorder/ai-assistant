@@ -9,17 +9,15 @@ async function resolveUser(req: NextRequest) {
   return prisma.user.findUnique({ where: { firebaseUid: uid } });
 }
 
-type RawItem = { id?: unknown; text?: unknown; checked?: unknown; indent?: unknown };
+type RawItem = { id?: unknown; text?: unknown; checked?: unknown };
 
-function normalizeItems(raw: unknown): { id: string; text: string; checked: boolean; indent?: number }[] {
+function normalizeItems(raw: unknown): { id: string; text: string; checked: boolean }[] {
   if (!Array.isArray(raw)) return [];
   return (raw as RawItem[])
     .map(it => ({
       id: typeof it.id === 'string' ? it.id : '',
       text: typeof it.text === 'string' ? it.text : '',
       checked: Boolean(it.checked),
-      // Sub-item depth (1 = top level, omitted); the client keeps it consistent
-      ...(Number.isInteger(it.indent) && (it.indent as number) > 1 ? { indent: Math.min(it.indent as number, 6) } : {}),
     }))
     .filter(it => it.id);
 }

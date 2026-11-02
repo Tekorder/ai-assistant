@@ -172,8 +172,8 @@ export default function Menu({
       <div
         ref={popRef}
         role="menu"
-        className="yt-surface drop-in fixed z-[10060] w-[220px] rounded-xl p-1.5"
-        style={pos}
+        className="drop-in fixed z-[10060] w-[220px] rounded-xl p-1.5 shadow-2xl"
+        style={{ ...pos, background: 'var(--assistant-panel-bg)', border: '1px solid var(--assistant-border-soft)' }}
       >
         {items.map((item) => {
           const soon = 'soon' in item && item.soon;
@@ -338,7 +338,7 @@ export default function Menu({
                 { label: 'Habits',    isOpen: habitsOpen,    onToggle: onToggleHabits,    icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" strokeLinejoin="round" d="M8 2v2M8 12v2M2 8h2M12 8h2" /><circle cx="8" cy="8" r="3" /></svg> },
                 { label: 'Reminders', isOpen: remindersOpen, onToggle: onToggleReminders, icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 1.2v.8H2.8v-.8L4 9V6.5a4 4 0 0 1 4-4z" /><path strokeLinecap="round" d="M6 12.5a2 2 0 0 0 4 0" /></svg> },
                 { label: 'Activity',  isOpen: activityOpen,  onToggle: onToggleActivity,  icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><path strokeLinecap="round" strokeLinejoin="round" d="M2 10h2.5l1.2-3 2.1 6 1.8-4H14" /></svg> },
-                { label: 'Checklists', isOpen: listsOpen,     onToggle: onToggleLists,     icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="3" width="3" height="3" rx="0.6" /><rect x="2" y="10" width="3" height="3" rx="0.6" /><path strokeLinecap="round" d="M7 4.5h7M7 11.5h7" /></svg> },
+                { label: 'Check Lists', isOpen: listsOpen,     onToggle: onToggleLists,     icon: <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="3" width="3" height="3" rx="0.6" /><rect x="2" y="10" width="3" height="3" rx="0.6" /><path strokeLinecap="round" d="M7 4.5h7M7 11.5h7" /></svg> },
                 { label: 'AI Chat',   isOpen: chatOpen,      onToggle: onToggleChat,      icon: <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5" /></svg> },
               ] as const).map((panel) => (
                 <button

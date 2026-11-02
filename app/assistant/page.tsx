@@ -9,7 +9,7 @@ import ChatBox from './components/Chatbox';
 import Timeline from './components/tabs/Timeline';
 import Quick from './components/tabs/Quick';
 import CalendarView from './components/tabs/Calendar';
-import TopNavBar, { AccountActions, HeaderSearch, IconTip, NAV_ITEMS, type MenuAnchor } from './components/TopNavBar';
+import TopNavBar, { AccountActions, HeaderSearch, IconTip, NAV_ITEMS, PanelsMenuButton, type MenuAnchor } from './components/TopNavBar';
 import Menu from './components/Menu';
 import HabitsPanel from './components/HabitsPanel';
 import RemindersPanel from './components/RemindersPanel';
@@ -20,7 +20,6 @@ import SettingsPanel from './components/SettingsPanel';
 import { ThemePicker } from './components/ThemePicker';
 import { ShiftScrollHint } from './components/ShiftScrollHint';
 import ProfilePanel from './components/ProfilePanel';
-import ReminderNotifier from './components/ReminderNotifier';
 import { assistantThemes, getAssistantThemeVars, getThemeCounterpart, type AssistantThemeName } from './_theme/themes';
 import classes from './_theme/themes.module.css';
 import { PivotPanel, buildPrunedPivotTree, buildListPivotTree, type PivotTreeRow } from './components/Pivot';
@@ -32,9 +31,6 @@ import {
   cleanupEmptyTasks,
   updateBlock,
   isValidDateYYYYMMDD,
-  parseYMD,
-  formatPill,
-  taskCalendarDay,
   todayYMD,
   LS_KEY_CHECKLISTS,
   readChecklistsLS,
@@ -56,12 +52,6 @@ const ASSISTANT_THEME_LS_KEY = 'assistant_theme_v1';
 const LAYOUT_LS_KEY = 'youtask_workspace_layout_v1';
 const DOCK_LAYOUT_LS_KEY = 'youtask_dock_layout';
 const RESTORABLE_VIEWS: View[] = ['quick', 'timeline', 'calendar', 'lists', 'habits', 'reminders'];
-/** List / keyword panels pinned as tabs (each one its own tab) */
-const PINNED_PIVOTS_LS_KEY = 'youtask_pinned_pivots';
-/** Day panels pinned as tabs (one per day) */
-const PINNED_DAYS_LS_KEY = 'youtask_pinned_days';
-type DayPanelInstance = { id: string; ymd: string };
-type PivotInstance = { id: string; word: string; listId?: string };
 
 type SavedLayout = Partial<{
   activeView: View;
@@ -95,7 +85,6 @@ export default function App() {
       }
     }
     setActiveView(v);
-    setActivePinnedId(null);
   }, [activeView]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -108,13 +97,12 @@ export default function App() {
   const [themesOpen, setThemesOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmClearChat, setConfirmClearChat] = useState(false);
-  const [pivotInstances, setPivotInstances] = useState<PivotInstance[]>([]);
-  // Pinned list / keyword and day panels: tabs after the fixed ones; while one is open it
-  // replaces the main view (activeView stays as it was underneath)
-  const [pinnedPivots, setPinnedPivots] = useState<PivotInstance[]>([]);
-  const [pinnedDays, setPinnedDays] = useState<DayPanelInstance[]>([]);
-  const [activePinnedId, setActivePinnedId] = useState<string | null>(null);
-  const [dayPanelInstances, setDayPanelInstances] = useState<DayPanelInstance[]>([]);
+  const [pivotInstances, setPivotInstances] = useState<
+    Array<{ id: string; word: string; listId?: string }>
+  >([]);
+  const [dayPanelInstances, setDayPanelInstances] = useState<
+    Array<{ id: string; ymd: string }>
+  >([]);
 
   const MIN_SIDEBAR = 360;
   // Space left of the open sidebar (the sidebar card adds its own 12px margin on top)
@@ -326,60 +314,6 @@ export default function App() {
   const toggleReminders = useCallback(() => setRemindersOpen((v) => !v), []);
   const toggleActivity = useCallback(() => setActivityOpen((v) => !v), []);
   const toggleLists = useCallback(() => setListsOpen((v) => !v), []);
-
-  // Pinned list / keyword panels (desktop): a panel's pin closes it in the dock and adds it
-  // as its own main-panel tab (one per list / word); the tab's ✕ unpins it. Remembered per browser.
-  useEffect(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(PINNED_PIVOTS_LS_KEY) ?? '[]');
-      if (Array.isArray(raw)) {
-        setPinnedPivots(raw.filter((p): p is PivotInstance =>
-          Boolean(p) && typeof p.id === 'string' && typeof p.word === 'string'));
-      }
-    } catch {}
-  }, []);
-  const persistPinnedPivots = (next: PivotInstance[]) => {
-    setPinnedPivots(next);
-    try { localStorage.setItem(PINNED_PIVOTS_LS_KEY, JSON.stringify(next)); } catch {}
-  };
-  const pinPivot = (pivot: PivotInstance) => {
-    const same = (p: PivotInstance) => (pivot.listId ? p.listId === pivot.listId : !p.listId && p.word === pivot.word);
-    const existing = pinnedPivots.find(same);
-    if (!existing) persistPinnedPivots([...pinnedPivots, pivot]);
-    setPivotInstances(prev => prev.filter(p => p.id !== pivot.id));
-    setActivePinnedId(existing?.id ?? pivot.id);
-  };
-  const unpinPivot = (id: string) => {
-    persistPinnedPivots(pinnedPivots.filter(p => p.id !== id));
-    if (activePinnedId === id) setActivePinnedId(null);
-  };
-  const activePinnedPivot = pinnedPivots.find(p => p.id === activePinnedId) ?? null;
-
-  // Day panels pin the same way, one tab per day
-  useEffect(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(PINNED_DAYS_LS_KEY) ?? '[]');
-      if (Array.isArray(raw)) {
-        setPinnedDays(raw.filter((d): d is DayPanelInstance =>
-          Boolean(d) && typeof d.id === 'string' && isValidDateYYYYMMDD(d.ymd)));
-      }
-    } catch {}
-  }, []);
-  const persistPinnedDays = (next: DayPanelInstance[]) => {
-    setPinnedDays(next);
-    try { localStorage.setItem(PINNED_DAYS_LS_KEY, JSON.stringify(next)); } catch {}
-  };
-  const pinDay = (day: DayPanelInstance) => {
-    const existing = pinnedDays.find(d => d.ymd === day.ymd);
-    if (!existing) persistPinnedDays([...pinnedDays, day]);
-    setDayPanelInstances(prev => prev.filter(d => d.id !== day.id));
-    setActivePinnedId(existing?.id ?? day.id);
-  };
-  const unpinDay = (id: string) => {
-    persistPinnedDays(pinnedDays.filter(d => d.id !== id));
-    if (activePinnedId === id) setActivePinnedId(null);
-  };
-  const activePinnedDay = pinnedDays.find(d => d.id === activePinnedId) ?? null;
 
   useEffect(() => {
     return () => {
@@ -604,23 +538,22 @@ export default function App() {
 
   const pivotRowsById = useMemo<Record<string, PivotTreeRow[]>>(() => {
     const out: Record<string, PivotTreeRow[]> = {};
-    for (const p of [...pivotInstances, ...pinnedPivots]) {
+    for (const p of pivotInstances) {
       out[p.id] = p.listId
         ? buildListPivotTree(projectBlocks, p.listId, { uncTitle: UNC_TITLE })
         : buildPrunedPivotTree(projectBlocks, p.word, { uncTitle: UNC_TITLE });
     }
     return out;
-  }, [pivotInstances, pinnedPivots, projectBlocks]);
+  }, [pivotInstances, projectBlocks]);
 
   const activityTasks = useMemo(
     () =>
       projectBlocks
-        // Done tasks, by the day they were completed
-        .filter((b) => b.indent > 0 && b.checked === true && isValidDateYYYYMMDD(taskCalendarDay(b)))
+        .filter((b) => b.indent > 0 && b.checked === true && isValidDateYYYYMMDD(b.deadline))
         .map((b) => ({
           id: b.id,
           text: b.text ?? '',
-          date: taskCalendarDay(b) as string,
+          date: b.deadline as string,
           flag: getTaskFlag(b),
         })),
     [projectBlocks],
@@ -655,53 +588,11 @@ export default function App() {
 
   const handleSetActiveViewFromNav = useCallback((v: View) => {
     setActiveView(v);
-    setActivePinnedId(null);
   }, []);
 
   const isLight = theme.style === 'light';
 
-  /** The small ✕ inside a pinned tab (a span: the tab itself is the button) */
-  const renderUnpinX = (label: string, onUnpin: () => void) => (
-    <span
-      role="button"
-      tabIndex={0}
-      onClick={e => { e.stopPropagation(); onUnpin(); }}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onUnpin(); }
-      }}
-      className="-mr-1 grid h-4 w-4 place-items-center rounded text-[11px] leading-none opacity-50 transition-opacity hover:opacity-100 focus-visible:opacity-100"
-      aria-label={`Unpin ${label}`}
-      data-tip="Unpin"
-    >
-      ✕
-    </span>
-  );
-
   const renderView = () => {
-    if (activePinnedPivot && isDesktop === true) {
-      return (
-        // Same width as the tabs bar
-        <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col px-3 md:px-8">
-          <PivotPanel
-            variant="tab"
-            open
-            word={activePinnedPivot.word}
-            pivotKind={activePinnedPivot.listId ? 'list' : 'word'}
-            rows={pivotRowsById[activePinnedPivot.id] ?? []}
-            onClose={() => unpinPivot(activePinnedPivot.id)}
-            onGoTo={handlePivotGoTo}
-            onToggleTask={handlePivotToggleTask}
-          />
-        </div>
-      );
-    }
-    if (activePinnedDay && isDesktop === true) {
-      return (
-        <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col px-3 md:px-8">
-          <DayPanel variant="tab" open ymd={activePinnedDay.ymd} onClose={() => unpinDay(activePinnedDay.id)} />
-        </div>
-      );
-    }
     if (activeView === 'timeline') {
       return (
         <div className="mx-auto h-full min-h-0 w-full max-w-6xl px-3 md:px-8">
@@ -850,7 +741,7 @@ export default function App() {
       : isAccordionExpanded(key)
       ? 'relative mx-3 mt-3 box-border flex h-auto w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden border-t [border-top-color:var(--assistant-border-soft)]'
       : 'relative mx-3 mt-3 box-border flex h-[calc(100%-0.75rem)] min-h-0 w-[calc(100%-1.5rem)] shrink-0 flex-col overflow-hidden border-t [border-top-color:var(--assistant-border-soft)]';
-  // Clicking a panel's title bar toggles it; the ✕ (and pin) on the right stay clickable.
+  // Clicking a panel's title bar toggles it; the ✕ (right 3.5rem) stays clickable.
   // The chevron sits in the header's left padding, just before the title.
   const accordionBar = (key: string, label: string) => {
     if (!isAccordion) return null;
@@ -865,9 +756,7 @@ export default function App() {
         style={{
           height: accordionBarHeight(key),
           paddingTop: `calc((${ACCORDION_BAR} - 12px) / 2)`,
-          // Leaves the header's right-hand buttons clickable: ✕, plus the pin on pinnable panels
-          // Panels with a pin beside the ✕ keep both clickable
-          right: pivotInstances.some(p => p.id === key) || dayPanelInstances.some(d => d.id === key) ? '6rem' : '3.5rem',
+          right: '3.5rem',
           color: 'var(--assistant-text-muted)',
         }}
         aria-expanded={expanded}
@@ -894,9 +783,10 @@ export default function App() {
   // panel, or back to 0 when the sidebar opens) don't count. A sidebar folded this way
   // opens again once the deck is scrolled back to the start; one that was already closed
   // (or that the person opened/closed by hand meanwhile) is left alone.
+  const [deckScrolled, setDeckScrolled] = useState(false);
   useEffect(() => {
     const el = deckScrollRef.current;
-    if (!el || isAccordion || isDesktop !== true) return;
+    if (!el || isAccordion || isDesktop !== true) { setDeckScrolled(false); return; }
     let lastLeft = el.scrollLeft;
     const reopenIfAutoFolded = () => {
       if (!scrollFoldedSidebarRef.current || sidebarOpen) return;
@@ -909,6 +799,7 @@ export default function App() {
       const left = el.scrollLeft;
       const forward = left > lastLeft;
       lastLeft = left;
+      setDeckScrolled(left > 0);
       if (forward && left > 24 && followRafRef.current === null && sidebarOpen && !sidebarClosing) {
         scrollFoldedSidebarRef.current = true;
         scrollFoldedAtRef.current = performance.now();
@@ -983,6 +874,12 @@ export default function App() {
     dockOrderSignature,
   ]);
 
+  // Check Lists / Habits / Reminders toggles (sidebar header + closed-sidebar rail)
+  const panelsMenuProps = {
+    open: { lists: listsOpen, habits: habitsOpen, reminders: remindersOpen },
+    onToggle: { lists: toggleLists, habits: toggleHabits, reminders: toggleReminders },
+  };
+
   // Shared by the sidebar foot and the closed-sidebar rail
   const accountActionsProps = {
     // A second click on the name / avatar closes the popover
@@ -996,7 +893,12 @@ export default function App() {
 
   // Sidebar contents (header icons, lists, profile foot): the desktop drawer and the mobile overlay
   const renderSidebarShell = (mobile: boolean) => {
-    // On mobile the deck's layout toggle doesn't apply
+    // On mobile Check Lists / Habits / Reminders are tabs, so the panels menu switches tab;
+    // the deck's layout toggle doesn't apply there
+    const showTab = (v: View) => () => { requestCloseSidebar(); handleSetActiveViewFromNav(v); };
+    const panels = mobile
+      ? { ...panelsMenuProps, onToggle: { lists: showTab('lists'), habits: showTab('habits'), reminders: showTab('reminders') } }
+      : panelsMenuProps;
     const account = mobile ? { ...accountActionsProps, onToggleDockLayout: undefined } : accountActionsProps;
     return (
       <>
@@ -1004,8 +906,7 @@ export default function App() {
           <IconTip label={mobile ? 'Close' : 'Hide sidebar'} side="bottom-end">
             <button
               type="button"
-              // Same as the rail's expand button: don't keep the focus on a button that hides
-              onClick={e => { e.currentTarget.blur(); if (mobile) requestCloseSidebar(); else toggleSidebar(); }}
+              onClick={mobile ? requestCloseSidebar : toggleSidebar}
               className="flex h-8 w-8 items-center justify-center rounded-md transition-colors"
               style={{ color: 'var(--assistant-text-muted)' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
@@ -1036,9 +937,9 @@ export default function App() {
             className="h-[28px] w-auto shrink-0"
           />
         </div>
-        {/* Search + reminders bell — left of the collapse button. While searching, the field takes
-            the place of the bell and runs to the header's right edge, over the collapse button */}
-        <div className={`absolute top-3 flex items-center gap-1 ${sidebarSearchOpen ? 'right-3 z-[130]' : 'right-[3.25rem] z-[120]'}`}>
+        {/* Search + reminders bell + Check Lists / Habits / Reminders menu — left of the collapse
+            button. While searching, the field takes the place of all three icons */}
+        <div className="absolute right-[3.25rem] top-3 z-[120] flex items-center gap-1">
           <HeaderSearch
             compact
             open={sidebarSearchOpen}
@@ -1048,7 +949,12 @@ export default function App() {
               requestOpenPivot({ word, blockId: null, origin: 'header' });
             }}
           />
-          {!sidebarSearchOpen && <AccountActions placement="bell" {...account} />}
+          {!sidebarSearchOpen && (
+            <>
+              <AccountActions placement="bell" {...account} />
+              <PanelsMenuButton {...panels} side="below" />
+            </>
+          )}
         </div>
         {/* Starts under the menu/collapse buttons; its top rule sits on the main panel's tab line */}
         <div
@@ -1148,24 +1054,49 @@ export default function App() {
           </>
         )}
 
-        {/* Desktop: rail | deck. The rail sits beside the deck, not inside it, so panels
-            scrolling sideways are clipped at its edge instead of passing under it — that's
-            what lets it go without a background */}
-        <div className="hidden min-h-0 flex-1 md:flex">
+        <div
+          ref={deckScrollRef}
+          // The dock's horizontal scrollbar is the one visible scrollbar in the app, pinned to the bottom
+          // Accordion mode is three columns that fit the window (sidebar | main | accordion) → no horizontal scroll
+          className={`deck-scrollbar hidden min-h-0 flex-1 overflow-y-hidden md:block ${
+            isAccordion ? 'overflow-x-hidden' : 'overflow-x-auto touch-pan-x [-webkit-overflow-scrolling:touch]'
+          }`}
+        >
+          <div className="flex h-full min-h-0 min-w-full">
           {/* Rail: 80px while the sidebar is closed (big icons sit ~36px off the screen edge);
               just a thin gutter when it's open (its icons are hidden then), so the sidebar sits
-              near the edge */}
+              near the edge. Sticky: it stays put while the panels scroll sideways under it */}
           <div
-            className="relative z-[125] h-full shrink-0"
+            className="sticky left-0 z-[125] h-full shrink-0"
             style={{
               width: sidebarVisualOpen ? RAIL_OPEN_GUTTER : 80,
               transition: 'width 420ms cubic-bezier(0.32, 0.72, 0, 1)',
             }}
           >
+            {/* Scrolled → opaque strip so panels passing underneath don't show through the icons.
+                Fixed (not clipped by the deck) so it also covers the scrollbar's lane at the bottom */}
+            {deckScrolled && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none fixed bottom-0 left-0 top-0 -z-10"
+                style={{
+                  width: sidebarVisualOpen ? RAIL_OPEN_GUTTER : 80,
+                  // Light themes: frosted glass — the page's glow still shows through, the panels
+                  // behind are blurred away. Dark themes: their flat canvas already blends in.
+                  ...(theme.style === 'light'
+                    ? {
+                        background: 'color-mix(in srgb, var(--assistant-canvas) 30%, transparent)',
+                        backdropFilter: 'blur(28px) saturate(1.2)',
+                        WebkitBackdropFilter: 'blur(28px) saturate(1.2)',
+                      }
+                    : { background: 'var(--assistant-canvas)' }),
+                }}
+              />
+            )}
             {/* Rail (sidebar closed): short logo, expand and panels stacked at the top, centered; the menu is the avatar at the foot */}
             <div
-              // Centered in the strip
-              className="absolute inset-x-0 top-6 z-[120] flex flex-col items-center gap-1.5 transition-opacity"
+              // Centered a touch right of the strip's middle → more air from the screen edge
+              className="absolute left-7 right-0 top-6 z-[120] flex flex-col items-center gap-1.5 transition-opacity"
               style={{ opacity: sidebarVisualOpen ? 0 : 1, pointerEvents: sidebarVisualOpen ? 'none' : 'auto' }}
               aria-hidden={sidebarVisualOpen}
             >
@@ -1178,9 +1109,7 @@ export default function App() {
               <IconTip label="Show sidebar" side="right">
                 <button
                   type="button"
-                  // Let go of the focus: the button hides while the sidebar is open, and when the
-                  // sidebar folds back on its own it would reappear still focused (with the ring)
-                  onClick={e => { e.currentTarget.blur(); toggleSidebar(); }}
+                  onClick={toggleSidebar}
                   className="flex h-9 w-9 items-center justify-center rounded-md transition-colors"
                   style={{ color: 'var(--assistant-text-muted)' }}
                   onMouseEnter={e => (e.currentTarget.style.color = 'var(--assistant-text)')}
@@ -1195,26 +1124,17 @@ export default function App() {
                   </svg>
                 </button>
               </IconTip>
+              {isDesktop === true && <PanelsMenuButton {...panelsMenuProps} side="right" />}
             </div>
             {/* Sidebar closed → its footer controls stack here, level with the sidebar's foot */}
             <div
-              className="absolute bottom-3 inset-x-0 z-[120] flex justify-center pb-2 transition-opacity"
+              className="absolute bottom-3 left-7 right-0 z-[120] flex justify-center pb-2 transition-opacity"
               style={{ opacity: sidebarVisualOpen ? 0 : 1, pointerEvents: sidebarVisualOpen ? 'none' : 'auto' }}
               aria-hidden={sidebarVisualOpen}
             >
               {isDesktop === true && <AccountActions placement="rail" {...accountActionsProps} />}
             </div>
           </div>
-
-        <div
-          ref={deckScrollRef}
-          // The dock's horizontal scrollbar is the one visible scrollbar in the app, pinned to the bottom
-          // Accordion mode is three columns that fit the window (sidebar | main | accordion) → no horizontal scroll
-          className={`deck-scrollbar min-h-0 min-w-0 flex-1 overflow-y-hidden ${
-            isAccordion ? 'overflow-x-hidden' : 'overflow-x-auto touch-pan-x [-webkit-overflow-scrolling:touch]'
-          }`}
-        >
-          <div className="flex h-full min-h-0 min-w-full">
           {/* Drawer: the panel is pinned to the slot's right edge, so as the slot narrows the
               panel slides out to the left (and back in) — no fade, it stays solid the whole way */}
           <div
@@ -1257,62 +1177,20 @@ export default function App() {
             >
               <div className="shrink-0 mx-auto w-full max-w-6xl px-3 md:px-8">
                 <div className={`px-3 ${classes.mainTabsBar}`}>
-                  {/* The fixed tabs (no ✕), then the pinned list / keyword and day panels */}
                   {NAV_ITEMS.map(item => {
-                    const isActive = activeView === item.id && !activePinnedPivot && !activePinnedDay;
+                    const isActive = activeView === item.id;
                     return (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => handleSetActiveView(item.id)}
                         className={[
-                          'group flex items-center justify-center gap-1 text-[14px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
+                          'flex items-center justify-center text-[14px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
                           isActive ? classes.mainTabActive : classes.mainTabInactive,
                         ].join(' ')}
                         aria-current={isActive ? 'page' : undefined}
                       >
                         {item.label}
-                      </button>
-                    );
-                  })}
-                  {/* Pinned list / keyword panels, one tab each */}
-                  {pinnedPivots.map(p => {
-                    const isActive = activePinnedId === p.id;
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setActivePinnedId(p.id)}
-                        className={[
-                          'group flex items-center justify-center gap-1 text-[14px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
-                          isActive ? classes.mainTabActive : classes.mainTabInactive,
-                        ].join(' ')}
-                        aria-current={isActive ? 'page' : undefined}
-                        data-tip={p.listId ? `List: ${p.word}` : `Keyword: ${p.word}`}
-                      >
-                        {p.listId ? p.word : `“${p.word}”`}
-                        {renderUnpinX(p.word, () => unpinPivot(p.id))}
-                      </button>
-                    );
-                  })}
-                  {/* Pinned day panels, one tab each ("Nov 9") */}
-                  {pinnedDays.map(d => {
-                    const isActive = activePinnedId === d.id;
-                    const label = parseYMD(d.ymd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    return (
-                      <button
-                        key={d.id}
-                        type="button"
-                        onClick={() => setActivePinnedId(d.id)}
-                        className={[
-                          'group flex items-center justify-center gap-1 text-[14px] leading-none transition-colors duration-150 whitespace-nowrap shrink-0',
-                          isActive ? classes.mainTabActive : classes.mainTabInactive,
-                        ].join(' ')}
-                        aria-current={isActive ? 'page' : undefined}
-                        data-tip={`Day: ${formatPill(d.ymd)}`}
-                      >
-                        {label}
-                        {renderUnpinX(formatPill(d.ymd), () => unpinDay(d.id))}
                       </button>
                     );
                   })}
@@ -1361,7 +1239,7 @@ export default function App() {
 
           <div className="h-full shrink-0 overflow-hidden" data-dock-key="lists" style={dockSlotStyle('lists', listsOpen, listsPanelWidth)}>
             <div className={dockSlotInnerClass('lists')}>
-              {accordionBar('lists', 'Checklists')}
+              {accordionBar('lists', 'Check Lists')}
               {isDesktop && listsOpen && (
                 <ChecklistsPanel variant="dock" open onClose={() => setListsOpen(false)} />
               )}
@@ -1387,7 +1265,6 @@ export default function App() {
                     onClose={() => closePivotInstance(pivot.id)}
                     onGoTo={handlePivotGoTo}
                     onToggleTask={handlePivotToggleTask}
-                    onPin={() => pinPivot(pivot)}
                   />
                 </div>
               </div>
@@ -1410,7 +1287,6 @@ export default function App() {
                     // Side by side: one-line header like the other panels; the accordion keeps two lines
                     oneLineHeader={!isAccordion}
                     onClose={() => closeDayPanelInstance(day.id)}
-                    onPin={() => pinDay(day)}
                   />
                 </div>
               </div>
@@ -1522,7 +1398,6 @@ export default function App() {
           <div className="h-full shrink-0" style={{ order: Number.MAX_SAFE_INTEGER, width: isAccordion ? 0 : DECK_RIGHT_PAD }} aria-hidden="true" />
           </div>
         </div>
-        </div>
 
         {isDesktop === false && (
           <>
@@ -1598,8 +1473,6 @@ export default function App() {
           />
         ) : null}
         <ProfilePanel open={profileOpen} onClose={() => setProfileOpen(false)} />
-        {/* Toasts / browser notifications as reminders come due */}
-        <ReminderNotifier />
 
         {(chatOpen || chatClosing) && (
           <>
@@ -1769,6 +1642,57 @@ export default function App() {
             </span>
           </button>
         )}
+
+        <style jsx global>{`
+          [class*='bg-[#050505]'] { background-color: var(--assistant-bg) !important; }
+          [class*='text-[#52b352]'] { color: var(--assistant-tone-1) !important; }
+          [class*='bg-[#52b352]'] { background-color: var(--assistant-tone-1) !important; }
+          [class*='border-[#52b352]'] { border-color: color-mix(in srgb, var(--assistant-tone-1) 60%, transparent) !important; }
+          [class*='text-[#d5fc43]'] { color: var(--assistant-tone-2) !important; }
+          [class*='bg-[#d5fc43]'] { background-color: var(--assistant-tone-2) !important; }
+          [class*='border-[#d5fc43]'] { border-color: color-mix(in srgb, var(--assistant-tone-2) 55%, transparent) !important; }
+
+          /* Active chips/buttons that used same bg/text tone: force white label/icon for contrast */
+          [class*='bg-[#d5fc43]'][class*='text-[#d5fc43]'],
+          [class*='bg-[#52b352]'][class*='text-[#52b352]'] {
+            color: #fff !important;
+          }
+          [class*='bg-[#d5fc43]'][class*='text-[#d5fc43]'] [class*='text-[#d5fc43]'],
+          [class*='bg-[#52b352]'][class*='text-[#52b352]'] [class*='text-[#52b352]'] {
+            color: #fff !important;
+          }
+          [class*='bg-[#52b352]'][class*='text-[#52b352]'] {
+            background-color: color-mix(in srgb, var(--assistant-tone-3) 82%, black) !important;
+          }
+          [class*='bg-[#52b352]'][class*='text-[#52b352]'][class*='hover:bg-[#52b352]']:hover {
+            background-color: color-mix(in srgb, var(--assistant-tone-3) 90%, black) !important;
+          }
+
+          /* Date pill combo in Quick: make it dark and readable */
+          [class*='bg-emerald-'][class*='text-emerald-'],
+          [class*='bg-green-'][class*='text-green-'] {
+            background-color: color-mix(in srgb, var(--assistant-tone-3) 80%, black) !important;
+            color: #fff !important;
+          }
+          [class*='hover:bg-emerald-']:hover,
+          [class*='hover:bg-green-']:hover {
+            background-color: color-mix(in srgb, var(--assistant-tone-3) 88%, black) !important;
+          }
+
+          /* Normalize hardcoded green/emerald utilities into current theme */
+          [class*='text-emerald-'],
+          [class*='text-green-'] {
+            color: var(--assistant-tone-1) !important;
+          }
+          [class*='bg-emerald-'],
+          [class*='bg-green-'] {
+            background-color: var(--assistant-tone-1) !important;
+          }
+          [class*='border-emerald-'],
+          [class*='border-green-'] {
+            border-color: color-mix(in srgb, var(--assistant-tone-1) 60%, transparent) !important;
+          }
+        `}</style>
       </div>
     </QuickFiltersProvider>
     </RemindersProvider>

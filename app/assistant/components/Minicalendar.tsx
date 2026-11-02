@@ -5,7 +5,7 @@ import {
   type Block,
   LS_KEY_V2,
   LS_KEY_V1,
-  taskCalendarDay,
+  isValidDateYYYYMMDD,
   startOfLocalDay,
   todayYMD,
   parseYMD,
@@ -65,16 +65,12 @@ export type MiniCalendarProps = {
   /** If set, clicking a day invokes this (compact picker; no day sidebar) */
   onPickDay?: (ymd: string) => void;
   compact?: boolean;
-  /** Compact: the day the view is narrowed to — drawn like a range picker's edge */
+  /** Compact: the day the view is narrowed to — drawn filled in the theme's contrast color */
   selectedDay?: string;
-  /** Compact: the range the view is narrowed to — edges filled, days between tinted (as in the range picker) */
-  range?: { from: string; to: string };
-  /** Compact: dragging across days hands back that span (a plain click still goes to `onPickDay`) */
-  onPickRange?: (range: { from: string; to: string }) => void;
 };
 
 /** Compact month grid for side drawer (e.g. Quick). Full app calendar is `Calendar.tsx`. */
-export default function MiniCalendar({ onPickDay, compact = false, selectedDay, range, onPickRange }: MiniCalendarProps) {
+export default function MiniCalendar({ onPickDay, compact = false, selectedDay }: MiniCalendarProps) {
   const [blocks, setBlocks]             = useState<Block[]>([]);
   const [hydrated, setHydrated]         = useState(false);
   const [projectTitle, setProjectTitle] = useState<string>('Group');
@@ -83,26 +79,6 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay, 
   const today = todayYMD();
   const [viewYear, setViewYear]   = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth()); // 0-based
-
-  // Compact: press on a day and drag to another to pick a range
-  const [drag, setDrag] = useState<{ anchor: string; current: string } | null>(null);
-  const dayAt = (x: number, y: number) =>
-    (document.elementFromPoint(x, y)?.closest('[data-ymd]') as HTMLElement | null)?.dataset.ymd;
-  const endDrag = () => {
-    if (!drag) return;
-    const { anchor, current } = drag;
-    setDrag(null);
-    if (anchor === current || !onPickRange) onPickDay?.(anchor);
-    else onPickRange(anchor < current ? { from: anchor, to: current } : { from: current, to: anchor });
-  };
-
-  // Show the month a newly applied range starts in
-  useEffect(() => {
-    if (!range) return;
-    const d = parseYMD(range.from);
-    setViewYear(d.getFullYear());
-    setViewMonth(d.getMonth());
-  }, [range?.from]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Load & sync ── */
   useEffect(() => {
@@ -141,16 +117,14 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay, 
 
     if (b.indent !== 1 || b.section) continue;
     if (b.archived) continue;
-    // Done tasks sit on the day they were completed (taskCalendarDay)
-    const day = taskCalendarDay(b);
-    if (!day) continue;
+    if (!isValidDateYYYYMMDD(b.deadline)) continue;
 
     const card = {
       id:        b.id,
       listTitle: currentListTitle || projectTitle || 'General',
       text:      b.text || '',
       checked:   Boolean(b.checked),
-      deadline:  day,
+      deadline:  b.deadline!,
       isHidden:  b.isHidden === true,
       archived:  b.archived
     };
@@ -214,15 +188,15 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay, 
             {total} {total === 1 ? 'task' : 'tasks'}
           </span>
           <span
-            className="text-[9px] tabular-nums shrink-0"
-            style={{ color: allDone ? 'var(--assistant-accent)' : 'var(--assistant-text-faint)' }}
+            className={`text-[9px] tabular-nums shrink-0 ${allDone ? 'text-emerald-400/95' : ''}`}
+            style={!allDone ? { color: 'var(--assistant-text-faint)' } : undefined}
           >
             {allDone ? '✓' : `${done}/${total}`}
           </span>
         </div>
         <div className={`h-0.75 w-full shrink-0 overflow-hidden rounded-full ${classes.miniCalProgressBg}`}>
           <div
-            className={`h-full rounded-full transition-all duration-300 ${allDone ? 'bg-[var(--assistant-accent)]' : classes.miniCalProgressFill}`}
+            className={`h-full rounded-full transition-all duration-300 ${allDone ? 'bg-emerald-400/95' : classes.miniCalProgressFill}`}
             style={{ width: `${pct}%`, minWidth: pct > 0 ? '4px' : undefined }}
           />
         </div>
@@ -255,67 +229,38 @@ export default function MiniCalendar({ onPickDay, compact = false, selectedDay, 
           ))}
         </div>
 
-        <div
-          className="grid grid-cols-7 gap-1 select-none"
-          // Pointer events + elementFromPoint so the drag also works with touch; no panning here
-          style={{ touchAction: 'none' }}
-          onPointerDown={e => {
-            if (e.button !== 0) return;
-            const ymd = (e.target as HTMLElement).closest<HTMLElement>('[data-ymd]')?.dataset.ymd;
-            if (!ymd) return;
-            e.preventDefault();
-            e.currentTarget.setPointerCapture(e.pointerId);
-            setDrag({ anchor: ymd, current: ymd });
-          }}
-          onPointerMove={e => {
-            if (!drag) return;
-            const ymd = dayAt(e.clientX, e.clientY);
-            if (ymd && ymd !== drag.current) setDrag({ ...drag, current: ymd });
-          }}
-          onPointerUp={endDrag}
-          onPointerCancel={() => setDrag(null)}
-        >
+        <div className="grid grid-cols-7 gap-1">
           {grid.map((ymd, idx) => {
             if (!ymd) return <div key={`empty-${idx}`} className="h-7 rounded-md bg-transparent" />;
             const isToday = ymd === today;
             const isSelected = ymd === selectedDay;
-            // While dragging, preview the span being picked instead of the current selection
-            const span = drag
-              ? (drag.anchor < drag.current ? { from: drag.anchor, to: drag.current } : { from: drag.current, to: drag.anchor })
-              : range;
-            const isEdge = drag ? ymd === span!.from || ymd === span!.to : isSelected || (!!range && (ymd === range.from || ymd === range.to));
-            const inRange = !!span && ymd > span.from && ymd < span.to;
             const dayCards = getVisibleDayCards(ymd);
-            // Days with tasks are colored: green once all are done, otherwise red when
-            // due today or overdue and blue when still ahead
+            // Days with tasks are colored: red while any is pending, green once all are done
             const hasPending = dayCards.some(c => !c.checked);
             const allDone    = dayCards.length > 0 && !hasPending;
-            const statusColor = hasPending
-              ? ymd <= today ? 'var(--assistant-danger-text)' : 'var(--assistant-info-text)'
-              : allDone
-              ? 'var(--assistant-success-text)'
-              : 'var(--assistant-text)';
             const [, , day] = ymd.split('-');
             return (
               <button
                 key={ymd}
                 type="button"
-                data-ymd={ymd}
-                // Mouse/touch picks go through the drag handlers; this covers the keyboard
-                onClick={e => { if (e.detail === 0) onPickDay?.(ymd); }}
-                aria-pressed={isEdge || inRange}
+                onClick={() => onPickDay?.(ymd)}
+                aria-pressed={isSelected}
                 className={[
                   'h-7 rounded-md text-[12px] transition-colors',
-                  isEdge || inRange ? 'font-bold' : isToday ? `font-bold ${classes.miniCalDayToday}` : classes.miniCalDayNormal,
+                  isSelected ? 'font-bold' : isToday ? `font-bold ${classes.miniCalDayToday}` : classes.miniCalDayNormal,
                 ].join(' ')}
-                // Selected day / range edges are filled like the range picker's edges and the days
-                // between are tinted; every other day keeps its status color
-                style={isEdge
-                  ? { background: 'var(--assistant-accent)', color: 'var(--assistant-contrast-text, #fff)' }
-                  : inRange
-                  ? { background: 'var(--assistant-accent-bg)', color: statusColor }
-                  : { color: statusColor }}
-                data-tip={isSelected ? `${ymd} · click again to show every date` : `${ymd} · drag to pick a range`}
+                // The selected day (the only one shown) is filled dark; other days are
+                // red while any task is pending, green once all are done, else the theme's text color
+                style={isSelected
+                  ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)' }
+                  : {
+                      color: hasPending
+                        ? 'var(--assistant-danger-text)'
+                        : allDone
+                        ? 'var(--assistant-success-text)'
+                        : 'var(--assistant-text)',
+                    }}
+                data-tip={isSelected ? `${ymd} · click again to show every date` : ymd}
               >
                 {Number(day)}
               </button>
