@@ -895,9 +895,9 @@
 }
 
 .miniCalDayNumToday {
-  background: color-mix(in srgb, var(--assistant-active-text, #d5fc43) 22%, transparent);
-  color: var(--assistant-active-text, #d5fc43);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--assistant-active-text, #d5fc43) 18%, transparent);
+  background: color-mix(in srgb, var(--assistant-active-text) 22%, transparent);
+  color: var(--assistant-active-text);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--assistant-active-text) 18%, transparent);
 }
 
 .miniCalDayNumDefault {

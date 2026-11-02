@@ -1769,57 +1769,6 @@ export default function App() {
             </span>
           </button>
         )}
-
-        <style jsx global>{`
-          [class*='bg-[#050505]'] { background-color: var(--assistant-bg) !important; }
-          [class*='text-[#52b352]'] { color: var(--assistant-tone-1) !important; }
-          [class*='bg-[#52b352]'] { background-color: var(--assistant-tone-1) !important; }
-          [class*='border-[#52b352]'] { border-color: color-mix(in srgb, var(--assistant-tone-1) 60%, transparent) !important; }
-          [class*='text-[#d5fc43]'] { color: var(--assistant-tone-2) !important; }
-          [class*='bg-[#d5fc43]'] { background-color: var(--assistant-tone-2) !important; }
-          [class*='border-[#d5fc43]'] { border-color: color-mix(in srgb, var(--assistant-tone-2) 55%, transparent) !important; }
-
-          /* Active chips/buttons that used same bg/text tone: force white label/icon for contrast */
-          [class*='bg-[#d5fc43]'][class*='text-[#d5fc43]'],
-          [class*='bg-[#52b352]'][class*='text-[#52b352]'] {
-            color: #fff !important;
-          }
-          [class*='bg-[#d5fc43]'][class*='text-[#d5fc43]'] [class*='text-[#d5fc43]'],
-          [class*='bg-[#52b352]'][class*='text-[#52b352]'] [class*='text-[#52b352]'] {
-            color: #fff !important;
-          }
-          [class*='bg-[#52b352]'][class*='text-[#52b352]'] {
-            background-color: color-mix(in srgb, var(--assistant-tone-3) 82%, black) !important;
-          }
-          [class*='bg-[#52b352]'][class*='text-[#52b352]'][class*='hover:bg-[#52b352]']:hover {
-            background-color: color-mix(in srgb, var(--assistant-tone-3) 90%, black) !important;
-          }
-
-          /* Date pill combo in Quick: make it dark and readable */
-          [class*='bg-emerald-'][class*='text-emerald-'],
-          [class*='bg-green-'][class*='text-green-'] {
-            background-color: color-mix(in srgb, var(--assistant-tone-3) 80%, black) !important;
-            color: #fff !important;
-          }
-          [class*='hover:bg-emerald-']:hover,
-          [class*='hover:bg-green-']:hover {
-            background-color: color-mix(in srgb, var(--assistant-tone-3) 88%, black) !important;
-          }
-
-          /* Normalize hardcoded green/emerald utilities into current theme */
-          [class*='text-emerald-'],
-          [class*='text-green-'] {
-            color: var(--assistant-tone-1) !important;
-          }
-          [class*='bg-emerald-'],
-          [class*='bg-green-'] {
-            background-color: var(--assistant-tone-1) !important;
-          }
-          [class*='border-emerald-'],
-          [class*='border-green-'] {
-            border-color: color-mix(in srgb, var(--assistant-tone-1) 60%, transparent) !important;
-          }
-        `}</style>
       </div>
     </QuickFiltersProvider>
     </RemindersProvider>

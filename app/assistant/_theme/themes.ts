@@ -336,7 +336,9 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 
 '--assistant-panel-blur': hasImage ? 'blur(16px)' : 'none',
 
-'--assistant-active-text': '#d5fc43',
+// "Today" in the mini calendar — tone-1, like the main Calendar's today (was a fixed lime
+// left over from the Matrix theme, unreadable on light themes)
+'--assistant-active-text': theme.tone1,
 
 '--assistant-active-bg': theme.tone2,
 
@@ -429,6 +431,17 @@ export const getAssistantThemeVars = (theme: AssistantTheme): CSSProperties => {
 	'--assistant-success-text': isLight ? '#047857' : '#6ee7b7',
 	'--assistant-info-text': isLight ? '#1d4ed8' : '#93c5fd',
 	'--assistant-warning-text': isLight ? '#b45309' : '#fcd34d',
+	// Status fills (danger button, done bar, sync dot, status pill) — the *-text tokens above
+	// are for words; these are for shapes. *-bg is the soft tint behind a row or day cell.
+	'--assistant-danger': isLight ? '#dc2626' : '#f87171',
+	'--assistant-success': isLight ? '#059669' : '#34d399',
+	'--assistant-warning': isLight ? '#d97706' : '#fbbf24',
+	'--assistant-info': isLight ? '#2563eb' : '#60a5fa',
+	// Label on a solid --assistant-danger (matches the delete buttons: white on red / near-black on light red)
+	'--assistant-on-danger': isLight ? '#ffffff' : '#1a0505',
+	'--assistant-danger-bg': 'color-mix(in srgb, var(--assistant-danger) 8%, transparent)',
+	'--assistant-success-bg': 'color-mix(in srgb, var(--assistant-success) 10%, transparent)',
+	'--assistant-warning-bg': 'color-mix(in srgb, var(--assistant-warning) 10%, transparent)',
 	'--assistant-panel-shadow': isLight
 	? hasImage
 	  ? [
