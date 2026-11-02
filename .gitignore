@@ -34,7 +34,8 @@ yarn-error.log*
 .env
 .env.local
 .env.*.local
-env
+# also catches copies like "env (2)" / "env.bak"
+/env*
 !.env.example
 
 # vercel
