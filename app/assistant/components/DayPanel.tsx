@@ -6,6 +6,7 @@ import {
   LS_KEY_V2,
   LS_KEY_V1,
   isValidDateYYYYMMDD,
+  taskCalendarDay,
   startOfLocalDay,
   parseYMD,
   readViewSources,
@@ -28,9 +29,12 @@ import {
   type TaskNoteEntry,
 } from '@/lib/datacenter';
 import { TaskRepeatModal } from './TaskRepeat';
+import { DatePickerModal } from './DatePickerModal';
+import { AddButton } from './AddButton';
 import { TaskFlagButton } from './TaskFlag';
 import { TaskNoteButton, TaskNoteModal } from './TaskNote';
 import { TaskRowMenu } from './TaskRowMenu';
+import { PanelPinButton } from './PanelPinButton';
 import { useShowAllGroups } from '../_hook/useShowAllGroups';
 import { useQuickFilters } from './QuickFiltersContext';
 import classes from '@/app/assistant/_theme/themes.module.css';
@@ -70,9 +74,12 @@ type Props = {
   open: boolean;
   onClose: () => void;
   ymd: string;
-  variant?: 'overlay' | 'dock';
+  /** tab: pinned as a main-panel tab — no frame or header (the tab names it) */
+  variant?: 'overlay' | 'dock' | 'tab';
   /** Weekday, "Nd ago" and date on one line, in a 49px header like the other panels */
   oneLineHeader?: boolean;
+  /** Shows a pin beside ✕ that moves the panel into the main panel's tabs */
+  onPin?: () => void;
 };
 
 function dayDiff(ymd: string): number {
@@ -88,6 +95,7 @@ export default function DayPanel({
   ymd,
   variant = 'overlay',
   oneLineHeader = false,
+  onPin,
 }: Props) {
   const [shouldRender, setShouldRender] = useState(open);
   const [isClosing, setIsClosing] = useState(false);
@@ -101,7 +109,7 @@ export default function DayPanel({
   const { sortBy } = useQuickFilters();
   const byCreated = sortBy === 'createdAt';
 
-  const dateRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [pickerCardId, setPickerCardId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [newTaskListId, setNewTaskListId] = useState('');
@@ -174,7 +182,9 @@ export default function DayPanel({
         if (b.indent !== 1 || b.section) continue;
         if (currentListId && !currentListVisible) continue;
         if (b.archived) continue;
-        if (!isValidDateYYYYMMDD(byCreated ? b.createdAt : b.deadline)) continue;
+        // Done tasks sit on the day they were completed (taskCalendarDay)
+        const onDay = byCreated ? b.createdAt : taskCalendarDay(b);
+        if (!isValidDateYYYYMMDD(onDay)) continue;
         const listTitle = currentListTitle || groupTitle || 'General';
         out.push({
           id: b.id,
@@ -183,7 +193,7 @@ export default function DayPanel({
           text: b.text || '',
           checked: Boolean(b.checked),
           deadline: b.deadline ?? '',
-          day: (byCreated ? b.createdAt : b.deadline)!,
+          day: onDay,
           isHidden: b.isHidden === true,
           archived: b.archived,
           flag: getTaskFlag(b),
@@ -275,14 +285,6 @@ export default function DayPanel({
     mutateHolding(cardId, bl => removeTaskAndSubtasks(bl, cardId));
   };
 
-  const handleReschedule = (cardId: string, newDeadline: string) => {
-    if (!isValidDateYYYYMMDD(newDeadline)) return;
-    // Rescheduling also un-hides the task
-    mutateHolding(cardId, bl => bl.map(b => (
-      b.id === cardId && b.indent === 1 ? { ...b, deadline: newDeadline, isHidden: false } : b
-    )));
-  };
-
   const patchTask = (cardId: string, patch: Partial<Block>) =>
     mutateHolding(cardId, bl => bl.map(b => (b.id === cardId && b.indent === 1 ? { ...b, ...patch } : b)));
 
@@ -305,15 +307,7 @@ export default function DayPanel({
     requestAnimationFrame(() => newTaskInputRef.current?.focus());
   };
 
-  const openPicker = (id: string) => {
-    const el = dateRefs.current[id];
-    if (!el) return;
-    try {
-      (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
-    } catch {
-      el.click();
-    }
-  };
+  const openPicker = (id: string) => setPickerCardId(id);
 
   if (!shouldRender) return null;
 
@@ -351,7 +345,7 @@ export default function DayPanel({
         }
       `}</style>
 
-      {oneLineHeader ? (
+      {variant === 'tab' ? null : oneLineHeader ? (
         // Same 49px header as the other panels, always one row
         <div
           className="flex min-h-[49px] items-center justify-between gap-2 px-4 py-1.5 shrink-0"
@@ -373,6 +367,7 @@ export default function DayPanel({
               {formatPill(ymd)}
             </span>
           </div>
+          {onPin ? <PanelPinButton onPin={onPin} label={formatPill(ymd)} /> : null}
           <button
             type="button"
             onClick={requestClose}
@@ -403,14 +398,17 @@ export default function DayPanel({
             {formatPill(ymd)}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={requestClose}
-          className={`h-8 w-8 shrink-0 rounded-lg ${classes.panelCloseBtn}`}
-          aria-label="Close"
-        >
-          ✕
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          {onPin ? <PanelPinButton onPin={onPin} label={formatPill(ymd)} /> : null}
+          <button
+            type="button"
+            onClick={requestClose}
+            className={`h-8 w-8 shrink-0 rounded-lg ${classes.panelCloseBtn}`}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
       </div>
       )}
 
@@ -440,11 +438,12 @@ export default function DayPanel({
                         <span className="shrink-0 text-[11px] leading-[1.45rem]" style={{ color: 'var(--assistant-text-faint)' }}>archived</span>
                       ) : (
                         <>
-                          {card.flag ? (
-                            <TaskFlagButton source={{ flag: card.flag }} onChange={next => patchTask(card.id, { flag: next, priority: undefined })} />
-                          ) : null}
+                          {/* Note, then flag — the flag next to ⋮ so flags line up down the list */}
                           {card.notes?.length ? (
                             <TaskNoteButton task={card} onChange={notes => patchTask(card.id, { notes })} />
+                          ) : null}
+                          {card.flag ? (
+                            <TaskFlagButton source={{ flag: card.flag }} onChange={next => patchTask(card.id, { flag: next, priority: undefined })} />
                           ) : null}
                           <AgendaMenuButton
                             open={taskMenu?.cardId === card.id}
@@ -461,18 +460,6 @@ export default function DayPanel({
                       repeatDays={card.repeatDays}
                       onClick={card.archived ? undefined : () => openPicker(card.id)}
                       onRepeatClick={card.archived ? undefined : () => setRepeatCardId(card.id)}
-                    />
-                    {/* Native picker behind the date (and the menu's "Change due date") */}
-                    <input
-                      ref={el => void (dateRefs.current[card.id] = el)}
-                      type="date"
-                      className="sr-only"
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      value={isValidDateYYYYMMDD(card.deadline) ? card.deadline : ''}
-                      onChange={e => {
-                        if (e.target.value) handleReschedule(card.id, e.target.value);
-                      }}
                     />
                   </AgendaTaskRow>
                 ))}
@@ -499,6 +486,21 @@ export default function DayPanel({
             onNote={() => setNoteCardId(card.id)}
             onDelete={() => setDeleteConfirmId(card.id)}
             onClose={() => setTaskMenu(null)}
+          />
+        ) : null;
+      })()}
+      {(() => {
+        const card = pickerCardId ? allCards.find(c => c.id === pickerCardId) : undefined;
+        return card ? (
+          <DatePickerModal
+            title="Due date"
+            subtitle={card.text}
+            value={card.deadline}
+            withTime
+            time={card.dueTime}
+            // Rescheduling also un-hides the task
+            onPick={(deadline, time) => patchTask(card.id, { deadline, dueTime: time || undefined, isHidden: false })}
+            onClose={() => setPickerCardId(null)}
           />
         ) : null;
       })()}
@@ -578,25 +580,14 @@ export default function DayPanel({
                 onClick={submitNewTask}
                 disabled={!newTaskText.trim() || !newTaskListId}
                 className="text-[13px] font-semibold px-3 py-2 rounded-lg shrink-0 transition-opacity disabled:opacity-40"
-                style={{ color: '#0a0a0a', background: '#d5fc43' }}
+                style={{ color: 'var(--assistant-contrast-text)', background: 'var(--assistant-contrast-bg)' }}
               >
                 Add
               </button>
             </div>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="w-full text-[14px] font-semibold px-3 py-2.5 rounded-xl transition-all hover:scale-[1.01] flex items-center justify-center gap-1.5"
-            style={{
-              color: 'var(--assistant-tone-1)',
-              background:
-                'linear-gradient(135deg, color-mix(in srgb, var(--assistant-tone-1) 16%, transparent) 0%, color-mix(in srgb, var(--assistant-tone-1) 8%, transparent) 100%)',
-            }}
-          >
-            <span className="text-[16px] leading-none">+</span> Add task
-          </button>
+          <AddButton label="New task" onClick={() => setAddOpen(true)} className="mx-auto" />
         )}
       </div>
 
@@ -642,6 +633,10 @@ export default function DayPanel({
 
     </>
   );
+
+  if (variant === 'tab') {
+    return <div className="flex h-full min-h-0 w-full min-w-0 flex-col" style={{ color: 'var(--assistant-text)' }}>{body}</div>;
+  }
 
   if (variant === 'dock') {
     return (

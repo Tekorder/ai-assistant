@@ -13,6 +13,8 @@ import {
   nextOccurrenceYMD,
 } from '@/lib/datacenter';
 import classes from '@/app/assistant/_theme/themes.module.css';
+import { DateField } from './DatePickerModal';
+import { TimeField } from './TimePicker';
 
 const ALL_DAYS = WEEKDAYS.map(d => d.value);
 
@@ -125,20 +127,20 @@ export function TaskRepeatModal({
         <div className="grid grid-cols-2 gap-2 px-6 pt-4">
           <label className="flex min-w-0 flex-col gap-1">
             <span className="text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>Starts</span>
-            <input
-              type="date"
-              lang="en-US"
+            <DateField
+              title="Starts"
               value={start}
-              onChange={e => { if (isValidDateYYYYMMDD(e.target.value)) setStart(e.target.value); }}
+              onChange={setStart}
               className={`min-w-0 text-[13px] px-2 py-1.5 rounded-md ${classes.panelInput}`}
             />
           </label>
           <label className="flex min-w-0 flex-col gap-1">
             <span className="text-[12px]" style={{ color: 'var(--assistant-text-muted)' }}>Time (optional)</span>
-            <input
-              type="time"
+            <TimeField
+              title="Time"
+              optional
               value={time}
-              onChange={e => setTime(e.target.value)}
+              onChange={setTime}
               className={`min-w-0 text-[13px] px-2 py-1.5 rounded-md ${classes.panelInput}`}
             />
           </label>

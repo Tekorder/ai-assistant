@@ -9,6 +9,7 @@ import {
   LS_KEY_V1,
   // Utilities
   isValidDateYYYYMMDD,
+  taskCalendarDay,
   startOfLocalDay,
   todayYMD,
   toYMD,
@@ -29,8 +30,10 @@ import {
 } from '@/lib/datacenter';
 import { TaskFlagIcon } from '../TaskFlag';
 import { TaskNoteButton } from '../TaskNote';
-import { DatePickerModal } from '../DatePickerModal';
+import { DateField, DatePickerModal } from '../DatePickerModal';
+import { AddButton } from '../AddButton';
 import { useShowAllGroups } from '../../_hook/useShowAllGroups';
+import { useQuickFilters } from '../QuickFiltersContext';
 import { TaskCheckmark } from '../TaskCheckmark';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
@@ -199,7 +202,7 @@ function RowMenu({
             className="grid h-6 w-6 place-items-center rounded-md transition-colors hover:bg-[var(--assistant-hover-bg)]"
             style={flag === c ? { boxShadow: 'inset 0 0 0 1px var(--assistant-accent)' } : undefined}
           >
-            <TaskFlagIcon color={c} className="h-3.5 w-3.5" glow={false} />
+            <TaskFlagIcon color={c} className="h-3.5 w-3.5" />
           </button>
         ))}
       </div>
@@ -215,6 +218,9 @@ export default function Timeline() {
   const [sources, setSources] = useState<ViewSource[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [showAll] = useShowAllGroups();
+  // Same "View by" as Calendar and Workspace: tasks sit on their due date or their creation date
+  const { sortBy, setSortBy } = useQuickFilters();
+  const byCreated = sortBy === 'createdAt';
   const [showCompleted, setShowCompleted] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => monthStart(new Date()));
   const [rescheduleCardId, setRescheduleCardId] = useState<string | null>(null);
@@ -295,7 +301,10 @@ export default function Timeline() {
 
       if (b.indent !== 1 || b.section) continue;
       if (currentSectionId && !currentSectionVisible) continue;
-      if (!isValidDateYYYYMMDD(b.deadline)) continue;
+      // By due date: done tasks sit on the day they were completed, open ones on their due
+      // date. By created: every task on the day it was created
+      const day = byCreated ? (isValidDateYYYYMMDD(b.createdAt) ? b.createdAt : undefined) : taskCalendarDay(b);
+      if (!day) continue;
       if (b.archived === true) continue;
 
       const checked = Boolean(b.checked);
@@ -325,7 +334,7 @@ export default function Timeline() {
         projectTitle: showAll ? `${projectTitle} · ${listTitle}` : listTitle,
         text: b.text || '',
         checked,
-        deadline: b.deadline!,
+        deadline: day,
         subtasks,
         isHidden,
         archived: false,
@@ -336,7 +345,7 @@ export default function Timeline() {
     }
 
     return out;
-  }, [sources, showCompleted, showAll]);
+  }, [sources, showCompleted, showAll, byCreated]);
 
   /* ── Range normal (modo timeline clásico) ── */
   const normalRange = useMemo(() => {
@@ -377,8 +386,9 @@ export default function Timeline() {
         continue;
       }
 
+      // A past creation day isn't overdue: by created, every day keeps its own column
       const cd = startOfLocalDay(parseYMD(c.deadline)).getTime();
-      const key = cd < t0 ? OVERDUE_KEY : c.deadline;
+      const key = cd < t0 && !byCreated ? OVERDUE_KEY : c.deadline;
       if (!map[key]) map[key] = [];
       map[key].push(c);
     }
@@ -397,7 +407,7 @@ export default function Timeline() {
     }
 
     return map;
-  }, [cards, showCompleted, completedMonthRange]);
+  }, [cards, showCompleted, completedMonthRange, byCreated]);
 
   const overdueCount = useMemo(
     () => (showCompleted ? 0 : (cardsByDate[OVERDUE_KEY]?.length ?? 0)),
@@ -601,6 +611,28 @@ export default function Timeline() {
         </div>
 
         <div className="youtask-timeline-actions">
+          {/* View by: due date or creation date — same control as Calendar (shared setting) */}
+          <div role="radiogroup" aria-label="Place tasks by" className="flex items-center rounded-xl p-0.5">
+            {([['dueDate', 'Due date'], ['createdAt', 'Created']] as const).map(([value, label]) => {
+              const on = sortBy === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setSortBy(value)}
+                  className="rounded-[10px] px-2.5 py-1 text-[12px] transition-colors"
+                  style={on
+                    ? { background: 'var(--assistant-contrast-bg)', color: 'var(--assistant-contrast-text)', fontWeight: 600 }
+                    : { color: 'var(--assistant-text-soft)' }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
           <button
             type="button"
             className={['youtask-timeline-toggle', showCompleted ? 'is-on' : ''].join(' ')}
@@ -610,15 +642,7 @@ export default function Timeline() {
             {showCompleted ? '✓ Show Completed' : 'Show Completed'}
           </button>
 
-          <button
-            type="button"
-            className="youtask-timeline-addbtn"
-            onClick={handleCreateTask}
-            data-tip="Add task"
-            aria-label="Add task"
-          >
-            +
-          </button>
+          <AddButton label="New task" onClick={handleCreateTask} />
         </div>
       </div>
 
@@ -830,12 +854,11 @@ export default function Timeline() {
 
             <label className="mt-3 block text-[12px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>
               Due date
-              <input
-                type="date"
-                lang="en-US"
+              <DateField
+                title="Due date"
                 value={newTask.deadline}
-                onChange={e => setNewTask({ ...newTask, deadline: e.target.value })}
-                className="mt-1 block w-full rounded-lg px-3 py-2 text-[14px] outline-none"
+                onChange={deadline => setNewTask({ ...newTask, deadline })}
+                className="mt-1 w-full rounded-lg px-3 py-2 text-[14px] outline-none"
                 style={{ border: '1px solid var(--assistant-border-soft)', background: 'var(--assistant-control-bg)', color: 'var(--assistant-text)' }}
               />
             </label>

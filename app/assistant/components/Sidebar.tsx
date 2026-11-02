@@ -22,6 +22,7 @@ import {
   moveListToProject,
   // Block mutations
   updateBlock as updateBlockArr,
+  syncParentsFromSubtasks,
   insertBlockAfter,
   insertListAfter,
   removeBlock as removeBlockArr,
@@ -148,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
       const next = prev.map(p => ({ ...p }));
       const old = next[safeIdx].blocks ?? moveUncToTop(ensureUncExists([]));
       let newBlocks = typeof nextFn === 'function' ? nextFn(old) : nextFn;
-      newBlocks = sortBlocksByOrder(moveUncToTop(ensureUncExists(newBlocks)));
+      newBlocks = syncParentsFromSubtasks(sortBlocksByOrder(moveUncToTop(ensureUncExists(newBlocks))));
       next[safeIdx] = { ...next[safeIdx], blocks: newBlocks };
       return next;
     });
@@ -1164,13 +1165,11 @@ export const Sidebar: React.FC<SidebarProps> = () => {
           return (
             <div
               role="menu"
-              className="fixed z-[10030] flex items-center gap-1 rounded-lg px-2 py-1 shadow-xl"
+              className="yt-surface fixed z-[10030] flex items-center gap-1 rounded-lg px-2 py-1"
               style={{
                 left: listMenu.x,
                 top: listMenu.y,
                 transform: 'translateX(-100%)',
-                background: 'var(--assistant-panel-bg)',
-                border: '1px solid var(--assistant-border-soft)',
               }}
               onMouseDown={e => e.stopPropagation()}
             >

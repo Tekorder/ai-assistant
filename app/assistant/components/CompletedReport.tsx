@@ -7,7 +7,7 @@ import {
   type Project,
   LS_KEY_V2,
   readProjectsLS,
-  isValidDateYYYYMMDD,
+  taskCalendarDay,
   isUncTitleBlock,
   formatPill,
   weekdayLabel,
@@ -27,10 +27,7 @@ function dayLabel(ymd: string) {
 const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-/**
- * Every completed task, listed by the day it was finished. Checking a task moves its
- * due date to the day it was checked, so a checked task's due date is its completion day.
- */
+/** Every completed task, listed by the day it was finished (its completedAt). */
 function collectDone(projects: Project[]): DoneTask[] {
   const out: DoneTask[] = [];
   for (const p of projects) {
@@ -41,11 +38,12 @@ function collectDone(projects: Project[]): DoneTask[] {
     ]));
     for (const b of blocks) {
       if (b.indent === 0 || b.checked !== true || b.archived === true) continue;
-      if (!isValidDateYYYYMMDD(b.deadline) || !(b.text || '').trim()) continue;
+      const day = taskCalendarDay(b);
+      if (!day || !(b.text || '').trim()) continue;
       out.push({
         id: b.id,
         text: b.text.trim(),
-        day: b.deadline,
+        day,
         group: p.title,
         list: listTitle.get(b.parentId ?? '') ?? '',
       });

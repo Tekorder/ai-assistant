@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type Project,
   type ReminderItem,
@@ -19,6 +19,8 @@ import {
   monthRange,
 } from '../_utils/profileStats';
 import { TaskFlagIcon } from './TaskFlag';
+import { Card, Delta, Empty, KpiTile, fmtNum, fmtPct } from './dashboard/DashboardPieces';
+import { BarChart } from './dashboard/BarChart';
 import classes from '@/app/assistant/_theme/themes.module.css';
 
 /* Status colors (fixed, never themed) — always shown with a text label */
@@ -27,10 +29,6 @@ const STATUS = {
 };
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-const fmtPct = (v: number | null) => (v == null ? '—' : `${Math.round(v * 100)}%`);
-const fmtNum = (v: number, digits = 0) =>
-  new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(v);
 
 /* ───────────────────────── Data ───────────────────────── */
 
@@ -65,206 +63,12 @@ function useDashboardData() {
   }, [projects, reminders]);
 }
 
-function useElementWidth<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
-  const [width, setWidth] = useState(0);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    setWidth(el.clientWidth);
-    const ro = new ResizeObserver(entries => setWidth(entries[0].contentRect.width));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  return [ref, width] as const;
-}
-
 /* ───────────────────────── Pieces ───────────────────────── */
-
-function Card({ title, aside, children, className = '' }: {
-  title: string;
-  aside?: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <section
-      className={`rounded-xl p-4 ${className}`}
-      style={{ background: 'var(--assistant-surface)', border: '1px solid var(--assistant-border-soft)' }}
-    >
-      <div className="mb-3 flex items-baseline justify-between gap-2">
-        <h3 className="text-[13px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>{title}</h3>
-        {aside ? <div className="text-[12px]" style={{ color: 'var(--assistant-text-faint)' }}>{aside}</div> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Delta({ value, prev, kind = 'count', invert = false, prevLabel }: {
-  value: number | null;
-  prev: number | null;
-  kind?: 'count' | 'pct';
-  /** true when going down is the good direction (e.g. overdue) */
-  invert?: boolean;
-  prevLabel: string;
-}) {
-  if (value == null || prev == null) {
-    return <span style={{ color: 'var(--assistant-text-faint)' }}>No data for {prevLabel}</span>;
-  }
-  const diff = value - prev;
-  if (diff === 0) return <span style={{ color: 'var(--assistant-text-faint)' }}>Same as {prevLabel}</span>;
-  const up = diff > 0;
-  const good = invert ? !up : up;
-  const amount = kind === 'pct' ? `${Math.abs(Math.round(diff * 100))} pts` : fmtNum(Math.abs(diff));
-  return (
-    <span style={{ color: 'var(--assistant-text-soft)' }}>
-      <span
-        aria-hidden="true"
-        style={{ color: good ? 'var(--assistant-accent)' : 'var(--assistant-danger-text, #d03b3b)' }}
-      >
-        {up ? '▲' : '▼'}
-      </span>{' '}
-      {amount} vs {prevLabel}
-    </span>
-  );
-}
-
-function KpiTile({ label, value, sub }: { label: string; value: string; sub?: React.ReactNode }) {
-  return (
-    <div
-      className="flex min-w-0 flex-col gap-1 rounded-xl px-4 py-3.5"
-      style={{ background: 'var(--assistant-surface)', border: '1px solid var(--assistant-border-soft)' }}
-    >
-      <div className="break-words text-[12px] font-medium" style={{ color: 'var(--assistant-text-muted)' }}>{label}</div>
-      <div className="text-[28px] font-semibold leading-tight" style={{ color: 'var(--assistant-text)' }}>{value}</div>
-      {sub ? <div className="break-words text-[12px]">{sub}</div> : null}
-    </div>
-  );
-}
-
-/** Rounded top corners only — the data end is rounded, the baseline end stays square. */
-function barPath(x: number, y: number, w: number, h: number) {
-  const r = Math.min(4, w / 2, h);
-  return `M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z`;
-}
-
-function niceTop(max: number) {
-  if (max <= 4) return Math.max(1, max);
-  const step = Math.ceil(max / 4);
-  return step * 4;
-}
-
-function BarChart({ values, xLabel, tickEvery = 1, tooltip, height = 180, ariaLabel, mutedFrom }: {
-  values: number[];
-  xLabel: (i: number) => string;
-  tickEvery?: number;
-  tooltip: (i: number) => string;
-  height?: number;
-  ariaLabel: string;
-  /** Indices >= this are in the future (drawn as empty slots) */
-  mutedFrom?: number;
-}) {
-  const [wrapRef, width] = useElementWidth<HTMLDivElement>();
-  const [hover, setHover] = useState<number | null>(null);
-  // top leaves room for the peak's direct label above the tallest bar
-  const PAD = { top: 22, right: 12, bottom: 24, left: 32 };
-  const innerW = Math.max(0, width - PAD.left - PAD.right);
-  const innerH = height - PAD.top - PAD.bottom;
-  const top = niceTop(Math.max(0, ...values));
-  const ticks = top <= 4 ? Array.from({ length: top + 1 }, (_, i) => i) : [0, top / 4, top / 2, (top * 3) / 4, top];
-  const band = values.length ? innerW / values.length : 0;
-  const barW = Math.max(2, Math.min(band - 2, 36));
-  const y = (v: number) => PAD.top + innerH - (v / top) * innerH;
-  const maxIdx = values.reduce((best, v, i) => (v > values[best] ? i : best), 0);
-
-  return (
-    <div ref={wrapRef} className="relative w-full">
-      {width > 0 ? (
-        <svg width={width} height={height} role="img" aria-label={ariaLabel} style={{ display: 'block' }}>
-          {ticks.map(t => (
-            <g key={t}>
-              <line
-                x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)}
-                style={{ stroke: 'var(--assistant-border-soft)' }}
-                strokeWidth={1}
-                opacity={t === 0 ? 1 : 0.6}
-              />
-              <text
-                x={PAD.left - 10} y={y(t)} dy="0.32em" textAnchor="end" fontSize={11}
-                style={{ fill: 'var(--assistant-text-faint)', fontVariantNumeric: 'tabular-nums' }}
-              >
-                {fmtNum(t)}
-              </text>
-            </g>
-          ))}
-
-          {values.map((v, i) => {
-            const cx = PAD.left + band * i + band / 2;
-            const future = mutedFrom != null && i >= mutedFrom;
-            const h = (v / top) * innerH;
-            return (
-              <g key={i}>
-                {v > 0 ? (
-                  <path
-                    d={barPath(cx - barW / 2, y(v), barW, h)}
-                    style={{ fill: 'var(--assistant-accent)' }}
-                    opacity={hover == null || hover === i ? 1 : 0.4}
-                  />
-                ) : null}
-                {/* Direct label on the peak only */}
-                {i === maxIdx && v > 0 && hover == null ? (
-                  <text
-                    x={cx} y={y(v) - 6} textAnchor="middle" fontSize={11} fontWeight={600}
-                    style={{ fill: 'var(--assistant-text-soft)' }}
-                  >
-                    {fmtNum(v)}
-                  </text>
-                ) : null}
-                {i % tickEvery === 0 ? (
-                  <text
-                    x={cx} y={height - 6} textAnchor="middle" fontSize={11}
-                    style={{ fill: future ? 'var(--assistant-text-faint)' : 'var(--assistant-text-muted)', opacity: future ? 0.5 : 1 }}
-                  >
-                    {xLabel(i)}
-                  </text>
-                ) : null}
-                <rect
-                  x={PAD.left + band * i} y={PAD.top} width={band} height={innerH}
-                  fill="transparent"
-                  onPointerEnter={() => setHover(i)}
-                  onPointerLeave={() => setHover(h0 => (h0 === i ? null : h0))}
-                />
-              </g>
-            );
-          })}
-        </svg>
-      ) : (
-        <div style={{ height }} />
-      )}
-
-      {hover != null && width > 0 ? (
-        <div
-          className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12px] shadow-lg"
-          style={{
-            left: Math.min(Math.max(PAD.left + band * hover + band / 2, 60), width - 60),
-            top: Math.max(0, y(values[hover]) - 44),
-            transform: 'translateX(-50%)',
-            background: 'var(--assistant-panel-bg)',
-            border: '1px solid var(--assistant-border-soft)',
-            color: 'var(--assistant-text)',
-          }}
-        >
-          {tooltip(hover)}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 function StatusBar({ s }: { s: MonthStats }) {
   const segments = [
-    { key: 'done', label: 'Completed', value: s.completed, color: 'var(--assistant-accent)' },
+    // The month's due tasks split three ways, so "done" here is the due ones that are done
+    { key: 'done', label: 'Completed', value: s.dueCompleted, color: 'var(--assistant-accent)' },
     { key: 'pending', label: 'Pending', value: s.pending, color: 'color-mix(in srgb, var(--assistant-text-faint) 45%, transparent)' },
     { key: 'overdue', label: 'Overdue', value: s.overdue, color: STATUS.overdue },
   ];
@@ -354,14 +158,6 @@ function FlagRows({ flags }: { flags: MonthStats['flags'] }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function Empty({ text }: { text: string }) {
-  return (
-    <div className="flex h-20 items-center justify-center text-[13px]" style={{ color: 'var(--assistant-text-faint)' }}>
-      {text}
     </div>
   );
 }

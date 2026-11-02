@@ -178,16 +178,13 @@ export function TooltipLayer() {
       ref={boxRef}
       id={TOOLTIP_ID}
       role="tooltip"
-      className="pointer-events-none fixed z-[10100] w-max max-w-[260px] whitespace-pre-line break-words rounded-md px-2 py-1 text-left text-[12px] font-medium leading-snug shadow-lg transition-opacity duration-100 [text-wrap:balance]"
+      // yt-surface (globals.css): the theme's gradient, like every menu and modal
+      className="yt-surface pointer-events-none fixed z-[10100] w-max max-w-[260px] whitespace-pre-line break-words rounded-md px-2 py-1 text-left text-[12px] font-medium leading-snug transition-opacity duration-100 [text-wrap:balance]"
       style={{
         left: 0,
         top: 0,
         visibility: 'hidden',
         opacity: 0,
-        background: 'var(--assistant-panel-bg, rgba(17,24,39,.95))',
-        backdropFilter: 'var(--assistant-panel-blur, none)',
-        color: 'var(--assistant-text, #fff)',
-        border: '1px solid var(--assistant-border-soft, transparent)',
       }}
     >
       <span ref={textRef}>{tip.text}</span>

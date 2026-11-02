@@ -12,6 +12,9 @@ import { getCurrentUid } from './sessionStore';
 export const LS_KEY_V2        = 'youtask_projects_v1';
 export const LS_KEY_V1        = 'youtask_blocks_v1';      // legacy migration
 export const LS_KEY_HABITS    = 'youtask_habits_v1';
+export const LS_KEY_HABIT_LOGS = 'youtask_habit_logs_v1';
+/** Habit-log changes not yet confirmed by Postgres (the logs lane uploads only these) */
+export const LS_KEY_HABIT_LOGS_PENDING = 'youtask_habit_logs_pending_v1';
 export const LS_KEY_REMINDERS = 'youtask_reminders_v1';
 export const LS_KEY_CHECKLISTS = 'youtask_checklists_v1';
 export const UNC_TITLE        = 'Uncategorized';
@@ -59,6 +62,9 @@ export type Block = {
   order: number;
   checked?: boolean;
   deadline?: string;
+  /** YYYY-MM-DD the task was checked (set on check, cleared on uncheck). Reports, Timeline and
+   *  Calendar place done tasks by it — the due date no longer moves on check. */
+  completedAt?: string;
   createdAt?: string;
   isHidden?: boolean;
   archived?: boolean;
@@ -139,19 +145,66 @@ export type ProjectsPayload = {
   selectedProjectId?: string;
 };
 
-export type HabitBlock = {
+export type HabitKind = 'build' | 'quit';
+/** The window goalValue has to be reached in */
+export type HabitPeriod = 'day' | 'week' | 'month';
+export type HabitTimeRange = 'anytime' | 'morning' | 'afternoon' | 'evening';
+export type HabitCheckInMethod = 'tap' | 'swipe';
+
+export type Habit = {
   id: string;
+  /** The habit's name */
   text: string;
-  indent: 1;
-  checked: boolean;
-  weekly?: boolean;
+  description?: string;
+  emoji?: string;
+  /** Palette key (habitColors.ts); unset = the theme's accent */
+  color?: string;
+  group?: string;
+  kind: HabitKind;
+  goalPeriod: HabitPeriod;
+  /** Amount per period (build), or the most allowed (quit) */
+  goalValue: number;
+  goalUnit: string;
+  /** Weekdays it's due (0 = Sun … 6 = Sat); empty = every day */
+  taskDays: number[];
+  timeRange: HabitTimeRange;
+  remindersOn: boolean;
+  /** "HH:MM" (24h), sorted */
+  reminderTimes: string[];
+  reminderMessage?: string;
+  /** Urgency flag shown on its reminders (same flags as tasks and reminders) */
+  flag?: TaskFlagColor;
+  memoOnComplete: boolean;
+  /** What the card's button does: complete the goal, or log an amount */
+  barAction: 'done' | 'add';
+  chartType: 'bar' | 'line';
+  /** YYYY-MM-DD; due days start here */
+  startDate: string;
+  /** YYYY-MM-DD; unset = no end */
+  endDate?: string;
+  archived: boolean;
+  templateKey?: string;
+  createdAt?: string;
 };
 
 export type HabitsPayload = {
-  habits: HabitBlock[];
-  lastDailyResetYMD?: string;
-  lastWeeklyResetYMD?: string;
+  habits: Habit[];
+  checkInMethod?: HabitCheckInMethod;
 };
+
+/** One day of one habit. A day with no log has nothing logged. */
+export type HabitLog = {
+  habitId: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** Amount logged that day, in the habit's goalUnit */
+  value: number;
+  /** Skipped on purpose — counts as neither done nor missed */
+  skipped?: boolean;
+  memo?: string;
+};
+
+export type HabitLogsPayload = { logs: HabitLog[] };
 
 export type ReminderItem = {
   id: string;
@@ -176,7 +229,11 @@ export type ChecklistItem = {
   id: string;
   text: string;
   checked: boolean;
+  /** Depth like tasks: 1 = item, 2 = sub-item… A sub-item belongs to the shallower item above it. Missing = 1 */
+  indent?: number;
 };
+
+export const CHECKLIST_MAX_INDENT = 6;
 
 export type Checklist = {
   id: string;
@@ -197,6 +254,7 @@ type RawBlock = {
   indent?: unknown;
   checked?: unknown;
   deadline?: unknown;
+  completedAt?: unknown;
   createdAt?: unknown;
   isHidden?: unknown;
   archived?: unknown;
@@ -620,7 +678,10 @@ export function ensureDefaultGroups(projects: Project[]): Project[] {
   return [...defaults, ...rest];
 }
 
+/** Per account (not per browser): a new account on this browser, or one whose data was
+ *  cleared, still gets its starter groups. The old browser-wide key is ignored. */
 const LS_KEY_GROUPS_SEEDED = 'youtask_groups_seeded';
+const groupsSeededKey = () => `${LS_KEY_GROUPS_SEEDED}__${getCurrentUid() || 'local'}`;
 
 /** Adds the starter groups to this device's projects (and uploads, once synced). */
 function seedDefaultGroups(): void {
@@ -632,9 +693,9 @@ function seedDefaultGroups(): void {
 /** No server to remember it (local mode / testuser) → this browser remembers instead. */
 function seedDefaultGroupsLocallyOnce(): void {
   try {
-    if (localStorage.getItem(LS_KEY_GROUPS_SEEDED)) return;
+    if (localStorage.getItem(groupsSeededKey())) return;
     seedDefaultGroups();
-    localStorage.setItem(LS_KEY_GROUPS_SEEDED, '1');
+    localStorage.setItem(groupsSeededKey(), '1');
   } catch {}
 }
 
@@ -752,6 +813,27 @@ export function moveOpenTasksToList(
 
 /* ===================== Normalization ===================== */
 
+/**
+ * Completion day for a checked task saved without one (from before completedAt existed, an
+ * import, an older tab): its due date — back then checking moved the due date to the day it
+ * was checked — else its creation day, else today. Same rule as the DB migration's backfill.
+ */
+export function assumedCompletedAt(b: { deadline?: unknown; createdAt?: unknown }): string {
+  if (isValidDateYYYYMMDD(b.deadline)) return b.deadline;
+  if (isValidDateYYYYMMDD(b.createdAt)) return b.createdAt;
+  return todayYMD();
+}
+
+/** Checked tasks missing completedAt get the assumed one (assumedCompletedAt); others untouched. */
+export function fillCompletedAt(blocks: Block[]): Block[] {
+  if (!blocks.some(b => b.indent > 0 && b.checked === true && !isValidDateYYYYMMDD(b.completedAt))) return blocks;
+  return blocks.map(b =>
+    b.indent > 0 && b.checked === true && !isValidDateYYYYMMDD(b.completedAt)
+      ? { ...b, completedAt: assumedCompletedAt(b) }
+      : b,
+  );
+}
+
 export function normalizeLoadedBlocks(raw: unknown): Block[] {
   const today = todayYMD();
   if (!Array.isArray(raw)) return moveUncToTop(ensureUncExists([]));
@@ -771,6 +853,10 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
     } else if (b.indent > 0) {
       b.checked = Boolean(x?.checked);
       if (isValidDateYYYYMMDD(x?.deadline)) b.deadline = x.deadline as string;
+      if (b.checked) {
+        b.completedAt = isValidDateYYYYMMDD(x?.completedAt) ? (x.completedAt as string)
+          : assumedCompletedAt({ deadline: b.deadline, createdAt: x?.createdAt });
+      }
       const notes = parseTaskNotes(x?.notes, x?.note, isValidDateYYYYMMDD(x?.createdAt) ? (x.createdAt as string) : today);
       if (notes.length) b.notes = notes;
       if (isValidTimeHHMM(x?.dueTime)) b.dueTime = x.dueTime;
@@ -821,7 +907,8 @@ export function normalizeLoadedBlocks(raw: unknown): Block[] {
     orderCounters[key] = Math.max(orderCounters[key] ?? 0, b.order) + 1;
   }
 
-  return moveUncToTop(ensureUncExists(out));
+  // Data saved before the subtask rules (or edited elsewhere) gets its parents brought in step
+  return syncParentsFromSubtasks(moveUncToTop(ensureUncExists(out)));
 }
 
 /* ===================== Database sync (background, fire-and-forget) ===================== */
@@ -855,6 +942,13 @@ function describeDataset(path: SyncPath | string, raw: unknown): string {
       return `${groups} group(s), ${lists} list(s), ${tasks} task(s)${blank ? ` + ${blank} blank` : ''}`;
     }
     if (path === '/api/data/habits') return `${((data.habits as unknown[]) ?? []).length} habit(s)`;
+    if (path === '/api/data/habit-logs') {
+      if (Array.isArray(data.logs)) return `${data.logs.length} habit log(s)`;
+      if (Array.isArray(data.upserts)) {
+        return `${data.upserts.length} changed + ${((data.deletes as unknown[]) ?? []).length} cleared habit day(s)`;
+      }
+      return `${Object.keys(data).length} pending habit day(s)`;   // the pending-ops map
+    }
     if (path === '/api/data/reminders') return `${((data.reminders as unknown[]) ?? []).length} reminder(s)`;
     if (path === '/api/data/checklists') return `${((data.lists as unknown[]) ?? []).length} checklist(s)`;
     return 'data';
@@ -894,7 +988,7 @@ function syncLog(message: string, details?: Record<string, unknown>): void {
 
 export const DATA_OWNER_KEY = 'youtask_data_owner_uid';
 
-const USER_DATA_KEYS = [LS_KEY_V2, LS_KEY_V1, LS_KEY_HABITS, LS_KEY_REMINDERS, LS_KEY_CHECKLISTS];
+const USER_DATA_KEYS = [LS_KEY_V2, LS_KEY_V1, LS_KEY_HABITS, LS_KEY_HABIT_LOGS, LS_KEY_HABIT_LOGS_PENDING, LS_KEY_REMINDERS, LS_KEY_CHECKLISTS];
 
 export function getDataOwner(): string {
   try { return localStorage.getItem(DATA_OWNER_KEY) ?? ''; } catch { return ''; }
@@ -1040,7 +1134,7 @@ export function clearLocalAccountData(): void {
     Object.keys(data).forEach(k => localStorage.removeItem(k));
     localStorage.removeItem(DATA_OWNER_KEY);
     closeSyncGates();
-    for (const ev of ['youtask_projects_updated', 'youtask_blocks_updated', 'youtask_habits_updated', 'youtask_reminders_updated', 'youtask_checklists_updated']) {
+    for (const ev of ['youtask_projects_updated', 'youtask_blocks_updated', 'youtask_habits_updated', HABIT_LOGS_EVENT, 'youtask_reminders_updated', 'youtask_checklists_updated']) {
       window.dispatchEvent(new Event(ev));
     }
   } catch {}
@@ -1054,11 +1148,12 @@ export function clearLocalAccountData(): void {
  * boot state. The gate is bound to the uid it was opened for so a stale tab
  * can't post another account's defaults after a re-login.
  */
-type SyncPath = '/api/data/projects' | '/api/data/habits' | '/api/data/reminders' | '/api/data/checklists';
+type SyncPath = '/api/data/projects' | '/api/data/habits' | '/api/data/habit-logs' | '/api/data/reminders' | '/api/data/checklists';
 
 const syncGate: Record<SyncPath, boolean> = {
   '/api/data/projects': false,
   '/api/data/habits': false,
+  '/api/data/habit-logs': false,
   '/api/data/reminders': false,
   '/api/data/checklists': false,
 };
@@ -1084,6 +1179,7 @@ export function closeSyncGates(): void {
   resetUploadLanes();
   syncGate['/api/data/projects'] = false;
   syncGate['/api/data/habits'] = false;
+  syncGate['/api/data/habit-logs'] = false;
   syncGate['/api/data/reminders'] = false;
   syncGate['/api/data/checklists'] = false;
   hydratedUid = '';
@@ -1149,6 +1245,7 @@ export function getSyncStatus(): SyncStatus {
 const LS_KEY_FOR_PATH: Record<SyncPath, string> = {
   '/api/data/projects':   LS_KEY_V2,
   '/api/data/habits':     LS_KEY_HABITS,
+  '/api/data/habit-logs': LS_KEY_HABIT_LOGS_PENDING,
   '/api/data/reminders':  LS_KEY_REMINDERS,
   '/api/data/checklists': LS_KEY_CHECKLISTS,
 };
@@ -1165,6 +1262,7 @@ const newLane = (): UploadLane => ({ inFlight: null, pending: false, timer: null
 const lanes: Record<SyncPath, UploadLane> = {
   '/api/data/projects': newLane(),
   '/api/data/habits': newLane(),
+  '/api/data/habit-logs': newLane(),
   '/api/data/reminders': newLane(),
   '/api/data/checklists': newLane(),
 };
@@ -1194,7 +1292,7 @@ function sendLane(path: SyncPath): Promise<boolean> {
   const lane = lanes[path];
   if (lane.inFlight) { lane.pending = true; return lane.inFlight; }
   const uid = canUpload(path);
-  const body = uid ? localStorage.getItem(LS_KEY_FOR_PATH[path]) : null;
+  const body = uid ? laneBody(path) : null;
   lane.pending = false;
   if (!uid || !body) return Promise.resolve(true);
 
@@ -1217,6 +1315,7 @@ function sendLane(path: SyncPath): Promise<boolean> {
       if (ok) {
         lane.failures = 0;
         lane.confirmedBody = body;
+        if (path === '/api/data/habit-logs') dropConfirmedHabitLogOps(body);
         syncLog(`✅ Postgres saved ${path} (${summary}) in ${ms}ms`, { account: uid, ...(path === '/api/data/projects' ? { tasks: taskTitles(body) } : {}) });
         if (lane.pending) scheduleUpload(path, 0);     // newer state arrived while sending
       } else {
@@ -1237,6 +1336,12 @@ function scheduleUpload(path: SyncPath, delay = COALESCE_MS): void {
   if (lane.timer) clearTimeout(lane.timer);
   lane.timer = setTimeout(() => { lane.timer = null; void sendLane(path); }, delay);
   notifySyncStatus();
+}
+
+/** What a lane uploads: the dataset as stored — except habit logs, which send only their pending changes. */
+function laneBody(path: SyncPath): string | null {
+  const raw = localStorage.getItem(LS_KEY_FOR_PATH[path]);
+  return path === '/api/data/habit-logs' ? habitLogOpsBody(raw) : raw;
 }
 
 /** Drop queued uploads (logout / account switch) — nothing may go out under the next account. */
@@ -1342,6 +1447,13 @@ function dbSyncHabits(): void {
   } catch {}
 }
 
+function dbSyncHabitLogs(): void {
+  try {
+    if (habitLogOpsBody(localStorage.getItem(LS_KEY_HABIT_LOGS_PENDING)) === null) return;
+    dbPost('/api/data/habit-logs');
+  } catch {}
+}
+
 function dbSyncReminders(): void {
   try {
     const raw = localStorage.getItem(LS_KEY_REMINDERS);
@@ -1405,9 +1517,10 @@ export async function loadFromDatabase(): Promise<void> {
 
   const needProjects   = !syncGate['/api/data/projects'];
   const needHabits     = !syncGate['/api/data/habits'];
+  const needHabitLogs  = !syncGate['/api/data/habit-logs'];
   const needReminders  = !syncGate['/api/data/reminders'];
   const needChecklists = !syncGate['/api/data/checklists'];
-  if (!needProjects && !needHabits && !needReminders && !needChecklists) return;
+  if (!needProjects && !needHabits && !needHabitLogs && !needReminders && !needChecklists) return;
 
   const openGate = (path: SyncPath) => {
     hydratedUid = uid;
@@ -1421,9 +1534,10 @@ export async function loadFromDatabase(): Promise<void> {
   loadInProgress = true;
   notifySyncStatus();
   try {
-    const [projectsRes, habitsRes, remindersRes, checklistsRes] = await Promise.all([
+    const [projectsRes, habitsRes, habitLogsRes, remindersRes, checklistsRes] = await Promise.all([
       needProjects   ? apiFetch('/api/data/projects',   { uid }).catch(() => null) : null,
       needHabits     ? apiFetch('/api/data/habits',     { uid }).catch(() => null) : null,
+      needHabitLogs  ? apiFetch('/api/data/habit-logs', { uid }).catch(() => null) : null,
       needReminders  ? apiFetch('/api/data/reminders',  { uid }).catch(() => null) : null,
       needChecklists ? apiFetch('/api/data/checklists', { uid }).catch(() => null) : null,
     ]);
@@ -1435,6 +1549,7 @@ export async function loadFromDatabase(): Promise<void> {
     if (needProjects && !projectsRes) syncLog('❌ load FAILED /api/data/projects — network error; uploads stay blocked', { account: uid });
     logGetFailure('/api/data/projects', projectsRes);
     logGetFailure('/api/data/habits', habitsRes);
+    logGetFailure('/api/data/habit-logs', habitLogsRes);
     logGetFailure('/api/data/reminders', remindersRes);
     logGetFailure('/api/data/checklists', checklistsRes);
 
@@ -1483,6 +1598,13 @@ export async function loadFromDatabase(): Promise<void> {
       }
     }
 
+    if (habitLogsRes?.ok) {
+      const data = await habitLogsRes.json() as { logs?: unknown[] };
+      hydrateHabitLogs(normalizeHabitLogs(data.logs));
+      openGate('/api/data/habit-logs');
+      dbSyncHabitLogs();
+    }
+
     if (remindersRes?.ok) {
       const data = await remindersRes.json() as { reminders?: unknown[] };
       if (Array.isArray(data.reminders) && data.reminders.length > 0) {
@@ -1511,6 +1633,7 @@ export async function loadFromDatabase(): Promise<void> {
     syncLog(`✔ load finished for ${uid}`, {
       projects: syncGate['/api/data/projects'] ? 'ready' : 'NOT loaded',
       habits: syncGate['/api/data/habits'] ? 'ready' : 'NOT loaded',
+      habitLogs: syncGate['/api/data/habit-logs'] ? 'ready' : 'NOT loaded',
       reminders: syncGate['/api/data/reminders'] ? 'ready' : 'NOT loaded',
       checklists: syncGate['/api/data/checklists'] ? 'ready' : 'NOT loaded',
       localNow: describeDataset('/api/data/projects', localStorage.getItem(LS_KEY_V2)),
@@ -1521,7 +1644,7 @@ export async function loadFromDatabase(): Promise<void> {
 
   // If any GET failed its gate is still closed — retry when we're back
   loadInProgress = false;
-  loadFailed = !syncGate['/api/data/projects'] || !syncGate['/api/data/habits'] ||
+  loadFailed = !syncGate['/api/data/projects'] || !syncGate['/api/data/habits'] || !syncGate['/api/data/habit-logs'] ||
     !syncGate['/api/data/reminders'] || !syncGate['/api/data/checklists'];
   if (loadFailed) hookHydrationRetry();
   notifySyncStatus();
@@ -1601,6 +1724,9 @@ export function readLegacyBlocksLS(): Block[] | null {
 
 export function writeProjectsLS(payload: ProjectsPayload): void {
   try {
+    // Every save keeps parents in step with their subtasks, whichever view made the change,
+    // and gives done tasks saved without a completion day (e.g. an import) the assumed one
+    payload = { ...payload, projects: payload.projects.map(p => ({ ...p, blocks: fillCompletedAt(syncParentsFromSubtasks(p.blocks ?? [])) })) };
     const prevRaw = localStorage.getItem(LS_KEY_V2);
     const prevCount = prevRaw ? countProjectBlocks(JSON.parse(prevRaw)) : 0;
     backupBeforeShrink('projects', prevRaw, prevCount, countProjectBlocks(payload));
@@ -1613,10 +1739,22 @@ export function writeProjectsLS(payload: ProjectsPayload): void {
 
 /* ===================== Filter helpers ===================== */
 
-/** Under "Due Date", a task without one is treated as due on its creation day. */
+/**
+ * The day a task sits on in Timeline, Calendar and the reports: a done task on the day it
+ * was completed, an open one on its due date. (Recurring tasks go by their occurrences.)
+ */
+export function taskCalendarDay(b: Pick<Block, 'checked' | 'completedAt' | 'deadline'>): string | undefined {
+  if (b.checked === true && isValidDateYYYYMMDD(b.completedAt)) return b.completedAt;
+  return isValidDateYYYYMMDD(b.deadline) ? b.deadline : undefined;
+}
+
+/**
+ * Under "Due Date", a task without one is treated as due on its creation day; a done task
+ * counts on the day it was completed (taskCalendarDay).
+ */
 export function getFilterDate(b: Block, sortBy: SortBy): string | undefined {
   if (sortBy === 'createdAt') return b.createdAt;
-  return isValidDateYYYYMMDD(b.deadline) ? b.deadline : b.createdAt;
+  return taskCalendarDay(b) ?? b.createdAt;
 }
 
 export function passesDateFilter(
@@ -1967,10 +2105,12 @@ function applyPatch(b: Block, patch: Partial<Block>): Block {
   }
 
   // Checking a task leaves its due date alone (it used to turn into the completion day,
-  // giving undated tasks a due date and moving overdue ones)
+  // giving undated tasks a due date and moving overdue ones) — the day it was done is
+  // recorded in completedAt instead; unchecking clears it
   if (typeof patch.checked === 'boolean') {
     return {
       ...b,
+      completedAt: patch.checked ? (b.checked === true && b.completedAt ? b.completedAt : todayYMD()) : undefined,
       ...patch,
       isHidden: false,
     };
@@ -2009,10 +2149,63 @@ function taskFamily(blocks: Block[], id: string): { descendants: Block[]; ancest
   return { descendants, ancestors };
 }
 
+/**
+ * The two subtask rules — a parent task depends on its subtasks (any depth — same
+ * sibling/indent rule as taskFamily):
+ *   1. it takes the latest due date among them (none dated → it keeps its own);
+ *   2. it's done exactly when all of them are (it can't be checked by hand — see updateBlock).
+ * A recurring parent is left alone: its date and done state are its occurrences.
+ */
+export function syncParentsFromSubtasks(blocks: Block[]): Block[] {
+  const groups = new Map<string, Block[]>();
+  for (const b of blocks) {
+    if (b.indent <= 0 || b.archived === true) continue;
+    const key = b.parentId ?? '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(b);
+  }
+  const patches = new Map<string, Partial<Block>>();
+  for (const tasks of groups.values()) {
+    tasks.sort((a, b) => a.order - b.order);
+    tasks.forEach((t, i) => {
+      if (isSectionBlock(t) || isRecurringTask(t)) return;
+      let max = '';
+      let lastDone = '';
+      let allDone = true;
+      let kids = 0;
+      for (let j = i + 1; j < tasks.length && tasks[j].indent > t.indent; j++) {
+        if (isSectionBlock(tasks[j])) continue;
+        kids++;
+        const d = tasks[j].deadline;
+        if (isValidDateYYYYMMDD(d) && d > max) max = d;
+        if (tasks[j].checked !== true) allDone = false;
+        const c = tasks[j].completedAt;
+        if (isValidDateYYYYMMDD(c) && c > lastDone) lastDone = c;
+      }
+      if (kids === 0) return;
+      const patch: Partial<Block> = {};
+      if (max && max !== t.deadline) patch.deadline = max;
+      // Like a hand check (applyPatch), a change of done state un-hides it. The parent was
+      // completed when its last subtask was
+      if (Boolean(t.checked) !== allDone) {
+        Object.assign(patch, { checked: allDone, isHidden: false, completedAt: allDone ? lastDone || todayYMD() : undefined });
+      }
+      if (Object.keys(patch).length) patches.set(t.id, patch);
+    });
+  }
+  if (patches.size === 0) return blocks;
+  return blocks.map(b => (patches.has(b.id) ? { ...b, ...patches.get(b.id) } : b));
+}
+
 /** Delete a task along with its subtasks (same sibling/indent rule as the check cascade). */
 export function removeTaskWithSubtasks(blocks: Block[], taskId: string): Block[] {
   const ids = new Set([taskId, ...taskFamily(blocks, taskId).descendants.map(d => d.id)]);
-  return blocks.filter(b => !ids.has(b.id));
+  return syncParentsFromSubtasks(blocks.filter(b => !ids.has(b.id)));
+}
+
+/** Does this task have (non-archived) subtasks? Such a parent is only completed through them. */
+export function hasSubtasks(blocks: Block[], id: string): boolean {
+  return taskFamily(blocks, id).descendants.length > 0;
 }
 
 export function updateBlock(
@@ -2020,31 +2213,20 @@ export function updateBlock(
   id: string,
   patch: Partial<Block>,
 ): Block[] {
-  let next = blocks.map(b => (b.id === id ? applyPatch(b, patch) : b));
-  if (typeof patch.checked !== 'boolean') return next;
-  // Completing a recurring task only closes its occurrence — the task itself stays open
+  // A parent can't be checked or unchecked by hand: its done state comes from its subtasks
+  // (a recurring parent still completes its occurrences by hand)
   const target = blocks.find(b => b.id === id);
-  if (patch.checked && target && isRecurringTask(target)) return next;
-
-  // Checking/unchecking a task does the same to all its subtasks
-  const checked = patch.checked;
-  const setChecked = (ids: Set<string>) => {
-    if (ids.size === 0) return;
-    next = next.map(b => (ids.has(b.id) ? applyPatch(b, { checked }) : b));
-  };
-  const { descendants, ancestors } = taskFamily(next, id);
-  setChecked(new Set(descendants.filter(d => Boolean(d.checked) !== checked).map(d => d.id)));
-
-  // …and walks up: a parent is done once all its subtasks are, and reopens when one isn't
-  for (const parent of ancestors) {
-    if (Boolean(parent.checked) === checked) break;
-    if (checked) {
-      const kids = taskFamily(next, parent.id).descendants;
-      if (!kids.every(k => k.checked === true)) break;
-    }
-    setChecked(new Set([parent.id]));
+  if (typeof patch.checked === 'boolean' && target && !isRecurringTask(target) && hasSubtasks(blocks, id)) {
+    const { checked: _ignored, ...rest } = patch;
+    void _ignored;
+    if (Object.keys(rest).length === 0) return blocks;
+    patch = rest;
   }
-  return next;
+  const next = blocks.map(b => (b.id === id ? applyPatch(b, patch) : b));
+  // A new date, check, nesting or archive can change a parent's due date or done state
+  // (a parent is done once all its subtasks are, and reopens when one isn't)
+  const touchesParents = ['deadline', 'indent', 'archived', 'checked'].some(k => k in patch);
+  return touchesParents ? syncParentsFromSubtasks(next) : next;
 }
 
 export function addTaskUnderList(
@@ -2248,32 +2430,90 @@ export function isValidTimeHHMM(s: unknown): s is string {
   return typeof s === 'string' && /^\d{2}:\d{2}$/.test(s);
 }
 
-export function isMondayLocal(): boolean {
-  return new Date().getDay() === 1;
-}
-
 /* ===================== Habits — normalization ===================== */
 
-function normalizeHabits(raw: unknown): HabitBlock[] {
+const HABIT_PERIODS: readonly HabitPeriod[] = ['day', 'week', 'month'];
+const HABIT_TIME_RANGES: readonly HabitTimeRange[] = ['anytime', 'morning', 'afternoon', 'evening'];
+
+function pickOne<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
+}
+
+function optText(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() !== '' ? v : undefined;
+}
+
+/** Any stored habit → a v2 Habit. v1 habits ({ text, checked, weekly }) come through
+ *  here too: "weekly" becomes a once-a-week goal (their check-ins are server-side logs). */
+function normalizeHabit(x: Record<string, unknown>): Habit {
+  const goal = x.goalValue;
+  const created = typeof x.createdAt === 'string' ? x.createdAt.slice(0, 10) : '';
+  return {
+    id:              typeof x.id === 'string' && x.id ? x.id : uid(),
+    text:            typeof x.text === 'string' ? x.text : '',
+    description:     optText(x.description),
+    emoji:           optText(x.emoji),
+    color:           optText(x.color),
+    group:           optText(x.group),
+    kind:            x.kind === 'quit' ? 'quit' : 'build',
+    goalPeriod:      pickOne(x.goalPeriod, HABIT_PERIODS, x.weekly === true ? 'week' : 'day'),
+    goalValue:       typeof goal === 'number' && Number.isFinite(goal) && goal >= 0 ? goal : 1,
+    goalUnit:        optText(x.goalUnit) ?? 'times',
+    taskDays:        parseRepeatDays(x.taskDays),
+    timeRange:       pickOne(x.timeRange, HABIT_TIME_RANGES, 'anytime'),
+    remindersOn:     Boolean(x.remindersOn),
+    reminderTimes:   Array.isArray(x.reminderTimes)
+      ? [...new Set((x.reminderTimes as unknown[]).filter(isValidTimeHHMM))].sort()
+      : [],
+    reminderMessage: optText(x.reminderMessage),
+    flag:            parseTaskFlag(x.flag),
+    memoOnComplete:  Boolean(x.memoOnComplete),
+    barAction:       x.barAction === 'add' ? 'add' : 'done',
+    chartType:       x.chartType === 'line' ? 'line' : 'bar',
+    startDate:       isValidDateYYYYMMDD(x.startDate) ? x.startDate
+      : isValidDateYYYYMMDD(created) ? created : todayYMD(),
+    endDate:         isValidDateYYYYMMDD(x.endDate) ? x.endDate : undefined,
+    archived:        Boolean(x.archived),
+    templateKey:     optText(x.templateKey),
+    createdAt:       optText(x.createdAt),
+  };
+}
+
+function normalizeHabits(raw: unknown): Habit[] {
   if (!Array.isArray(raw)) return [];
-  return (raw as Record<string, unknown>[]).map(x => ({
-    id:      typeof x?.id === 'string'      ? x.id      : uid(),
-    text:    typeof x?.text === 'string'    ? x.text    : '',
-    indent:  1 as const,
-    checked: Boolean(x?.checked),
-    weekly:  typeof x?.weekly === 'boolean' ? x.weekly  : false,
-  }));
+  return (raw as unknown[])
+    .filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null)
+    .map(normalizeHabit)
+    // v1 kept a blank placeholder row; v2 has none
+    .filter(h => h.text.trim() !== '');
 }
 
-export function makeDefaultHabit(): HabitBlock {
-  return { id: uid(), text: '', indent: 1, checked: false, weekly: false };
-}
-
-export function ensureOneHabit(habits: HabitBlock[]): HabitBlock[] {
-  return habits.length ? habits : [makeDefaultHabit()];
+/** A new habit with the defaults ("1 time a day, every day, from today"), plus `patch`. */
+export function makeHabit(patch: Partial<Habit> = {}): Habit {
+  return {
+    id: uid(),
+    text: '',
+    kind: 'build',
+    goalPeriod: 'day',
+    goalValue: 1,
+    goalUnit: 'times',
+    taskDays: [],
+    timeRange: 'anytime',
+    remindersOn: false,
+    reminderTimes: [],
+    memoOnComplete: false,
+    barAction: 'done',
+    chartType: 'bar',
+    startDate: todayYMD(),
+    archived: false,
+    createdAt: todayYMD(),
+    ...patch,
+  };
 }
 
 /* ===================== Habits — persistence ===================== */
+
+export const HABITS_EVENT = 'youtask_habits_updated';
 
 export function readHabitsLS(): HabitsPayload {
   try {
@@ -2281,9 +2521,8 @@ export function readHabitsLS(): HabitsPayload {
     if (!raw) return { habits: [] };
     const parsed = JSON.parse(raw);
     return {
-      habits:              normalizeHabits(parsed?.habits ?? parsed),
-      lastDailyResetYMD:   typeof parsed?.lastDailyResetYMD  === 'string' ? parsed.lastDailyResetYMD  : undefined,
-      lastWeeklyResetYMD:  typeof parsed?.lastWeeklyResetYMD === 'string' ? parsed.lastWeeklyResetYMD : undefined,
+      habits:        normalizeHabits(parsed?.habits ?? parsed),
+      checkInMethod: parsed?.checkInMethod === 'swipe' ? 'swipe' : 'tap',
     };
   } catch {
     return { habits: [] };
@@ -2296,75 +2535,216 @@ export function writeHabitsLS(payload: HabitsPayload): void {
     const prevCount = prevRaw ? (JSON.parse(prevRaw) as HabitsPayload).habits?.length ?? 0 : 0;
     backupBeforeShrink('habits', prevRaw, prevCount, payload.habits?.length ?? 0);
     localStorage.setItem(LS_KEY_HABITS, JSON.stringify(payload));
-    window.dispatchEvent(new Event('youtask_habits_updated'));
+    window.dispatchEvent(new Event(HABITS_EVENT));
     dbSyncHabits();
   } catch {}
 }
 
-/* ===================== Habits — resets ===================== */
-
-export function applyHabitResets(payload: HabitsPayload): HabitsPayload {
-  const today = todayYMD();
-  let habits      = payload.habits.map(h => ({ ...h }));
-  let lastDaily   = payload.lastDailyResetYMD;
-  let lastWeekly  = payload.lastWeeklyResetYMD;
-
-  if (lastDaily !== today) {
-    habits    = habits.map(h => h.weekly ? h : { ...h, checked: false });
-    lastDaily = today;
-  }
-  if (isMondayLocal() && lastWeekly !== today) {
-    habits     = habits.map(h => h.weekly ? { ...h, checked: false } : h);
-    lastWeekly = today;
-  }
-
-  return { habits, lastDailyResetYMD: lastDaily, lastWeeklyResetYMD: lastWeekly };
-}
-
-export function forceResetHabits(
-  habits: HabitBlock[],
-  meta: { lastDaily?: string; lastWeekly?: string },
-): HabitsPayload {
-  const today    = todayYMD();
-  let next       = habits.map(h => h.weekly ? h : { ...h, checked: false });
-  let lastWeekly = meta.lastWeekly;
-
-  if (isMondayLocal()) {
-    next       = next.map(h => h.weekly ? { ...h, checked: false } : h);
-    lastWeekly = today;
-  }
-
-  return { habits: next, lastDailyResetYMD: today, lastWeeklyResetYMD: lastWeekly };
-}
-
 /* ===================== Habits — mutations ===================== */
 
-export function insertHabitAfter(
-  habits: HabitBlock[],
-  afterId: string,
-): { habits: HabitBlock[]; newHabit: HabitBlock } {
-  const newHabit = makeDefaultHabit();
-  const i        = habits.findIndex(h => h.id === afterId);
-  const next     = habits.slice();
-  next.splice(i + 1, 0, newHabit);
-  return { habits: next, newHabit };
-}
-
-export function removeHabit(
-  habits: HabitBlock[],
-  id: string,
-): { habits: HabitBlock[]; focusId: string } {
-  if (habits.length === 1) {
-    const replacement = makeDefaultHabit();
-    return { habits: [replacement], focusId: replacement.id };
-  }
-  const idx  = habits.findIndex(h => h.id === id);
-  const next = habits.filter(h => h.id !== id);
-  return { habits: next, focusId: next[Math.max(0, idx - 1)]?.id ?? next[0].id };
-}
-
-export function updateHabit(habits: HabitBlock[], id: string, patch: Partial<HabitBlock>): HabitBlock[] {
+export function updateHabit(habits: Habit[], id: string, patch: Partial<Habit>): Habit[] {
   return habits.map(h => h.id === id ? { ...h, ...patch } : h);
+}
+
+/** Saves one habit: replaces it if it exists, else appends it. */
+export function upsertHabitLS(habit: Habit): void {
+  const payload = readHabitsLS();
+  const exists = payload.habits.some(h => h.id === habit.id);
+  writeHabitsLS({
+    ...payload,
+    habits: exists ? payload.habits.map(h => h.id === habit.id ? habit : h) : [...payload.habits, habit],
+  });
+}
+
+/** Deletes habits for good, history included (the server drops the logs with the habit). */
+export function deleteHabitsLS(ids: string[]): void {
+  const drop = new Set(ids);
+  const payload = readHabitsLS();
+  writeHabitsLS({ ...payload, habits: payload.habits.filter(h => !drop.has(h.id)) });
+  const { logs } = readHabitLogsLS();
+  const kept = logs.filter(l => !drop.has(l.habitId));
+  if (kept.length !== logs.length) writeHabitLogsLocal(kept);
+  const ops = readHabitLogOps();
+  for (const k of Object.keys(ops)) if (drop.has(k.slice(0, k.indexOf('|')))) delete ops[k];
+  writeHabitLogOps(ops);
+}
+
+export function setCheckInMethodLS(method: HabitCheckInMethod): void {
+  writeHabitsLS({ ...readHabitsLS(), checkInMethod: method });
+}
+
+/* ===================== Habit logs =====================
+ * One entry per habit per day, stored as a list. History only grows, so unlike
+ * the other datasets it isn't re-uploaded whole: every change is also queued in
+ * LS_KEY_HABIT_LOGS_PENDING (habitId|date → log, or null = cleared), and the
+ * habit-logs lane uploads just that queue. Hydration replays the queue over the
+ * server's logs, so changes made before the load (or offline) aren't lost. */
+
+export const HABIT_LOGS_EVENT = 'youtask_habit_logs_updated';
+
+type HabitLogOps = Record<string, HabitLog | null>;
+
+const habitLogKey = (habitId: string, date: string) => `${habitId}|${date}`;
+
+function normalizeHabitLog(x: unknown): HabitLog | null {
+  if (typeof x !== 'object' || x === null) return null;
+  const r = x as Record<string, unknown>;
+  if (typeof r.habitId !== 'string' || !r.habitId || !isValidDateYYYYMMDD(r.date)) return null;
+  const value = typeof r.value === 'number' && Number.isFinite(r.value) && r.value >= 0 ? r.value : 0;
+  return {
+    habitId: r.habitId,
+    date: r.date,
+    value,
+    ...(r.skipped === true ? { skipped: true } : {}),
+    ...(typeof r.memo === 'string' && r.memo.trim() !== '' ? { memo: r.memo } : {}),
+  };
+}
+
+function normalizeHabitLogs(raw: unknown): HabitLog[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(normalizeHabitLog).filter((l): l is HabitLog => l !== null);
+}
+
+/** A log with nothing in it is the same as no log. */
+function isEmptyHabitLog(l: HabitLog): boolean {
+  return l.value === 0 && !l.skipped && !l.memo;
+}
+
+export function readHabitLogsLS(): HabitLogsPayload {
+  try {
+    const raw = localStorage.getItem(LS_KEY_HABIT_LOGS);
+    return { logs: raw ? normalizeHabitLogs(JSON.parse(raw)?.logs) : [] };
+  } catch {
+    return { logs: [] };
+  }
+}
+
+/** Writes the logs on this device only (no upload). */
+function writeHabitLogsLocal(logs: HabitLog[]): void {
+  try {
+    localStorage.setItem(LS_KEY_HABIT_LOGS, JSON.stringify({ logs } satisfies HabitLogsPayload));
+    window.dispatchEvent(new Event(HABIT_LOGS_EVENT));
+  } catch {}
+}
+
+function readHabitLogOps(): HabitLogOps {
+  try {
+    const raw = localStorage.getItem(LS_KEY_HABIT_LOGS_PENDING);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed as HabitLogOps : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeHabitLogOps(ops: HabitLogOps): void {
+  try {
+    if (Object.keys(ops).length === 0) localStorage.removeItem(LS_KEY_HABIT_LOGS_PENDING);
+    else localStorage.setItem(LS_KEY_HABIT_LOGS_PENDING, JSON.stringify(ops));
+  } catch {}
+}
+
+/** The pending queue as an upload body, or null when nothing is pending. */
+function habitLogOpsBody(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const ops = JSON.parse(raw) as HabitLogOps;
+    const upserts: HabitLog[] = [];
+    const deletes: { habitId: string; date: string }[] = [];
+    for (const [key, log] of Object.entries(ops)) {
+      if (log) upserts.push(log);
+      else {
+        const cut = key.indexOf('|');
+        deletes.push({ habitId: key.slice(0, cut), date: key.slice(cut + 1) });
+      }
+    }
+    return upserts.length || deletes.length ? JSON.stringify({ upserts, deletes }) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** After an upload: forget the queued changes it carried — unless they changed again meanwhile. */
+function dropConfirmedHabitLogOps(sentBody: string): void {
+  try {
+    const sent = JSON.parse(sentBody) as { upserts: HabitLog[]; deletes: { habitId: string; date: string }[] };
+    const ops = readHabitLogOps();
+    for (const l of sent.upserts) {
+      const k = habitLogKey(l.habitId, l.date);
+      if (ops[k] && JSON.stringify(ops[k]) === JSON.stringify(l)) delete ops[k];
+    }
+    for (const d of sent.deletes) {
+      const k = habitLogKey(d.habitId, d.date);
+      if (ops[k] === null) delete ops[k];
+    }
+    writeHabitLogOps(ops);
+  } catch {}
+}
+
+/** Server logs + this device's unconfirmed changes on top. A server with no logs at
+ *  all next to a device that has some (local mode → database) gets them all queued. */
+function hydrateHabitLogs(serverLogs: HabitLog[]): void {
+  const ops = readHabitLogOps();
+  if (serverLogs.length === 0) {
+    for (const l of readHabitLogsLS().logs) {
+      const k = habitLogKey(l.habitId, l.date);
+      if (!(k in ops)) ops[k] = l;
+    }
+    writeHabitLogOps(ops);
+  }
+  const byKey = new Map(serverLogs.map(l => [habitLogKey(l.habitId, l.date), l]));
+  for (const [k, log] of Object.entries(ops)) {
+    if (log) byKey.set(k, log);
+    else byKey.delete(k);
+  }
+  writeHabitLogsLocal([...byKey.values()]);
+}
+
+/** Empties the logs and their upload queue on this device (after the server dropped them). */
+function clearHabitLogsLocal(): void {
+  writeHabitLogOps({});
+  writeHabitLogsLocal([]);
+}
+
+/** Puts logs (e.g. from a backup) over what's here, each queued for upload. */
+function mergeHabitLogsLS(incoming: HabitLog[]): void {
+  const byKey = new Map(readHabitLogsLS().logs.map(l => [habitLogKey(l.habitId, l.date), l]));
+  const ops = readHabitLogOps();
+  for (const raw of incoming) {
+    const l = normalizeHabitLog(raw);
+    if (!l) continue;
+    const k = habitLogKey(l.habitId, l.date);
+    byKey.set(k, l);
+    if (isDatabaseMode()) ops[k] = l;
+  }
+  writeHabitLogsLocal([...byKey.values()]);
+  writeHabitLogOps(ops);
+  dbSyncHabitLogs();
+}
+
+export function getHabitLog(logs: HabitLog[], habitId: string, date: string): HabitLog | undefined {
+  return logs.find(l => l.habitId === habitId && l.date === date);
+}
+
+/**
+ * Sets (or, once it holds nothing, clears) one habit's day and queues it for upload.
+ * `patch` merges into what's logged that day: setHabitLogLS(id, ymd, { value: 3 }).
+ */
+export function setHabitLogLS(habitId: string, date: string, patch: Partial<Omit<HabitLog, 'habitId' | 'date'>>): void {
+  const { logs } = readHabitLogsLS();
+  const prev = getHabitLog(logs, habitId, date);
+  const next = normalizeHabitLog({ ...(prev ?? { value: 0 }), ...patch, habitId, date });
+  if (!next) return;
+  const empty = isEmptyHabitLog(next);
+  const rest = logs.filter(l => l !== prev);
+  writeHabitLogsLocal(empty ? rest : [...rest, next]);
+
+  if (isDatabaseMode()) {
+    const ops = readHabitLogOps();
+    ops[habitLogKey(habitId, date)] = empty ? null : next;
+    writeHabitLogOps(ops);
+    dbSyncHabitLogs();
+  }
 }
 
 /* ===================== Reminders — normalization ===================== */
@@ -3140,11 +3520,31 @@ export function aipatchtask(
 
 function normalizeChecklistItems(raw: unknown): ChecklistItem[] {
   if (!Array.isArray(raw)) return [];
-  return (raw as Record<string, unknown>[]).map(x => ({
-    id:      typeof x?.id === 'string'   ? x.id   : uid(),
-    text:    typeof x?.text === 'string' ? x.text : '',
-    checked: Boolean(x?.checked),
-  }));
+  let prevIndent = 0;
+  return (raw as Record<string, unknown>[]).map(x => {
+    // Never more than one level under the item above it
+    const want = Number.isInteger(x?.indent) ? Number(x.indent) : 1;
+    const indent = Math.max(1, Math.min(want, prevIndent + 1, CHECKLIST_MAX_INDENT));
+    prevIndent = indent;
+    return {
+      id:      typeof x?.id === 'string'   ? x.id   : uid(),
+      text:    typeof x?.text === 'string' ? x.text : '',
+      checked: Boolean(x?.checked),
+      ...(indent > 1 ? { indent } : {}),
+    };
+  });
+}
+
+export function checklistIndent(item: Pick<ChecklistItem, 'indent'>): number {
+  return item.indent && item.indent > 1 ? item.indent : 1;
+}
+
+/** Index just past an item's sub-items (same rule as tasks: the deeper rows right below it). */
+export function checklistSubtreeEnd(items: ChecklistItem[], index: number): number {
+  const depth = checklistIndent(items[index]);
+  let end = index + 1;
+  while (end < items.length && checklistIndent(items[end]) > depth) end++;
+  return end;
 }
 
 function normalizeChecklists(raw: unknown): Checklist[] {
@@ -3160,7 +3560,7 @@ export function makeDefaultChecklistItem(): ChecklistItem {
   return { id: uid(), text: '', checked: false };
 }
 
-export function makeDefaultChecklist(name = 'New list'): Checklist {
+export function makeDefaultChecklist(name = 'New checklist'): Checklist {
   return { id: uid(), name, items: [] };
 }
 
@@ -3196,13 +3596,17 @@ export function writeChecklistsLS(payload: ChecklistsPayload): void {
 
 /* ===================== Checklists — list-level mutations ===================== */
 
+/** New checklist at the end, or right after `afterId` (the hover "Checklist…" under a list). */
 export function addChecklist(
   lists: Checklist[],
   name?: string,
+  afterId?: string,
 ): { lists: Checklist[]; newList: Checklist } {
-  const fallback = `List ${lists.length + 1}`;
+  const fallback = `Checklist ${lists.length + 1}`;
   const newList  = makeDefaultChecklist((name ?? '').trim() || fallback);
-  return { lists: [...lists, newList], newList };
+  const i = afterId ? lists.findIndex(l => l.id === afterId) : -1;
+  const next = i < 0 ? [...lists, newList] : [...lists.slice(0, i + 1), newList, ...lists.slice(i + 1)];
+  return { lists: next, newList };
 }
 
 export function removeChecklist(
@@ -3221,6 +3625,11 @@ export function emptyChecklist(lists: Checklist[], id: string): Checklist[] {
 
 export function renameChecklist(lists: Checklist[], id: string, name: string): Checklist[] {
   return lists.map(l => l.id === id ? { ...l, name } : l);
+}
+
+/** Drag a list to another spot; the array order is what the server stores as `position`. */
+export function moveChecklist(lists: Checklist[], fromIndex: number, toIndex: number): Checklist[] {
+  return arrayMove(lists, fromIndex, toIndex);
 }
 
 export function updateChecklist(
@@ -3245,62 +3654,133 @@ export function addChecklistItem(
   return { lists: next, newItem: found ? newItem : null };
 }
 
+/**
+ * New item right after `afterItemId`.
+ * - `asFirstSubItem`: one level deeper, as its first sub-item.
+ * - otherwise a sibling at the same depth, placed after the item's sub-items (they stay its own).
+ */
 export function insertChecklistItemAfter(
   lists: Checklist[],
   listId: string,
   afterItemId: string,
+  asFirstSubItem = false,
 ): { lists: Checklist[]; newItem: ChecklistItem | null } {
-  const newItem = makeDefaultChecklistItem();
-  let inserted = false;
+  let newItem: ChecklistItem | null = null;
   const next = lists.map(l => {
     if (l.id !== listId) return l;
     const i = l.items.findIndex(it => it.id === afterItemId);
     const items = l.items.slice();
-    items.splice(i < 0 ? items.length : i + 1, 0, newItem);
-    inserted = true;
+    if (i < 0) {
+      newItem = makeDefaultChecklistItem();
+      items.push(newItem);
+      return { ...l, items };
+    }
+    const depth = checklistIndent(l.items[i]) + (asFirstSubItem ? 1 : 0);
+    newItem = { ...makeDefaultChecklistItem(), ...(depth > 1 ? { indent: Math.min(depth, CHECKLIST_MAX_INDENT) } : {}) };
+    items.splice(asFirstSubItem ? i + 1 : checklistSubtreeEnd(l.items, i), 0, newItem);
     return { ...l, items };
   });
-  return { lists: next, newItem: inserted ? newItem : null };
+  return { lists: next, newItem };
 }
 
+/** Removes an item; `withSubItems` takes its sub-items too (otherwise they stay, under the item above). */
 export function removeChecklistItem(
   lists: Checklist[],
   listId: string,
   itemId: string,
+  withSubItems = false,
 ): { lists: Checklist[]; focusId: string | null } {
   let focusId: string | null = null;
   const next = lists.map(l => {
     if (l.id !== listId) return l;
-    const idx  = l.items.findIndex(it => it.id === itemId);
-    const items = l.items.filter(it => it.id !== itemId);
+    const idx = l.items.findIndex(it => it.id === itemId);
+    if (idx < 0) return l;
+    const end = withSubItems ? checklistSubtreeEnd(l.items, idx) : idx + 1;
+    const items = normalizeChecklistItems([...l.items.slice(0, idx), ...l.items.slice(end)]);
     focusId = items[Math.max(0, idx - 1)]?.id ?? items[0]?.id ?? null;
     return { ...l, items };
   });
   return { lists: next, focusId };
 }
 
+/**
+ * Patches an item. A check cascades like tasks: down to all its sub-items, and up — a parent
+ * is done once all its sub-items are, and reopens when one isn't.
+ */
 export function updateChecklistItem(
   lists: Checklist[],
   listId: string,
   itemId: string,
   patch: Partial<ChecklistItem>,
 ): Checklist[] {
-  return lists.map(l =>
-    l.id === listId
-      ? { ...l, items: l.items.map(it => it.id === itemId ? { ...it, ...patch } : it) }
-      : l,
-  );
+  return lists.map(l => {
+    if (l.id !== listId) return l;
+    const items = l.items.map(it => it.id === itemId ? { ...it, ...patch } : it);
+    const i = items.findIndex(it => it.id === itemId);
+    if (i < 0 || typeof patch.checked !== 'boolean') return { ...l, items };
+
+    const checked = patch.checked;
+    for (let j = i + 1; j < checklistSubtreeEnd(items, i); j++) items[j] = { ...items[j], checked };
+
+    let level = checklistIndent(items[i]);
+    for (let p = i - 1; p >= 0 && level > 1; p--) {
+      const depth = checklistIndent(items[p]);
+      if (depth >= level) continue;
+      level = depth;
+      const kids = items.slice(p + 1, checklistSubtreeEnd(items, p));
+      const parentChecked = kids.every(k => k.checked);
+      if (items[p].checked === parentChecked) break;
+      items[p] = { ...items[p], checked: parentChecked };
+    }
+    return { ...l, items };
+  });
 }
 
+/** Tab / Shift+Tab: one level deeper (at most one under the item above it) or shallower. Sub-items move along. */
+export function indentChecklistItem(
+  lists: Checklist[],
+  listId: string,
+  itemId: string,
+  delta: 1 | -1,
+): Checklist[] {
+  return lists.map(l => {
+    if (l.id !== listId) return l;
+    const i = l.items.findIndex(it => it.id === itemId);
+    if (i < 0) return l;
+    const depth = checklistIndent(l.items[i]);
+    const max = i > 0 ? Math.min(CHECKLIST_MAX_INDENT, checklistIndent(l.items[i - 1]) + 1) : 1;
+    const target = Math.max(1, Math.min(depth + delta, max));
+    if (target === depth) return l;
+    const end = checklistSubtreeEnd(l.items, i);
+    const items = l.items.map((it, j) =>
+      j >= i && j < end ? { ...it, indent: Math.min(CHECKLIST_MAX_INDENT, checklistIndent(it) + target - depth) } : it,
+    );
+    return { ...l, items: normalizeChecklistItems(items) };
+  });
+}
+
+/** Drag: moves an item with its sub-items onto `toIndex` (no-op when dropped inside itself). */
 export function moveChecklistItem(
   lists: Checklist[],
   listId: string,
   fromIndex: number,
   toIndex: number,
 ): Checklist[] {
-  return lists.map(l =>
-    l.id === listId ? { ...l, items: arrayMove(l.items, fromIndex, toIndex) } : l,
-  );
+  return lists.map(l => {
+    if (l.id !== listId) return l;
+    const end = checklistSubtreeEnd(l.items, fromIndex);
+    if (toIndex >= fromIndex && toIndex < end) return l;
+    const unit = l.items.slice(fromIndex, end);
+    const rest = [...l.items.slice(0, fromIndex), ...l.items.slice(end)];
+    // Dropping lower lands after the target (and its sub-items), higher lands before it
+    const target = l.items[toIndex];
+    const at = rest.indexOf(target);
+    const insertAt = toIndex > fromIndex ? checklistSubtreeEnd(rest, at) : at;
+    // The unit takes the target's depth; normalizing keeps it at most one under the row above
+    const shift = checklistIndent(target) - checklistIndent(unit[0]);
+    const moved = unit.map(it => ({ ...it, indent: checklistIndent(it) + shift }));
+    return { ...l, items: normalizeChecklistItems([...rest.slice(0, insertAt), ...moved, ...rest.slice(insertAt)]) };
+  });
 }
 
 /* ===================== Danger zone — delete all data ===================== */
@@ -3322,7 +3802,8 @@ export async function deleteAllData(): Promise<{ ok: true } | { ok: false; messa
       clearLocal: () => writeProjectsLS({ projects: fresh, selectedProjectId: fresh[0].project_id }) },
     { label: 'habits', path: '/api/data/habits' as SyncPath,
       body: { habits: [] } as HabitsPayload,
-      clearLocal: () => writeHabitsLS({ ...readHabitsLS(), habits: [] }) },
+      // The server drops every habit log along with the habits
+      clearLocal: () => { writeHabitsLS({ ...readHabitsLS(), habits: [] }); clearHabitLogsLocal(); } },
     { label: 'reminders', path: '/api/data/reminders' as SyncPath,
       body: { reminders: [] } as RemindersPayload,
       clearLocal: () => writeRemindersLS({ reminders: [] }) },
@@ -3364,6 +3845,8 @@ export type BackupData = {
   exportedAt: string;
   projects: ProjectsPayload;
   habits: HabitsPayload;
+  /** Since habits v2; older backups have none */
+  habitLogs?: HabitLogsPayload;
   reminders: RemindersPayload;
   checklists: ChecklistsPayload;
 };
@@ -3376,6 +3859,7 @@ export function exportAllData(): BackupData {
     exportedAt: new Date().toISOString(),
     projects: readProjectsLS() ?? { projects: [makePersonalProject()] },
     habits: readHabitsLS(),
+    habitLogs: readHabitLogsLS(),
     reminders: readRemindersLS(),
     checklists: readChecklistsLS(),
   };
@@ -3435,12 +3919,21 @@ export function importAllData(raw: unknown, mode: ImportMode): void {
   }
 
   if (Array.isArray(data.habits?.habits)) {
+    const backupLogs = normalizeHabitLogs(data.habitLogs?.logs);
     if (mode === 'override') {
-      writeHabitsLS(data.habits!);
+      writeHabitsLS({ habits: normalizeHabits(data.habits!.habits), checkInMethod: readHabitsLS().checkInMethod });
+      mergeHabitLogsLS(backupLogs);
     } else {
+      // Merged habits get new ids — their history follows them
       const current = readHabitsLS();
-      const incoming = data.habits!.habits.map(h => ({ ...h, id: uid() }));
+      const newIds = new Map<string, string>();
+      const incoming = normalizeHabits(data.habits!.habits).map(h => {
+        const id = uid();
+        newIds.set(h.id, id);
+        return { ...h, id };
+      });
       writeHabitsLS({ ...current, habits: [...current.habits, ...incoming] });
+      mergeHabitLogsLS(backupLogs.flatMap(l => newIds.has(l.habitId) ? [{ ...l, habitId: newIds.get(l.habitId)! }] : []));
     }
   }
 

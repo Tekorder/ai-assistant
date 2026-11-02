@@ -136,7 +136,7 @@ export function TaskRowMenu({
             className="grid h-6 w-6 place-items-center rounded-md transition-colors hover:bg-[var(--assistant-hover-bg)]"
             style={flag === c ? { boxShadow: 'inset 0 0 0 1px var(--assistant-accent)' } : undefined}
           >
-            <TaskFlagIcon color={c} className="h-3.5 w-3.5" glow={false} />
+            <TaskFlagIcon color={c} className="h-3.5 w-3.5" />
           </button>
         ))}
       </div>
